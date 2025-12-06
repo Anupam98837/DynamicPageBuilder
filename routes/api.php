@@ -34,7 +34,7 @@ Route::middleware(['throttle:10,1'])->group(function () {
 
 // User Routes 
 
-Route::middleware(['checkRole:director,principal,hod'])->prefix('users')->group(function () {
+Route::middleware(['checkRole:admin,director,principal,hod'])->prefix('users')->group(function () {
     Route::get('/',              [UserController::class, 'index']);
     Route::post('/',             [UserController::class, 'store']);
     Route::get('/me',            [UserController::class, 'me']);
@@ -49,7 +49,7 @@ Route::middleware(['checkRole:director,principal,hod'])->prefix('users')->group(
 
 // Routes By Sampriti(From W3T)
 
-Route::middleware('checkRole:director,principal,hod,admin,super_admin')->group(function () {
+Route::middleware('checkRole:admin,director,principal,hod,admin,super_admin')->group(function () {
     // -----------------------
     // Modules (list / create)
     // -----------------------

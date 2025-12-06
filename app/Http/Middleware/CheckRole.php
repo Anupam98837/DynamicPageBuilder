@@ -135,6 +135,7 @@ class CheckRole
     private function aliasToCanonical(string $norm): string
     {
         $map = [
+            'admin'     => 'admin',
             // director
             'dir'       => 'director',
             'director'  => 'director',

@@ -22,6 +22,7 @@ class UserController extends Controller
      * director, principal, hod, faculty, technical_assistant, it_person, student
      */
     private const ALLOWED_ROLES = [
+        'admin',
         'director',
         'principal',
         'hod',
@@ -32,6 +33,7 @@ class UserController extends Controller
     ];
 
     private const ROLE_SHORT_MAP = [
+        'admin'               => 'adm',
         'director'            => 'DIR',
         'principal'           => 'PRI',
         'hod'                 => 'HOD',
@@ -373,16 +375,6 @@ class UserController extends Controller
      */
     public function index(Request $request)
     {
-        if ($resp = $this->requireRole($request, [
-            'director',
-            'principal',
-            'hod',
-            'technical_assistant',
-            'it_person',
-        ])) {
-            return $resp;
-        }
-
         $search = trim((string) $request->query('q', ''));
         $role   = $request->query('role');
 
@@ -420,13 +412,6 @@ class UserController extends Controller
      */
     public function store(Request $request)
     {
-        if ($resp = $this->requireRole($request, [
-            'director',
-            'principal',
-            'it_person',
-        ])) {
-            return $resp;
-        }
 
         $v = Validator::make($request->all(), [
             'name'                      => ['required', 'string', 'max:190'],
