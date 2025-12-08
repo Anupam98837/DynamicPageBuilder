@@ -15,10 +15,17 @@ return new class extends Migration
             // Primary Key
             $table->bigIncrements('id');
 
+            /**
+             * Self FK: parent_id
+             * - NULL  => this module is a root/parent node
+             * - value => this module is a child of another module (modules.id)
+             */
+            $table->unsignedBigInteger('parent_id')->nullable();
+
             // UUID (UNIQUE)
             $table->char('uuid', 36)->unique();
 
-            // Name (UNIQUE)
+            // Name (UNIQUE globally; you can change to unique per parent if needed)
             $table->string('name', 150)->unique();
 
             // Href (required, no default)
@@ -43,14 +50,25 @@ return new class extends Migration
             // Soft delete timestamp
             $table->timestamp('deleted_at')->nullable();
 
-            // Index only where needed
+            // Indexes
             $table->index('created_by');
+            $table->index('parent_id');
 
             // Foreign key: created_by -> users.id
             $table->foreign('created_by')
                   ->references('id')
                   ->on('users')
                   ->nullOnDelete();
+
+            // Self foreign key: parent_id -> modules.id
+            $table->foreign('parent_id')
+                  ->references('id')
+                  ->on('modules')
+                  ->nullOnDelete();
+            /**
+             * If you want to delete children when parent is deleted instead:
+             * ->cascadeOnDelete();
+             */
         });
     }
 
@@ -59,6 +77,16 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::table('modules', function (Blueprint $table) {
+            // Drop FKs first to avoid constraint errors
+            if (Schema::hasColumn('modules', 'parent_id')) {
+                $table->dropForeign(['parent_id']);
+            }
+            if (Schema::hasColumn('modules', 'created_by')) {
+                $table->dropForeign(['created_by']);
+            }
+        });
+
         Schema::dropIfExists('modules');
     }
 };

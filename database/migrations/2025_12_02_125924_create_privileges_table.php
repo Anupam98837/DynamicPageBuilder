@@ -12,52 +12,80 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('privileges', function (Blueprint $table) {
-            // Primary Key
-            $table->bigIncrements('id');
+            /* =========================
+             * Primary / Identifiers
+             * ========================= */
+            $table->bigIncrements('id');                 // PK
+            $table->char('uuid', 36)->unique();          // external UUID
 
-            // UUID (UNIQUE)
-            $table->char('uuid', 36)->unique();
+            // Global privilege code (for backend checks)
+            // e.g. 'fees.collection.collect', 'scholarship.assign'
+            $table->string('key', 120)->unique();
 
-            // Foreign key to modules
-            $table->unsignedBigInteger('module_id');
+            /* =========================
+             *  Relationships
+             * ========================= */
+            $table->unsignedBigInteger('module_id');     // FK -> modules(id)
 
-            // Action (indexed, not unique)
-            $table->string('action', 50);
+            /* =========================
+             *  Core Privilege Fields
+             * ========================= */
+            // Short action name (used by your existing code)
+            // e.g. 'Collect Fees', 'Assign Scholarship'
+            $table->string('action', 80);
 
-            // Optional description
+            // Optional description for UI / tooltips
             $table->text('description')->nullable();
 
-            // Optional order number
+            // Order inside the module privilege list
             $table->unsignedInteger('order_no')->nullable();
 
-            // Status with default 'Active'
+            // 'Active', 'Inactive', 'Archived', etc.
             $table->string('status', 20)->default('Active');
 
-            // Timestamps with proper defaults
+            /* =========================
+             *  Assigned APIs (NEW)
+             * ========================= */
+            // JSON array of route names or URIs this privilege protects.
+            // Example:
+            // ["api.fees.collect.index","api.fees.collect.store"]
+            $table->json('assigned_apis')->nullable();
+
+            // Extra flexible JSON for future flags (category, level, etc.)
+            // Example: {"category":"write","danger_level":"high"}
+            $table->json('meta')->nullable();
+
+            /* =========================
+             *  Audit / Timestamps
+             * ========================= */
             $table->timestamp('created_at')->useCurrent();
             $table->timestamp('updated_at')
                   ->useCurrent()
                   ->useCurrentOnUpdate();
 
-            // Audit fields
             $table->unsignedBigInteger('created_by')->nullable();
             $table->string('created_at_ip', 45)->nullable();
 
-            // Soft delete timestamp
+            // Soft delete
             $table->timestamp('deleted_at')->nullable();
 
-            // Indexes
+            /* =========================
+             *  Indexes & Constraints
+             * ========================= */
             $table->index('module_id');
             $table->index('action');
+            $table->index('status');
             $table->index('created_by');
 
-            // Foreign key: module_id -> modules.id
+            // Prevent duplicate actions inside the same module
+            $table->unique(['module_id', 'action'], 'privileges_module_action_unique');
+
+            // FKs
             $table->foreign('module_id')
                   ->references('id')
                   ->on('modules')
                   ->cascadeOnDelete();
 
-            // Foreign key: created_by -> users.id
             $table->foreign('created_by')
                   ->references('id')
                   ->on('users')

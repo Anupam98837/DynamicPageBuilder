@@ -117,9 +117,10 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
 
 /* Privilege specific helpers */
 .priv-rows .row { gap: .5rem; align-items: center; margin-bottom: .5rem; }
-.priv-rows .col-action { flex: 1 1 40%; }
-.priv-rows .col-desc   { flex: 1 1 40%; }
-.priv-rows .col-module { flex: 1 1 20%; }
+.priv-rows .col-action { flex: 1 1 25%; }
+.priv-rows .col-api    { flex: 1 1 35%; }
+.priv-rows .col-module { flex: 1 1 15%; }
+.priv-rows .col-desc   { flex: 1 1 25%; }
 .priv-rows .col-remove { flex: 0 0 48px; text-align: right; }
 
 /* ===== ACTIVE TAB ACCORDION VIEW ===== */
@@ -246,7 +247,6 @@ html.theme-dark .priv-accordion .list-group-item{
         </div>
 
         <div class="col-12 col-xxl-auto ms-xxl-auto d-flex justify-content-xxl-end gap-2">
-          {{-- Reorder now mainly relevant for archived/bin tables, but keep button to avoid breaking UX --}}
           <button id="btnReorder" class="btn btn-light"><i class="fa fa-up-down-left-right me-1"></i>Reorder</button>
           <button id="btnCreatePriv" class="btn btn-primary"><i class="fa fa-plus me-1"></i>New Privilege</button>
           <button id="btnBulkPriv" class="btn btn-light" style="display:none"><i class="fa fa-plus-square me-1"></i>Bulk Edit</button>
@@ -303,7 +303,7 @@ html.theme-dark .priv-accordion .list-group-item{
             <table class="table table-hover table-borderless align-middle mb-0">
               <thead class="sticky-top">
                 <tr>
-                  <th>ACTION</th>
+                  <th>ACTION & API</th>
                   <th style="width:18%;">MODULE</th>
                   <th style="width:28%;">DESCRIPTION</th>
                   <th style="width:170px;">CREATED</th>
@@ -346,7 +346,7 @@ html.theme-dark .priv-accordion .list-group-item{
             <table class="table table-hover table-borderless align-middle mb-0">
               <thead class="sticky-top">
                 <tr>
-                  <th>ACTION</th>
+                  <th>ACTION & API</th>
                   <th style="width:18%;">MODULE</th>
                   <th style="width:28%;">DESCRIPTION</th>
                   <th style="width:140px;">DELETED AT</th>
@@ -420,12 +420,32 @@ html.theme-dark .priv-accordion .list-group-item{
             <textarea id="pv_description" class="form-control" rows="3" placeholder="Optional description"></textarea>
           </div>
 
+          <div class="col-md-8">
+            <label class="form-label">API Endpoint / Route <span class="text-danger">*</span></label>
+            <input id="pv_api" class="form-control" maxlength="255" placeholder="e.g. GET /api/users or users.index">
+            <div class="form-text small text-muted">
+              Use an API URL pattern or route name that this privilege controls.
+            </div>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">HTTP Method</label>
+            <select id="pv_method" class="form-select">
+              <option value="">Any</option>
+              <option value="GET">GET</option>
+              <option value="POST">POST</option>
+              <option value="PUT">PUT</option>
+              <option value="PATCH">PATCH</option>
+              <option value="DELETE">DELETE</option>
+            </select>
+          </div>
+
           <div class="col-md-4">
             <label class="form-label">Status</label>
             <select id="pv_status" class="form-select">
-              <option value="Active" selected>Active</option>
-              <option value="Draft">Draft</option>
-              <option value="Archived">Archived</option>
+              <option value="active" selected>Active</option>
+              <option value="draft">Draft</option>
+              <option value="archived">Archived</option>
             </select>
           </div>
 
@@ -440,7 +460,7 @@ html.theme-dark .priv-accordion .list-group-item{
   </div>
 </div>
 
-{{-- ===== Bulk Edit Modal (unchanged) ===== --}}
+{{-- ===== Bulk Edit Modal ===== --}}
 <div class="modal fade" id="privBulkModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-scrollable">
     <div class="modal-content">
@@ -575,6 +595,8 @@ document.addEventListener('click',(e)=>{
     actionSelect: document.getElementById('pv_action_select'),
     actionOther: document.getElementById('pv_action_other'),
     description: document.getElementById('pv_description'),
+    api: document.getElementById('pv_api'),
+    method: document.getElementById('pv_method'),
     status: document.getElementById('pv_status'),
     save: document.getElementById('pv_save')
   };
@@ -616,7 +638,6 @@ document.addEventListener('click',(e)=>{
   const showLoader=(which, v)=>{ show(qs(tabs[which].loader), v); };
 
   function syncSortHeaders(){
-    // Now sortHint only; table header sort arrows are irrelevant for accordion
     sortHint.textContent =
       (sort==="-created_at") ? "Newest first"
       : (sort==="created_at" ? "Oldest first" : ("Sorted by "+sort.replace('-','')));
@@ -634,6 +655,7 @@ document.addEventListener('click',(e)=>{
       if(q && q.value.trim()) usp.set('q', q.value.trim());
     } else if(scope==='archived'){
       usp.set('sort','-created_at');
+      usp.set('status','archived');
     } else {
       usp.set('sort','-created_at');
     }
@@ -650,13 +672,10 @@ document.addEventListener('click',(e)=>{
     return '/api/privileges?' + baseParams(scope);
   }
 
-  /* === Row HTML for archived / bin (table) === */
   function actionMenu(scope, r){
     const key = r.uuid || r.id;
-    const moduleVal = (r.module_uuid || r.module_id || r.module) || '';
 
     if(scope==='archived'){
-      // simple buttons row (no 3-dot in main view, but keep dropdown here if you like)
       return `
       <div class="d-flex justify-content-end gap-1">
         <button class="btn btn-light btn-sm" data-act="unarchive" data-key="${key}" data-action="${esc(r.action||'')}">
@@ -680,7 +699,7 @@ document.addEventListener('click',(e)=>{
       </div>`;
     }
 
-    return ''; // active uses accordion, no table actions
+    return '';
   }
 
   function rowHTML(scope, r){
@@ -690,6 +709,10 @@ document.addEventListener('click',(e)=>{
     const delAt   = fmtDate(r.deleted_at);
     const isArchived = String(r.status||'').toLowerCase()==='archived';
     const isDeleted  = !!r.deleted_at;
+    const apiPattern = r.api_pattern || r.api || r.endpoint || '';
+    const apiLine = apiPattern
+      ? `<span class="d-block mt-1"><i class="fa fa-code me-1 opacity-75"></i>${esc(apiPattern)}</span>`
+      : '';
 
     if(isArchived && scope!=='bin') tr.classList.add('state-archived');
     if(isDeleted  || scope==='bin') tr.classList.add('state-deleted');
@@ -698,7 +721,10 @@ document.addEventListener('click',(e)=>{
       tr.innerHTML = `
       <td>
         <div class="fw-semibold">${esc(r.action || '-')}</div>
-        <div class="small text-muted">${esc((desc || '').slice(0,80))}${desc && desc.length>80 ? '…' : ''}</div>
+        <div class="small text-muted">
+          ${esc((desc || '').slice(0,80))}${desc && desc.length>80 ? '…' : ''}
+          ${apiLine}
+        </div>
       </td>
       <td>${esc((r.module_name||r.module || '-'))}</td>
       <td>${esc((desc || '').slice(0,140))}${desc && desc.length>140 ? '…' : ''}</td>
@@ -707,11 +733,13 @@ document.addEventListener('click',(e)=>{
       return tr;
     }
 
-    // bin
     tr.innerHTML = `
     <td>
       <div class="fw-semibold">${esc(r.action || '-')}</div>
-      <div class="small text-muted">${esc((desc || '').slice(0,80))}${desc && desc.length>80 ? '…' : ''}</div>
+      <div class="small text-muted">
+        ${esc((desc || '').slice(0,80))}${desc && desc.length>80 ? '…' : ''}
+        ${apiLine}
+      </div>
     </td>
     <td>${esc((r.module_name||r.module || '-'))}</td>
     <td>${esc((desc || '').slice(0,140))}${desc && desc.length>140 ? '…' : ''}</td>
@@ -854,14 +882,27 @@ document.addEventListener('click',(e)=>{
           return err('Module identifier missing for this group');
         }
 
+        const { value: apiVal } = await Swal.fire({
+          title: 'API endpoint / route',
+          input: 'text',
+          inputLabel: 'Required',
+          inputPlaceholder: '/api/... or route name',
+          inputAttributes: { maxlength: 255 },
+          showCancelButton: true,
+          inputValidator: (value)=>{
+            if(!value || !value.trim()) return 'API endpoint / route is required';
+          }
+        });
+        if(!apiVal) return;
+
         addBtn.disabled = true;
         try{
-          // Using batch-compatible payload: actions: [actionStr]
           const payload = {
-  module_id: moduleIdentifier,
-  action: actionStr,
-  description: null
-};
+            module_id: moduleIdentifier,
+            action: actionStr,
+            description: null,
+            api_pattern: apiVal.trim()
+          };
 
           const res = await fetch('/api/privileges', {
             method:'POST',
@@ -875,7 +916,6 @@ document.addEventListener('click',(e)=>{
           const j = await res.json().catch(()=>({}));
           if(!res.ok) throw new Error(j?.message || 'Create failed');
           ok('Privilege added');
-          // reload active to refresh accordion & dropdown (so newly used action is removed)
           load('active');
         }catch(e){
           err(e.message || 'Create failed');
@@ -891,18 +931,26 @@ document.addEventListener('click',(e)=>{
         row.className = 'list-group-item d-flex flex-wrap align-items-center justify-content-between gap-2';
         row.dataset.key = r.uuid || r.id;
 
-        const status = String(r.status || 'Active');
+        const statusRaw = (r.status || 'active').toString();
+        const statusLabel = statusRaw.charAt(0).toUpperCase() + statusRaw.slice(1);
+        const apiPattern = r.api_pattern || r.api || r.endpoint || '';
+        const methods = Array.isArray(r.http_methods) ? r.http_methods.join(',') :
+                        (r.http_method || r.http_methods || '');
+        const apiLine = apiPattern
+          ? `<div class="small text-muted mt-1"><i class="fa fa-code me-1 opacity-75"></i>${esc((methods ? '['+methods+'] ' : '') + apiPattern)}</div>`
+          : '';
 
         row.innerHTML = `
           <div class="flex-grow-1">
             <div class="fw-semibold mb-1">
               ${esc(r.action || '-')}
               ${isBuiltIn ? '<span class="badge bg-secondary ms-1">Core</span>' : ''}
-              ${status ? `<span class="badge bg-light text-muted ms-1">${esc(status)}</span>` : ''}
+              ${statusLabel ? `<span class="badge bg-light text-muted ms-1">${esc(statusLabel)}</span>` : ''}
             </div>
             <div class="small text-muted">
               ${r.description ? esc(r.description) : '<span class="text-muted">No description</span>'}
             </div>
+            ${apiLine}
           </div>
           <div class="d-flex flex-shrink-0 gap-1">
             <button type="button" class="btn btn-light btn-sm" data-act="edit" data-key="${esc(r.uuid||r.id)}" data-action="${esc(r.action||'')}">
@@ -926,7 +974,7 @@ document.addEventListener('click',(e)=>{
       idx++;
     });
 
-    // pagination/meta (same style as before)
+    // pagination/meta
     const total=Number(pagination.total||0);
     const per=Number(pagination.per_page||30);
     const cur=Number(pagination.page||1);
@@ -993,23 +1041,21 @@ document.addEventListener('click',(e)=>{
       if(!ok) throw new Error(j?.message || 'Load failed');
 
       const items =
-  j.data
-  || j.privileges
-  || (Array.isArray(j) ? j : (j.privilege ? [j.privilege] : []));
+        j.data
+        || j.privileges
+        || (Array.isArray(j) ? j : (j.privilege ? [j.privilege] : []));
 
-const pag =
-  j.pagination
-  || j.meta
-  || j.links
-  || { page: 1, per_page: items.length || 30, total: items.length || 0 };
-
+      const pag =
+        j.pagination
+        || j.meta
+        || j.links
+        || { page: 1, per_page: items.length || 30, total: items.length || 0 };
 
       if(scope==='active'){
         renderActiveAccordion(items, pag);
         return;
       }
 
-      // archived / bin table rendering
       const rowsEl=qs(tabs[scope].rows);
       if(!rowsEl) return;
       if(items.length===0) show(empty,true);
@@ -1056,10 +1102,7 @@ const pag =
     .finally(()=> showLoader(scope,false));
   }
 
-  /* Sort (active) – only affects backend order */
-  // we keep the "created_at" sort toggling; other columns not rendered anymore
   syncSortHeaders();
-  // No header click events now because we removed sortable th in active table
 
   let srT;
   if(q) q.addEventListener('input', ()=>{
@@ -1104,18 +1147,11 @@ const pag =
         }
       });
       const j = await res.json().catch(()=>({}));
-const items = j.data || [];
-
-// If you still want to hide id=1 *only when you have others*, do this:
-// const filtered = items.length > 1 ? items.filter(m => String(m.id) !== '1') : items;
-// Otherwise, simplest – keep everything:
-const filtered = items;
-
-const opts = filtered.map(m =>
-  `<option value="${esc(m.uuid || m.id)}">${esc(m.name || ('#' + m.id))}</option>`
-);
-selectEl.innerHTML = '<option value="">Select module…</option>' + opts.join('');
-
+      const items = j.data || [];
+      const opts = items.map(m =>
+        `<option value="${esc(m.uuid || m.id)}">${esc(m.name || ('#' + m.id))}</option>`
+      );
+      selectEl.innerHTML = '<option value="">Select module…</option>' + opts.join('');
     }catch(e){
       selectEl.innerHTML = '<option value="">Failed to load</option>';
     }
@@ -1126,10 +1162,14 @@ selectEl.innerHTML = '<option value="">Select module…</option>' + opts.join(''
     pv.key.value='';
     pv.title.textContent='Create Privilege';
     pv.description.value='';
-    pv.status.value='Active';
-    pv.actionSelect.value='';
-    pv.actionOther.value='';
-    pv.actionOther.classList.add('d-none');
+    if(pv.status) pv.status.value='active';
+    if(pv.actionSelect) pv.actionSelect.value='';
+    if(pv.actionOther){
+      pv.actionOther.value='';
+      pv.actionOther.classList.add('d-none');
+    }
+    if(pv.api) pv.api.value='';
+    if(pv.method) pv.method.value='';
 
     await loadModulesInto(pv.module);
     if(moduleVal && pv.module){
@@ -1159,7 +1199,7 @@ selectEl.innerHTML = '<option value="">Select module…</option>' + opts.join(''
       if(pv.module) pv.module.value = r.module_uuid || r.module_id || r.module || '';
 
       pv.description.value = r.description || '';
-      pv.status.value = r.status || 'Active';
+      if(pv.status) pv.status.value = (r.status || 'active').toString().toLowerCase();
 
       const act = (r.action || '').toLowerCase();
       if(DEFAULT_ACTIONS.includes(act)){
@@ -1171,6 +1211,17 @@ selectEl.innerHTML = '<option value="">Select module…</option>' + opts.join(''
         pv.actionOther.classList.remove('d-none');
         pv.actionOther.value = r.action || '';
       }
+
+      const apiVal = r.api_pattern || r.api || r.endpoint || '';
+      if(pv.api) pv.api.value = apiVal;
+
+      let methodVal = '';
+      if(Array.isArray(r.http_methods) && r.http_methods.length){
+        methodVal = r.http_methods[0];
+      }else{
+        methodVal = r.http_method || r.http_methods || '';
+      }
+      if(pv.method) pv.method.value = (methodVal || '').toUpperCase();
 
       pv.modal.show();
     }catch(e){
@@ -1205,23 +1256,22 @@ selectEl.innerHTML = '<option value="">Select module…</option>' + opts.join(''
       finalAction = selVal;
     }
 
+    if(!pv.api || !pv.api.value.trim()){
+      return Swal.fire('API required','Please enter the API endpoint / route for this privilege.','info');
+    }
+    const apiVal = pv.api.value.trim();
+    const methodVal = pv.method ? (pv.method.value || '') : '';
+
     const isEdit = (pv.mode.value==='edit' && pv.key.value);
 
-    // For create: we still send actions[] (even if only one) so controller can handle multi-create
-    const payload = isEdit
-  ? {
+    const payload = {
       module_id: pv.module.value,
       action: finalAction,
       description: pv.description.value.trim() || null,
-      status: pv.status.value || 'Active'
-    }
-  : {
-      module_id: pv.module.value,
-      action: finalAction,
-      description: pv.description.value.trim() || null,
-      status: pv.status.value || 'Active'
+      api_pattern: apiVal,
+      http_methods: methodVal || null,
+      status: (pv.status && pv.status.value) ? pv.status.value : 'active'
     };
-
 
     const url = isEdit ? `/api/privileges/${encodeURIComponent(pv.key.value)}` : '/api/privileges';
     const method = isEdit ? 'PATCH' : 'POST';
@@ -1242,6 +1292,7 @@ selectEl.innerHTML = '<option value="">Select module…</option>' + opts.join(''
       ok('Privilege saved');
       pv.modal.hide();
       load('active');
+      load('archived');
     }catch(e){
       err(e.message||'Save failed');
     }finally{
@@ -1257,11 +1308,6 @@ selectEl.innerHTML = '<option value="">Select module…</option>' + opts.join(''
     const act = target.dataset.act;
     const key = target.dataset.key;
     const actionName = target.dataset.action || 'this privilege';
-
-    if(act==='addpriv'){
-      // not used now; we add privileges via accordion "Add" button
-      return;
-    }
 
     if(act==='edit'){
       openEditPriv(key);
@@ -1385,7 +1431,7 @@ selectEl.innerHTML = '<option value="">Select module…</option>' + opts.join(''
     }
   });
 
-  // Reorder buttons (kept but mainly for archived/bin if you want to extend later)
+  // Reorder buttons (kept; still table-based if you extend later)
   btnReorder && btnReorder.addEventListener('click', ()=>{
     reorderMode = !reorderMode;
     btnReorder.classList.toggle('btn-primary', reorderMode);
@@ -1411,7 +1457,6 @@ selectEl.innerHTML = '<option value="">Select module…</option>' + opts.join(''
   });
 
   document.getElementById('btnSaveOrder')?.addEventListener('click', async ()=>{
-    // still wired for table-based ordering; you can extend later for specific scope
     const rows = [...document.querySelectorAll('#rows-active tr.reorderable')];
     const ids  = rows.map(tr => Number(tr.dataset.id)).filter(Number.isInteger);
     if (!ids.length) return Swal.fire('Nothing to save','Drag rows to change order first.','info');
@@ -1435,9 +1480,10 @@ selectEl.innerHTML = '<option value="">Select module…</option>' + opts.join(''
     }
   });
 
-  /* Bulk modal helpers (unchanged except for module dropdown filtering) */
+  /* Bulk modal helpers */
   let _originalPrivIds = new Set();
-  function createBulkRow(action = '', description = '', id = null){
+
+  function createBulkRow(action = '', description = '', apiPattern = '', id = null){
     const wrapper=document.createElement('div');
     wrapper.className='row g-2 align-items-center mb-2 priv-row';
     if(id) wrapper.dataset.privId = String(id);
@@ -1445,13 +1491,16 @@ selectEl.innerHTML = '<option value="">Select module…</option>' + opts.join(''
       <div class="col col-action">
         <input type="text" class="form-control priv-action" placeholder="Action (e.g., view_reports)" maxlength="60" value="${esc(action)}">
       </div>
+      <div class="col col-api">
+        <input type="text" class="form-control priv-api" placeholder="API endpoint / route" maxlength="255" value="${esc(apiPattern)}">
+      </div>
       <div class="col col-module">
         <select class="form-select priv-module"><option value="">Use module</option></select>
       </div>
       <div class="col col-desc">
         <input type="text" class="form-control priv-desc" placeholder="Description (optional)" value="${esc(description)}">
       </div>
-      <div class="col-auto">
+      <div class="col-auto col-remove">
         <button type="button" class="btn btn-light btn-sm priv-remove" title="Remove"><i class="fa fa-trash text-danger"></i></button>
       </div>
     `;
@@ -1499,8 +1548,9 @@ selectEl.innerHTML = '<option value="">Select module…</option>' + opts.join(''
         const id=it.id||it.uuid||null;
         const action=it.action||'';
         const desc=it.description||'';
+        const apiPattern = it.api_pattern || it.api || it.endpoint || '';
         if(id) _originalPrivIds.add(String(id));
-        const row=createBulkRow(action, desc, id);
+        const row=createBulkRow(action, desc, apiPattern, id);
         const sel = row.querySelector('.priv-module');
         await loadModulesInto(sel);
         if(sel) sel.value = moduleVal;
@@ -1529,20 +1579,28 @@ selectEl.innerHTML = '<option value="">Select module…</option>' + opts.join(''
     const rows = [...bulk.rowsContainer.querySelectorAll('.priv-row')];
     const currentIds = new Set(rows.map(r => r.dataset.privId).filter(Boolean).map(String));
     const deletedIds = [..._originalPrivIds].filter(id => !currentIds.has(id));
+
     const payloads = rows.map(r=>{
       const actionEl=r.querySelector('.priv-action');
       const descEl=r.querySelector('.priv-desc');
+      const apiEl=r.querySelector('.priv-api');
       const modEl=r.querySelector('.priv-module');
       return {
         id: r.dataset.privId ? r.dataset.privId : null,
         action: actionEl ? actionEl.value.trim() : '',
         description: descEl ? descEl.value.trim() : '',
+        api_pattern: apiEl ? apiEl.value.trim() : '',
         module_id: modEl && modEl.value ? modEl.value : moduleVal
       };
     }).filter(p=>p.action && p.action.length>0);
 
     if(!payloads.length && !deletedIds.length){
       return Swal.fire('No changes','Nothing to save or delete','info');
+    }
+
+    const missingApi = payloads.some(p => !p.api_pattern);
+    if(missingApi){
+      return Swal.fire('API required','Every privilege row must have an API endpoint / route.','info');
     }
 
     const {isConfirmed} = await Swal.fire({
@@ -1586,12 +1644,12 @@ selectEl.innerHTML = '<option value="">Select module…</option>' + opts.join(''
               'Content-Type': 'application/json',
               'Accept': 'application/json'
             },
-           body: JSON.stringify({
-  module_id: p.module_id,
-  action: p.action,
-  description: p.description || null
-})
-
+            body: JSON.stringify({
+              module_id: p.module_id,
+              action: p.action,
+              description: p.description || null,
+              api_pattern: p.api_pattern
+            })
           }).then(async res => ({ res, j: await res.json().catch(()=>({})) })).catch(err => ({ err }));
         } else {
           const url = `/api/privileges`;
@@ -1604,8 +1662,9 @@ selectEl.innerHTML = '<option value="">Select module…</option>' + opts.join(''
             },
             body: JSON.stringify({
               module_id: p.module_id,
-              actions: [p.action],
-              description: p.description || null
+              action: p.action,
+              description: p.description || null,
+              api_pattern: p.api_pattern
             })
           }).then(async res => ({ res, j: await res.json().catch(()=>({})) })).catch(err => ({ err }));
         }
@@ -1630,7 +1689,8 @@ selectEl.innerHTML = '<option value="">Select module…</option>' + opts.join(''
             const matchRow = [...bulk.rowsContainer.querySelectorAll('.priv-row')].find(r=>{
               const a=r.querySelector('.priv-action')?.value?.trim();
               const d=r.querySelector('.priv-desc')?.value?.trim();
-              return a===input.action && d===(input.description||'') && !r.dataset.privId;
+              const api=r.querySelector('.priv-api')?.value?.trim();
+              return a===input.action && d===(input.description||'') && api===input.api_pattern && !r.dataset.privId;
             });
             if(matchRow) matchRow.dataset.privId = String(newId);
           }
