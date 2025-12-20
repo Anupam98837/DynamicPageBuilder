@@ -5,8 +5,8 @@
   $psUid = 'ps_' . \Illuminate\Support\Str::random(8);
 
   // Web URLs (adjust if your web routes differ)
-  $psCreateUrl    = url('/page-submenus/create');
-  $psEditPattern  = url('/page-submenus') . '/{id}/edit';
+  $psCreateUrl    = url('/page/submenu/create');
+  $psEditPattern  = url('/page/submenu/create') . '?edit={id}';
 
   // API URLs (from your API block)
   $apiBase  = url('/api/page-submenus');

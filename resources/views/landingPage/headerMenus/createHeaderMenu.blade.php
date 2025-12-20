@@ -81,7 +81,7 @@
     <div class="card-header">
       <div class="sm-head d-flex align-items-center gap-2">
         <i class="fa-solid fa-sitemap"></i>
-        <strong>Create Header Menu</strong>
+        <strong id="pageTitle">Create Header Menu</strong>
         <span class="hint text-muted" id="hint"></span>
       </div>
     </div>
@@ -216,7 +216,7 @@
             <span class="spinner-border d-none" role="status" aria-hidden="true"></span>
           </button>
           <button class="btn btn-primary" type="button" id="btnCreate">
-            <span class="label"><i class="fa-solid fa-plus"></i> Create Menu</span>
+            <span class="label" id="btnCreateLabel"><i class="fa-solid fa-plus"></i> Create Menu</span>
             <span class="spinner-border d-none" role="status" aria-hidden="true"></span>
           </button>
         </div>
@@ -319,6 +319,7 @@
     parentBadge: byId('parentBadge'),
     active: byId('active'),
     btnCreate: byId('btnCreate'),
+    btnCreateLabel: byId('btnCreateLabel'),
     btnReset: byId('btnReset'),
     // modal + tree
     btnPickParent: byId('btnPickParent'),
@@ -330,7 +331,20 @@
     treeEmpty: byId('treeEmpty'),
     btnPickSelf: byId('btnPickSelf'),
     btnReloadTree: byId('btnReloadTree'),
+    pageTitle: byId('pageTitle'),
+    hint: byId('hint'),
   };
+
+  /* ============================
+     ✅ EDIT MODE (ID comes from Manage page)
+     URL example: /header/menu/create?edit=12
+  ============================ */
+  const usp = new URLSearchParams(window.location.search || '');
+  const EDIT_ID_RAW = (usp.get('edit') || '').trim();
+  const IS_EDIT = EDIT_ID_RAW !== '' && !isNaN(Number(EDIT_ID_RAW));
+  const EDIT_ID = IS_EDIT ? Number(EDIT_ID_RAW) : null;
+
+  let initialData = null;
 
   /* ---------- utilities ---------- */
   function showBusy(on){ busy.classList.toggle('show', !!on); }
@@ -341,7 +355,6 @@
     el.style.display = msg ? 'block' : 'none';
   }
   function clearErrors(){ document.querySelectorAll('.err').forEach(e=>{ e.textContent=''; e.style.display='none'; }); }
-  function esc(s=''){ return String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
   function slugify(str){
     return String(str||'')
       .normalize('NFKD')
@@ -354,7 +367,7 @@
   async function fetchJSON(url){
     const r = await fetch(url, { headers });
     let j={}; try{ j=await r.json(); }catch{}
-    if (!r.ok) throw new Error(j?.message || ('HTTP '+r.status));
+    if (!r.ok) throw new Error(j?.message || j?.error || ('HTTP '+r.status));
     return j;
   }
 
@@ -538,8 +551,61 @@
   });
   els.btnReloadTree.addEventListener('click', loadTree);
 
-  /* ---------- Create (one-click, backend is idempotent via slug) ---------- */
-  const createMenu = oneFlight(async function(){
+  /* ============================
+     ✅ Load selected menu & populate (EDIT mode)
+  ============================ */
+  async function loadForEdit(){
+    if (!IS_EDIT) return;
+
+    // UI mode changes
+    els.pageTitle.textContent = 'Edit Header Menu';
+    els.btnCreateLabel.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Changes';
+    els.hint.textContent = 'Editing selected menu from Manage page.';
+
+    // In edit: don’t auto-overwrite slug unless user turns it on.
+    els.slugAuto.checked = false;
+    els.slug.disabled = false;
+    els.btnRegen.disabled = false;
+
+    showBusy(true);
+    clearErrors();
+
+    try{
+      const j = await fetchJSON('/api/header-menus/' + encodeURIComponent(EDIT_ID));
+      const m = (j && typeof j === 'object' && 'data' in j) ? j.data : j;
+      initialData = m || null;
+
+      if (!m) throw new Error('No data found');
+
+      // populate fields
+      els.title.value = m.title || '';
+      els.desc.value  = m.description || '';
+      els.slug.value  = m.slug || '';
+
+      els.pageSlug.value      = m.page_slug || '';
+      els.pageShortcode.value = m.page_shortcode || '';
+      els.pageUrl.value       = m.page_url || '';
+
+      els.active.checked = !!m.active;
+
+      // parent label best-effort
+      const parentLabel =
+        m.parent_title ||
+        (m.parent && m.parent.title) ||
+        (m.parent_id ? ('#' + m.parent_id) : 'Self (Root)');
+
+      setParent(m.parent_id || '', parentLabel);
+
+    }catch(e){
+      console.error(e);
+      err(e.message || 'Failed to load menu');
+    }finally{
+      showBusy(false);
+    }
+  }
+
+  /* ---------- Create / Update ---------- */
+  const createOrUpdate = oneFlight(async function(){
     clearErrors();
 
     if (!els.title.value.trim()){
@@ -548,7 +614,7 @@
       return;
     }
 
-    // if auto mode, ensure slug is synced
+    // slug behavior
     if (els.slugAuto.checked){
       els.slug.value = slugify(els.title.value);
     }
@@ -556,58 +622,71 @@
     const payload = {
       title: els.title.value.trim(),
       description: els.desc.value.trim() || null,
-      slug: els.slug.value.trim() || undefined,       // menu slug
+      slug: els.slug.value.trim() || undefined,
       parent_id: els.parentId.value ? parseInt(els.parentId.value,10) : null,
       active: !!els.active.checked,
-      // page section
+
       page_slug: els.pageSlug.value.trim() || null,
       page_shortcode: els.pageShortcode.value.trim() || null,
       page_url: els.pageUrl.value.trim() || null
-      // NOTE: menu shortcode is auto-generated in backend; not sent from UI
     };
 
-    setBtnBusy(els.btnCreate, true, '<i class="fa-solid fa-plus"></i> Creating…');
+    const url = IS_EDIT
+      ? ('/api/header-menus/' + encodeURIComponent(EDIT_ID))
+      : '/api/header-menus';
+
+    const method = IS_EDIT ? 'PUT' : 'POST';
+
+    setBtnBusy(els.btnCreate, true, IS_EDIT
+      ? '<i class="fa-solid fa-floppy-disk"></i> Saving…'
+      : '<i class="fa-solid fa-plus"></i> Creating…'
+    );
     showBusy(true);
+
     try{
-      const r = await fetch('/api/header-menus', {
-        method:'POST',
+      const r = await fetch(url, {
+        method,
         headers,
         body: JSON.stringify(payload)
       });
+
       const ct = (r.headers.get('content-type')||'').toLowerCase();
       const json = ct.includes('application/json') ? await r.json() : { message: await r.text() };
 
       if (r.ok){
-        const msg =
-          json.message ||
-          (json.already_existed ? 'Menu already existed, not created again.' :
-          json.restored ? 'Menu restored.' :
-          'Menu created.');
-        ok(msg);
+        ok(json.message || (IS_EDIT ? 'Menu updated.' : 'Menu created.'));
 
+        // ✅ After save, always go back to manage
         setTimeout(()=>{ location.href = '/header/menu/manage'; }, 600);
+
       } else if (r.status === 422){
         const errors = json.errors || {};
         Object.entries(errors).forEach(([k,v])=> showError(k, Array.isArray(v)? v[0] : String(v)));
         err(json.message || 'Please fix the highlighted fields');
+
       } else if (r.status === 403){
         err('Forbidden');
+
       } else {
         console.error('Server error', json);
         err(`Server error (${r.status})`);
       }
+
     }catch(ex){
       console.error(ex);
       err('Network error');
     }finally{
       showBusy(false);
-      setBtnBusy(els.btnCreate, false, '<i class="fa-solid fa-plus"></i> Create Menu');
+      setBtnBusy(els.btnCreate, false, IS_EDIT
+        ? '<i class="fa-solid fa-floppy-disk"></i> Save Changes'
+        : '<i class="fa-solid fa-plus"></i> Create Menu'
+      );
     }
   });
 
-  els.btnCreate.addEventListener('click', createMenu);
+  els.btnCreate.addEventListener('click', createOrUpdate);
 
-  // Disable Enter spam creating multiple menus
+  // Disable Enter spam
   document.addEventListener('keydown', (e)=>{
     if (e.key === 'Enter' && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')){
       e.preventDefault();
@@ -619,24 +698,58 @@
   els.btnReset.addEventListener('click', ()=>{
     setBtnBusy(els.btnReset, true, '<i class="fa-regular fa-trash-can"></i> Resetting…');
     clearErrors();
-    els.title.value='';
-    els.desc.value='';
-    els.slug.value='';
-    els.pageSlug.value='';
-    els.pageShortcode.value='';
-    els.pageUrl.value='';
-    els.active.checked=true;
-    setParent('', 'Self (Root)');
+
+    if (IS_EDIT && initialData){
+      els.title.value = initialData.title || '';
+      els.desc.value  = initialData.description || '';
+      els.slug.value  = initialData.slug || '';
+
+      els.pageSlug.value      = initialData.page_slug || '';
+      els.pageShortcode.value = initialData.page_shortcode || '';
+      els.pageUrl.value       = initialData.page_url || '';
+
+      els.active.checked = !!initialData.active;
+
+      const parentLabel =
+        initialData.parent_title ||
+        (initialData.parent && initialData.parent.title) ||
+        (initialData.parent_id ? ('#' + initialData.parent_id) : 'Self (Root)');
+
+      setParent(initialData.parent_id || '', parentLabel);
+
+    } else {
+      els.title.value='';
+      els.desc.value='';
+      els.slug.value='';
+      els.pageSlug.value='';
+      els.pageShortcode.value='';
+      els.pageUrl.value='';
+      els.active.checked=true;
+      setParent('', 'Self (Root)');
+
+      // reset slug mode for create
+      els.slugAuto.checked = true;
+      els.slug.disabled = true;
+      els.btnRegen.disabled = true;
+      maybeUpdateSlug();
+    }
+
     setTimeout(()=> setBtnBusy(els.btnReset, false, '<i class="fa-regular fa-trash-can"></i> Reset'), 120);
   });
 
   // init
   (function init(){
-    document.getElementById('hint').textContent = 'Header menus are shown in the main navigation bar.';
+    els.hint.textContent = 'Header menus are shown in the main navigation bar.';
+
+    // default state for create
     els.slug.value = '';
     els.slugAuto.checked = true;
     els.slug.disabled = true;
+    els.btnRegen.disabled = true;
     maybeUpdateSlug();
+
+    // ✅ if edit id exists, load & populate
+    loadForEdit();
   })();
 })();
 </script>

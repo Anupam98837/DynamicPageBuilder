@@ -6,7 +6,7 @@
 
   // Web URLs (EDIT WAS 404 -> use /header/menu/{id}/edit by default)
   $hmCreateUrl    = url('/header/menu/create');
-  $hmEditPattern  = url('/header/menu') . '/{id}/edit'; // change this if your web route is different
+  $hmEditPattern  = url('/header/menu/create') . '?edit={id}'; // change this if your web route is different
 
   // API URLs
   $apiBase  = url('/api/header-menus');
