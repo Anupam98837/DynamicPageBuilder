@@ -237,7 +237,6 @@
   <div class="w3-sidebar-head">
     <a href="/dashboard" class="w3-brand">
       <img id="logo" src="{{ asset('/assets/media/images/web/logo.png') }}" alt="MSIT Home Builder">
-      {{-- <span>MSIT Home Builder</span> --}}
     </a>
   </div>
 
@@ -253,9 +252,12 @@
       </a>
     </nav>
 
-
+    <!-- Site Builder -->
+    <div class="w3-nav-section">
+      <div class="w3-section-title"><i class="fa-solid fa-screwdriver-wrench"></i> SITE BUILDER</div>
+      <div class="w3-section-rule"></div>
+    </div>
     <nav class="w3-menu" aria-label="Site Builder">
-
       <!-- Users & Access -->
       <div class="w3-group">
         <a href="#" class="w3-link w3-toggle" data-target="sm-users" aria-expanded="false">
@@ -267,6 +269,29 @@
         </div>
       </div>
 
+      <!-- Header Menu -->
+      <div class="w3-group">
+        <a href="#" class="w3-link w3-toggle" data-target="sm-header-menu" aria-expanded="false">
+          <i class="fa-solid fa-bars"></i><span>Header Menu</span>
+          <i class="fa fa-chevron-down w3-chev"></i>
+        </a>
+        <div id="sm-header-menu" class="w3-submenu" role="group" aria-label="Header Menu submenu">
+          <a href="/header/menu/create" class="w3-link">Create Header Menu</a>
+          <a href="/header/menu/manage" class="w3-link">Manage Header Menus</a>
+        </div>
+      </div>
+
+      <!-- Page Submenu -->
+<div class="w3-group">
+  <a href="#" class="w3-link w3-toggle" data-target="sm-page-submenu" aria-expanded="false">
+    <i class="fa-solid fa-sitemap"></i><span>Page Submenu</span>
+    <i class="fa fa-chevron-down w3-chev"></i>
+  </a>
+  <div id="sm-page-submenu" class="w3-submenu" role="group" aria-label="Page Submenu submenu">
+    <a href="/page/submenu/create" class="w3-link">Create Page Submenu</a>
+    <a href="/page/submenu/manage" class="w3-link">Manage Page Submenu</a>
+  </div>
+</div>
     </nav>
 
     <!-- privileges -->

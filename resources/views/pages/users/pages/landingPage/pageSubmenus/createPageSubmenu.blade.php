@@ -2,7 +2,7 @@
 
 @section('title', 'Create Menu')
 
-@include('landingPage.headerMenus.createHeaderMenu')
+@include('landingPage.pageSubmenus.createPageSubmenu')
 
 @section('scripts')
 <script>

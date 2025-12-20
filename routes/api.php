@@ -11,6 +11,8 @@ use App\Http\Controllers\API\UserPrivilegeController;
 use App\Http\Controllers\API\DepartmentController;
 use App\Http\Controllers\API\DepartmentMenuController;
 use App\Http\Controllers\API\HeaderMenuController;
+use App\Http\Controllers\API\PageSubmenuController;
+use App\Http\Controllers\API\PublicPageController;
 
 /*
 |--------------------------------------------------------------------------
@@ -328,3 +330,49 @@ Route::prefix('/header-menus')
 
         Route::post('/reorder', [HeaderMenuController::class, 'reorder']);
     });
+
+    // Public routes (no authentication required)
+Route::prefix('/public/header-menus')->group(function () {
+    Route::get('/tree', [HeaderMenuController::class, 'publicTree']);
+    Route::get('/resolve', [HeaderMenuController::class, 'resolve']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Page Submenu Routes
+|--------------------------------------------------------------------------
+*/
+Route::prefix('/page-submenus')
+    ->middleware('checkRole:admin,super_admin,director')
+    ->group(function () {
+
+        Route::get('/pages', [PageSubmenuController::class, 'pages']);
+
+        Route::get('/',        [PageSubmenuController::class, 'index']);
+        Route::get('/tree',    [PageSubmenuController::class, 'tree']);
+        Route::get('/trash',   [PageSubmenuController::class, 'indexTrash']);
+        Route::get('/resolve', [PageSubmenuController::class, 'resolve']);
+
+        Route::post('/',       [PageSubmenuController::class, 'store']);
+
+        Route::get('{id}',     [PageSubmenuController::class, 'show']);
+        Route::put('{id}',     [PageSubmenuController::class, 'update']);
+        Route::delete('{id}',  [PageSubmenuController::class, 'destroy']);
+
+        Route::post('{id}/restore',       [PageSubmenuController::class, 'restore']);
+        Route::delete('{id}/force',       [PageSubmenuController::class, 'forceDelete']);
+        Route::post('{id}/toggle-active', [PageSubmenuController::class, 'toggleActive']);
+
+        Route::post('/reorder', [PageSubmenuController::class, 'reorder']);
+    });
+
+// Public routes (no authentication required)
+Route::prefix('/public/page-submenus')->group(function () {
+    Route::get('/tree',    [PageSubmenuController::class, 'publicTree']); // requires page_id or page_slug
+    Route::get('/resolve', [PageSubmenuController::class, 'resolve']);
+});
+
+
+Route::prefix('public/pages')->group(function () {
+    Route::get('/resolve', [PublicPageController::class, 'resolve']); // ?slug=
+});

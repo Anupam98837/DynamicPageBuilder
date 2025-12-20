@@ -10,7 +10,7 @@ Route::get('/', function () {
 
 
 Route::get('/page/{slug}', function () {
-    return view('common');
+    return view('test');
 });
 
 Route::view('/landingpage', 'landingPage.home')->name('home');
@@ -31,6 +31,15 @@ Route::get('/department/menu/create', function () {
 });
 Route::get('/header/menu/create', function () {
     return view('pages.users.pages.landingPage.headerMenus.createHeaderMenu');
+});
+Route::get('/header/menu/manage', function () {
+    return view('pages.users.pages.landingPage.headerMenus.manageHeaderMenu');
+});
+Route::get('/page/submenu/create', function () {
+    return view('pages.users.pages.landingPage.pageSubmenus.createPageSubmenu');
+});
+Route::get('/page/submenu/manage', function () {
+    return view('pages.users.pages.landingPage.pageSubmenus.managePageSubmenu');
 });
 
 // Director routes

@@ -1,0 +1,1253 @@
+{{-- resources/views/modules/header/manageHeaderMenu.blade.php --}}
+@extends('pages.users.layout.structure')
+
+@php
+  $hmUid = 'hm_' . \Illuminate\Support\Str::random(8);
+
+  // Web URLs (EDIT WAS 404 -> use /header/menu/{id}/edit by default)
+  $hmCreateUrl    = url('/header/menu/create');
+  $hmEditPattern  = url('/header/menu') . '/{id}/edit'; // change this if your web route is different
+
+  // API URLs
+  $apiBase  = url('/api/header-menus');
+  $apiTree  = url('/api/header-menus/tree?only_active=1'); // active tree (unlimited depth)
+@endphp
+
+@push('styles')
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
+  {{-- keep main.css ONLY if your layout doesn't already include it --}}
+  <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}"/>
+
+  <style>
+    /* ===== Shell ===== */
+    .cm-wrap{max-width:1140px;margin:16px auto 40px;overflow:visible}
+    .panel{background:var(--surface);border:1px solid var(--line-strong);border-radius:16px;box-shadow:var(--shadow-2);padding:14px}
+
+    /* Toolbar */
+    .mfa-toolbar .form-control{height:40px;border-radius:12px;border:1px solid var(--line-strong);background:var(--surface)}
+    .mfa-toolbar .form-select{height:40px;border-radius:12px;border:1px solid var(--line-strong);background:var(--surface)}
+    .mfa-toolbar .btn-light{background:var(--surface);border:1px solid var(--line-strong)}
+    .mfa-toolbar .btn-primary{background:var(--primary-color);border:none}
+
+    /* Card */
+    .table-wrap.card{position:relative;border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);overflow:visible}
+    .table-wrap .card-body{overflow:visible}
+    .table-responsive{overflow:visible !important}
+    .table{--bs-table-bg:transparent}
+    .table thead th{font-weight:600;color:var(--muted-color);font-size:13px;border-bottom:1px solid(var(--line-strong));background:var(--surface)}
+    .table thead.sticky-top{z-index:3}
+    .table tbody tr{border-top:1px solid var(--line-soft)}
+    .table tbody tr:hover{background:var(--page-hover)}
+    .small{font-size:12.5px}
+
+    /* Empty & loader */
+    .empty{color:var(--muted-color)}
+    .placeholder{background:linear-gradient(90deg,#00000010,#00000005,#00000010);border-radius:8px}
+
+    /* Badges */
+    .badge-soft{background:color-mix(in oklab, var(--muted-color) 12%, transparent);color:var(--ink)}
+    .badge.badge-success{background:var(--success-color)!important;color:#fff!important}
+    .badge.badge-secondary{background:#64748b!important;color:#fff!important}
+
+    /* ===== Tree (Unlimited hierarchy) ===== */
+    .hm-tree{padding:14px}
+    .hm-list{list-style:none;margin:0;padding:0}
+    .hm-item{margin:0;padding:0}
+    .hm-row{
+      --level:0;
+      display:flex;
+      align-items:flex-start;
+      gap:10px;
+      padding:10px 12px;
+      padding-left: calc(12px + (var(--level) * 18px));
+      border:1px solid var(--line-soft);
+      border-radius:14px;
+      background:var(--surface);
+      box-shadow:var(--shadow-1);
+      margin-bottom:8px;
+    }
+    .hm-title{font-weight:600}
+    .hm-meta{font-size:12px;color:var(--muted-color);margin-top:2px}
+    .hm-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
+    .hm-actions .btn{height:34px;border-radius:10px}
+    .hm-toggle{
+      width:30px;height:30px;border-radius:10px;
+      border:1px solid var(--line-strong);
+      background:var(--surface);
+      display:inline-flex;align-items:center;justify-content:center;
+      flex:0 0 auto;
+      cursor:pointer;
+    }
+    .hm-toggle i{transition:transform .15s ease}
+    .hm-item.is-collapsed > .hm-children{display:none}
+    .hm-item.is-collapsed > .hm-row .hm-toggle i{transform:rotate(-90deg)}
+    .hm-toggle[disabled]{opacity:.45;cursor:default}
+
+    .drag-handle{
+      display:inline-flex;align-items:center;justify-content:center;
+      width:26px;height:26px;border-radius:10px;
+      color:#9ca3af;cursor:grab;flex:0 0 auto;
+      border:1px dashed transparent;
+    }
+    .hm-reorder-on .drag-handle{border-color:var(--line-soft)}
+    .drag-handle:active{cursor:grabbing}
+    .drag-ghost{opacity:.55}
+    .drag-chosen{box-shadow:var(--shadow-2)}
+    .hm-reorder-note{display:none}
+    .hm-reorder-on .hm-reorder-note{display:block}
+
+    /* ✅ Save Order button spinner state */
+    .hm-btn-loading{pointer-events:none; opacity:.95}
+    .hm-btn-loading .btn-spinner{display:inline-block !important}
+    .hm-btn-loading .btn-icon{display:none !important}
+
+    /* Dark tweaks */
+    html.theme-dark .panel,
+    html.theme-dark .table-wrap.card{background:#0f172a;border-color:var(--line-strong)}
+    html.theme-dark .table thead th{background:#0f172a;border-color:var(--line-strong);color:#94a3b8}
+    html.theme-dark .hm-row{background:#0f172a;border-color:var(--line-soft)}
+    html.theme-dark .hm-toggle{background:#0f172a}
+
+    /* ============================
+      FIX: prevent wrapper clipping / weird overflow
+      (same idea as managePrivilege)
+    ============================ */
+    #{{ $hmUid }},
+    #{{ $hmUid }} .table-responsive,
+    #{{ $hmUid }} .table-wrap,
+    #{{ $hmUid }} .card,
+    #{{ $hmUid }} .panel,
+    #{{ $hmUid }} .tab-content,
+    #{{ $hmUid }} .tab-pane,
+    #{{ $hmUid }} .hm-tree,
+    #{{ $hmUid }} .hm-list,
+    #{{ $hmUid }} .hm-item {
+      overflow: visible !important;
+      transform: none !important;
+    }
+
+    /* ============================
+      FIX: stop flex children from forcing overflow
+    ============================ */
+    #{{ $hmUid }} .hm-row { max-width: 100%; }
+    #{{ $hmUid }} .hm-main{
+      min-width: 0;          /* CRITICAL in flex layouts */
+      flex: 1 1 auto;
+    }
+    #{{ $hmUid }} .hm-title,
+    #{{ $hmUid }} .hm-meta{
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    /* Make toolbar/search responsive (your min-width:320px can overflow on smaller widths) */
+    #{{ $hmUid }} .mfa-toolbar .position-relative{
+      min-width: min(320px, 100%) !important;
+      flex: 1 1 320px;
+    }
+
+    /* Mobile wrapping so actions don’t push layout */
+    @media (max-width: 768px){
+      #{{ $hmUid }} .hm-row{ flex-wrap: wrap; }
+      #{{ $hmUid }} .hm-actions{
+        width: 100%;
+        margin-left: 0;
+        justify-content: flex-end;
+      }
+    }
+  </style>
+@endpush
+
+@section('content')
+  <div id="{{ $hmUid }}"
+       class="cm-wrap"
+       data-create-url="{{ $hmCreateUrl }}"
+       data-edit-pattern="{{ $hmEditPattern }}"
+       data-api-base="{{ $apiBase }}"
+       data-api-tree="{{ $apiTree }}">
+
+    {{-- ===== Global toolbar ===== --}}
+    <div class="row align-items-center g-2 mb-3 mfa-toolbar panel">
+      <div class="col-12 d-flex align-items-center flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+          <label class="text-muted small mb-0">Manage Header Menus</label>
+        </div>
+      </div>
+    </div>
+
+    {{-- ===== Tabs ===== --}}
+    @php
+      $tabActive   = $hmUid.'_tab_active';
+      $tabArchived = $hmUid.'_tab_archived';
+      $tabBin      = $hmUid.'_tab_bin';
+    @endphp
+
+    <ul class="nav nav-tabs mb-3" role="tablist">
+      <li class="nav-item">
+        <a class="nav-link active" data-bs-toggle="tab" href="#{{ $tabActive }}" role="tab" aria-selected="true">
+          <i class="fa-solid fa-bars me-2" aria-hidden="true"></i>
+          Active Menus
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="tab" href="#{{ $tabArchived }}" role="tab" aria-selected="false">
+          <i class="fa-solid fa-box-archive me-2" aria-hidden="true"></i>
+          Archived
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="tab" href="#{{ $tabBin }}" role="tab" aria-selected="false">
+          <i class="fa-solid fa-trash-can me-2" aria-hidden="true"></i>
+          Bin
+        </a>
+      </li>
+    </ul>
+
+    <div class="tab-content mb-3">
+
+      {{-- ========== ACTIVE (TREE, UNLIMITED HIERARCHY) ========== --}}
+      <div class="tab-pane fade show active" id="{{ $tabActive }}" role="tabpanel">
+        <div class="row align-items-center g-2 mb-3 mfa-toolbar panel">
+          <div class="col-12 col-xl d-flex align-items-center flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-2">
+              <label class="text-muted small mb-0">Per page (roots)</label>
+              <select class="form-select js-per-page" style="width:110px;">
+                <option>10</option><option>20</option><option selected>30</option><option>50</option><option>100</option>
+              </select>
+            </div>
+
+            <div class="position-relative" style="min-width:320px;">
+              <input type="text" class="form-control ps-5 js-q" placeholder="Search title/slug/url…">
+              <i class="fa fa-search position-absolute" style="left:12px;top:50%;transform:translateY(-50%);opacity:.6;"></i>
+            </div>
+
+            <button class="btn btn-primary js-reset"><i class="fa fa-rotate-left me-1"></i>Reset</button>
+          </div>
+
+          <div class="col-12 col-xxl-auto ms-xxl-auto d-flex justify-content-xxl-end gap-2">
+            <button class="btn btn-light js-reorder"><i class="fa fa-up-down-left-right me-1"></i>Reorder</button>
+            <a href="{{ $hmCreateUrl }}" class="btn btn-primary"><i class="fa fa-plus me-1"></i>New Menu</a>
+          </div>
+        </div>
+
+        <div class="card table-wrap">
+          <div class="card-body p-0">
+            <div class="hm-tree">
+              <div class="hm-reorder-note p-2 mb-2 small text-muted">
+                Reorder mode is ON — drag using the handle. **Only sibling reordering is allowed (no parent changes).**
+              </div>
+
+              <div class="js-loader" style="display:none;">
+                <div class="p-3">
+                  <div class="placeholder-wave">
+                    <div class="placeholder col-12 mb-2" style="height:18px;"></div>
+                    <div class="placeholder col-12 mb-2" style="height:18px;"></div>
+                    <div class="placeholder col-12 mb-2" style="height:18px;"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="js-empty empty p-4 text-center" style="display:none;">
+                <i class="fa fa-bars mb-2" style="font-size:32px; opacity:.6;"></i>
+                <div>No header menus found.</div>
+              </div>
+
+              <div class="js-tree"></div>
+
+              <div class="d-flex flex-wrap align-items-center justify-content-between pt-2 gap-2">
+                <div class="text-muted small js-meta">—</div>
+                <div class="d-flex align-items-center gap-2">
+                  {{-- ✅ Save Order button now has an inline spinner --}}
+                  <button class="btn btn-primary btn-sm js-save-order" style="display:none;">
+                    <span class="btn-spinner spinner-border spinner-border-sm me-1" style="display:none;" aria-hidden="true"></span>
+                    <i class="fa fa-floppy-disk me-1 btn-icon"></i>
+                    <span class="btn-text">Save Order</span>
+                  </button>
+                  <button class="btn btn-light btn-sm js-cancel-order" style="display:none;">Cancel</button>
+                  <nav style="position:relative; z-index:1;">
+                    <ul class="pagination mb-0 js-pager"></ul>
+                  </nav>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {{-- ========== ARCHIVED (TABLE) ========== --}}
+      <div class="tab-pane fade" id="{{ $tabArchived }}" role="tabpanel">
+        <div class="card table-wrap">
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover table-borderless align-middle mb-0">
+                <thead class="sticky-top">
+                  <tr>
+                    <th>TITLE & SLUG</th>
+                    <th style="width:20%;">PAGE</th>
+                    <th style="width:18%;">PARENT</th>
+                    <th style="width:140px;">CREATED</th>
+                    <th class="text-end" style="width:190px;">ACTIONS</th>
+                  </tr>
+                </thead>
+                <tbody class="js-rows-archived">
+                  <tr class="js-loader-archived" style="display:none;">
+                    <td colspan="5" class="p-0">
+                      <div class="p-4">
+                        <div class="placeholder-wave">
+                          <div class="placeholder col-12 mb-2" style="height:18px;"></div>
+                          <div class="placeholder col-12 mb-2" style="height:18px;"></div>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="js-empty-archived empty p-4 text-center" style="display:none;">
+              <i class="fa fa-box-archive mb-2" style="font-size:32px; opacity:.6;"></i>
+              <div>No archived menus.</div>
+            </div>
+
+            <div class="d-flex flex-wrap align-items-center justify-content-between p-3 gap-2">
+              <div class="text-muted small js-meta-archived">—</div>
+              <nav style="position:relative; z-index:1;"><ul class="pagination mb-0 js-pager-archived"></ul></nav>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {{-- ========== BIN (TABLE) ========== --}}
+      <div class="tab-pane fade" id="{{ $tabBin }}" role="tabpanel">
+        <div class="card table-wrap">
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover table-borderless align-middle mb-0">
+                <thead class="sticky-top">
+                  <tr>
+                    <th>TITLE & SLUG</th>
+                    <th style="width:20%;">PAGE</th>
+                    <th style="width:18%;">PARENT</th>
+                    <th style="width:140px;">DELETED AT</th>
+                    <th class="text-end" style="width:230px;">ACTIONS</th>
+                  </tr>
+                </thead>
+                <tbody class="js-rows-bin">
+                  <tr class="js-loader-bin" style="display:none;">
+                    <td colspan="5" class="p-0">
+                      <div class="p-4">
+                        <div class="placeholder-wave">
+                          <div class="placeholder col-12 mb-2" style="height:18px;"></div>
+                          <div class="placeholder col-12 mb-2" style="height:18px;"></div>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="js-empty-bin empty p-4 text-center" style="display:none;">
+              <i class="fa fa-trash mb-2" style="font-size:32px; opacity:.6;"></i>
+              <div>No items in Bin.</div>
+            </div>
+
+            <div class="d-flex flex-wrap align-items-center justify-content-between p-3 gap-2">
+              <div class="text-muted small js-meta-bin">—</div>
+              <nav style="position:relative; z-index:1;"><ul class="pagination mb-0 js-pager-bin"></ul></nav>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  {{-- Toasts --}}
+  <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index:2100">
+    <div class="toast js-ok-toast text-bg-success border-0">
+      <div class="d-flex">
+        <div class="toast-body js-ok-msg">Done</div>
+        <button class="btn-close btn-close-white m-auto me-2" data-bs-dismiss="toast"></button>
+      </div>
+    </div>
+    <div class="toast js-err-toast text-bg-danger border-0 mt-2">
+      <div class="d-flex">
+        <div class="toast-body js-err-msg">Something went wrong</div>
+        <button class="btn-close btn-close-white m-auto me-2" data-bs-dismiss="toast"></button>
+      </div>
+    </div>
+  </div>
+@endsection
+
+@push('scripts')
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+
+  <script>
+    (function () {
+      const ROOT = document.getElementById(@json($hmUid));
+      if (!ROOT) return;
+
+      // ✅ Prevent double init if scripts get injected twice
+      if (ROOT.dataset.hmInit === '1') return;
+      ROOT.dataset.hmInit = '1';
+
+      const TOKEN =
+        localStorage.getItem('token') ||
+        sessionStorage.getItem('token') ||
+        '';
+
+      if (!TOKEN) {
+        Swal.fire('Login needed', 'Your session expired. Please login again.', 'warning')
+          .then(() => location.href = '/');
+        return;
+      }
+
+      const API_BASE = ROOT.dataset.apiBase;
+      const API_TREE = ROOT.dataset.apiTree;
+      const EDIT_PATTERN = ROOT.dataset.editPattern;
+
+      const qs  = (sel) => ROOT.querySelector(sel);
+      const qsa = (sel) => Array.from(ROOT.querySelectorAll(sel));
+
+      const esc = (s) => {
+        const m = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;','`':'&#96;'};
+        return (s==null?'':String(s)).replace(/[&<>\"'`]/g, ch => m[ch]);
+      };
+
+      const fmtDate = (iso) => {
+        if (!iso) return '-';
+        const d = new Date(iso);
+        if (isNaN(d)) return esc(iso);
+        return d.toLocaleString(undefined, {year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+      };
+
+      const editUrl = (id) => EDIT_PATTERN.replace('{id}', encodeURIComponent(id));
+
+      // Toasts live outside ROOT in many layouts, so query from document (not ROOT)
+      const okToastEl  = document.querySelector('.js-ok-toast');
+      const errToastEl = document.querySelector('.js-err-toast');
+      const okMsgEl    = document.querySelector('.js-ok-msg');
+      const errMsgEl   = document.querySelector('.js-err-msg');
+
+      const okToast  = okToastEl  ? new bootstrap.Toast(okToastEl)  : null;
+      const errToast = errToastEl ? new bootstrap.Toast(errToastEl) : null;
+
+      const ok = (m) => {
+        if (okMsgEl) okMsgEl.textContent = m || 'Done';
+        if (okToast) okToast.show();
+        else console.log('[OK]', m);
+      };
+
+      const err = (m) => {
+        if (errMsgEl) errMsgEl.textContent = m || 'Something went wrong';
+        if (errToast) errToast.show();
+        else console.error('[ERR]', m);
+      };
+
+      async function fetchJSON(url, opts = {}) {
+        const res = await fetch(url, {
+          cache: 'no-store',
+          ...opts,
+          headers: {
+            'Authorization': 'Bearer ' + TOKEN,
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+            ...(opts.headers || {})
+          }
+        });
+
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(j?.error || j?.message || 'Request failed');
+        return j;
+      }
+
+      /* =========================
+        SMART REFRESH FLAGS (reduce API spam)
+      ========================= */
+      const loaded = { active:false, archived:false, bin:false };
+      const dirty  = { active:false, archived:false, bin:false };
+
+      const paneActive   = document.getElementById(@json($tabActive));
+      const paneArchived = document.getElementById(@json($tabArchived));
+      const paneBin      = document.getElementById(@json($tabBin));
+
+      function isPaneShown(pane){
+        return !!(pane && pane.classList.contains('show') && pane.classList.contains('active'));
+      }
+
+      function markDirty(keys){
+        (keys || []).forEach(k => { if (k in dirty) dirty[k] = true; });
+      }
+
+      async function refreshVisible() {
+        if (isPaneShown(paneActive) && (dirty.active || !loaded.active)) {
+          await loadActiveTree();
+        }
+        if (isPaneShown(paneArchived) && (dirty.archived || !loaded.archived)) {
+          await loadArchived();
+        }
+        if (isPaneShown(paneBin) && (dirty.bin || !loaded.bin)) {
+          await loadBin();
+        }
+      }
+
+      /* =========================
+        ACTIVE TREE (unlimited)
+      ========================= */
+      const perPageSel  = qs('.js-per-page');
+      const qInput      = qs('.js-q');
+      const btnReset    = qs('.js-reset');
+      const btnReorder  = qs('.js-reorder');
+      const btnSaveOrd  = qs('.js-save-order');
+      const btnCancelOrd= qs('.js-cancel-order');
+
+      const treeWrap    = qs('.js-tree');
+      const loader      = qs('.js-loader');
+      const empty       = qs('.js-empty');
+      const meta        = qs('.js-meta');
+      const pager       = qs('.js-pager');
+
+      let reorderMode = false;
+      let sortables = [];
+      let treeAll = [];        // full tree from API
+      let activePage = 1;      // root pagination
+
+      function setLoading(v) {
+        loader.style.display = v ? '' : 'none';
+      }
+
+      function setSaveBtnLoading(on) {
+        if (!btnSaveOrd) return;
+        const sp   = btnSaveOrd.querySelector('.btn-spinner');
+        const icon = btnSaveOrd.querySelector('.btn-icon');
+        const txt  = btnSaveOrd.querySelector('.btn-text');
+
+        if (!btnSaveOrd.dataset.defaultText) {
+          btnSaveOrd.dataset.defaultText = (txt?.textContent || 'Save Order').trim();
+        }
+
+        btnSaveOrd.classList.toggle('hm-btn-loading', !!on);
+        btnSaveOrd.disabled = !!on;
+
+        if (sp)   sp.style.display = on ? '' : 'none';
+        if (icon) icon.style.display = on ? 'none' : '';
+        if (txt)  txt.textContent = on ? 'Saving…' : (btnSaveOrd.dataset.defaultText || 'Save Order');
+
+        // also lock related buttons to prevent double actions
+        if (btnCancelOrd) btnCancelOrd.disabled = !!on;
+        if (btnReorder)   btnReorder.disabled   = !!on;
+      }
+
+      function filterTree(nodes, term) {
+        if (!term) return nodes;
+
+        const t = term.toLowerCase();
+
+        function nodeMatches(n) {
+          const hay = [
+            n.title, n.slug, n.shortcode, n.page_slug, n.page_shortcode, n.page_url, n.description
+          ].filter(Boolean).join(' ').toLowerCase();
+          return hay.includes(t);
+        }
+
+        function walk(list) {
+          const out = [];
+          list.forEach(n => {
+            const kids = Array.isArray(n.children) ? walk(n.children) : [];
+            if (nodeMatches(n) || kids.length) {
+              out.push({...n, children: kids});
+            }
+          });
+          return out;
+        }
+
+        return walk(nodes);
+      }
+
+      function countNodes(nodes) {
+        let c = 0;
+        (function walk(list){
+          list.forEach(n => {
+            c++;
+            if (n.children && n.children.length) walk(n.children);
+          });
+        })(nodes || []);
+        return c;
+      }
+
+      function destroySortables() {
+        sortables.forEach(s => { try { s.destroy(); } catch(e){} });
+        sortables = [];
+      }
+
+      function initSortables() {
+        destroySortables();
+
+        // IMPORTANT: only allow sorting within same parent (same siblings),
+        // disallow dropping into another list => put:false
+        qsa('.hm-list[data-parent-id]').forEach(list => {
+          const s = new Sortable(list, {
+            animation: 150,
+            handle: '.drag-handle',
+            draggable: '.hm-item',
+            ghostClass: 'drag-ghost',
+            chosenClass: 'drag-chosen',
+            group: { name: 'hm-siblings', put: false }, // <- no parent changes
+            fallbackOnBody: true,
+            swapThreshold: 0.65
+          });
+          sortables.push(s);
+        });
+      }
+
+      function collectOrdersFromDOM() {
+        const orders = [];
+
+        qsa('.hm-list[data-parent-id]').forEach(list => {
+          const pidRaw = list.dataset.parentId;
+          const parent_id = (pidRaw === 'null' || pidRaw === '' || typeof pidRaw === 'undefined') ? null : Number(pidRaw);
+
+          Array.from(list.children).forEach((li, idx) => {
+            const id = Number(li.dataset.id);
+            if (!Number.isFinite(id)) return;
+            orders.push({ id, position: idx, parent_id });
+          });
+        });
+
+        return orders;
+      }
+
+      function buildPager(cur, pages) {
+        const li = (dis, act, label, t) =>
+          `<li class="page-item ${dis?'disabled':''} ${act?'active':''}">
+            <a class="page-link" href="javascript:void(0)" data-page="${t||''}">${label}</a>
+          </li>`;
+
+        let html = '';
+        html += li(cur<=1, false, 'Previous', cur-1);
+
+        const w = 3;
+        const s = Math.max(1, cur - w);
+        const e = Math.min(pages, cur + w);
+
+        if (s > 1) {
+          html += li(false, false, 1, 1);
+          if (s > 2) html += '<li class="page-item disabled"><span class="page-link">…</span></li>';
+        }
+
+        for (let i = s; i <= e; i++) html += li(false, i===cur, i, i);
+
+        if (e < pages) {
+          if (e < pages-1) html += '<li class="page-item disabled"><span class="page-link">…</span></li>';
+          html += li(false, false, pages, pages);
+        }
+
+        html += li(cur>=pages, false, 'Next', cur+1);
+        pager.innerHTML = html;
+
+        pager.querySelectorAll('a.page-link[data-page]').forEach(a => {
+          a.addEventListener('click', () => {
+            const t = Number(a.dataset.page);
+            if (!t || t === activePage) return;
+            activePage = Math.max(1, t);
+            renderActiveTree();
+            window.scrollTo({top:0, behavior:'smooth'});
+          });
+        });
+      }
+
+      function renderNode(n, level, parentId) {
+        const hasKids = Array.isArray(n.children) && n.children.length > 0;
+
+        const li = document.createElement('li');
+        li.className = 'hm-item';
+        li.dataset.id = n.id;
+
+        const row = document.createElement('div');
+        row.className = 'hm-row';
+        row.style.setProperty('--level', level);
+
+        const toggleBtn = document.createElement('button');
+        toggleBtn.type = 'button';
+        toggleBtn.className = 'hm-toggle';
+        toggleBtn.innerHTML = `<i class="fa fa-chevron-down"></i>`;
+        if (!hasKids) toggleBtn.disabled = true;
+
+        const drag = document.createElement('span');
+        drag.className = 'drag-handle';
+        drag.title = reorderMode ? 'Drag to reorder' : '';
+        drag.innerHTML = `<i class="fa fa-grip-vertical"></i>`;
+        drag.style.display = reorderMode ? '' : 'none';
+
+        const main = document.createElement('div');
+        main.className = 'hm-main';
+
+        const badge = n.active
+          ? `<span class="badge badge-success ms-2">Active</span>`
+          : `<span class="badge badge-secondary ms-2">Inactive</span>`;
+
+        const pageBits = [
+          n.page_url ? `URL: ${esc(n.page_url)}` : '',
+          n.page_slug ? `Page: /${esc(n.page_slug)}` : '',
+          n.page_shortcode ? `PageCode: ${esc(n.page_shortcode)}` : ''
+        ].filter(Boolean).join(' • ');
+
+        main.innerHTML = `
+          <div class="hm-title">
+            ${esc(n.title || '-')}
+            ${badge}
+            ${level>0 ? `<span class="badge badge-soft ms-2">Level ${level+1}</span>` : ''}
+            ${hasKids ? `<span class="badge badge-soft ms-2">${n.children.length} child</span>` : ''}
+          </div>
+          <div class="hm-meta">
+            ${n.slug ? `/${esc(n.slug)}` : ''}
+            ${pageBits ? `${n.slug ? ' • ' : ''}${pageBits}` : ''}
+          </div>
+        `;
+
+        const actions = document.createElement('div');
+        actions.className = 'hm-actions';
+        actions.innerHTML = `
+          <a class="btn btn-light btn-sm" href="${editUrl(n.id)}" title="Edit">
+            <i class="fa fa-pen"></i>
+          </a>
+          <button type="button" class="btn btn-light btn-sm" data-act="toggle" data-id="${n.id}" data-title="${esc(n.title||'')}">
+            <i class="fa ${n.active ? 'fa-toggle-on text-success' : 'fa-toggle-off'}"></i>
+          </button>
+          <button type="button" class="btn btn-light btn-sm text-danger" data-act="delete" data-id="${n.id}" data-title="${esc(n.title||'')}">
+            <i class="fa fa-trash"></i>
+          </button>
+        `;
+
+        row.appendChild(toggleBtn);
+        row.appendChild(drag);
+        row.appendChild(main);
+        row.appendChild(actions);
+
+        li.appendChild(row);
+
+        const kids = document.createElement('ul');
+        kids.className = 'hm-list hm-children';
+        kids.dataset.parentId = String(n.id);
+
+        if (hasKids) {
+          n.children.forEach(ch => kids.appendChild(renderNode(ch, level+1, n.id)));
+        }
+
+        // toggle collapse
+        toggleBtn.addEventListener('click', () => {
+          if (!hasKids) return;
+          li.classList.toggle('is-collapsed');
+        });
+
+        li.appendChild(kids);
+        return li;
+      }
+
+      function renderActiveTree() {
+        const term = (qInput.value || '').trim();
+        const per = Math.max(10, Number(perPageSel.value || 30));
+
+        const filtered = filterTree(treeAll, term);
+        const totalRoots = filtered.length;
+        const totalNodes = countNodes(filtered);
+
+        // paginate roots only
+        const pages = Math.max(1, Math.ceil(totalRoots / per));
+        if (activePage > pages) activePage = pages;
+
+        const startIdx = (activePage - 1) * per;
+        const rootsPage = filtered.slice(startIdx, startIdx + per);
+
+        treeWrap.innerHTML = '';
+        empty.style.display = (totalRoots === 0) ? '' : 'none';
+
+        const rootList = document.createElement('ul');
+        rootList.className = 'hm-list';
+        rootList.dataset.parentId = 'null'; // root siblings list
+        rootList.setAttribute('data-parent-id', 'null');
+
+        rootsPage.forEach(n => rootList.appendChild(renderNode(n, 0, null)));
+
+        treeWrap.appendChild(rootList);
+
+        meta.textContent = `Roots: ${totalRoots} • Nodes: ${totalNodes} • Page ${activePage} of ${pages}`;
+
+        buildPager(activePage, pages);
+
+        // reorder init
+        ROOT.classList.toggle('hm-reorder-on', reorderMode);
+        btnSaveOrd.style.display = reorderMode ? '' : 'none';
+        btnCancelOrd.style.display = reorderMode ? '' : 'none';
+
+        if (reorderMode) initSortables();
+        else destroySortables();
+      }
+
+      let activeLoadPromise = null;
+
+      async function loadActiveTree() {
+        if (activeLoadPromise) return activeLoadPromise; // ✅ prevents duplicate simultaneous calls
+
+        activeLoadPromise = (async () => {
+          setLoading(true);
+          try {
+            const sep = API_TREE.includes('?') ? '&' : '?';
+            const j = await fetchJSON(API_TREE + sep + '_ts=' + Date.now());
+            treeAll = Array.isArray(j.data) ? j.data : [];
+            renderActiveTree();
+
+            loaded.active = true;
+            dirty.active = false;
+          } catch (e) {
+            console.error(e);
+            treeAll = [];
+            treeWrap.innerHTML = '';
+            empty.style.display = '';
+            meta.textContent = 'Failed to load';
+            err(e.message || 'Load error');
+          } finally {
+            setLoading(false);
+            activeLoadPromise = null; // ✅ release
+          }
+        })();
+
+        return activeLoadPromise;
+      }
+
+      /* =========================
+        ARCHIVED + BIN TABLES
+      ========================= */
+      const rowsArchived = qs('.js-rows-archived');
+      const rowsBin      = qs('.js-rows-bin');
+
+      const loaderArchived = qs('.js-loader-archived');
+      const loaderBin      = qs('.js-loader-bin');
+
+      const emptyArchived  = qs('.js-empty-archived');
+      const emptyBin       = qs('.js-empty-bin');
+
+      const metaArchived   = qs('.js-meta-archived');
+      const metaBin        = qs('.js-meta-bin');
+
+      const pagerArchived  = qs('.js-pager-archived');
+      const pagerBin       = qs('.js-pager-bin');
+
+      const state = {
+        archived: { page: 1 },
+        bin: { page: 1 }
+      };
+
+      function clearRows(tbody, keepSelector) {
+        Array.from(tbody.querySelectorAll('tr')).forEach(tr => {
+          if (keepSelector && tr.matches(keepSelector)) return;
+          tr.remove();
+        });
+      }
+
+      function parentInfo(r) {
+        return (r.parent_id ? `#${r.parent_id}` : 'Root');
+      }
+
+      function pageInfo(r) {
+        return r.page_url || (r.page_slug ? ('/' + r.page_slug) : (r.slug ? ('/' + r.slug) : '-'));
+      }
+
+      function archivedRow(r) {
+        const tr = document.createElement('tr');
+        const slugLine = r.slug ? `<span class="d-block mt-1 small text-muted"><i class="fa fa-link me-1 opacity-75"></i>/${esc(r.slug)}</span>` : '';
+        tr.innerHTML = `
+          <td>
+            <div class="fw-semibold">${esc(r.title || '-')}</div>
+            ${slugLine}
+          </td>
+          <td>${esc(pageInfo(r))}</td>
+          <td>${esc(parentInfo(r))}</td>
+          <td>${fmtDate(r.created_at)}</td>
+          <td class="text-end">
+            <a class="btn btn-light btn-sm" href="${editUrl(r.id)}" title="Edit"><i class="fa fa-pen"></i></a>
+            <button class="btn btn-light btn-sm" data-act="activate" data-id="${r.id}" data-title="${esc(r.title||'')}">
+              <i class="fa fa-check-circle"></i>
+            </button>
+            <button class="btn btn-light btn-sm text-danger" data-act="delete" data-id="${r.id}" data-title="${esc(r.title||'')}">
+              <i class="fa fa-trash"></i>
+            </button>
+          </td>
+        `;
+        return tr;
+      }
+
+      function binRow(r) {
+        const tr = document.createElement('tr');
+        const slugLine = r.slug ? `<span class="d-block mt-1 small text-muted"><i class="fa fa-link me-1 opacity-75"></i>/${esc(r.slug)}</span>` : '';
+        tr.innerHTML = `
+          <td>
+            <div class="fw-semibold">${esc(r.title || '-')}</div>
+            ${slugLine}
+          </td>
+          <td>${esc(pageInfo(r))}</td>
+          <td>${esc(parentInfo(r))}</td>
+          <td>${fmtDate(r.deleted_at)}</td>
+          <td class="text-end">
+            <button class="btn btn-light btn-sm" data-act="restore" data-id="${r.id}" data-title="${esc(r.title||'')}">
+              <i class="fa fa-rotate-left"></i> Restore
+            </button>
+            <button class="btn btn-light btn-sm text-danger" data-act="force" data-id="${r.id}" data-title="${esc(r.title||'')}">
+              <i class="fa fa-skull-crossbones"></i> Delete
+            </button>
+          </td>
+        `;
+        return tr;
+      }
+
+      function buildPagerGeneric(pagerEl, cur, pages, onPage) {
+        const li = (dis, act, label, t) =>
+          `<li class="page-item ${dis?'disabled':''} ${act?'active':''}">
+            <a class="page-link" href="javascript:void(0)" data-page="${t||''}">${label}</a>
+          </li>`;
+
+        let html = '';
+        html += li(cur<=1, false, 'Previous', cur-1);
+
+        const w = 3;
+        const s = Math.max(1, cur - w);
+        const e = Math.min(pages, cur + w);
+
+        if (s > 1) {
+          html += li(false, false, 1, 1);
+          if (s > 2) html += '<li class="page-item disabled"><span class="page-link">…</span></li>';
+        }
+
+        for (let i = s; i <= e; i++) html += li(false, i===cur, i, i);
+
+        if (e < pages) {
+          if (e < pages-1) html += '<li class="page-item disabled"><span class="page-link">…</span></li>';
+          html += li(false, false, pages, pages);
+        }
+
+        html += li(cur>=pages, false, 'Next', cur+1);
+        pagerEl.innerHTML = html;
+
+        pagerEl.querySelectorAll('a.page-link[data-page]').forEach(a => {
+          a.addEventListener('click', () => {
+            const t = Number(a.dataset.page);
+            if (!t || t === cur) return;
+            onPage(t);
+            window.scrollTo({top:0, behavior:'smooth'});
+          });
+        });
+      }
+
+      async function loadArchived() {
+        loaderArchived.style.display = '';
+        emptyArchived.style.display = 'none';
+        metaArchived.textContent = '—';
+        pagerArchived.innerHTML = '';
+        clearRows(rowsArchived, '.js-loader-archived');
+
+        try {
+          const per = 30;
+          const usp = new URLSearchParams();
+          usp.set('per_page', per);
+          usp.set('page', state.archived.page);
+          usp.set('active', '0');                 // ✅ controller supports this
+          usp.set('sort', 'created_at');
+          usp.set('direction', 'desc');
+
+          const j = await fetchJSON(API_BASE + '?' + usp.toString());
+          const items = Array.isArray(j.data) ? j.data : [];
+          const pag = j.pagination || {page:1, per_page: per, total: items.length};
+
+          if (!items.length) emptyArchived.style.display = '';
+
+          const frag = document.createDocumentFragment();
+          items.forEach(r => frag.appendChild(archivedRow(r)));
+          rowsArchived.appendChild(frag);
+
+          const total = Number(pag.total || 0);
+          const pages = Math.max(1, Math.ceil(total / Number(pag.per_page || per)));
+          metaArchived.textContent = `Showing page ${pag.page} of ${pages} — ${total} result(s)`;
+
+          buildPagerGeneric(pagerArchived, Number(pag.page||1), pages, (t)=>{
+            state.archived.page = Math.max(1,t);
+            loadArchived();
+          });
+
+          loaded.archived = true;
+          dirty.archived = false;
+
+        } catch(e) {
+          console.error(e);
+          emptyArchived.style.display = '';
+          metaArchived.textContent = 'Failed to load';
+          err(e.message || 'Load error');
+        } finally {
+          loaderArchived.style.display = 'none';
+        }
+      }
+
+      async function loadBin() {
+        loaderBin.style.display = '';
+        emptyBin.style.display = 'none';
+        metaBin.textContent = '—';
+        pagerBin.innerHTML = '';
+        clearRows(rowsBin, '.js-loader-bin');
+
+        try {
+          const per = 30;
+          const usp = new URLSearchParams();
+          usp.set('per_page', per);
+          usp.set('page', state.bin.page);
+
+          const j = await fetchJSON(API_BASE + '/trash?' + usp.toString());
+          const items = Array.isArray(j.data) ? j.data : [];
+          const pag = j.pagination || {page:1, per_page: per, total: items.length};
+
+          if (!items.length) emptyBin.style.display = '';
+
+          const frag = document.createDocumentFragment();
+          items.forEach(r => frag.appendChild(binRow(r)));
+          rowsBin.appendChild(frag);
+
+          const total = Number(pag.total || 0);
+          const pages = Math.max(1, Math.ceil(total / Number(pag.per_page || per)));
+          metaBin.textContent = `Showing page ${pag.page} of ${pages} — ${total} result(s)`;
+
+          buildPagerGeneric(pagerBin, Number(pag.page||1), pages, (t)=>{
+            state.bin.page = Math.max(1,t);
+            loadBin();
+          });
+
+          loaded.bin = true;
+          dirty.bin = false;
+
+        } catch(e) {
+          console.error(e);
+          emptyBin.style.display = '';
+          metaBin.textContent = 'Failed to load';
+          err(e.message || 'Load error');
+        } finally {
+          loaderBin.style.display = 'none';
+        }
+      }
+
+      /* =========================
+        EVENTS
+      ========================= */
+      let qTimer;
+      qInput.addEventListener('input', () => {
+        clearTimeout(qTimer);
+        qTimer = setTimeout(() => {
+          activePage = 1;
+          renderActiveTree();
+        }, 250);
+      });
+
+      perPageSel.addEventListener('change', () => {
+        activePage = 1;
+        renderActiveTree();
+      });
+
+      btnReset.addEventListener('click', () => {
+        qInput.value = '';
+        perPageSel.value = '30';
+        activePage = 1;
+        renderActiveTree();
+      });
+
+      btnReorder.addEventListener('click', () => {
+        reorderMode = !reorderMode;
+
+        btnReorder.classList.toggle('btn-primary', reorderMode);
+        btnReorder.classList.toggle('btn-light', !reorderMode);
+        btnReorder.innerHTML = reorderMode
+          ? '<i class="fa fa-check-double me-1"></i>Reorder On'
+          : '<i class="fa fa-up-down-left-right me-1"></i>Reorder';
+
+        renderActiveTree();
+      });
+
+      btnCancelOrd.addEventListener('click', () => {
+        reorderMode = false;
+        btnReorder.classList.remove('btn-primary');
+        btnReorder.classList.add('btn-light');
+        btnReorder.innerHTML = '<i class="fa fa-up-down-left-right me-1"></i>Reorder';
+        renderActiveTree(); // redraw from server state already loaded
+      });
+
+      btnSaveOrd.addEventListener('click', async () => {
+        const orders = collectOrdersFromDOM();
+        if (!orders.length) {
+          Swal.fire('Nothing to save', 'No items found to reorder.', 'info');
+          return;
+        }
+
+        setSaveBtnLoading(true);
+
+        try {
+          const res = await fetch(API_BASE + '/reorder', {
+            method: 'POST',
+            headers: {
+              'Authorization': 'Bearer ' + TOKEN,
+              'Accept': 'application/json',
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ orders }) // ✅ matches controller
+          });
+
+          const j = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(j?.error || j?.message || 'Reorder failed');
+
+          ok('Order updated');
+
+          reorderMode = false;
+          btnReorder.classList.remove('btn-primary');
+          btnReorder.classList.add('btn-light');
+          btnReorder.innerHTML = '<i class="fa fa-up-down-left-right me-1"></i>Reorder';
+
+          // ✅ only refresh visible tab; mark active dirty to refetch once
+          markDirty(['active']);
+          await refreshVisible();
+
+        } catch(e) {
+          console.error(e);
+          err(e.message || 'Reorder failed');
+        } finally {
+          setSaveBtnLoading(false);
+        }
+      });
+
+      // delegated actions (active + archived + bin)
+      ROOT.addEventListener('click', async (e) => {
+        const btn = e.target.closest('[data-act]');
+        if (!btn) return;
+
+        const act = btn.dataset.act;
+        const id = btn.dataset.id;
+        const title = btn.dataset.title || 'this menu';
+
+        if (!id) return;
+
+        if (act === 'toggle') {
+          try {
+            await fetchJSON(API_BASE + '/' + encodeURIComponent(id) + '/toggle-active', { method: 'POST' });
+            ok('Status updated');
+
+            // ✅ affects Active + Archived (but only reload visible now)
+            markDirty(['active', 'archived']);
+            await refreshVisible();
+
+          } catch(e) {
+            err(e.message || 'Toggle failed');
+          }
+          return;
+        }
+
+        if (act === 'delete') {
+          const {isConfirmed} = await Swal.fire({
+            icon: 'warning',
+            title: 'Delete menu?',
+            html: `"${esc(title)}" will be moved to Bin.`,
+            showCancelButton: true,
+            confirmButtonText: 'Delete',
+            confirmButtonColor: '#ef4444'
+          });
+          if (!isConfirmed) return;
+
+          try {
+            await fetchJSON(API_BASE + '/' + encodeURIComponent(id), { method: 'DELETE' });
+            ok('Moved to Bin');
+
+            // ✅ affects current list + Bin
+            markDirty(['active','archived','bin']); // safe: whichever tab it came from
+            await refreshVisible();
+
+          } catch(e) {
+            err(e.message || 'Delete failed');
+          }
+          return;
+        }
+
+        if (act === 'activate') {
+          try {
+            await fetchJSON(API_BASE + '/' + encodeURIComponent(id) + '/toggle-active', { method: 'POST' });
+            ok('Menu activated');
+
+            // ✅ affects Archived + Active
+            markDirty(['archived','active']);
+            await refreshVisible();
+
+          } catch(e) {
+            err(e.message || 'Activate failed');
+          }
+          return;
+        }
+
+        if (act === 'restore') {
+          try {
+            await fetchJSON(API_BASE + '/' + encodeURIComponent(id) + '/restore', { method: 'POST' });
+            ok('Restored');
+
+            // ✅ affects Bin + (possibly) Active/Archived depending on status
+            markDirty(['bin','active','archived']);
+            await refreshVisible();
+
+          } catch(e) {
+            err(e.message || 'Restore failed');
+          }
+          return;
+        }
+
+        if (act === 'force') {
+          const {isConfirmed} = await Swal.fire({
+            icon:'warning',
+            title:'Delete permanently?',
+            html:`This cannot be undone.<br>"${esc(title)}"`,
+            showCancelButton:true,
+            confirmButtonText:'Delete permanently',
+            confirmButtonColor:'#dc2626'
+          });
+          if (!isConfirmed) return;
+
+          try {
+            await fetchJSON(API_BASE + '/' + encodeURIComponent(id) + '/force', { method: 'DELETE' });
+            ok('Permanently deleted');
+
+            markDirty(['bin']);
+            await refreshVisible();
+
+          } catch(e) {
+            err(e.message || 'Force delete failed');
+          }
+          return;
+        }
+      });
+
+      // tab loads (✅ only load if never loaded OR dirty)
+      const tabA = ROOT.querySelector('a[href="#{{ $tabActive }}"]');
+      const tabR = ROOT.querySelector('a[href="#{{ $tabArchived }}"]');
+      const tabB = ROOT.querySelector('a[href="#{{ $tabBin }}"]');
+
+      tabA?.addEventListener('shown.bs.tab', () => {
+        // If already loaded and not dirty, just re-render
+        if (loaded.active && !dirty.active) return renderActiveTree();
+        loadActiveTree();
+      });
+
+      tabR?.addEventListener('shown.bs.tab', () => {
+        if (!loaded.archived || dirty.archived) loadArchived();
+      });
+
+      tabB?.addEventListener('shown.bs.tab', () => {
+        if (!loaded.bin || dirty.bin) loadBin();
+      });
+
+      // initial
+      loadActiveTree();
+
+    })();
+  </script>
+@endpush

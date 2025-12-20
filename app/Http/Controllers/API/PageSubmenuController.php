@@ -6,10 +6,14 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Carbon\Carbon;
+use Illuminate\Support\Facades\Schema;
 
-class HeaderMenuController extends Controller
+
+class PageSubmenuController extends Controller
 {
+    /** Table name (your migration log shows `pages_submenu`) */
+    private string $table = 'pages_submenu';
+
     /* ============================================
      | Helpers
      |============================================ */
@@ -31,14 +35,28 @@ class HeaderMenuController extends Controller
         return $s;
     }
 
-    /** Auto-generate unique menu shortcode (alphanumeric) */
-    private function generateMenuShortcode(?int $excludeId = null): string
+    /** Ensure page exists (and not soft-deleted) */
+    private function validatePage(int $pageId): void
+    {
+        $ok = DB::table('pages')
+            ->where('id', $pageId)
+            ->whereNull('deleted_at')
+            ->exists();
+
+        if (!$ok) {
+            abort(response()->json(['error' => 'Invalid page_id'], 422));
+        }
+    }
+
+    /** Auto-generate unique submenu shortcode (alphanumeric) */
+    private function generateSubmenuShortcode(?int $excludeId = null): string
     {
         $maxTries = 50;
-        for ($i = 0; $i < $maxTries; $i++) {
-            $code = 'HM' . Str::upper(Str::random(6)); // e.g. HM3K9ZAQ
 
-            $q = DB::table('header_menus')->where('shortcode', $code);
+        for ($i = 0; $i < $maxTries; $i++) {
+            $code = 'PSM' . Str::upper(Str::random(6)); // e.g. PSM3K9ZAQ
+
+            $q = DB::table($this->table)->where('shortcode', $code);
             if ($excludeId) {
                 $q->where('id', '!=', $excludeId);
             }
@@ -48,12 +66,14 @@ class HeaderMenuController extends Controller
             }
         }
 
-        // Fallback – extremely unlikely to reach
-        return 'HM' . time();
+        return 'PSM' . time();
     }
 
-    /** Guard that parent exists and is not self */
-    private function validateParent(?int $parentId, ?int $selfId = null): void
+    /**
+     * Guard that parent exists, is not self,
+     * AND belongs to the same page_id.
+     */
+    private function validateParent(?int $parentId, int $pageId, ?int $selfId = null): void
     {
         if ($parentId === null) {
             return;
@@ -63,20 +83,22 @@ class HeaderMenuController extends Controller
             abort(response()->json(['error' => 'Parent cannot be self'], 422));
         }
 
-        $ok = DB::table('header_menus')
+        $ok = DB::table($this->table)
             ->where('id', $parentId)
+            ->where('page_id', $pageId)
             ->whereNull('deleted_at')
             ->exists();
 
         if (!$ok) {
-            abort(response()->json(['error' => 'Invalid parent_id'], 422));
+            abort(response()->json(['error' => 'Invalid parent_id for this page'], 422));
         }
     }
 
-    /** Next position among siblings */
-    private function nextPosition(?int $parentId): int
+    /** Next position among siblings (scoped to page_id) */
+    private function nextPosition(int $pageId, ?int $parentId): int
     {
-        $q = DB::table('header_menus')
+        $q = DB::table($this->table)
+            ->where('page_id', $pageId)
             ->whereNull('deleted_at');
 
         if ($parentId === null) {
@@ -87,6 +109,30 @@ class HeaderMenuController extends Controller
 
         $max = (int) $q->max('position');
         return $max + 1;
+    }
+
+    /** Resolve page_id from query param page_id OR page_slug */
+    private function resolvePageIdFromRequest(Request $r): int
+    {
+        $pageId = $r->query('page_id', null);
+        $pageSlug = trim((string) $r->query('page_slug', ''));
+
+        if ($pageId !== null && $pageId !== '') {
+            return (int) $pageId;
+        }
+
+        if ($pageSlug !== '') {
+            $row = DB::table('pages')
+                ->where('slug', $pageSlug)
+                ->whereNull('deleted_at')
+                ->first();
+
+            if ($row) {
+                return (int) $row->id;
+            }
+        }
+
+        return 0;
     }
 
     /* ============================================
@@ -100,6 +146,7 @@ class HeaderMenuController extends Controller
         $q    = trim((string) $r->query('q', ''));
         $activeParam = $r->query('active', null); // null, '0', '1'
         $parentId = $r->query('parent_id', 'any'); // 'any' | null | int
+        $pageId = $r->query('page_id', 'any'); // 'any' | int
         $sort = (string) $r->query('sort', 'position'); // position|title|created_at
         $direction = strtolower((string) $r->query('direction', 'asc')) === 'desc' ? 'desc' : 'asc';
 
@@ -108,7 +155,7 @@ class HeaderMenuController extends Controller
             $sort = 'position';
         }
 
-        $base = DB::table('header_menus')
+        $base = DB::table($this->table)
             ->whereNull('deleted_at');
 
         if ($q !== '') {
@@ -124,6 +171,10 @@ class HeaderMenuController extends Controller
 
         if ($activeParam !== null && in_array((string) $activeParam, ['0', '1'], true)) {
             $base->where('active', (int) $activeParam === 1);
+        }
+
+        if ($pageId !== 'any' && $pageId !== null && $pageId !== '') {
+            $base->where('page_id', (int) $pageId);
         }
 
         if ($parentId === null || $parentId === 'null') {
@@ -154,7 +205,7 @@ class HeaderMenuController extends Controller
         $page = max(1, (int) $r->query('page', 1));
         $per  = min(100, max(5, (int) $r->query('per_page', 20)));
 
-        $base = DB::table('header_menus')
+        $base = DB::table($this->table)
             ->whereNotNull('deleted_at');
 
         $total = (clone $base)->count();
@@ -173,11 +224,25 @@ class HeaderMenuController extends Controller
         ]);
     }
 
+    /**
+     * Tree for a page.
+     * Query:
+     * - page_id=123 OR page_slug=about-us
+     * - only_active=1
+     */
     public function tree(Request $r)
     {
         $onlyActive = (int) $r->query('only_active', 0) === 1;
+        $pageId = $this->resolvePageIdFromRequest($r);
 
-        $q = DB::table('header_menus')
+        if ($pageId <= 0) {
+            return response()->json(['error' => 'Missing page_id or page_slug'], 422);
+        }
+
+        $this->validatePage($pageId);
+
+        $q = DB::table($this->table)
+            ->where('page_id', $pageId)
             ->whereNull('deleted_at');
 
         if ($onlyActive) {
@@ -188,7 +253,6 @@ class HeaderMenuController extends Controller
                   ->orderBy('id', 'asc')
                   ->get();
 
-        // Build tree in memory
         $byParent = [];
         foreach ($rows as $row) {
             $pid = $row->parent_id ?? 0;
@@ -205,15 +269,20 @@ class HeaderMenuController extends Controller
 
         return response()->json([
             'success' => true,
+            'page_id' => $pageId,
             'data' => $make(0),
         ]);
     }
 
     /**
-     * Resolve a slug:
+     * Resolve submenu slug (same logic as header menus):
      * - if page_url is set => redirect to that url
      * - else if page_slug  => redirect to "/{page_slug}"
      * - else               => redirect to "/{slug}"
+     *
+     * Query:
+     * - slug=xyz
+     * - (optional) page_id OR page_slug (if you want to scope / validate)
      */
     public function resolve(Request $r)
     {
@@ -222,11 +291,18 @@ class HeaderMenuController extends Controller
             return response()->json(['error' => 'Missing slug'], 422);
         }
 
-        $menu = DB::table('header_menus')
+        $pageId = $this->resolvePageIdFromRequest($r);
+
+        $q = DB::table($this->table)
             ->where('slug', $slug)
             ->whereNull('deleted_at')
-            ->where('active', true)
-            ->first();
+            ->where('active', true);
+
+        if ($pageId > 0) {
+            $q->where('page_id', $pageId);
+        }
+
+        $menu = $q->first();
 
         if (!$menu) {
             return response()->json(['error' => 'Not found'], 404);
@@ -244,9 +320,9 @@ class HeaderMenuController extends Controller
         }
 
         return response()->json([
-            'success'       => true,
-            'menu'          => $menu,
-            'redirect_url'  => $redirectUrl,
+            'success'      => true,
+            'submenu'      => $menu,
+            'redirect_url' => $redirectUrl,
         ]);
     }
 
@@ -256,7 +332,7 @@ class HeaderMenuController extends Controller
 
     public function show(Request $r, $id)
     {
-        $row = DB::table('header_menus')
+        $row = DB::table($this->table)
             ->where('id', (int) $id)
             ->first();
 
@@ -270,33 +346,38 @@ class HeaderMenuController extends Controller
     public function store(Request $r)
     {
         $data = $r->validate([
+            'page_id'        => 'required|integer|min:1',
             'title'          => 'required|string|max:150',
             'description'    => 'sometimes|nullable|string',
-            'slug'           => 'sometimes|nullable|string|max:160',   // menu slug (auto from title in UI)
-            'shortcode'      => 'sometimes|nullable|string|max:100',   // menu shortcode (auto if empty)
+            'slug'           => 'sometimes|nullable|string|max:160',
+            'shortcode'      => 'sometimes|nullable|string|max:100',
             'parent_id'      => 'sometimes|nullable|integer',
             'position'       => 'sometimes|integer|min:0',
             'active'         => 'sometimes|boolean',
-            // page section
+            // target page fields (optional)
             'page_slug'      => 'sometimes|nullable|string|max:160',
             'page_shortcode' => 'sometimes|nullable|string|max:100',
             'page_url'       => 'sometimes|nullable|string|max:255',
         ]);
 
+        $pageId = (int) $data['page_id'];
+        $this->validatePage($pageId);
+
         $parentId = array_key_exists('parent_id', $data)
             ? ($data['parent_id'] === null ? null : (int) $data['parent_id'])
             : null;
 
-        $this->validateParent($parentId, null);
+        $this->validateParent($parentId, $pageId, null);
 
-        // MENU SLUG (auto from title if not passed)
+        // SUBMENU SLUG (auto from title if not passed)
         $slug = $this->normSlug($data['slug'] ?? $data['title'] ?? '');
         if ($slug === '') {
             return response()->json(['error' => 'Unable to generate slug'], 422);
         }
 
-        // Idempotency: if same slug already exists (not deleted), return it instead of inserting again
-        $existing = DB::table('header_menus')
+        // Idempotency: same slug (within same page) => return existing
+        $existing = DB::table($this->table)
+            ->where('page_id', $pageId)
             ->where('slug', $slug)
             ->whereNull('deleted_at')
             ->first();
@@ -306,26 +387,26 @@ class HeaderMenuController extends Controller
                 'success'         => true,
                 'data'            => $existing,
                 'already_existed' => true,
-                'message'         => 'Menu already exists; not created again.',
+                'message'         => 'Submenu already exists; not created again.',
             ], 200);
         }
 
-        // MENU SHORTCODE (auto alphanumeric if empty)
-        $menuShortcode = null;
+        // SHORTCODE
+        $submenuShortcode = null;
         if (!empty($data['shortcode'])) {
-            $menuShortcode = strtoupper(trim($data['shortcode']));
-            $shortExists = DB::table('header_menus')
-                ->where('shortcode', $menuShortcode)
+            $submenuShortcode = strtoupper(trim($data['shortcode']));
+            $shortExists = DB::table($this->table)
+                ->where('shortcode', $submenuShortcode)
                 ->whereNull('deleted_at')
                 ->exists();
             if ($shortExists) {
-                return response()->json(['error' => 'Menu shortcode already exists'], 422);
+                return response()->json(['error' => 'Submenu shortcode already exists'], 422);
             }
         } else {
-            $menuShortcode = $this->generateMenuShortcode(null);
+            $submenuShortcode = $this->generateSubmenuShortcode(null);
         }
 
-        // PAGE FIELDS
+        // PAGE FIELDS (optional)
         $pageSlug = null;
         if (array_key_exists('page_slug', $data)) {
             $norm = $this->normSlug($data['page_slug']);
@@ -342,9 +423,9 @@ class HeaderMenuController extends Controller
             ? (trim((string) $data['page_url']) ?: null)
             : null;
 
-        // Uniqueness for page_slug / page_shortcode
+        // Uniqueness for page_slug / page_shortcode (global, like header menus)
         if ($pageSlug) {
-            $existsPageSlug = DB::table('header_menus')
+            $existsPageSlug = DB::table($this->table)
                 ->where('page_slug', $pageSlug)
                 ->whereNull('deleted_at')
                 ->exists();
@@ -354,7 +435,7 @@ class HeaderMenuController extends Controller
         }
 
         if ($pageShortcode) {
-            $existsPageShort = DB::table('header_menus')
+            $existsPageShort = DB::table($this->table)
                 ->where('page_shortcode', $pageShortcode)
                 ->whereNull('deleted_at')
                 ->exists();
@@ -363,30 +444,34 @@ class HeaderMenuController extends Controller
             }
         }
 
-        // If soft-deleted with same slug, revive instead of new insert
-        $trashed = DB::table('header_menus')
+        // If soft-deleted with same (page_id + slug), revive
+        $trashed = DB::table($this->table)
+            ->where('page_id', $pageId)
             ->where('slug', $slug)
             ->whereNotNull('deleted_at')
             ->first();
 
         $now   = now();
         $actor = $this->actor($r);
+
         $position = array_key_exists('position', $data)
             ? (int) $data['position']
-            : $this->nextPosition($parentId);
+            : $this->nextPosition($pageId, $parentId);
+
         $active = array_key_exists('active', $data)
             ? (bool) $data['active']
             : true;
 
         if ($trashed) {
-            DB::table('header_menus')
+            DB::table($this->table)
                 ->where('id', $trashed->id)
                 ->update([
+                    'page_id'         => $pageId,
                     'parent_id'       => $parentId,
                     'title'           => $data['title'],
                     'description'     => $data['description'] ?? null,
                     'slug'            => $slug,
-                    'shortcode'       => $menuShortcode,
+                    'shortcode'       => $submenuShortcode,
                     'page_slug'       => $pageSlug,
                     'page_shortcode'  => $pageShortcode,
                     'page_url'        => $pageUrl,
@@ -398,7 +483,7 @@ class HeaderMenuController extends Controller
                     'updated_at_ip'   => $r->ip(),
                 ]);
 
-            $row = DB::table('header_menus')->where('id', $trashed->id)->first();
+            $row = DB::table($this->table)->where('id', $trashed->id)->first();
 
             return response()->json([
                 'success'  => true,
@@ -407,13 +492,14 @@ class HeaderMenuController extends Controller
             ]);
         }
 
-        $id = DB::table('header_menus')->insertGetId([
+        $id = DB::table($this->table)->insertGetId([
             'uuid'            => (string) Str::uuid(),
+            'page_id'         => $pageId,
             'parent_id'       => $parentId,
             'title'           => $data['title'],
             'description'     => $data['description'] ?? null,
             'slug'            => $slug,
-            'shortcode'       => $menuShortcode,
+            'shortcode'       => $submenuShortcode,
             'page_slug'       => $pageSlug,
             'page_shortcode'  => $pageShortcode,
             'page_url'        => $pageUrl,
@@ -427,14 +513,14 @@ class HeaderMenuController extends Controller
             'updated_at_ip'   => $r->ip(),
         ]);
 
-        $row = DB::table('header_menus')->where('id', $id)->first();
+        $row = DB::table($this->table)->where('id', $id)->first();
 
         return response()->json(['success' => true, 'data' => $row], 201);
     }
 
     public function update(Request $r, $id)
     {
-        $row = DB::table('header_menus')
+        $row = DB::table($this->table)
             ->where('id', (int) $id)
             ->whereNull('deleted_at')
             ->first();
@@ -444,27 +530,36 @@ class HeaderMenuController extends Controller
         }
 
         $data = $r->validate([
-            'title'          => 'sometimes|string|max:150',
-            'description'    => 'sometimes|nullable|string',
-            'slug'           => 'sometimes|nullable|string|max:160', // pass empty + regenerate_slug to regenerate
-            'shortcode'      => 'sometimes|nullable|string|max:100',
-            'parent_id'      => 'sometimes|nullable|integer',
-            'position'       => 'sometimes|integer|min:0',
-            'active'         => 'sometimes|boolean',
-            'regenerate_slug'=> 'sometimes|boolean',
-            // page section
-            'page_slug'      => 'sometimes|nullable|string|max:160',
-            'page_shortcode' => 'sometimes|nullable|string|max:100',
-            'page_url'       => 'sometimes|nullable|string|max:255',
+            'page_id'         => 'sometimes|integer|min:1', // not allowed to change (validated below)
+            'title'           => 'sometimes|string|max:150',
+            'description'     => 'sometimes|nullable|string',
+            'slug'            => 'sometimes|nullable|string|max:160', // pass empty + regenerate_slug to regenerate
+            'shortcode'       => 'sometimes|nullable|string|max:100',
+            'parent_id'       => 'sometimes|nullable|integer',
+            'position'        => 'sometimes|integer|min:0',
+            'active'          => 'sometimes|boolean',
+            'regenerate_slug' => 'sometimes|boolean',
+            // target page fields
+            'page_slug'       => 'sometimes|nullable|string|max:160',
+            'page_shortcode'  => 'sometimes|nullable|string|max:100',
+            'page_url'        => 'sometimes|nullable|string|max:255',
         ]);
+
+        // page_id cannot change (safety)
+        $pageId = (int) ($row->page_id ?? 0);
+        if (array_key_exists('page_id', $data) && (int)$data['page_id'] !== $pageId) {
+            return response()->json(['error' => 'Changing page_id is not allowed'], 422);
+        }
+
+        $this->validatePage($pageId);
 
         $parentId = array_key_exists('parent_id', $data)
             ? ($data['parent_id'] === null ? null : (int) $data['parent_id'])
             : ($row->parent_id ?? null);
 
-        $this->validateParent($parentId, (int) $row->id);
+        $this->validateParent($parentId, $pageId, (int) $row->id);
 
-        // Handle menu slug (strict, no automatic "-2" suffixes)
+        // Handle submenu slug (strict, no "-2" auto)
         $slug = $row->slug;
 
         if (
@@ -472,10 +567,11 @@ class HeaderMenuController extends Controller
             !empty($data['regenerate_slug']) ||
             (isset($data['title']) && $data['title'] !== $row->title && !array_key_exists('slug', $data))
         ) {
-            if (!empty($data['regenerate_slug']) ||
+            if (
+                !empty($data['regenerate_slug']) ||
                 (array_key_exists('slug', $data) && trim((string) $data['slug']) === '')
             ) {
-                $base = $this->normSlug($data['title'] ?? $row->title ?? 'page');
+                $base = $this->normSlug($data['title'] ?? $row->title ?? 'submenu');
                 $slug = $base;
             } elseif (array_key_exists('slug', $data)) {
                 $slug = $this->normSlug($data['slug']);
@@ -485,35 +581,35 @@ class HeaderMenuController extends Controller
                 return response()->json(['error' => 'Unable to generate slug'], 422);
             }
 
-            $existsSlug = DB::table('header_menus')
+            $existsSlug = DB::table($this->table)
+                ->where('page_id', $pageId)
                 ->where('slug', $slug)
                 ->where('id', '!=', $row->id)
                 ->whereNull('deleted_at')
                 ->exists();
 
             if ($existsSlug) {
-                return response()->json(['error' => 'Slug already in use'], 422);
+                return response()->json(['error' => 'Slug already in use for this page'], 422);
             }
         }
 
-        // MENU SHORTCODE
-        $menuShortcode = $row->shortcode;
+        // SHORTCODE
+        $submenuShortcode = $row->shortcode;
         if (array_key_exists('shortcode', $data)) {
             $val = trim((string) $data['shortcode']);
             if ($val === '') {
-                // auto-generate new shortcode
-                $menuShortcode = $this->generateMenuShortcode((int) $row->id);
+                $submenuShortcode = $this->generateSubmenuShortcode((int) $row->id);
             } else {
                 $val = strtoupper($val);
-                $existsShort = DB::table('header_menus')
+                $existsShort = DB::table($this->table)
                     ->where('shortcode', $val)
                     ->where('id', '!=', $row->id)
                     ->whereNull('deleted_at')
                     ->exists();
                 if ($existsShort) {
-                    return response()->json(['error' => 'Menu shortcode already in use'], 422);
+                    return response()->json(['error' => 'Submenu shortcode already in use'], 422);
                 }
-                $menuShortcode = $val;
+                $submenuShortcode = $val;
             }
         }
 
@@ -524,7 +620,7 @@ class HeaderMenuController extends Controller
             $pageSlug = $norm !== '' ? $norm : null;
 
             if ($pageSlug) {
-                $existsPageSlug = DB::table('header_menus')
+                $existsPageSlug = DB::table($this->table)
                     ->where('page_slug', $pageSlug)
                     ->where('id', '!=', $row->id)
                     ->whereNull('deleted_at')
@@ -541,7 +637,7 @@ class HeaderMenuController extends Controller
             $pageShortcode = $val !== '' ? $val : null;
 
             if ($pageShortcode) {
-                $existsPageShort = DB::table('header_menus')
+                $existsPageShort = DB::table($this->table)
                     ->where('page_shortcode', $pageShortcode)
                     ->where('id', '!=', $row->id)
                     ->whereNull('deleted_at')
@@ -561,22 +657,22 @@ class HeaderMenuController extends Controller
             'title'           => $data['title'] ?? $row->title,
             'description'     => array_key_exists('description', $data) ? $data['description'] : $row->description,
             'slug'            => $slug,
-            'shortcode'       => $menuShortcode,
+            'shortcode'       => $submenuShortcode,
             'page_slug'       => $pageSlug,
             'page_shortcode'  => $pageShortcode,
             'page_url'        => $pageUrl,
-            'position'        => array_key_exists('position', $data) ? (int) $data['position'] : $row->position,
+            'position'        => array_key_exists('position', $data) ? (int) $data['position'] : (int) $row->position,
             'active'          => array_key_exists('active', $data) ? (bool) $data['active'] : (bool) $row->active,
             'updated_at'      => now(),
             'updated_by'      => $this->actor($r)['id'] ?: null,
             'updated_at_ip'   => $r->ip(),
         ];
 
-        DB::table('header_menus')
+        DB::table($this->table)
             ->where('id', $row->id)
             ->update($upd);
 
-        $fresh = DB::table('header_menus')
+        $fresh = DB::table($this->table)
             ->where('id', $row->id)
             ->first();
 
@@ -585,7 +681,7 @@ class HeaderMenuController extends Controller
 
     public function destroy(Request $r, $id)
     {
-        $exists = DB::table('header_menus')
+        $exists = DB::table($this->table)
             ->where('id', (int) $id)
             ->whereNull('deleted_at')
             ->exists();
@@ -594,7 +690,7 @@ class HeaderMenuController extends Controller
             return response()->json(['error' => 'Not found'], 404);
         }
 
-        DB::table('header_menus')
+        DB::table($this->table)
             ->where('id', (int) $id)
             ->update([
                 'deleted_at'    => now(),
@@ -608,7 +704,7 @@ class HeaderMenuController extends Controller
 
     public function restore(Request $r, $id)
     {
-        $ok = DB::table('header_menus')
+        $ok = DB::table($this->table)
             ->where('id', (int) $id)
             ->whereNotNull('deleted_at')
             ->exists();
@@ -617,7 +713,7 @@ class HeaderMenuController extends Controller
             return response()->json(['error' => 'Not found in bin'], 404);
         }
 
-        DB::table('header_menus')
+        DB::table($this->table)
             ->where('id', (int) $id)
             ->update([
                 'deleted_at'    => null,
@@ -631,7 +727,7 @@ class HeaderMenuController extends Controller
 
     public function forceDelete(Request $r, $id)
     {
-        $exists = DB::table('header_menus')
+        $exists = DB::table($this->table)
             ->where('id', (int) $id)
             ->exists();
 
@@ -639,7 +735,7 @@ class HeaderMenuController extends Controller
             return response()->json(['error' => 'Not found'], 404);
         }
 
-        DB::table('header_menus')
+        DB::table($this->table)
             ->where('id', (int) $id)
             ->delete();
 
@@ -648,7 +744,7 @@ class HeaderMenuController extends Controller
 
     public function toggleActive(Request $r, $id)
     {
-        $row = DB::table('header_menus')
+        $row = DB::table($this->table)
             ->where('id', (int) $id)
             ->whereNull('deleted_at')
             ->first();
@@ -657,7 +753,7 @@ class HeaderMenuController extends Controller
             return response()->json(['error' => 'Not found'], 404);
         }
 
-        DB::table('header_menus')
+        DB::table($this->table)
             ->where('id', (int) $id)
             ->update([
                 'active'        => !$row->active,
@@ -670,13 +766,12 @@ class HeaderMenuController extends Controller
     }
 
     /**
-     * Reorder (and optionally re-parent) items.
+     * Reorder items (no parent change allowed).
      * Body:
      * {
      *   "orders": [
      *     {"id": 5, "position": 0, "parent_id": null},
-     *     {"id": 6, "position": 1, "parent_id": null},
-     *     {"id": 9, "position": 0, "parent_id": 5}
+     *     {"id": 6, "position": 1, "parent_id": null}
      *   ]
      * }
      */
@@ -695,11 +790,8 @@ class HeaderMenuController extends Controller
             foreach ($payload['orders'] as $o) {
                 $id  = (int) $o['id'];
                 $pos = (int) $o['position'];
-                $pid = array_key_exists('parent_id', $o)
-                    ? ($o['parent_id'] === null ? null : (int) $o['parent_id'])
-                    : null;
 
-                $row = DB::table('header_menus')
+                $row = DB::table($this->table)
                     ->where('id', $id)
                     ->whereNull('deleted_at')
                     ->first();
@@ -708,38 +800,24 @@ class HeaderMenuController extends Controller
                     continue;
                 }
 
-                if ($pid !== null) {
-                    $this->validateParent($pid, $id);
+                $currentPid = $row->parent_id === null ? null : (int) $row->parent_id;
+
+                $incomingPid = array_key_exists('parent_id', $o)
+                    ? ($o['parent_id'] === null ? null : (int) $o['parent_id'])
+                    : $currentPid;
+
+                if ($incomingPid !== $currentPid) {
+                    throw new \RuntimeException("Parent change not allowed for id {$id}");
                 }
 
-                DB::table('header_menus')
+                DB::table($this->table)
                     ->where('id', $id)
                     ->update([
-                        'parent_id'  => $pid,
-                        'position'   => $pos,
-                        'updated_at' => now(),
+                        'position'      => $pos,
+                        'updated_at'    => now(),
+                        'updated_by'    => $this->actor($r)['id'] ?: null,
+                        'updated_at_ip' => $r->ip(),
                     ]);
-
-                    // inside foreach ($payload['orders'] as $o) { ... }
-
-$currentPid = $row->parent_id === null ? null : (int)$row->parent_id;
-
-// if client sends parent_id, enforce it matches current parent
-$incomingPid = array_key_exists('parent_id', $o)
-  ? ($o['parent_id'] === null ? null : (int)$o['parent_id'])
-  : $currentPid;
-
-if ($incomingPid !== $currentPid) {
-  throw new \RuntimeException("Parent change not allowed for id {$id}");
-}
-
-DB::table('header_menus')->where('id', $id)->update([
-  'position'     => $pos,
-  'updated_at'   => now(),
-  'updated_by'   => $this->actor($r)['id'] ?: null,
-  'updated_at_ip'=> $r->ip(),
-]);
-
             }
 
             DB::commit();
@@ -754,42 +832,106 @@ DB::table('header_menus')->where('id', $id)->update([
         return response()->json(['success' => true, 'message' => 'Order updated']);
     }
 
-    // Add this method to HeaderMenuController.php
-public function publicTree(Request $r)
-{
-    $onlyActive = true; // Always only active for public
-    $onlyTopLevel = (int) $r->query('top_level', 0) === 1;
+    /**
+     * Public tree:
+     * - page_id=123 OR page_slug=about-us
+     * - top_level=1 (optional)
+     */
+    public function publicTree(Request $r)
+    {
+        $onlyTopLevel = (int) $r->query('top_level', 0) === 1;
 
-    $q = DB::table('header_menus')
-        ->whereNull('deleted_at')
-        ->where('active', true);
-
-    if ($onlyTopLevel) {
-        $q->whereNull('parent_id');
-    }
-
-    $rows = $q->orderBy('position', 'asc')
-              ->orderBy('id', 'asc')
-              ->get();
-
-    // Build tree in memory
-    $byParent = [];
-    foreach ($rows as $row) {
-        $pid = $row->parent_id ?? 0;
-        $byParent[$pid][] = $row;
-    }
-
-    $make = function ($pid) use (&$make, &$byParent) {
-        $nodes = $byParent[$pid] ?? [];
-        foreach ($nodes as $n) {
-            $n->children = $make($n->id);
+        $pageId = $this->resolvePageIdFromRequest($r);
+        if ($pageId <= 0) {
+            return response()->json(['error' => 'Missing page_id or page_slug'], 422);
         }
-        return $nodes;
-    };
+
+        $this->validatePage($pageId);
+
+        $q = DB::table($this->table)
+            ->where('page_id', $pageId)
+            ->whereNull('deleted_at')
+            ->where('active', true);
+
+        if ($onlyTopLevel) {
+            $q->whereNull('parent_id');
+        }
+
+        $rows = $q->orderBy('position', 'asc')
+                  ->orderBy('id', 'asc')
+                  ->get();
+
+        $byParent = [];
+        foreach ($rows as $row) {
+            $pid = $row->parent_id ?? 0;
+            $byParent[$pid][] = $row;
+        }
+
+        $make = function ($pid) use (&$make, &$byParent) {
+            $nodes = $byParent[$pid] ?? [];
+            foreach ($nodes as $n) {
+                $n->children = $make($n->id);
+            }
+            return $nodes;
+        };
+
+        return response()->json([
+            'success' => true,
+            'page_id' => $pageId,
+            'data' => $make(0),
+        ]);
+    }
+
+    /**
+ * Pages list for dropdowns (id + title + slug).
+ * GET /api/page-submenus/pages?limit=500&q=...
+ */
+public function pages(Request $r)
+{
+    $q = trim((string) $r->query('q', ''));
+    $limit = min(1000, max(10, (int) $r->query('limit', 500)));
+
+    // Be defensive in case your pages table uses different column names
+    $titleCol = Schema::hasColumn('pages', 'title') ? 'title'
+              : (Schema::hasColumn('pages', 'name') ? 'name' : null);
+
+    $slugCol  = Schema::hasColumn('pages', 'slug') ? 'slug'
+              : (Schema::hasColumn('pages', 'page_slug') ? 'page_slug' : null);
+
+    $qb = DB::table('pages')
+        ->whereNull('deleted_at')
+        ->select([
+            'id',
+            DB::raw(($titleCol ? $titleCol : "''") . " as title"),
+            DB::raw(($slugCol  ? $slugCol  : "''") . " as slug"),
+        ]);
+
+    if ($q !== '') {
+        $qb->where(function ($x) use ($q, $titleCol, $slugCol) {
+            if ($titleCol) $x->orWhere($titleCol, 'like', "%{$q}%");
+            if ($slugCol)  $x->orWhere($slugCol,  'like', "%{$q}%");
+            $x->orWhere('id', (int) $q); // allows searching by id
+        });
+    }
+
+    // Optional: filter active pages if column exists and query param used
+    if (Schema::hasColumn('pages', 'active') && $r->query('only_active', null) !== null) {
+        $qb->where('active', (int)$r->query('only_active') === 1);
+    }
+
+    // Ordering
+    if ($titleCol) {
+        $qb->orderBy($titleCol, 'asc');
+    } else {
+        $qb->orderBy('id', 'asc');
+    }
+
+    $rows = $qb->limit($limit)->get();
 
     return response()->json([
         'success' => true,
-        'data' => $make(0),
+        'data'    => $rows,
     ]);
 }
+
 }
