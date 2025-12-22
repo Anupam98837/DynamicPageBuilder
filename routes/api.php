@@ -15,7 +15,13 @@ use App\Http\Controllers\API\PageSubmenuController;
 use App\Http\Controllers\API\PublicPageController;
 use App\Http\Controllers\API\PageController;
 use App\Http\Controllers\API\MediaController;
-
+use App\Http\Controllers\API\UserPersonalInformationController;
+use App\Http\Controllers\API\UserHonorsController;
+use App\Http\Controllers\API\UserJournalsController;
+use App\Http\Controllers\API\UserTeachingEngagementsController;
+use App\Http\Controllers\API\UserConferencePublicationsController;
+use App\Http\Controllers\API\UserEducationsController;
+use App\Http\Controllers\API\UserSocialMediaController;
 /*
 |--------------------------------------------------------------------------
 | Base Authenticated User (Sanctum)
@@ -75,6 +81,66 @@ Route::middleware(['checkRole:admin,director,principal,hod'])
     });
 
 
+
+Route::middleware(['checkRole:admin,director,principal,hod'])->group(function () {
+    Route::get('/users/{user_uuid}/personal-info', [UserPersonalInformationController::class, 'show']);
+    Route::post('/users/{user_uuid}/personal-info', [UserPersonalInformationController::class, 'store']);
+    Route::match(['put','patch'], '/users/{user_uuid}/personal-info', [UserPersonalInformationController::class, 'update']);
+    Route::delete('/users/{user_uuid}/personal-info', [UserPersonalInformationController::class, 'destroy']);
+
+    // optional restore
+    Route::get('/users/{user_uuid}/personal-info/restore', [UserPersonalInformationController::class, 'restore']);
+});
+    
+Route::middleware(['checkRole:admin,director,principal,hod'])->group(function () {
+    Route::get('/users/{user_uuid}/honors', [UserHonorsController::class, 'index']);
+    Route::get('/users/{user_uuid}/honors/{honor_uuid}', [UserHonorsController::class, 'show']);
+    Route::post('/users/{user_uuid}/honors', [UserHonorsController::class, 'store']);
+    Route::match(['put','patch'], '/users/{user_uuid}/honors/{honor_uuid}', [UserHonorsController::class, 'update']);
+    Route::delete('/users/{user_uuid}/honors/{honor_uuid}', [UserHonorsController::class, 'destroy']);
+});
+
+
+Route::middleware(['checkRole:admin,director,principal,hod'])->group(function () {
+    Route::get('/users/{user_uuid}/journals', [UserJournalsController::class, 'index']);
+    Route::get('/users/{user_uuid}/journals/{journal_uuid}', [UserJournalsController::class, 'show']);
+    Route::post('/users/{user_uuid}/journals', [UserJournalsController::class, 'store']);
+    Route::match(['put','patch'], '/users/{user_uuid}/journals/{journal_uuid}', [UserJournalsController::class, 'update']);
+    Route::delete('/users/{user_uuid}/journals/{journal_uuid}', [UserJournalsController::class, 'destroy']);
+});
+
+
+Route::middleware(['checkRole:admin,director,principal,hod'])->group(function () {
+    Route::get('/users/{user_uuid}/teaching-engagements', [UserTeachingEngagementsController::class, 'index']);
+    Route::post('/users/{user_uuid}/teaching-engagements', [UserTeachingEngagementsController::class, 'store']);
+    Route::match(['put','patch'], '/users/{user_uuid}/teaching-engagements/{uuid}', [UserTeachingEngagementsController::class, 'update']);
+    Route::delete('/users/{user_uuid}/teaching-engagements/{uuid}', [UserTeachingEngagementsController::class, 'destroy']);
+});
+
+
+Route::middleware(['checkRole:admin,director,principal,hod'])->group(function () {
+    Route::get('/users/{user_uuid}/conference-publications', [UserConferencePublicationsController::class, 'index']);
+    Route::get('/users/{user_uuid}/conference-publications/{uuid}', [UserConferencePublicationsController::class, 'show']);
+    Route::post('/users/{user_uuid}/conference-publications', [UserConferencePublicationsController::class, 'store']);
+    Route::match(['put','patch'], '/users/{user_uuid}/conference-publications/{uuid}', [UserConferencePublicationsController::class, 'update']);
+    Route::delete('/users/{user_uuid}/conference-publications/{uuid}', [UserConferencePublicationsController::class, 'destroy']);
+});
+
+
+Route::middleware(['checkRole:admin,director,principal,hod'])->group(function () {
+    Route::get('/users/{user_uuid}/educations', [UserEducationsController::class, 'index']);
+    Route::post('/users/{user_uuid}/educations', [UserEducationsController::class, 'store']);
+    Route::match(['put','patch'], '/users/{user_uuid}/educations/{uuid}', [UserEducationsController::class, 'update']);
+    Route::delete('/users/{user_uuid}/educations/{uuid}', [UserEducationsController::class, 'destroy']);
+});
+
+
+Route::middleware(['checkRole:admin,director,principal,hod'])->group(function () {
+    Route::get('/users/{user_uuid}/social', [UserSocialMediaController::class, 'index']);
+    Route::post('/users/{user_uuid}/social', [UserSocialMediaController::class, 'store']);
+    Route::match(['put','patch'], '/users/{user_uuid}/social/{uuid}', [UserSocialMediaController::class, 'update']);
+    Route::delete('/users/{user_uuid}/social/{uuid}', [UserSocialMediaController::class, 'destroy']);
+});
 /*
 |--------------------------------------------------------------------------
 | Modules / Privileges / User-Privileges
