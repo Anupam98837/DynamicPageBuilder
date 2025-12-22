@@ -310,9 +310,56 @@
       <div class="w3-section-rule"></div>
     </div>
     <nav class="w3-menu" aria-label="System">
-      <a href="/settings/general" class="w3-link"><i class="fa-solid fa-user"></i><span>Profile</span></a>
-      <a href="/settings/general" class="w3-link"><i class="fa-solid fa-gear"></i><span>Settings</span></a>
+
+      <!-- Manage Profile -->
+      <div class="w3-group">
+        <a href="#" class="w3-link w3-toggle" data-target="sm-manage-profile" aria-expanded="false">
+          <i class="fa-solid fa-user-gear"></i>
+          <span>Manage Profile</span>
+          <i class="fa fa-chevron-down w3-chev"></i>
+        </a>
+    
+        <div id="sm-manage-profile" class="w3-submenu" role="group" aria-label="Manage Profile submenu">
+    
+          <a href="/user/personal-information/manage" class="w3-link">
+            Personal Information
+          </a>
+    
+          <a href="/user/education/manage" class="w3-link">
+            Educations
+          </a>
+    
+          <a href="/user/honors/manage" class="w3-link">
+            Honors & Awards
+          </a>
+    
+          <a href="/user/journals/manage" class="w3-link">
+            Journals
+          </a>
+    
+          <a href="/user/conference-publications/manage" class="w3-link">
+            Conference Publications
+          </a>
+    
+          <a href="/user/teaching-engagements/manage" class="w3-link">
+            Teaching Engagements
+          </a>
+    
+          <a href="/user/social-media/manage" class="w3-link">
+            Social Media
+          </a>
+    
+        </div>
+      </div>
+    
+      <!-- Settings -->
+      <a href="/settings/general" class="w3-link">
+        <i class="fa-solid fa-gear"></i>
+        <span>Settings</span>
+      </a>
+    
     </nav>
+    
 
     <!-- Account (visible only on small screens) -->
     <div class="w3-nav-section d-lg-none">
