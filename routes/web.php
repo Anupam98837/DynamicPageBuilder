@@ -23,6 +23,29 @@ Route::get('/user/manage', function () {
     return view('pages.users.pages.users.manageUsers');
 });
 
+Route::get('/user/conference-publications/manage', function () {
+    return view('pages.users.pages.users.profile.manageConferencePublications');
+});
+Route::get('/user/education/manage', function () {
+    return view('pages.users.pages.users.profile.manageEducations');
+});
+Route::get('/user/honors/manage', function () {
+    return view('pages.users.pages.users.profile.manageHonors');
+});
+Route::get('/user/journals/manage', function () {
+    return view('pages.users.pages.users.profile.manageJournals');
+});
+
+Route::get('/user/social-media/manage', function () {
+    return view('pages.users.pages.users.profile.manageSocialMedia');
+});
+Route::get('/user/teaching-engagements/manage', function () {
+    return view('pages.users.pages.users.profile.manageTeachingEngagements');
+});
+Route::get('/user/personal-information/manage', function () {
+    return view('pages.users.pages.users.profile.personalInformation');
+});
+
 Route::get('/department/manage', function () {
     return view('pages.users.pages.departments.manageDepartment');
 });
@@ -74,3 +97,5 @@ Route::get('/user-privileges/manage', function () {
         'userId'   => $userId,
     ]);
 })->name('modules.privileges.assign.user');
+
+

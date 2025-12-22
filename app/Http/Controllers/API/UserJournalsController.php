@@ -7,12 +7,21 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 
 class UserJournalsController extends Controller
 {
     private string $table = 'user_journals';
+
+    /**
+     * ✅ Public upload base (store directly in public/)
+     * Stored path example:
+     *   /user_uploads/journals/{user_uuid}/journal_{uuid}_1700000000.jpg
+     */
+    private string $publicBaseDir = 'user_uploads/journals';
 
     /* =========================
      * Auth helpers
@@ -42,6 +51,8 @@ class UserJournalsController extends Controller
         Log::info($msg, array_merge([
             'actor_role' => $a['role'],
             'actor_id'   => $a['id'],
+            'ip'         => $r->ip(),
+            'ua'         => (string) $r->userAgent(),
         ], $extra));
     }
 
@@ -94,6 +105,27 @@ class UserJournalsController extends Controller
         return $this->isHighRole($actor['role']);
     }
 
+    /* =========================
+     * Column helpers (safe)
+     * ========================= */
+
+    private function hasCol(string $col): bool
+    {
+        try { return Schema::hasColumn($this->table, $col); }
+        catch (\Throwable $e) { return false; }
+    }
+
+    private function setIfColumn(array &$arr, string $col, $val): void
+    {
+        if ($this->hasCol($col)) {
+            $arr[$col] = $val;
+        }
+    }
+
+    /* =========================
+     * Metadata helpers
+     * ========================= */
+
     private function decodeMetadataRow($row)
     {
         if ($row && isset($row->metadata) && is_string($row->metadata)) {
@@ -114,17 +146,135 @@ class UserJournalsController extends Controller
         return $rows;
     }
 
+    /**
+     * ✅ Accept metadata from:
+     * - JSON body: metadata = array
+     * - FormData: metadata = stringified JSON
+     *
+     * @return array [present?, value|null, error|null]
+     */
+    private function readMetadataFromRequest(Request $request): array
+    {
+        if (!$request->has('metadata')) return [false, null, null];
+
+        $meta = $request->input('metadata');
+
+        if (is_array($meta)) return [true, $meta, null];
+
+        if (is_string($meta)) {
+            $s = trim($meta);
+            if ($s === '') return [true, null, null];
+
+            $decoded = json_decode($s, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                return [true, null, 'Metadata JSON invalid: ' . json_last_error_msg()];
+            }
+            if ($decoded !== null && !is_array($decoded)) {
+                return [true, null, 'Metadata must decode to an object/array'];
+            }
+            return [true, $decoded, null];
+        }
+
+        return [true, null, 'Metadata must be an array or JSON string'];
+    }
+
     /* =========================
-     * CRUD
-     * Supports BOTH:
-     * - /api/users/{user_uuid}/journals...
-     * - /api/me/journals...
+     * Image upload helpers
      * ========================= */
 
+    private function journalUserDir(string $userUuid): string
+    {
+        return $this->publicBaseDir . '/' . $userUuid; // relative to public/
+    }
+
+    private function ensureDir(string $publicRelativeDir): void
+    {
+        $abs = public_path($publicRelativeDir);
+        if (!File::exists($abs)) {
+            File::makeDirectory($abs, 0775, true);
+        }
+    }
+
     /**
-     * GET /api/users/{user_uuid}/journals
-     * GET /api/me/journals
+     * Supports either:
+     * - image_file
+     * - image (file)  [compat]
      */
+    private function storeImageFile(Request $request, string $userUuid, string $journalUuid): ?string
+    {
+        $file = null;
+
+        if ($request->hasFile('image_file')) $file = $request->file('image_file');
+        elseif ($request->hasFile('image')) $file = $request->file('image');
+
+        if (!$file || !$file->isValid()) return null;
+
+        $dir = $this->journalUserDir($userUuid);
+        $this->ensureDir($dir);
+
+        $ext = strtolower($file->getClientOriginalExtension() ?: 'jpg');
+        $ext = preg_replace('/[^a-z0-9]/i', '', $ext) ?: 'jpg';
+
+        $name = 'journal_' . $journalUuid . '_' . time() . '_' . Str::random(6) . '.' . $ext;
+        $file->move(public_path($dir), $name);
+
+        return '/' . $dir . '/' . $name;
+    }
+
+    private function tryDeleteOldImage(?string $path): void
+    {
+        if (!$path) return;
+
+        $p = trim((string)$path);
+        if ($p === '') return;
+
+        // don't delete external
+        if (str_starts_with($p, 'http://') || str_starts_with($p, 'https://') || str_starts_with($p, '//')) return;
+
+        $rel = str_starts_with($p, '/') ? substr($p, 1) : $p;
+        $abs = public_path($rel);
+
+        try {
+            if (File::exists($abs) && File::isFile($abs)) {
+                File::delete($abs);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('user_journals.image.delete_failed', ['path' => $path, 'error' => $e->getMessage()]);
+        }
+    }
+
+    /* =========================
+     * ✅ Duplicate prevent (double submit)
+     * ========================= */
+
+    private function findRecentDuplicate(int $userId, array $data)
+    {
+        $q = DB::table($this->table)
+            ->where('user_id', $userId)
+            ->whereNull('deleted_at')
+            ->where('title', $data['title']);
+
+        if (array_key_exists('publication_organization', $data)) {
+            $data['publication_organization'] === null
+                ? $q->whereNull('publication_organization')
+                : $q->where('publication_organization', $data['publication_organization']);
+        }
+
+        if (array_key_exists('publication_year', $data)) {
+            $data['publication_year'] === null
+                ? $q->whereNull('publication_year')
+                : $q->where('publication_year', $data['publication_year']);
+        }
+
+        $q->where('created_at', '>=', Carbon::now()->subSeconds(20));
+
+        return $q->orderBy('id', 'desc')->first();
+    }
+
+    /* =========================
+     * CRUD
+     * ========================= */
+
     public function index(Request $request, ?string $user_uuid = null)
     {
         if ($resp = $this->requireRole($request, [
@@ -151,10 +301,6 @@ class UserJournalsController extends Controller
         return response()->json(['success' => true, 'data' => $rows]);
     }
 
-    /**
-     * GET /api/users/{user_uuid}/journals/{journal_uuid}
-     * GET /api/me/journals/{journal_uuid}
-     */
     public function show(Request $request, ?string $user_uuid = null, string $journal_uuid = '')
     {
         if ($resp = $this->requireRole($request, [
@@ -182,8 +328,16 @@ class UserJournalsController extends Controller
     }
 
     /**
-     * POST /api/users/{user_uuid}/journals
-     * POST /api/me/journals
+     * ✅ Supports:
+     * - JSON body
+     * - FormData (multipart) for image_file + metadata as JSON string
+     *
+     * Fields:
+     * - title (required)
+     * - publication_organization, publication_year, description, sort_order
+     * - image_file (optional upload)
+     * - image (optional legacy string)
+     * - metadata (optional array or JSON string)
      */
     public function store(Request $request, ?string $user_uuid = null)
     {
@@ -198,51 +352,80 @@ class UserJournalsController extends Controller
             return response()->json(['success' => false, 'error' => 'Unauthorized Access'], 403);
         }
 
+        // helpful log to diagnose "2 entry" (you will see it twice if frontend fires twice)
+        $this->logWithActor('user_journals.store.hit', $request, [
+            'target_user_id' => (int)$user->id,
+        ]);
+
         $v = Validator::make($request->all(), [
-            'title'                   => ['required', 'string', 'max:255'],
-            'publication_organization'=> ['nullable', 'string', 'max:255'],
-            'publication_year'        => ['nullable', 'integer', 'min:1900', 'max:' . (int)date('Y')],
-            'description'             => ['nullable', 'string'],
-            'url'                     => ['nullable', 'string', 'max:500'],
-            'image'                   => ['nullable', 'string', 'max:255'],
-            'sort_order'              => ['nullable', 'integer'],
-            'metadata'                => ['nullable', 'array'],
+            'title'                    => ['required', 'string', 'max:255'],
+            'publication_organization' => ['nullable', 'string', 'max:255'],
+            'publication_year'         => ['nullable', 'integer', 'min:1900', 'max:' . (int)date('Y')],
+            'description'              => ['nullable', 'string'],
+            'sort_order'               => ['nullable', 'integer'],
+            'image'                    => ['nullable', 'string', 'max:255'], // legacy string
+            'image_file'               => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,gif', 'max:5120'],
         ]);
 
         if ($v->fails()) return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+
+        [$metaPresent, $metaValue, $metaErr] = $this->readMetadataFromRequest($request);
+        if ($metaErr) return response()->json(['success' => false, 'error' => $metaErr], 422);
 
         $data  = $v->validated();
         $actor = $this->actor($request);
         $now   = Carbon::now();
 
+        // ✅ Prevent double submit duplicates (same data within 20s)
+        $dup = $this->findRecentDuplicate((int)$user->id, [
+            'title' => $data['title'],
+            'publication_organization' => $data['publication_organization'] ?? null,
+            'publication_year' => $data['publication_year'] ?? null,
+        ]);
+        if ($dup) {
+            $dup = $this->decodeMetadataRow($dup);
+            return response()->json([
+                'success' => true,
+                'data'    => $dup,
+                'message' => 'Duplicate submit prevented',
+            ], 200);
+        }
+
         DB::beginTransaction();
         try {
             $uuid = (string) Str::uuid();
 
-            $id = DB::table($this->table)->insertGetId([
+            $imgPath = $this->storeImageFile($request, (string)$user->uuid, $uuid);
+            if (!$imgPath && !empty($data['image'])) {
+                $imgPath = $data['image'];
+            }
+
+            $insert = [
                 'uuid'                    => $uuid,
                 'user_id'                 => (int)$user->id,
-
                 'title'                   => $data['title'],
                 'publication_organization'=> $data['publication_organization'] ?? null,
                 'publication_year'        => $data['publication_year'] ?? null,
                 'description'             => $data['description'] ?? null,
-                'url'                     => $data['url'] ?? null,
-                'image'                   => $data['image'] ?? null,
+                'image'                   => $imgPath,
                 'sort_order'              => $data['sort_order'] ?? 0,
-                'metadata'                => array_key_exists('metadata', $data) ? json_encode($data['metadata']) : null,
-
-                'created_by'              => $actor['id'] ?: null,
-                'created_at_ip'           => $request->ip(),
+                'metadata'                => $metaPresent ? ($metaValue !== null ? json_encode($metaValue) : null) : null,
                 'created_at'              => $now,
                 'updated_at'              => $now,
-            ]);
+            ];
+
+            $this->setIfColumn($insert, 'created_by', $actor['id'] ?: null);
+            $this->setIfColumn($insert, 'created_at_ip', $request->ip());
+            $this->setIfColumn($insert, 'updated_by', $actor['id'] ?: null);
+            $this->setIfColumn($insert, 'updated_at_ip', $request->ip());
+
+            $id = DB::table($this->table)->insertGetId($insert);
 
             DB::commit();
 
             $this->logWithActor('user_journals.store.success', $request, [
-                'id'      => $id,
-                'user_id' => (int)$user->id,
+                'id' => $id,
+                'target_user_id' => (int)$user->id,
             ]);
 
             $row = DB::table($this->table)->where('id', $id)->first();
@@ -254,18 +437,14 @@ class UserJournalsController extends Controller
             DB::rollBack();
 
             $this->logWithActor('user_journals.store.failed', $request, [
-                'error'   => $e->getMessage(),
-                'user_id' => (int)$user->id,
+                'error' => $e->getMessage(),
+                'target_user_id' => (int)$user->id,
             ]);
 
             return response()->json(['success' => false, 'error' => 'Failed to create journal'], 500);
         }
     }
 
-    /**
-     * PUT/PATCH /api/users/{user_uuid}/journals/{journal_uuid}
-     * PUT/PATCH /api/me/journals/{journal_uuid}
-     */
     public function update(Request $request, ?string $user_uuid = null, string $journal_uuid = '')
     {
         if ($resp = $this->requireRole($request, [
@@ -288,43 +467,58 @@ class UserJournalsController extends Controller
         if (!$row) return response()->json(['success' => false, 'error' => 'Journal not found'], 404);
 
         $v = Validator::make($request->all(), [
-            'title'                   => ['sometimes', 'required', 'string', 'max:255'],
-            'publication_organization'=> ['sometimes', 'nullable', 'string', 'max:255'],
-            'publication_year'        => ['sometimes', 'nullable', 'integer', 'min:1900', 'max:' . (int)date('Y')],
-            'description'             => ['sometimes', 'nullable', 'string'],
-            'url'                     => ['sometimes', 'nullable', 'string', 'max:500'],
-            'image'                   => ['sometimes', 'nullable', 'string', 'max:255'],
-            'sort_order'              => ['sometimes', 'nullable', 'integer'],
-            'metadata'                => ['sometimes', 'nullable', 'array'],
+            'title'                    => ['sometimes', 'required', 'string', 'max:255'],
+            'publication_organization' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'publication_year'         => ['sometimes', 'nullable', 'integer', 'min:1900', 'max:' . (int)date('Y')],
+            'description'              => ['sometimes', 'nullable', 'string'],
+            'sort_order'               => ['sometimes', 'nullable', 'integer'],
+            'image'                    => ['sometimes', 'nullable', 'string', 'max:255'], // legacy string
+            'image_file'               => ['sometimes', 'nullable', 'file', 'mimes:jpg,jpeg,png,webp,gif', 'max:5120'],
         ]);
 
         if ($v->fails()) return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+
+        [$metaPresent, $metaValue, $metaErr] = $this->readMetadataFromRequest($request);
+        if ($metaErr) return response()->json(['success' => false, 'error' => $metaErr], 422);
 
         $data   = $v->validated();
         $actor  = $this->actor($request);
         $now    = Carbon::now();
         $update = [];
 
-        foreach (['title','publication_organization','description','url','image'] as $f) {
+        foreach (['title','publication_organization','description'] as $f) {
             if (array_key_exists($f, $data)) $update[$f] = $data[$f];
         }
         if (array_key_exists('publication_year', $data)) $update['publication_year'] = $data['publication_year'];
         if (array_key_exists('sort_order', $data)) $update['sort_order'] = $data['sort_order'] ?? 0;
-        if (array_key_exists('metadata', $data)) {
-            $update['metadata'] = $data['metadata'] !== null ? json_encode($data['metadata']) : null;
+
+        // ✅ Replace image if uploaded
+        $newImg = $this->storeImageFile($request, (string)$user->uuid, (string)$row->uuid);
+        if ($newImg) {
+            $this->tryDeleteOldImage($row->image ?? null);
+            $update['image'] = $newImg;
+        } elseif (array_key_exists('image', $data)) {
+            $update['image'] = $data['image'];
         }
 
-        if (empty($update)) return response()->json(['success' => true, 'data' => $this->decodeMetadataRow($row)]);
+        if ($metaPresent) {
+            $update['metadata'] = $metaValue !== null ? json_encode($metaValue) : null;
+        }
 
-        $update['updated_at']    = $now;
-        $update['updated_by']    = $actor['id'] ?: null; // remove if column not exists
-        $update['updated_at_ip'] = $request->ip();       // remove if column not exists
+        if (empty($update)) {
+            return response()->json(['success' => true, 'data' => $this->decodeMetadataRow($row)]);
+        }
+
+        $update['updated_at'] = $now;
+
+        $this->setIfColumn($update, 'updated_by', $actor['id'] ?: null);
+        $this->setIfColumn($update, 'updated_at_ip', $request->ip());
 
         DB::table($this->table)->where('id', $row->id)->update($update);
 
         $this->logWithActor('user_journals.update.success', $request, [
-            'id'      => $row->id,
-            'user_id' => (int)$user->id,
+            'id' => $row->id,
+            'target_user_id' => (int)$user->id,
         ]);
 
         $fresh = DB::table($this->table)->where('id', $row->id)->first();
@@ -333,10 +527,6 @@ class UserJournalsController extends Controller
         return response()->json(['success' => true, 'data' => $fresh]);
     }
 
-    /**
-     * DELETE /api/users/{user_uuid}/journals/{journal_uuid}
-     * DELETE /api/me/journals/{journal_uuid}
-     */
     public function destroy(Request $request, ?string $user_uuid = null, string $journal_uuid = '')
     {
         if ($resp = $this->requireRole($request, [
@@ -361,18 +551,19 @@ class UserJournalsController extends Controller
         $actor = $this->actor($request);
         $now   = Carbon::now();
 
-        DB::table($this->table)
-            ->where('id', $row->id)
-            ->update([
-                'deleted_at'    => $now,
-                'updated_at'    => $now,
-                'updated_by'    => $actor['id'] ?: null, // remove if column not exists
-                'updated_at_ip' => $request->ip(),       // remove if column not exists
-            ]);
+        $upd = [
+            'deleted_at' => $now,
+            'updated_at' => $now,
+        ];
+
+        $this->setIfColumn($upd, 'updated_by', $actor['id'] ?: null);
+        $this->setIfColumn($upd, 'updated_at_ip', $request->ip());
+
+        DB::table($this->table)->where('id', $row->id)->update($upd);
 
         $this->logWithActor('user_journals.destroy', $request, [
-            'id'      => $row->id,
-            'user_id' => (int)$user->id,
+            'id' => $row->id,
+            'target_user_id' => (int)$user->id,
         ]);
 
         return response()->json(['success' => true, 'message' => 'Journal deleted']);

@@ -14,10 +14,6 @@
 .dropdown-item i{width:16px;text-align:center}
 .dropdown-item.text-danger{color:var(--danger-color) !important}
 
-/* Ensure overflow visibility for dropdowns */
-.table-responsive{overflow:visible !important}
-.card-body{overflow:visible !important}
-
 /* Tabs */
 .nav.nav-tabs{border-color:var(--line-strong)}
 .nav-tabs .nav-link{color:var(--ink)}
@@ -34,7 +30,7 @@
   border-radius:16px;
   background:var(--surface);
   box-shadow:var(--shadow-2);
-  overflow:visible
+  overflow:visible;
 }
 .table-wrap .card-body{overflow:visible}
 .table{--bs-table-bg:transparent}
@@ -123,6 +119,30 @@ td .fw-semibold{color:var(--ink)}
     min-width:120px
   }
 }
+
+/* =========================================================
+   ✅ FIX: Horizontal scroll (X) on small screens
+   - table must NOT shrink/wrap, must overflow => container scrolls
+   ========================================================= */
+.table-responsive{
+  display:block;
+  width:100%;
+  max-width:100%;
+  overflow-x:auto !important;
+  overflow-y:visible !important;        /* dropdowns visible */
+  -webkit-overflow-scrolling:touch;
+}
+.table-responsive > .table{
+  width:max-content;                     /* forces overflow */
+  min-width:980px;                       /* ensures wider than mobile */
+}
+.table-responsive th,
+.table-responsive td{
+  white-space:nowrap;                    /* prevent wrapping */
+}
+@media (max-width: 576px){
+  .table-responsive > .table{ min-width:920px; }
+}
 </style>
 @endpush
 
@@ -133,7 +153,7 @@ td .fw-semibold{color:var(--ink)}
   <div id="globalLoading" class="loading-overlay" style="display:none;">
     <div class="loading-spinner">
       <div class="spinner"></div>
-      <div classsmall>Loading…</div>
+      <div class="small">Loading…</div>
     </div>
   </div>
 
@@ -603,20 +623,14 @@ document.addEventListener('DOMContentLoaded', function () {
     canDelete = createDeleteRoles.includes(r);
     canEdit = writeRoles.includes(r);
 
-    if (canCreate && writeControls) {
-      writeControls.style.display = 'flex';
-    } else if (writeControls) {
-      writeControls.style.display = 'none';
-    }
+    if (canCreate && writeControls) writeControls.style.display = 'flex';
+    else if (writeControls) writeControls.style.display = 'none';
   }
 
   async function fetchMe() {
     try {
       const res = await fetch('/api/users/me', { headers: authHeaders() });
-      if (res.status === 401 || res.status === 403) {
-        window.location.href = '/';
-        return;
-      }
+      if (res.status === 401 || res.status === 403) { window.location.href = '/'; return; }
       const js = await res.json().catch(() => ({}));
       if (js && js.success && js.data) {
         ACTOR.id = js.data.id || null;
@@ -625,16 +639,13 @@ document.addEventListener('DOMContentLoaded', function () {
         ACTOR.role = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
       }
       computePermissions();
-    } catch (e) {
-      console.error('Failed to fetch /me', e);
-    }
+    } catch (e) { console.error('Failed to fetch /me', e); }
   }
 
   // -------------------------
   // FIX: stuck modal backdrop
   // -------------------------
   function cleanupModalBackdrops() {
-    // Only cleanup if no modal is currently shown
     if (!document.querySelector('.modal.show')) {
       document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
       document.body.classList.remove('modal-open');
@@ -642,35 +653,22 @@ document.addEventListener('DOMContentLoaded', function () {
       document.body.style.removeProperty('overflow');
     }
   }
-
-  document.addEventListener('hidden.bs.modal', () => {
-    setTimeout(cleanupModalBackdrops, 80);
-  });
+  document.addEventListener('hidden.bs.modal', () => setTimeout(cleanupModalBackdrops, 80));
 
   // Departments
   function deptName(d) {
-    return (
-      d?.name ||
-      d?.title ||
-      d?.department_name ||
-      d?.dept_name ||
-      d?.slug ||
-      (d?.id ? `Department #${d.id}` : 'Department')
-    );
+    return d?.name || d?.title || d?.department_name || d?.dept_name || d?.slug || (d?.id ? `Department #${d.id}` : 'Department');
   }
 
   function renderDepartmentsOptions() {
     if (!deptInput) return;
-
     const current = (deptInput.value || '').toString();
     let html = `<option value="">Select Department (optional)</option>`;
-
     (state.departments || []).forEach(d => {
       const id = d?.id ?? d?.value ?? d?.department_id;
       if (id === undefined || id === null || id === '') return;
       html += `<option value="${escapeHtml(String(id))}">${escapeHtml(deptName(d))}</option>`;
     });
-
     deptInput.innerHTML = html;
     if (current) deptInput.value = current;
   }
@@ -680,14 +678,9 @@ document.addEventListener('DOMContentLoaded', function () {
       if (showOverlay) showGlobalLoading(true);
 
       const res = await fetch('/api/departments', { headers: authHeaders() });
-      if (res.status === 401 || res.status === 403) {
-        window.location.href = '/';
-        return;
-      }
+      if (res.status === 401 || res.status === 403) { window.location.href = '/'; return; }
       const js = await res.json().catch(() => ({}));
-      if (!res.ok || js.success === false) {
-        throw new Error(js.error || js.message || 'Failed to load departments');
-      }
+      if (!res.ok || js.success === false) throw new Error(js.error || js.message || 'Failed to load departments');
 
       let arr = [];
       if (Array.isArray(js.data)) arr = js.data;
@@ -718,14 +711,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
       const url = '/api/users' + (params.toString() ? ('?' + params.toString()) : '');
       const res = await fetch(url, { headers: authHeaders() });
-      if (res.status === 401 || res.status === 403) {
-        window.location.href = '/';
-        return;
-      }
+      if (res.status === 401 || res.status === 403) { window.location.href = '/'; return; }
       const js = await res.json().catch(() => ({}));
-      if (!res.ok || js.success === false) {
-        throw new Error(js.error || js.message || 'Failed to load users');
-      }
+      if (!res.ok || js.success === false) throw new Error(js.error || js.message || 'Failed to load users');
 
       state.items = Array.isArray(js.data) ? js.data : [];
       state.page.active = 1;
@@ -742,11 +730,8 @@ document.addEventListener('DOMContentLoaded', function () {
   function sortUsers(arr) {
     const sortKey = state.sort.startsWith('-') ? state.sort.slice(1) : state.sort;
     const dir = state.sort.startsWith('-') ? -1 : 1;
-
     return arr.slice().sort((a, b) => {
-      let av = a[sortKey];
-      let bv = b[sortKey];
-
+      let av = a[sortKey], bv = b[sortKey];
       if (sortKey === 'name' || sortKey === 'email') {
         av = (av || '').toString().toLowerCase();
         bv = (bv || '').toString().toLowerCase();
@@ -754,7 +739,6 @@ document.addEventListener('DOMContentLoaded', function () {
         av = (av || '').toString();
         bv = (bv || '').toString();
       }
-
       if (av === bv) return 0;
       return av > bv ? dir : -dir;
     });
@@ -765,11 +749,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     state.items.forEach(u => {
       const st = (u.status || 'active').toLowerCase();
-      if (st === 'inactive') {
-        lists.inactive.push(u);
-      } else {
-        lists.active.push(u);
-      }
+      if (st === 'inactive') lists.inactive.push(u);
+      else lists.active.push(u);
     });
 
     const activeSorted = sortUsers(lists.active);
@@ -786,9 +767,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
       const start = (state.page[tab] - 1) * per;
       const rows = full.slice(start, start + per);
+
       renderTable(tab, rows);
       renderPager(tab);
       renderInfo(tab, total, rows.length);
+
       const emptyEl = tab === 'active' ? emptyActive : emptyInactive;
       if (emptyEl) emptyEl.style.display = total === 0 ? '' : 'none';
     });
@@ -797,25 +780,17 @@ document.addEventListener('DOMContentLoaded', function () {
   function renderInfo(tab, total, shown) {
     const infoEl = tab === 'active' ? infoActive : infoInactive;
     if (!infoEl) return;
-    if (!total || !shown) {
-      infoEl.textContent = `0 of ${total || 0}`;
-      return;
-    }
-    const per = state.perPage || 10;
-    const page = state.page[tab];
-    const from = (page - 1) * per + 1;
-    const to = (page - 1) * per + shown;
-    infoEl.textContent = `Showing ${from} to ${to} of ${total} entries`;
+
+    // ✅ user asked: "dont need the count over there"
+    // So keep it blank / dash only (no "Showing x to y of z")
+    infoEl.textContent = '—';
   }
 
   function renderTable(tab, rows) {
     const tbody = tab === 'active' ? tbodyActive : tbodyInactive;
     if (!tbody) return;
 
-    if (!rows.length) {
-      tbody.innerHTML = '';
-      return;
-    }
+    if (!rows.length) { tbody.innerHTML = ''; return; }
 
     tbody.innerHTML = rows.map(row => {
       const role = (row.role || '').toLowerCase();
@@ -901,9 +876,7 @@ document.addEventListener('DOMContentLoaded', function () {
     html += item(Math.max(1, page - 1), 'Previous', page <= 1);
     const st = Math.max(1, page - 2);
     const en = Math.min(totalPages, page + 2);
-    for (let p = st; p <= en; p++) {
-      html += item(p, p, false, p === page);
-    }
+    for (let p = st; p <= en; p++) html += item(p, p, false, p === page);
     html += item(Math.min(totalPages, page + 1), 'Next', page >= totalPages);
 
     pager.innerHTML = html;
@@ -977,10 +950,8 @@ document.addEventListener('DOMContentLoaded', function () {
   document.addEventListener('change', async (e) => {
     const sw = e.target.closest('.js-toggle');
     if (!sw) return;
-    if (!canEdit) {
-      sw.checked = !sw.checked;
-      return;
-    }
+    if (!canEdit) { sw.checked = !sw.checked; return; }
+
     const tr = sw.closest('tr');
     const uuid = tr?.dataset?.uuid;
     if (!uuid) return;
@@ -993,10 +964,7 @@ document.addEventListener('DOMContentLoaded', function () {
       showCancelButton: true,
       confirmButtonText: 'Yes'
     });
-    if (!conf.isConfirmed) {
-      sw.checked = !willActive;
-      return;
-    }
+    if (!conf.isConfirmed) { sw.checked = !willActive; return; }
 
     showGlobalLoading(true);
     try {
@@ -1006,9 +974,8 @@ document.addEventListener('DOMContentLoaded', function () {
         body: JSON.stringify({ status: willActive ? 'active' : 'inactive' })
       });
       const js = await res.json().catch(() => ({}));
-      if (!res.ok || js.success === false) {
-        throw new Error(js.error || js.message || 'Status update failed');
-      }
+      if (!res.ok || js.success === false) throw new Error(js.error || js.message || 'Status update failed');
+
       ok('Status updated');
       await loadUsers(false);
     } catch (ex) {
@@ -1023,6 +990,7 @@ document.addEventListener('DOMContentLoaded', function () {
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-action]');
     if (!btn) return;
+
     const tr = btn.closest('tr');
     const uuid = tr?.dataset?.uuid;
     const id = tr?.dataset?.id;
@@ -1066,9 +1034,7 @@ document.addEventListener('DOMContentLoaded', function () {
             headers: authHeaders()
           });
           const js = await res.json().catch(() => ({}));
-          if (!res.ok || js.success === false) {
-            throw new Error(js.error || js.message || 'Delete failed');
-          }
+          if (!res.ok || js.success === false) throw new Error(js.error || js.message || 'Delete failed');
           ok('User deleted');
           await loadUsers(false);
         } catch (ex) {
@@ -1081,9 +1047,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     const toggle = btn.closest('.dropdown')?.querySelector('.dd-toggle');
-    if (toggle) {
-      try { bootstrap.Dropdown.getOrCreateInstance(toggle).hide(); } catch (_) {}
-    }
+    if (toggle) { try { bootstrap.Dropdown.getOrCreateInstance(toggle).hide(); } catch (_) {} }
   });
 
   // Add user
@@ -1101,11 +1065,7 @@ document.addEventListener('DOMContentLoaded', function () {
   // Image preview (URL)
   imageInput.addEventListener('input', () => {
     const url = imageInput.value.trim();
-    if (!url) {
-      imgPrev.style.display = 'none';
-      imgPrev.src = '';
-      return;
-    }
+    if (!url) { imgPrev.style.display = 'none'; imgPrev.src = ''; return; }
     imgPrev.src = fixImageUrl(url) || url;
     imgPrev.style.display = 'block';
   });
@@ -1133,19 +1093,13 @@ document.addEventListener('DOMContentLoaded', function () {
   async function openEdit(uuid, id, viewOnly = false) {
     showGlobalLoading(true);
     try {
-      if (!state.departmentsLoaded) {
-        await loadDepartments(false);
-      }
+      if (!state.departmentsLoaded) await loadDepartments(false);
 
       const res = await fetch(`/api/users/${encodeURIComponent(uuid)}`, { headers: authHeaders() });
-      if (res.status === 401 || res.status === 403) {
-        window.location.href = '/';
-        return;
-      }
+      if (res.status === 401 || res.status === 403) { window.location.href = '/'; return; }
       const js = await res.json().catch(() => ({}));
-      if (!res.ok || js.success === false) {
-        throw new Error(js.error || js.message || 'Failed to fetch user');
-      }
+      if (!res.ok || js.success === false) throw new Error(js.error || js.message || 'Failed to fetch user');
+
       const u = js.data || {};
       resetForm();
 
@@ -1161,33 +1115,23 @@ document.addEventListener('DOMContentLoaded', function () {
       roleInput.value = (u.role || '').toLowerCase();
       statusInput.value = u.status || 'active';
 
-      if (deptInput) {
-        deptInput.value = (u.department_id !== undefined && u.department_id !== null) ? String(u.department_id) : '';
-      }
+      if (deptInput) deptInput.value = (u.department_id !== undefined && u.department_id !== null) ? String(u.department_id) : '';
 
       imageInput.value = u.image || '';
-      if (u.image) {
-        imgPrev.src = fixImageUrl(u.image) || u.image;
-        imgPrev.style.display = 'block';
-      }
+      if (u.image) { imgPrev.src = fixImageUrl(u.image) || u.image; imgPrev.style.display = 'block'; }
 
       const isSelf = ACTOR.id && (parseInt(ACTOR.id, 10) === parseInt(u.id || 0, 10));
-      if (isSelf && !viewOnly) {
-        currentPwdRow.style.display = '';
-      } else {
-        currentPwdRow.style.display = 'none';
-      }
+      currentPwdRow.style.display = (isSelf && !viewOnly) ? '' : 'none';
 
       modalTitle.textContent = viewOnly ? 'View User' : 'Edit User';
       saveBtn.style.display = viewOnly ? 'none' : '';
 
       Array.from(form.querySelectorAll('input,select,textarea')).forEach(el => {
+        if (el.id === 'userUuid' || el.id === 'editingUserId') return;
         if (viewOnly) {
-          if (el.id === 'userUuid' || el.id === 'editingUserId') return;
           if (el.tagName === 'SELECT') el.disabled = true;
           else el.readOnly = true;
         } else {
-          if (el.id === 'userUuid' || el.id === 'editingUserId') return;
           el.disabled = false;
           el.readOnly = false;
         }
@@ -1207,13 +1151,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function setButtonLoading(button, loading) {
     if (!button) return;
-    if (loading) {
-      button.disabled = true;
-      button.classList.add('btn-loading');
-    } else {
-      button.disabled = false;
-      button.classList.remove('btn-loading');
-    }
+    if (loading) { button.disabled = true; button.classList.add('btn-loading'); }
+    else { button.disabled = false; button.classList.remove('btn-loading'); }
   }
 
   form.addEventListener('submit', async (e) => {
@@ -1228,22 +1167,10 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!roleInput.value) { roleInput.focus(); return; }
 
     if (!isEdit) {
-      if (!pwdInput.value.trim()) {
-        err('Password is required for new users');
-        pwdInput.focus();
-        return;
-      }
-      if (pwdInput.value.trim() !== pwd2Input.value.trim()) {
-        err('Passwords do not match');
-        pwd2Input.focus();
-        return;
-      }
+      if (!pwdInput.value.trim()) { err('Password is required for new users'); pwdInput.focus(); return; }
+      if (pwdInput.value.trim() !== pwd2Input.value.trim()) { err('Passwords do not match'); pwd2Input.focus(); return; }
     } else {
-      if (pwdInput.value.trim() && pwdInput.value.trim() !== pwd2Input.value.trim()) {
-        err('Passwords do not match');
-        pwd2Input.focus();
-        return;
-      }
+      if (pwdInput.value.trim() && pwdInput.value.trim() !== pwd2Input.value.trim()) { err('Passwords do not match'); pwd2Input.focus(); return; }
     }
 
     const payload = {};
@@ -1258,15 +1185,12 @@ document.addEventListener('DOMContentLoaded', function () {
     if (statusInput.value) payload.status = statusInput.value;
     if (imageInput.value.trim()) payload.image = imageInput.value.trim();
 
-    // department_id (nullable)
     if (deptInput) {
       const depVal = (deptInput.value || '').toString().trim();
       payload.department_id = depVal ? (parseInt(depVal, 10) || null) : null;
     }
 
-    if (!isEdit) {
-      payload.password = pwdInput.value.trim();
-    }
+    if (!isEdit) payload.password = pwdInput.value.trim();
 
     const url = isEdit ? `/api/users/${encodeURIComponent(uuidInput.value)}` : '/api/users';
     const method = isEdit ? 'PUT' : 'POST';
@@ -1291,15 +1215,10 @@ document.addEventListener('DOMContentLoaded', function () {
       }
 
       if (isEdit && pwdInput.value.trim()) {
-        const pwPayload = {
-          password: pwdInput.value.trim(),
-          password_confirmation: pwd2Input.value.trim()
-        };
+        const pwPayload = { password: pwdInput.value.trim(), password_confirmation: pwd2Input.value.trim() };
         const isSelf = ACTOR.id && (parseInt(ACTOR.id, 10) === parseInt(editingUserIdInput.value || '0', 10));
         if (isSelf) {
-          if (!currentPwdInput.value.trim()) {
-            throw new Error('Current password is required to change your own password');
-          }
+          if (!currentPwdInput.value.trim()) throw new Error('Current password is required to change your own password');
           pwPayload.current_password = currentPwdInput.value.trim();
         }
 
@@ -1331,10 +1250,8 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   // Tab events (just re-render current state)
-  document.querySelector('a[href="#tab-active"]')
-    ?.addEventListener('shown.bs.tab', () => recomputeAndRender());
-  document.querySelector('a[href="#tab-inactive"]')
-    ?.addEventListener('shown.bs.tab', () => recomputeAndRender());
+  document.querySelector('a[href="#tab-active"]')?.addEventListener('shown.bs.tab', () => recomputeAndRender());
+  document.querySelector('a[href="#tab-inactive"]')?.addEventListener('shown.bs.tab', () => recomputeAndRender());
 
   // Init
   (async () => {
@@ -1346,5 +1263,4 @@ document.addEventListener('DOMContentLoaded', function () {
   })();
 });
 </script>
-
 @endpush

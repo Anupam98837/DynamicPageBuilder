@@ -88,59 +88,214 @@ Route::middleware(['checkRole:admin,director,principal,hod'])->group(function ()
     Route::match(['put','patch'], '/users/{user_uuid}/personal-info', [UserPersonalInformationController::class, 'update']);
     Route::delete('/users/{user_uuid}/personal-info', [UserPersonalInformationController::class, 'destroy']);
 
-    // optional restore
-    Route::get('/users/{user_uuid}/personal-info/restore', [UserPersonalInformationController::class, 'restore']);
+    Route::post('/users/{user_uuid}/personal-info/restore', [UserPersonalInformationController::class, 'restore']);
 });
     
+    
 Route::middleware(['checkRole:admin,director,principal,hod'])->group(function () {
+
+    // ===========================
+    // Honors (Active)
+    // ===========================
     Route::get('/users/{user_uuid}/honors', [UserHonorsController::class, 'index']);
-    Route::get('/users/{user_uuid}/honors/{honor_uuid}', [UserHonorsController::class, 'show']);
+
     Route::post('/users/{user_uuid}/honors', [UserHonorsController::class, 'store']);
-    Route::match(['put','patch'], '/users/{user_uuid}/honors/{honor_uuid}', [UserHonorsController::class, 'update']);
-    Route::delete('/users/{user_uuid}/honors/{honor_uuid}', [UserHonorsController::class, 'destroy']);
+
+    Route::get('/users/{user_uuid}/honors/{honor_uuid}', [UserHonorsController::class, 'show'])
+        ->where('honor_uuid', '[0-9a-fA-F-]{36}');
+
+    Route::match(['put','patch'], '/users/{user_uuid}/honors/{honor_uuid}', [UserHonorsController::class, 'update'])
+        ->where('honor_uuid', '[0-9a-fA-F-]{36}');
+
+    // Soft delete (move to trash)
+    Route::delete('/users/{user_uuid}/honors/{honor_uuid}', [UserHonorsController::class, 'destroy'])
+        ->where('honor_uuid', '[0-9a-fA-F-]{36}');
+
+
+    // ===========================
+    // Honors (Trash / Bin)
+    // ===========================
+    Route::get('/users/{user_uuid}/honors/deleted', [UserHonorsController::class, 'indexDeleted']);
+
+    // Empty trash (hard delete all deleted)
+    Route::delete('/users/{user_uuid}/honors/deleted/force', [UserHonorsController::class, 'forceDeleteAllDeleted']);
+
+
+    // ===========================
+    // Single item restore / hard delete
+    // ===========================
+    Route::post('/users/{user_uuid}/honors/{honor_uuid}/restore', [UserHonorsController::class, 'restore'])
+        ->where('honor_uuid', '[0-9a-fA-F-]{36}');
+
+    Route::delete('/users/{user_uuid}/honors/{honor_uuid}/force', [UserHonorsController::class, 'forceDelete'])
+        ->where('honor_uuid', '[0-9a-fA-F-]{36}');
 });
 
 
+
 Route::middleware(['checkRole:admin,director,principal,hod'])->group(function () {
+
+    // ✅ Active (CRUD)
     Route::get('/users/{user_uuid}/journals', [UserJournalsController::class, 'index']);
     Route::get('/users/{user_uuid}/journals/{journal_uuid}', [UserJournalsController::class, 'show']);
     Route::post('/users/{user_uuid}/journals', [UserJournalsController::class, 'store']);
     Route::match(['put','patch'], '/users/{user_uuid}/journals/{journal_uuid}', [UserJournalsController::class, 'update']);
     Route::delete('/users/{user_uuid}/journals/{journal_uuid}', [UserJournalsController::class, 'destroy']);
+
+    // ✅ Trash / Restore / Hard delete (same pattern as your others)
+    Route::get('/users/{user_uuid}/journals/deleted', [UserJournalsController::class, 'indexDeleted']);
+    Route::post('/users/{user_uuid}/journals/{journal_uuid}/restore', [UserJournalsController::class, 'restore']);
+    Route::delete('/users/{user_uuid}/journals/{journal_uuid}/force', [UserJournalsController::class, 'forceDelete']);
+    Route::delete('/users/{user_uuid}/journals/deleted/force', [UserJournalsController::class, 'forceDeleteAllDeleted']);
 });
 
 
+
 Route::middleware(['checkRole:admin,director,principal,hod'])->group(function () {
+
+    // ✅ Active (CRUD)
     Route::get('/users/{user_uuid}/teaching-engagements', [UserTeachingEngagementsController::class, 'index']);
     Route::post('/users/{user_uuid}/teaching-engagements', [UserTeachingEngagementsController::class, 'store']);
     Route::match(['put','patch'], '/users/{user_uuid}/teaching-engagements/{uuid}', [UserTeachingEngagementsController::class, 'update']);
     Route::delete('/users/{user_uuid}/teaching-engagements/{uuid}', [UserTeachingEngagementsController::class, 'destroy']);
+
+    // ✅ Trash / Restore / Hard delete (same pattern as journals/social)
+    Route::get('/users/{user_uuid}/teaching-engagements/deleted', [UserTeachingEngagementsController::class, 'indexDeleted']);
+    Route::post('/users/{user_uuid}/teaching-engagements/{uuid}/restore', [UserTeachingEngagementsController::class, 'restore']);
+    Route::delete('/users/{user_uuid}/teaching-engagements/{uuid}/force', [UserTeachingEngagementsController::class, 'forceDelete']);
+    Route::delete('/users/{user_uuid}/teaching-engagements/deleted/force', [UserTeachingEngagementsController::class, 'forceDeleteAllDeleted']);
+
+});
+
+
+
+Route::middleware(['checkRole:admin,director,principal,hod'])->group(function () {
+
+    Route::get(
+        '/users/{user_uuid}/conference-publications',
+        [UserConferencePublicationsController::class, 'index']
+    );
+
+    Route::post(
+        '/users/{user_uuid}/conference-publications',
+        [UserConferencePublicationsController::class, 'store']
+    );
+    Route::get(
+        '/users/{user_uuid}/conference-publications/{uuid}',
+        [UserConferencePublicationsController::class, 'show']
+    )->where('uuid', '[0-9a-fA-F-]{36}');
+
+    Route::get(
+        '/users/{user_uuid}/conference-publications/deleted',
+        [UserConferencePublicationsController::class, 'indexDeleted']
+    );
+
+    Route::delete(
+        '/users/{user_uuid}/conference-publications/deleted/force',
+        [UserConferencePublicationsController::class, 'forceDeleteAllDeleted']
+    );
+    Route::match(
+        ['put','patch'],
+        '/users/{user_uuid}/conference-publications/{uuid}',
+        [UserConferencePublicationsController::class, 'update']
+    )->where('uuid', '[0-9a-fA-F-]{36}');
+
+    Route::delete(
+        '/users/{user_uuid}/conference-publications/{uuid}',
+        [UserConferencePublicationsController::class, 'destroy']
+    )->where('uuid', '[0-9a-fA-F-]{36}');
+    Route::post(
+        '/users/{user_uuid}/conference-publications/{uuid}/restore',
+        [UserConferencePublicationsController::class, 'restore']
+    )->where('uuid', '[0-9a-fA-F-]{36}');
+
+    Route::delete(
+        '/users/{user_uuid}/conference-publications/{uuid}/force',
+        [UserConferencePublicationsController::class, 'forceDelete']
+    )->where('uuid', '[0-9a-fA-F-]{36}');
 });
 
 
 Route::middleware(['checkRole:admin,director,principal,hod'])->group(function () {
-    Route::get('/users/{user_uuid}/conference-publications', [UserConferencePublicationsController::class, 'index']);
-    Route::get('/users/{user_uuid}/conference-publications/{uuid}', [UserConferencePublicationsController::class, 'show']);
-    Route::post('/users/{user_uuid}/conference-publications', [UserConferencePublicationsController::class, 'store']);
-    Route::match(['put','patch'], '/users/{user_uuid}/conference-publications/{uuid}', [UserConferencePublicationsController::class, 'update']);
-    Route::delete('/users/{user_uuid}/conference-publications/{uuid}', [UserConferencePublicationsController::class, 'destroy']);
-});
 
-
-Route::middleware(['checkRole:admin,director,principal,hod'])->group(function () {
     Route::get('/users/{user_uuid}/educations', [UserEducationsController::class, 'index']);
     Route::post('/users/{user_uuid}/educations', [UserEducationsController::class, 'store']);
-    Route::match(['put','patch'], '/users/{user_uuid}/educations/{uuid}', [UserEducationsController::class, 'update']);
-    Route::delete('/users/{user_uuid}/educations/{uuid}', [UserEducationsController::class, 'destroy']);
+
+    Route::get('/users/{user_uuid}/educations/{uuid}', [UserEducationsController::class, 'show'])
+        ->where('uuid', '[0-9a-fA-F-]{36}');
+
+    Route::get('/users/{user_uuid}/educations/deleted', [UserEducationsController::class, 'indexDeleted']);
+
+    Route::delete('/users/{user_uuid}/educations/deleted/force', [UserEducationsController::class, 'forceDeleteAllDeleted']);
+
+    Route::match(['put','patch'], '/users/{user_uuid}/educations/{uuid}', [UserEducationsController::class, 'update'])
+        ->where('uuid', '[0-9a-fA-F-]{36}');
+
+    Route::delete('/users/{user_uuid}/educations/{uuid}', [UserEducationsController::class, 'destroy'])
+        ->where('uuid', '[0-9a-fA-F-]{36}');
+
+    Route::post('/users/{user_uuid}/educations/{uuid}/restore', [UserEducationsController::class, 'restore'])
+        ->where('uuid', '[0-9a-fA-F-]{36}');
+
+    Route::delete('/users/{user_uuid}/educations/{uuid}/force', [UserEducationsController::class, 'forceDelete'])
+        ->where('uuid', '[0-9a-fA-F-]{36}');
 });
+
+
 
 
 Route::middleware(['checkRole:admin,director,principal,hod'])->group(function () {
-    Route::get('/users/{user_uuid}/social', [UserSocialMediaController::class, 'index']);
-    Route::post('/users/{user_uuid}/social', [UserSocialMediaController::class, 'store']);
-    Route::match(['put','patch'], '/users/{user_uuid}/social/{uuid}', [UserSocialMediaController::class, 'update']);
-    Route::delete('/users/{user_uuid}/social/{uuid}', [UserSocialMediaController::class, 'destroy']);
+
+    /* ============================
+     * Trash routes (MUST BE FIRST)
+     * ============================ */
+
+    Route::get('/users/{user_uuid}/social/deleted', 
+        [UserSocialMediaController::class, 'indexDeleted']
+    );
+
+    Route::delete('/users/{user_uuid}/social/deleted/force', 
+        [UserSocialMediaController::class, 'forceDeleteAllDeleted']
+    );
+
+    /* ============================
+     * Active CRUD
+     * ============================ */
+
+    Route::get('/users/{user_uuid}/social', 
+        [UserSocialMediaController::class, 'index']
+    );
+
+    Route::post('/users/{user_uuid}/social', 
+        [UserSocialMediaController::class, 'store']
+    );
+
+    /* ============================
+     * Single item routes
+     * ============================ */
+
+    Route::match(['put','patch'], 
+        '/users/{user_uuid}/social/{uuid}', 
+        [UserSocialMediaController::class, 'update']
+    )->whereUuid('uuid');
+
+    Route::delete('/users/{user_uuid}/social/{uuid}', 
+        [UserSocialMediaController::class, 'destroy']
+    )->whereUuid('uuid');
+
+    /* ============================
+     * Restore / Permanent delete
+     * ============================ */
+
+    Route::post('/users/{user_uuid}/social/{uuid}/restore', 
+        [UserSocialMediaController::class, 'restore']
+    )->whereUuid('uuid');
+
+    Route::delete('/users/{user_uuid}/social/{uuid}/force', 
+        [UserSocialMediaController::class, 'forceDelete']
+    )->whereUuid('uuid');
 });
+
 /*
 |--------------------------------------------------------------------------
 | Modules / Privileges / User-Privileges
