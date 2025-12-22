@@ -357,6 +357,15 @@ td .fw-semibold{color:var(--ink)}
             </select>
           </div>
 
+          {{-- ✅ Department dropdown (FK: users.department_id -> departments.id) --}}
+          <div class="col-md-6">
+            <label class="form-label">Department</label>
+            <select class="form-select" id="userDepartment">
+              <option value="">Select Department (optional)</option>
+            </select>
+            <div class="form-text">Loaded from <code>/api/departments</code></div>
+          </div>
+
           <div class="col-md-6">
             <label class="form-label">Status</label>
             <select class="form-select" id="userStatus">
@@ -549,6 +558,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const emailInput = document.getElementById('userEmail');
   const phoneInput = document.getElementById('userPhone');
   const roleInput = document.getElementById('userRole');
+  const deptInput = document.getElementById('userDepartment'); // department dropdown
   const statusInput = document.getElementById('userStatus');
   const pwdInput = document.getElementById('userPassword');
   const pwd2Input = document.getElementById('userPasswordConfirmation');
@@ -578,12 +588,16 @@ document.addEventListener('DOMContentLoaded', function () {
     page: { active: 1, inactive: 1 },
     total: { active: 0, inactive: 0 },
     totalPages: { active: 1, inactive: 1 },
+
+    // Departments
+    departments: [],
+    departmentsLoaded: false,
   };
 
   function computePermissions() {
     const r = (ACTOR.role || '').toLowerCase();
-    const createDeleteRoles = ['director', 'principal'];
-    const writeRoles = ['director', 'principal', 'hod'];
+    const createDeleteRoles = ['admin', 'director', 'principal'];
+    const writeRoles = ['admin', 'director', 'principal', 'hod'];
 
     canCreate = createDeleteRoles.includes(r);
     canDelete = createDeleteRoles.includes(r);
@@ -613,6 +627,84 @@ document.addEventListener('DOMContentLoaded', function () {
       computePermissions();
     } catch (e) {
       console.error('Failed to fetch /me', e);
+    }
+  }
+
+  // -------------------------
+  // FIX: stuck modal backdrop
+  // -------------------------
+  function cleanupModalBackdrops() {
+    // Only cleanup if no modal is currently shown
+    if (!document.querySelector('.modal.show')) {
+      document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+      document.body.classList.remove('modal-open');
+      document.body.style.removeProperty('padding-right');
+      document.body.style.removeProperty('overflow');
+    }
+  }
+
+  document.addEventListener('hidden.bs.modal', () => {
+    setTimeout(cleanupModalBackdrops, 80);
+  });
+
+  // Departments
+  function deptName(d) {
+    return (
+      d?.name ||
+      d?.title ||
+      d?.department_name ||
+      d?.dept_name ||
+      d?.slug ||
+      (d?.id ? `Department #${d.id}` : 'Department')
+    );
+  }
+
+  function renderDepartmentsOptions() {
+    if (!deptInput) return;
+
+    const current = (deptInput.value || '').toString();
+    let html = `<option value="">Select Department (optional)</option>`;
+
+    (state.departments || []).forEach(d => {
+      const id = d?.id ?? d?.value ?? d?.department_id;
+      if (id === undefined || id === null || id === '') return;
+      html += `<option value="${escapeHtml(String(id))}">${escapeHtml(deptName(d))}</option>`;
+    });
+
+    deptInput.innerHTML = html;
+    if (current) deptInput.value = current;
+  }
+
+  async function loadDepartments(showOverlay = false) {
+    try {
+      if (showOverlay) showGlobalLoading(true);
+
+      const res = await fetch('/api/departments', { headers: authHeaders() });
+      if (res.status === 401 || res.status === 403) {
+        window.location.href = '/';
+        return;
+      }
+      const js = await res.json().catch(() => ({}));
+      if (!res.ok || js.success === false) {
+        throw new Error(js.error || js.message || 'Failed to load departments');
+      }
+
+      let arr = [];
+      if (Array.isArray(js.data)) arr = js.data;
+      else if (Array.isArray(js?.data?.data)) arr = js.data.data;
+      else if (Array.isArray(js.departments)) arr = js.departments;
+      else if (Array.isArray(js)) arr = js;
+
+      state.departments = arr;
+      state.departmentsLoaded = true;
+      renderDepartmentsOptions();
+    } catch (e) {
+      console.error('Failed to load departments', e);
+      state.departments = [];
+      state.departmentsLoaded = false;
+      renderDepartmentsOptions();
+    } finally {
+      if (showOverlay) showGlobalLoading(false);
     }
   }
 
@@ -1030,6 +1122,7 @@ document.addEventListener('DOMContentLoaded', function () {
       el.readOnly = false;
     });
     statusInput.value = 'active';
+    if (deptInput) deptInput.value = '';
     pwdReq.style.display = 'inline';
     pwdHelp.textContent = 'Enter password for new user';
     currentPwdRow.style.display = 'none';
@@ -1040,6 +1133,10 @@ document.addEventListener('DOMContentLoaded', function () {
   async function openEdit(uuid, id, viewOnly = false) {
     showGlobalLoading(true);
     try {
+      if (!state.departmentsLoaded) {
+        await loadDepartments(false);
+      }
+
       const res = await fetch(`/api/users/${encodeURIComponent(uuid)}`, { headers: authHeaders() });
       if (res.status === 401 || res.status === 403) {
         window.location.href = '/';
@@ -1063,6 +1160,11 @@ document.addEventListener('DOMContentLoaded', function () {
       addrInput.value = u.address || '';
       roleInput.value = (u.role || '').toLowerCase();
       statusInput.value = u.status || 'active';
+
+      if (deptInput) {
+        deptInput.value = (u.department_id !== undefined && u.department_id !== null) ? String(u.department_id) : '';
+      }
+
       imageInput.value = u.image || '';
       if (u.image) {
         imgPrev.src = fixImageUrl(u.image) || u.image;
@@ -1117,22 +1219,13 @@ document.addEventListener('DOMContentLoaded', function () {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (form.dataset.mode === 'view') return;
-    if (!canEdit && !uuidInput.value) return; // must be high role to create/edit
+    if (!canEdit && !uuidInput.value) return;
 
     const isEdit = !!uuidInput.value;
 
-    if (!nameInput.value.trim()) {
-      nameInput.focus();
-      return;
-    }
-    if (!emailInput.value.trim()) {
-      emailInput.focus();
-      return;
-    }
-    if (!roleInput.value) {
-      roleInput.focus();
-      return;
-    }
+    if (!nameInput.value.trim()) { nameInput.focus(); return; }
+    if (!emailInput.value.trim()) { emailInput.focus(); return; }
+    if (!roleInput.value) { roleInput.focus(); return; }
 
     if (!isEdit) {
       if (!pwdInput.value.trim()) {
@@ -1154,7 +1247,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     const payload = {};
-
     payload.name = nameInput.value.trim();
     payload.email = emailInput.value.trim();
     if (phoneInput.value.trim()) payload.phone_number = phoneInput.value.trim();
@@ -1166,13 +1258,17 @@ document.addEventListener('DOMContentLoaded', function () {
     if (statusInput.value) payload.status = statusInput.value;
     if (imageInput.value.trim()) payload.image = imageInput.value.trim();
 
+    // department_id (nullable)
+    if (deptInput) {
+      const depVal = (deptInput.value || '').toString().trim();
+      payload.department_id = depVal ? (parseInt(depVal, 10) || null) : null;
+    }
+
     if (!isEdit) {
       payload.password = pwdInput.value.trim();
     }
 
-    const url = isEdit
-      ? `/api/users/${encodeURIComponent(uuidInput.value)}`
-      : '/api/users';
+    const url = isEdit ? `/api/users/${encodeURIComponent(uuidInput.value)}` : '/api/users';
     const method = isEdit ? 'PUT' : 'POST';
 
     try {
@@ -1194,7 +1290,6 @@ document.addEventListener('DOMContentLoaded', function () {
         throw new Error(msg);
       }
 
-      // Password change for existing user (via /password)
       if (isEdit && pwdInput.value.trim()) {
         const pwPayload = {
           password: pwdInput.value.trim(),
@@ -1245,9 +1340,11 @@ document.addEventListener('DOMContentLoaded', function () {
   (async () => {
     showGlobalLoading(true);
     await fetchMe();
+    await loadDepartments(false);
     await loadUsers(false);
     showGlobalLoading(false);
   })();
 });
 </script>
+
 @endpush

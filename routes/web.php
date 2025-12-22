@@ -10,7 +10,7 @@ Route::get('/', function () {
 
 
 Route::get('/page/{slug}', function () {
-    return view('test');
+    return view('common');
 });
 
 Route::view('/landingpage', 'landingPage.home')->name('home');
@@ -29,6 +29,15 @@ Route::get('/department/manage', function () {
 Route::get('/department/menu/create', function () {
     return view('pages.users.pages.deptMenu.createMenu');
 });
+
+Route::get('/department-pages/create', function () {
+    return view('pages.users.pages.pages.pageEditor');
+});
+
+Route::get('/departmentPage/manage', function () {
+    return view('pages.users.pages.pages.managePage');
+});
+
 Route::get('/header/menu/create', function () {
     return view('pages.users.pages.landingPage.headerMenus.createHeaderMenu');
 });

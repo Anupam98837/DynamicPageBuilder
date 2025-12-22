@@ -13,6 +13,8 @@ use App\Http\Controllers\API\DepartmentMenuController;
 use App\Http\Controllers\API\HeaderMenuController;
 use App\Http\Controllers\API\PageSubmenuController;
 use App\Http\Controllers\API\PublicPageController;
+use App\Http\Controllers\API\PageController;
+use App\Http\Controllers\API\MediaController;
 
 /*
 |--------------------------------------------------------------------------
@@ -376,3 +378,41 @@ Route::prefix('/public/page-submenus')->group(function () {
 Route::prefix('public/pages')->group(function () {
     Route::get('/resolve', [PublicPageController::class, 'resolve']); // ?slug=
 });
+
+// Public
+Route::get('/public/pages/{identifier}', [PageController::class, 'publicApi']);
+ 
+Route::middleware('checkRole:admin,super_admin,director')->group(function () {
+ 
+    // ===== LISTING (STATIC FIRST) =====
+    Route::get('/pages', [PageController::class, 'index']);
+    Route::get('/pages/archived', [PageController::class, 'archivedIndex']);
+    Route::get('/pages/trash', [PageController::class, 'indexTrash']);
+    Route::get('/pages/resolve', [PageController::class, 'resolve']);
+ 
+    // ===== CRUD =====
+    Route::post('/pages', [PageController::class, 'store']);
+    Route::put('/pages/{identifier}', [PageController::class, 'update']);
+    Route::delete('/pages/{identifier}', [PageController::class, 'destroy']);
+ 
+    // ===== STATE ACTIONS =====
+    Route::post('/pages/{identifier}/archive', [PageController::class, 'archive']);
+    Route::post('/pages/{identifier}/restore', [PageController::class, 'restorePage']);
+    Route::delete('/pages/{identifier}/force', [PageController::class, 'hardDelete']);
+    Route::post('/pages/{identifier}/toggle-status', [PageController::class, 'toggleStatus']);
+ 
+    // ===== DYNAMIC (MUST BE LAST) =====
+    Route::get('/pages/{identifier}', [PageController::class, 'show']);
+});
+ 
+
+/*
+|--------------------------------------------------------------------------
+| Media Manage
+|--------------------------------------------------------------------------
+*/
+Route::prefix('media')->group(function(){
+        Route::get('/',          [MediaController::class, 'index']);
+        Route::post('/',         [MediaController::class, 'store']);
+        Route::delete('{id}',    [MediaController::class, 'destroy']);
+    });
