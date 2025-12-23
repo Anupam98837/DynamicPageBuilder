@@ -22,6 +22,9 @@ use App\Http\Controllers\API\UserTeachingEngagementsController;
 use App\Http\Controllers\API\UserConferencePublicationsController;
 use App\Http\Controllers\API\UserEducationsController;
 use App\Http\Controllers\API\UserSocialMediaController;
+use App\Http\Controllers\API\UserProfileController;
+
+
 /*
 |--------------------------------------------------------------------------
 | Base Authenticated User (Sanctum)
@@ -80,7 +83,9 @@ Route::middleware(['checkRole:admin,director,principal,hod'])
         Route::delete('/{uuid}',         [UserController::class, 'destroy']);
     });
 
-
+    Route::get('/me/profile', [UserProfileController::class,'show']);
+    Route::get('/users/{user_uuid}/profile', [UserProfileController::class,'show']);
+    
 
 Route::middleware(['checkRole:admin,director,principal,hod'])->group(function () {
     Route::get('/users/{user_uuid}/personal-info', [UserPersonalInformationController::class, 'show']);
@@ -571,6 +576,8 @@ Route::prefix('/page-submenus')
 
         Route::get('/pages', [PageSubmenuController::class, 'pages']);
 
+        Route::get('/includables', [PageSubmenuController::class, 'includables']);
+
         Route::get('/',        [PageSubmenuController::class, 'index']);
         Route::get('/tree',    [PageSubmenuController::class, 'tree']);
         Route::get('/trash',   [PageSubmenuController::class, 'indexTrash']);
@@ -593,7 +600,9 @@ Route::prefix('/page-submenus')
 Route::prefix('/public/page-submenus')->group(function () {
     Route::get('/tree',    [PageSubmenuController::class, 'publicTree']); // requires page_id or page_slug
     Route::get('/resolve', [PageSubmenuController::class, 'resolve']);
+    Route::get('/render', [PageSubmenuController::class, 'renderPublic']);
 });
+
 
 
 Route::prefix('public/pages')->group(function () {
@@ -633,7 +642,7 @@ Route::middleware('checkRole:admin,super_admin,director')->group(function () {
 |--------------------------------------------------------------------------
 */
 Route::prefix('media')->group(function(){
-        Route::get('/',          [MediaController::class, 'index']);
-        Route::post('/',         [MediaController::class, 'store']);
-        Route::delete('{id}',    [MediaController::class, 'destroy']);
-    });
+    Route::get('/',          [MediaController::class, 'index']);
+    Route::post('/',         [MediaController::class, 'store']);
+    Route::delete('{id}',    [MediaController::class, 'destroy']);
+});

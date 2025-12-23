@@ -820,6 +820,12 @@ document.addEventListener('DOMContentLoaded', function () {
             <i class="fa fa-ellipsis-vertical"></i>
           </button>
           <ul class="dropdown-menu dropdown-menu-end">
+                  <!-- ✅ PROFILE -->
+            <li>
+              <button type="button" class="dropdown-item" data-action="profile">
+                <i class="fa fa-user"></i> Profile
+              </button>
+            </li>
             <li><button type="button" class="dropdown-item" data-action="view">
               <i class="fa fa-eye"></i> View
             </button></li>`;
@@ -1007,6 +1013,14 @@ document.addEventListener('DOMContentLoaded', function () {
         if (btn.dataset._old) btn.innerHTML = btn.dataset._old;
       }
     };
+
+      /* ✅ PROFILE REDIRECT */
+    if (act === 'profile') {
+      const profileUrl = `/user/profile/${encodeURIComponent(uuid)}`;
+      window.open(profileUrl, '_blank', 'noopener');
+      return;
+    }
+
 
     if (act === 'view') {
       setSpin(true);

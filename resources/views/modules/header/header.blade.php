@@ -113,8 +113,8 @@
         align-items:center;
         justify-content:center;
         color:#fff !important;
-        font-weight:400;
-        font-size: 0.95rem;
+        font-weight:400 !important;
+        font-size: 0.95rem !important;
         padding: 0.75rem 1.2rem;
         text-decoration:none;
         white-space: nowrap;

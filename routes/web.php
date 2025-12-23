@@ -10,7 +10,7 @@ Route::get('/', function () {
 
 
 Route::get('/page/{slug}', function () {
-    return view('common');
+    return view('test');
 });
 
 Route::view('/landingpage', 'landingPage.home')->name('home');
@@ -21,6 +21,9 @@ Route::get('/dashboard', function () {
 
 Route::get('/user/manage', function () {
     return view('pages.users.pages.users.manageUsers');
+});
+Route::get('/user/profile/{uuid?}', function () {
+    return view('modules.users.userProfile');
 });
 
 Route::get('/user/conference-publications/manage', function () {

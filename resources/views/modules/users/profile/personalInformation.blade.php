@@ -87,18 +87,28 @@
 .rte-help{font-size:12px;color:var(--muted-color);margin-top:6px}
 
 /* =========================
- * Custom Rich Text Editor
+ * Course-module-like Dual Editor (Text / Code tabs)
+ * - Tabs are square (no radius)
+ * - Text mode shows formatted output
+ * - Code mode shows raw HTML
+ * - Bold/Italic/Underline works reliably (selection preserved)
  * ========================= */
-.rte-row{margin-bottom:16px;}            /* ✅ 1 editor = 1 row */
+.rte-row{margin-bottom:16px;}
 .rte-wrap{
   border:1px solid var(--line-strong);
   border-radius:14px;
   overflow:hidden;
   background:var(--surface);
 }
+
+/* Toolbar row */
 .rte-toolbar{
-  display:flex;gap:6px;align-items:center;flex-wrap:wrap;
-  padding:8px 8px;border-bottom:1px solid var(--line-strong);
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
+  padding:8px;
+  border-bottom:1px solid var(--line-strong);
   background:color-mix(in oklab, var(--surface) 92%, transparent);
 }
 .rte-btn{
@@ -109,22 +119,102 @@
   border-radius:10px;
   line-height:1;
   cursor:pointer;
-  display:inline-flex; align-items:center; justify-content:center;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
   gap:6px;
+  user-select:none;
 }
 .rte-btn:hover{background:var(--page-hover)}
+.rte-btn.active{
+  background:color-mix(in oklab, var(--primary-color) 14%, transparent);
+  border-color:color-mix(in oklab, var(--primary-color) 35%, var(--line-soft));
+}
 .rte-sep{width:1px;height:24px;background:var(--line-soft);margin:0 4px}
+
+/* ✅ Text/Code as square tabs (no radius) */
+.rte-tabs{
+  margin-left:auto;
+  display:flex;
+  border:1px solid var(--line-soft);
+  border-radius:0;
+  overflow:hidden;
+}
+.rte-tabs .tab{
+  border:0;
+  border-right:1px solid var(--line-soft);
+  border-radius:0;
+  padding:7px 12px;
+  font-size:12px;
+  cursor:pointer;
+  background:transparent;
+  color:var(--ink);
+  line-height:1;
+  user-select:none;
+}
+.rte-tabs .tab:last-child{border-right:0}
+.rte-tabs .tab.active{
+  background:color-mix(in oklab, var(--primary-color) 12%, transparent);
+  font-weight:700;
+}
+
+/* Area */
+.rte-area{position:relative}
 .rte-editor{
-  min-height:140px;
+  min-height:180px;
   padding:12px 12px;
   outline:none;
 }
 .rte-editor:empty:before{content:attr(data-placeholder);color:var(--muted-color);}
+
+/* keep formatting visible like course module editor */
+.rte-editor b, .rte-editor strong{font-weight:800}
+.rte-editor i, .rte-editor em{font-style:italic}
+.rte-editor u{text-decoration:underline}
 .rte-editor h1{font-size:20px;margin:8px 0}
 .rte-editor h2{font-size:18px;margin:8px 0}
 .rte-editor h3{font-size:16px;margin:8px 0}
 .rte-editor ul, .rte-editor ol{padding-left:22px}
 .rte-editor p{margin:0 0 10px}
+.rte-editor a{color:var(--primary-color);text-decoration:underline}
+
+.rte-editor code{
+  padding:2px 6px;
+  border-radius:0;
+  background:color-mix(in oklab, var(--muted-color) 14%, transparent);
+  border:1px solid var(--line-soft);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size:12.5px;
+}
+.rte-editor pre{
+  padding:10px 12px;
+  border-radius:0;
+  background:color-mix(in oklab, var(--muted-color) 10%, transparent);
+  border:1px solid var(--line-soft);
+  overflow:auto;
+  margin:8px 0;
+}
+.rte-editor pre code{
+  border:0;background:transparent;padding:0;display:block;white-space:pre;
+}
+
+/* Code textarea */
+.rte-code{
+  display:none;
+  width:100%;
+  min-height:180px;
+  padding:12px 12px;
+  border:0;
+  outline:none;
+  resize:vertical;
+  background:transparent;
+  color:var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size:12.5px;
+  line-height:1.45;
+}
+.rte-wrap.mode-code .rte-editor{display:none;}
+.rte-wrap.mode-code .rte-code{display:block;}
 
 /* =========================
  * Form tweaks
@@ -204,132 +294,62 @@
           </div>
         </div>
 
-        {{-- ✅ 1 editor = 1 row (FULL WIDTH) --}}
-        <div class="rte-row">
-          <label class="form-label">Affiliation</label>
-          <div class="rte-wrap">
-            <div class="rte-toolbar" data-for="affiliation">
-              <button type="button" class="rte-btn" data-cmd="bold" title="Bold"><i class="fa fa-bold"></i></button>
-              <button type="button" class="rte-btn" data-cmd="italic" title="Italic"><i class="fa fa-italic"></i></button>
-              <button type="button" class="rte-btn" data-cmd="underline" title="Underline"><i class="fa fa-underline"></i></button>
-              <span class="rte-sep"></span>
-              <button type="button" class="rte-btn" data-cmd="insertUnorderedList" title="Bullets"><i class="fa fa-list-ul"></i></button>
-              <button type="button" class="rte-btn" data-cmd="insertOrderedList" title="Numbering"><i class="fa fa-list-ol"></i></button>
-              <span class="rte-sep"></span>
-              <button type="button" class="rte-btn" data-h="h1" title="Heading 1">H1</button>
-              <button type="button" class="rte-btn" data-h="h2" title="Heading 2">H2</button>
-              <button type="button" class="rte-btn" data-h="h3" title="Heading 3">H3</button>
-              <span class="rte-sep"></span>
-              <button type="button" class="rte-btn" data-cmd="removeFormat" title="Clear"><i class="fa fa-eraser"></i></button>
-            </div>
-            <div id="affiliationEditor" class="rte-editor" contenteditable="true" data-placeholder="Write affiliation…"></div>
-          </div>
-        </div>
+        {{-- RTE blocks (Dual mode) --}}
+        @php
+          $rtes = [
+            ['key'=>'affiliation',      'label'=>'Affiliation',      'ph'=>'Write affiliation…'],
+            ['key'=>'specification',    'label'=>'Specification',    'ph'=>'Write specification…'],
+            ['key'=>'experience',       'label'=>'Experience',       'ph'=>'Write experience…'],
+            ['key'=>'interest',         'label'=>'Interest',         'ph'=>'Write interest…'],
+            ['key'=>'administration',   'label'=>'Administration',   'ph'=>'Write administration…'],
+            ['key'=>'research_project', 'label'=>'Research Project', 'ph'=>'Write research project…'],
+          ];
+        @endphp
 
-        <div class="rte-row">
-          <label class="form-label">Specification</label>
-          <div class="rte-wrap">
-            <div class="rte-toolbar" data-for="specification">
-              <button type="button" class="rte-btn" data-cmd="bold" title="Bold"><i class="fa fa-bold"></i></button>
-              <button type="button" class="rte-btn" data-cmd="italic" title="Italic"><i class="fa fa-italic"></i></button>
-              <button type="button" class="rte-btn" data-cmd="underline" title="Underline"><i class="fa fa-underline"></i></button>
-              <span class="rte-sep"></span>
-              <button type="button" class="rte-btn" data-cmd="insertUnorderedList" title="Bullets"><i class="fa fa-list-ul"></i></button>
-              <button type="button" class="rte-btn" data-cmd="insertOrderedList" title="Numbering"><i class="fa fa-list-ol"></i></button>
-              <span class="rte-sep"></span>
-              <button type="button" class="rte-btn" data-h="h1" title="Heading 1">H1</button>
-              <button type="button" class="rte-btn" data-h="h2" title="Heading 2">H2</button>
-              <button type="button" class="rte-btn" data-h="h3" title="Heading 3">H3</button>
-              <span class="rte-sep"></span>
-              <button type="button" class="rte-btn" data-cmd="removeFormat" title="Clear"><i class="fa fa-eraser"></i></button>
-            </div>
-            <div id="specificationEditor" class="rte-editor" contenteditable="true" data-placeholder="Write specification…"></div>
-          </div>
-        </div>
+        @foreach($rtes as $r)
+          <div class="rte-row" data-rte="{{ $r['key'] }}">
+            <label class="form-label">{{ $r['label'] }}</label>
 
-        <div class="rte-row">
-          <label class="form-label">Experience</label>
-          <div class="rte-wrap">
-            <div class="rte-toolbar" data-for="experience">
-              <button type="button" class="rte-btn" data-cmd="bold" title="Bold"><i class="fa fa-bold"></i></button>
-              <button type="button" class="rte-btn" data-cmd="italic" title="Italic"><i class="fa fa-italic"></i></button>
-              <button type="button" class="rte-btn" data-cmd="underline" title="Underline"><i class="fa fa-underline"></i></button>
-              <span class="rte-sep"></span>
-              <button type="button" class="rte-btn" data-cmd="insertUnorderedList" title="Bullets"><i class="fa fa-list-ul"></i></button>
-              <button type="button" class="rte-btn" data-cmd="insertOrderedList" title="Numbering"><i class="fa fa-list-ol"></i></button>
-              <span class="rte-sep"></span>
-              <button type="button" class="rte-btn" data-h="h1" title="Heading 1">H1</button>
-              <button type="button" class="rte-btn" data-h="h2" title="Heading 2">H2</button>
-              <button type="button" class="rte-btn" data-h="h3" title="Heading 3">H3</button>
-              <span class="rte-sep"></span>
-              <button type="button" class="rte-btn" data-cmd="removeFormat" title="Clear"><i class="fa fa-eraser"></i></button>
-            </div>
-            <div id="experienceEditor" class="rte-editor" contenteditable="true" data-placeholder="Write experience…"></div>
-          </div>
-        </div>
+            <div class="rte-wrap" id="{{ $r['key'] }}Wrap">
+              <div class="rte-toolbar" data-for="{{ $r['key'] }}">
+                <button type="button" class="rte-btn" data-cmd="bold" title="Bold"><i class="fa fa-bold"></i></button>
+                <button type="button" class="rte-btn" data-cmd="italic" title="Italic"><i class="fa fa-italic"></i></button>
+                <button type="button" class="rte-btn" data-cmd="underline" title="Underline"><i class="fa fa-underline"></i></button>
 
-        <div class="rte-row">
-          <label class="form-label">Interest</label>
-          <div class="rte-wrap">
-            <div class="rte-toolbar" data-for="interest">
-              <button type="button" class="rte-btn" data-cmd="bold" title="Bold"><i class="fa fa-bold"></i></button>
-              <button type="button" class="rte-btn" data-cmd="italic" title="Italic"><i class="fa fa-italic"></i></button>
-              <button type="button" class="rte-btn" data-cmd="underline" title="Underline"><i class="fa fa-underline"></i></button>
-              <span class="rte-sep"></span>
-              <button type="button" class="rte-btn" data-cmd="insertUnorderedList" title="Bullets"><i class="fa fa-list-ul"></i></button>
-              <button type="button" class="rte-btn" data-cmd="insertOrderedList" title="Numbering"><i class="fa fa-list-ol"></i></button>
-              <span class="rte-sep"></span>
-              <button type="button" class="rte-btn" data-h="h1" title="Heading 1">H1</button>
-              <button type="button" class="rte-btn" data-h="h2" title="Heading 2">H2</button>
-              <button type="button" class="rte-btn" data-h="h3" title="Heading 3">H3</button>
-              <span class="rte-sep"></span>
-              <button type="button" class="rte-btn" data-cmd="removeFormat" title="Clear"><i class="fa fa-eraser"></i></button>
-            </div>
-            <div id="interestEditor" class="rte-editor" contenteditable="true" data-placeholder="Write interest…"></div>
-          </div>
-        </div>
+                <span class="rte-sep"></span>
 
-        <div class="rte-row">
-          <label class="form-label">Administration</label>
-          <div class="rte-wrap">
-            <div class="rte-toolbar" data-for="administration">
-              <button type="button" class="rte-btn" data-cmd="bold" title="Bold"><i class="fa fa-bold"></i></button>
-              <button type="button" class="rte-btn" data-cmd="italic" title="Italic"><i class="fa fa-italic"></i></button>
-              <button type="button" class="rte-btn" data-cmd="underline" title="Underline"><i class="fa fa-underline"></i></button>
-              <span class="rte-sep"></span>
-              <button type="button" class="rte-btn" data-cmd="insertUnorderedList" title="Bullets"><i class="fa fa-list-ul"></i></button>
-              <button type="button" class="rte-btn" data-cmd="insertOrderedList" title="Numbering"><i class="fa fa-list-ol"></i></button>
-              <span class="rte-sep"></span>
-              <button type="button" class="rte-btn" data-h="h1" title="Heading 1">H1</button>
-              <button type="button" class="rte-btn" data-h="h2" title="Heading 2">H2</button>
-              <button type="button" class="rte-btn" data-h="h3" title="Heading 3">H3</button>
-              <span class="rte-sep"></span>
-              <button type="button" class="rte-btn" data-cmd="removeFormat" title="Clear"><i class="fa fa-eraser"></i></button>
-            </div>
-            <div id="administrationEditor" class="rte-editor" contenteditable="true" data-placeholder="Write administration…"></div>
-          </div>
-        </div>
+                <button type="button" class="rte-btn" data-cmd="insertUnorderedList" title="Bullets"><i class="fa fa-list-ul"></i></button>
+                <button type="button" class="rte-btn" data-cmd="insertOrderedList" title="Numbering"><i class="fa fa-list-ol"></i></button>
 
-        <div class="rte-row">
-          <label class="form-label">Research Project</label>
-          <div class="rte-wrap">
-            <div class="rte-toolbar" data-for="research_project">
-              <button type="button" class="rte-btn" data-cmd="bold" title="Bold"><i class="fa fa-bold"></i></button>
-              <button type="button" class="rte-btn" data-cmd="italic" title="Italic"><i class="fa fa-italic"></i></button>
-              <button type="button" class="rte-btn" data-cmd="underline" title="Underline"><i class="fa fa-underline"></i></button>
-              <span class="rte-sep"></span>
-              <button type="button" class="rte-btn" data-cmd="insertUnorderedList" title="Bullets"><i class="fa fa-list-ul"></i></button>
-              <button type="button" class="rte-btn" data-cmd="insertOrderedList" title="Numbering"><i class="fa fa-list-ol"></i></button>
-              <span class="rte-sep"></span>
-              <button type="button" class="rte-btn" data-h="h1" title="Heading 1">H1</button>
-              <button type="button" class="rte-btn" data-h="h2" title="Heading 2">H2</button>
-              <button type="button" class="rte-btn" data-h="h3" title="Heading 3">H3</button>
-              <span class="rte-sep"></span>
-              <button type="button" class="rte-btn" data-cmd="removeFormat" title="Clear"><i class="fa fa-eraser"></i></button>
+                <span class="rte-sep"></span>
+
+                <button type="button" class="rte-btn" data-h="h1" title="Heading 1">H1</button>
+                <button type="button" class="rte-btn" data-h="h2" title="Heading 2">H2</button>
+                <button type="button" class="rte-btn" data-h="h3" title="Heading 3">H3</button>
+
+                <span class="rte-sep"></span>
+
+                <button type="button" class="rte-btn" data-cmd="formatBlock" data-val="pre" title="Code Block"><i class="fa fa-code"></i></button>
+                <button type="button" class="rte-btn" data-cmd="insertHTML" data-val="<code>code</code>" title="Inline Code"><i class="fa fa-terminal"></i></button>
+
+                <span class="rte-sep"></span>
+
+                <button type="button" class="rte-btn" data-cmd="removeFormat" title="Clear"><i class="fa fa-eraser"></i></button>
+
+                <div class="rte-tabs">
+                  <button type="button" class="tab active" data-mode="text">Text</button>
+                  <button type="button" class="tab" data-mode="code">Code</button>
+                </div>
+              </div>
+
+              <div class="rte-area">
+                <div id="{{ $r['key'] }}Editor" class="rte-editor" contenteditable="true" data-placeholder="{{ $r['ph'] }}"></div>
+                <textarea id="{{ $r['key'] }}Code" class="rte-code" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"
+                  placeholder="HTML code…"></textarea>
+              </div>
             </div>
-            <div id="research_projectEditor" class="rte-editor" contenteditable="true" data-placeholder="Write research project…"></div>
           </div>
-        </div>
+        @endforeach
 
         {{-- Hidden fields (HTML payload sent to API) --}}
         <input type="hidden" id="affiliation" name="affiliation">
@@ -381,7 +401,7 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
-document.addEventListener('DOMContentLoaded', function () {
+(function(){
   const token = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
   if (!token) { window.location.href = '/'; return; }
 
@@ -402,33 +422,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const btnSave = document.getElementById('btnSave');
   const btnDelete = document.getElementById('btnDelete');
   const btnReset = document.getElementById('btnReset');
-
   const form = document.getElementById('piForm');
-
-  // Qualifications tags
-  const qualInput = document.getElementById('qualInput');
-  const btnAddQual = document.getElementById('btnAddQual');
-  const qualTags = document.getElementById('qualTags');
-
-  // Editors
-  const editors = {
-    affiliation: document.getElementById('affiliationEditor'),
-    specification: document.getElementById('specificationEditor'),
-    experience: document.getElementById('experienceEditor'),
-    interest: document.getElementById('interestEditor'),
-    administration: document.getElementById('administrationEditor'),
-    research_project: document.getElementById('research_projectEditor'),
-  };
-
-  // Hidden fields (html)
-  const hidden = {
-    affiliation: document.getElementById('affiliation'),
-    specification: document.getElementById('specification'),
-    experience: document.getElementById('experience'),
-    interest: document.getElementById('interest'),
-    administration: document.getElementById('administration'),
-    research_project: document.getElementById('research_project'),
-  };
 
   function setButtonLoading(button, loading){
     if(!button) return;
@@ -436,12 +430,13 @@ document.addEventListener('DOMContentLoaded', function () {
     button.classList.toggle('btn-loading', !!loading);
   }
 
-  // --- state ---
+  // =========================
+  // Tags (Qualification) - Delegation (works after swaps)
+  // =========================
+  const state = { qualification: [] };
   let currentUser = { id:null, uuid:'', role:'' };
   let hasRow = false;
   let lastServerData = null;
-
-  const state = { qualification: [] };
 
   function sanitizeTag(s){ return (s ?? '').toString().replace(/\s+/g,' ').trim(); }
   function uniqLower(arr){
@@ -455,12 +450,12 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     return out;
   }
-
   function escapeHtml(str){
     return (str ?? '').toString().replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
   }
-
   function renderTags(){
+    const qualTags = document.getElementById('qualTags');
+    if(!qualTags) return;
     qualTags.innerHTML = '';
     if(!state.qualification.length){
       qualTags.innerHTML = '<span class="small-muted">No qualifications added.</span>';
@@ -476,88 +471,400 @@ document.addEventListener('DOMContentLoaded', function () {
       qualTags.appendChild(span);
     });
   }
-
   function addTag(raw){
     const t = sanitizeTag(raw);
     if(!t) return;
     state.qualification = uniqLower([...state.qualification, t]);
     renderTags();
-    qualInput.value = '';
-    qualInput.focus();
+    const qualInput = document.getElementById('qualInput');
+    if(qualInput){
+      qualInput.value = '';
+      qualInput.focus();
+    }
   }
 
-  qualTags.addEventListener('click', (e)=>{
-    const btn = e.target.closest('button.x[data-idx]');
-    if(!btn) return;
-    const idx = parseInt(btn.dataset.idx, 10);
-    if(Number.isNaN(idx)) return;
-    state.qualification.splice(idx, 1);
-    renderTags();
+  document.addEventListener('click', (e) => {
+    const rm = e.target.closest('#qualTags button.x[data-idx]');
+    if (rm) {
+      const idx = parseInt(rm.dataset.idx, 10);
+      if (!Number.isNaN(idx)) {
+        state.qualification.splice(idx, 1);
+        renderTags();
+      }
+      return;
+    }
+
+    const addBtn = e.target.closest('#btnAddQual');
+    if (addBtn) {
+      e.preventDefault();
+      addTag(document.getElementById('qualInput')?.value);
+      return;
+    }
   });
 
-  btnAddQual.addEventListener('click', ()=> addTag(qualInput.value));
-  qualInput.addEventListener('keydown', (e)=>{
-    if(e.key === 'Enter'){
+  document.addEventListener('keydown', (e) => {
+    const inp = e.target.closest('#qualInput');
+    if (!inp) return;
+
+    if (e.key === 'Enter') {
       e.preventDefault();
-      addTag(qualInput.value);
+      e.stopPropagation();
+      addTag(inp.value);
     }
-    if(e.key === 'Backspace' && !qualInput.value && state.qualification.length){
+
+    if (e.key === 'Backspace' && !inp.value && state.qualification.length) {
       state.qualification.pop();
       renderTags();
     }
   });
 
   // =========================
-  // RTE actions (execCommand)
+  // Course-module-like Dual Editor
   // =========================
-  let activeEditor = null;
+  const rteKeys = ['affiliation','specification','experience','interest','administration','research_project'];
+  const rte = {};            // { key: {wrap, editor, code, mode} }
+  const savedRange = {};     // { key: Range }
 
-  Object.values(editors).forEach(ed=>{
-    ed.addEventListener('focus', ()=>{ activeEditor = ed; });
-    ed.addEventListener('click', ()=>{ activeEditor = ed; });
-    ed.addEventListener('keyup', ()=>{ activeEditor = ed; });
-  });
+  function htmlOrEmpty(v){
+    const s = (v ?? '').toString().trim();
+    return s ? s : '';
+  }
 
-  function wrapSelectionAsHeading(tag){
-    if(!activeEditor) return;
-    activeEditor.focus();
+  // keep <pre> content safe (and consistent)
+  function ensureWrappedInPreCode(html){
+    return (html || '').replace(/<pre>([\s\S]*?)<\/pre>/gi, (m, inner)=>{
+      if(/<code[\s>]/i.test(inner)) return `<pre>${inner}</pre>`;
+      return `<pre><code>${inner}</code></pre>`;
+    });
+  }
+
+  function saveSelectionFor(key){
+    const o = rte[key];
+    if(!o || o.mode !== 'text') return;
     const sel = window.getSelection();
     if(!sel || sel.rangeCount === 0) return;
-
     const range = sel.getRangeAt(0);
-    if(!activeEditor.contains(range.commonAncestorContainer)) return;
+    if(!o.editor.contains(range.commonAncestorContainer)) return;
+    savedRange[key] = range.cloneRange();
+  }
+
+  function restoreSelectionFor(key){
+    const o = rte[key];
+    if(!o || o.mode !== 'text' || !savedRange[key]) return false;
+    const sel = window.getSelection();
+    if(!sel) return false;
+    o.editor.focus();
+    sel.removeAllRanges();
+    sel.addRange(savedRange[key]);
+    return true;
+  }
+
+  function updateToolbarActive(key){
+    const o = rte[key];
+    if(!o || o.mode !== 'text') return;
+
+    const tb = o.wrap.querySelector('.rte-toolbar');
+    if(!tb) return;
+
+    const setActive = (cmd, on)=>{
+      const b = tb.querySelector(`.rte-btn[data-cmd="${cmd}"]`);
+      if(b) b.classList.toggle('active', !!on);
+    };
+
+    try{
+      setActive('bold', document.queryCommandState('bold'));
+      setActive('italic', document.queryCommandState('italic'));
+      setActive('underline', document.queryCommandState('underline'));
+    }catch(_){}
+  }
+
+  function registerRTE(key){
+    const wrap = document.getElementById(key+'Wrap');
+    const editor = document.getElementById(key+'Editor');
+    const code = document.getElementById(key+'Code');
+    if(!wrap || !editor || !code) return;
+
+    rte[key] = { wrap, editor, code, mode:'text' };
+
+    // selection tracking
+    editor.addEventListener('focus', ()=> { window.__ACTIVE_RTE__ = key; });
+    ['click','mouseup','keyup','input'].forEach(ev=>{
+      editor.addEventListener(ev, ()=>{
+        saveSelectionFor(key);
+        updateToolbarActive(key);
+      });
+    });
+    editor.addEventListener('blur', ()=> saveSelectionFor(key));
+
+    // sync editor -> code
+    const syncToCode = ()=>{
+      if(rte[key].mode === 'text'){
+        code.value = ensureWrappedInPreCode(editor.innerHTML || '');
+      }
+    };
+    editor.addEventListener('input', syncToCode);
+    editor.addEventListener('blur', syncToCode);
+
+    // sync code -> editor while typing in code mode
+    code.addEventListener('input', ()=>{
+      if(rte[key].mode === 'code'){
+        editor.innerHTML = ensureWrappedInPreCode(code.value || '');
+      }
+    });
+  }
+
+  rteKeys.forEach(registerRTE);
+
+  function setMode(key, mode){
+    const o = rte[key];
+    if(!o) return;
+    o.mode = (mode === 'code') ? 'code' : 'text';
+    o.wrap.classList.toggle('mode-code', o.mode === 'code');
+
+    // activate tabs
+    o.wrap.querySelectorAll('.rte-tabs .tab').forEach(t=>{
+      t.classList.toggle('active', t.dataset.mode === o.mode);
+    });
+
+    // disable formatting buttons in code mode
+    o.wrap.querySelectorAll('.rte-toolbar .rte-btn').forEach(btn=>{
+      btn.disabled = (o.mode === 'code');
+      btn.style.opacity = (o.mode === 'code') ? '0.55' : '';
+      btn.style.pointerEvents = (o.mode === 'code') ? 'none' : '';
+    });
+
+    if(o.mode === 'code'){
+      o.code.value = ensureWrappedInPreCode(o.editor.innerHTML || '');
+      setTimeout(()=>o.code.focus(), 0);
+    }else{
+      o.editor.innerHTML = ensureWrappedInPreCode(o.code.value || '');
+      setTimeout(()=>{
+        o.editor.focus();
+        saveSelectionFor(key);
+        updateToolbarActive(key);
+      }, 0);
+    }
+  }
+
+  function wrapSelectionAsHeading(tag, editorEl){
+    editorEl.focus();
+    const sel = window.getSelection();
+    if(!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    if(!editorEl.contains(range.commonAncestorContainer)) return;
 
     const txt = sel.toString();
     if(!txt.trim()){
-      document.execCommand('insertHTML', false, `<${tag}>Heading</${tag}><p></p>`);
-      return;
+      // If nothing selected, just insert empty heading at cursor
+      document.execCommand('insertHTML', false, `<${tag}></${tag}>`);
+      // Move cursor inside the new heading
+      const headings = editorEl.getElementsByTagName(tag);
+      if(headings.length > 0){
+        const lastHeading = headings[headings.length - 1];
+        const range = document.createRange();
+        range.selectNodeContents(lastHeading);
+        range.collapse(true);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    }else{
+      // Wrap selected text with heading tag
+      const fragment = range.extractContents();
+      const heading = document.createElement(tag);
+      heading.appendChild(fragment);
+      range.insertNode(heading);
+      
+      // Restore selection
+      const newRange = document.createRange();
+      newRange.selectNodeContents(heading);
+      newRange.collapse(false); // Move to end
+      sel.removeAllRanges();
+      sel.addRange(newRange);
     }
-    document.execCommand('formatBlock', false, tag.toUpperCase());
+    
+    // Clean up any empty <p> tags
+    editorEl.innerHTML = editorEl.innerHTML.replace(/<p>\s*<\/p>/gi, '');
   }
 
-  document.querySelectorAll('.rte-toolbar').forEach(tb=>{
-    tb.addEventListener('mousedown', (e)=>{ e.preventDefault(); });
+  // ✅ KEY FIX: preserve selection while clicking toolbar (so B/I/U works)
+  document.addEventListener('pointerdown', (e)=>{
+    if(e.target.closest('.rte-toolbar')) e.preventDefault();
+  });
 
-    tb.addEventListener('click', (e)=>{
-      const btn = e.target.closest('button.rte-btn');
-      if(!btn) return;
+  document.addEventListener('selectionchange', ()=>{
+    const key = window.__ACTIVE_RTE__;
+    if(key && rte[key] && rte[key].mode === 'text'){
+      saveSelectionFor(key);
+      updateToolbarActive(key);
+    }
+  });
 
-      const cmd = btn.getAttribute('data-cmd');
-      const h = btn.getAttribute('data-h');
+  document.addEventListener('click', (e)=>{
+    // tabs
+    const tab = e.target.closest('.rte-tabs .tab');
+    if(tab){
+      const wrap = tab.closest('.rte-wrap');
+      if(!wrap) return;
+      const key = wrap.id.replace('Wrap','');
+      setMode(key, tab.dataset.mode);
+      return;
+    }
 
-      const key = tb.getAttribute('data-for');
-      if(key && editors[key]) activeEditor = editors[key];
+    // toolbar button
+    const btn = e.target.closest('.rte-toolbar .rte-btn');
+    if(!btn) return;
 
-      if(!activeEditor) return;
-      activeEditor.focus();
+    const tb = btn.closest('.rte-toolbar');
+    const key = tb?.getAttribute('data-for');
+    if(!key || !rte[key]) return;
+    if(rte[key].mode === 'code') return;
 
-      if(h){ wrapSelectionAsHeading(h); return; }
+    const editorEl = rte[key].editor;
 
-      if(cmd){
-        try{ document.execCommand(cmd, false, null); }
-        catch(ex){ console.error('execCommand failed', cmd, ex); }
+    // ✅ restore selection BEFORE exec
+    if(!restoreSelectionFor(key)) editorEl.focus();
+
+    const cmd = btn.getAttribute('data-cmd');
+    const val = btn.getAttribute('data-val');
+    const h = btn.getAttribute('data-h');
+
+    if(h){
+      wrapSelectionAsHeading(h, editorEl);
+      editorEl.innerHTML = ensureWrappedInPreCode(editorEl.innerHTML || '');
+      rte[key].code.value = ensureWrappedInPreCode(editorEl.innerHTML||'');
+      saveSelectionFor(key);
+      updateToolbarActive(key);
+      return;
+    }
+
+    if(cmd === 'insertHTML' && val){
+      if(val === '<code>code</code>'){
+        // For inline code, wrap selection
+        const sel = window.getSelection();
+        if(sel && sel.rangeCount > 0 && !sel.isCollapsed){
+          const range = sel.getRangeAt(0);
+          const selectedText = range.toString();
+          if(selectedText.trim()){
+            document.execCommand('insertHTML', false, `<code>${selectedText}</code>`);
+          }
+        }else{
+          document.execCommand('insertHTML', false, val);
+        }
+      }else{
+        document.execCommand('insertHTML', false, val);
+      }
+      editorEl.innerHTML = ensureWrappedInPreCode(editorEl.innerHTML || '');
+      rte[key].code.value = ensureWrappedInPreCode(editorEl.innerHTML||'');
+      saveSelectionFor(key);
+      updateToolbarActive(key);
+      return;
+    }
+
+    if(cmd === 'formatBlock' && val === 'pre'){
+      // For code blocks, wrap selection
+      const sel = window.getSelection();
+      if(sel && sel.rangeCount > 0){
+        const range = sel.getRangeAt(0);
+        const selectedText = range.toString();
+        if(selectedText.trim()){
+          document.execCommand('insertHTML', false, `<pre><code>${selectedText}</code></pre>`);
+        }else{
+          document.execCommand('insertHTML', false, '<pre><code></code></pre>');
+        }
+      }
+      editorEl.innerHTML = ensureWrappedInPreCode(editorEl.innerHTML || '');
+      rte[key].code.value = ensureWrappedInPreCode(editorEl.innerHTML||'');
+      saveSelectionFor(key);
+      updateToolbarActive(key);
+      return;
+    }
+
+    if(cmd){
+      try{ 
+        // For standard formatting commands, use execCommand directly
+        document.execCommand(cmd, false, null); 
+      }
+      catch(ex){ console.error('execCommand failed', cmd, ex); }
+      editorEl.innerHTML = ensureWrappedInPreCode(editorEl.innerHTML || '');
+      rte[key].code.value = ensureWrappedInPreCode(editorEl.innerHTML||'');
+      saveSelectionFor(key);
+      updateToolbarActive(key);
+    }
+  });
+
+  // hidden inputs
+  const hidden = {
+    affiliation: document.getElementById('affiliation'),
+    specification: document.getElementById('specification'),
+    experience: document.getElementById('experience'),
+    interest: document.getElementById('interest'),
+    administration: document.getElementById('administration'),
+    research_project: document.getElementById('research_project'),
+  };
+
+  function collectPayload(){
+    rteKeys.forEach(k=>{
+      const o = rte[k];
+      if(!o || !hidden[k]) return;
+      const html = (o.mode === 'code') ? (o.code.value || '') : (o.editor.innerHTML || '');
+      hidden[k].value = (ensureWrappedInPreCode(html) || '').trim();
+    });
+
+    const payload = {
+      qualification: state.qualification.slice(),
+      affiliation: hidden.affiliation.value || null,
+      specification: hidden.specification.value || null,
+      experience: hidden.experience.value || null,
+      interest: hidden.interest.value || null,
+      administration: hidden.administration.value || null,
+      research_project: hidden.research_project.value || null,
+    };
+
+    Object.keys(payload).forEach(k=>{
+      if(typeof payload[k] === 'string'){
+        const t = payload[k].replace(/<br\s*\/?>/gi,'').replace(/&nbsp;/gi,' ').trim();
+        if(!t) payload[k] = null;
       }
     });
+    return payload;
+  }
+
+  function applyServerData(d){
+    lastServerData = d;
+    hasRow = !!(d && d.id);
+
+    // qualification (supports json string)
+    let q = d?.qualification ?? d?.qualifications ?? [];
+    if (typeof q === 'string') { try { q = JSON.parse(q); } catch(e){ q = []; } }
+    state.qualification = Array.isArray(q) ? q.filter(Boolean).map(sanitizeTag) : [];
+    state.qualification = uniqLower(state.qualification);
+    renderTags();
+
+    // editors
+    rteKeys.forEach(k=>{
+      const o = rte[k];
+      if(!o) return;
+      o.editor.innerHTML = ensureWrappedInPreCode(htmlOrEmpty(d?.[k]));
+      o.code.value = ensureWrappedInPreCode(o.editor.innerHTML || '');
+      setMode(k, 'text');
+      updateToolbarActive(k);
+    });
+
+    if(hasRow){
+      modeText.textContent = 'Edit mode: data already exists for this user.';
+      statusBadge.textContent = 'EDIT';
+      btnDelete.disabled = false;
+    }else{
+      modeText.textContent = 'Create mode: first save will create the entry.';
+      statusBadge.textContent = 'NEW';
+      btnDelete.disabled = true;
+    }
+  }
+
+  btnReset?.addEventListener('click', ()=>{
+    if(lastServerData) applyServerData(lastServerData);
+    ok('Reset to last saved data');
   });
 
   // =========================
@@ -616,87 +923,9 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // =========================
-  // Fill / Reset
-  // =========================
-  function htmlOrEmpty(v){
-    const s = (v ?? '').toString().trim();
-    return s ? s : '';
-  }
-
-  function setEditorHtml(key, html){
-    editors[key].innerHTML = htmlOrEmpty(html);
-  }
-
-  function collectPayload(){
-    Object.keys(editors).forEach(k=>{
-      hidden[k].value = (editors[k].innerHTML || '').trim();
-    });
-
-    const payload = {
-      qualification: state.qualification.slice(),
-      affiliation: hidden.affiliation.value || null,
-      specification: hidden.specification.value || null,
-      experience: hidden.experience.value || null,
-      interest: hidden.interest.value || null,
-      administration: hidden.administration.value || null,
-      research_project: hidden.research_project.value || null,
-    };
-
-    Object.keys(payload).forEach(k=>{
-      if(typeof payload[k] === 'string'){
-        const t = payload[k].replace(/<br\s*\/?>/gi,'').replace(/&nbsp;/gi,' ').trim();
-        if(!t) payload[k] = null;
-      }
-    });
-
-    return payload;
-  }
-
-  function applyServerData(d){
-    lastServerData = d;
-
-    hasRow = !!(d && d.id);
-
-    // ✅ IMPORTANT FIX: support both keys + string JSON
-    let q = d?.qualification ?? d?.qualifications ?? [];
-    if (typeof q === 'string') {
-      try { q = JSON.parse(q); } catch(e){ q = []; }
-    }
-    state.qualification = Array.isArray(q) ? q.filter(Boolean).map(sanitizeTag) : [];
-    state.qualification = uniqLower(state.qualification);
-    renderTags();
-
-    setEditorHtml('affiliation', d?.affiliation);
-    setEditorHtml('specification', d?.specification);
-    setEditorHtml('experience', d?.experience);
-    setEditorHtml('interest', d?.interest);
-    setEditorHtml('administration', d?.administration);
-    setEditorHtml('research_project', d?.research_project);
-
-    if(hasRow){
-      modeText.textContent = 'Edit mode: data already exists for this user.';
-      statusBadge.textContent = 'EDIT';
-      btnDelete.disabled = false;
-    }else{
-      modeText.textContent = 'Create mode: first save will create the entry.';
-      statusBadge.textContent = 'NEW';
-      btnDelete.disabled = true;
-    }
-  }
-
-  function resetToLast(){
-    if(lastServerData) applyServerData(lastServerData);
-  }
-
-  btnReset.addEventListener('click', ()=>{
-    resetToLast();
-    ok('Reset to last saved data');
-  });
-
-  // =========================
   // Save / Delete
   // =========================
-  form.addEventListener('submit', async (e)=>{
+  form?.addEventListener('submit', async (e)=>{
     e.preventDefault();
 
     const payload = collectPayload();
@@ -706,13 +935,11 @@ document.addEventListener('DOMContentLoaded', function () {
     showInlineLoading(true);
     try{
       let saved = null;
-
       if(!hasRow){
         try{
           saved = await createPersonalInfo(payload);
           ok('Personal information created');
         }catch(ex){
-          // fallback to update if API returns 409
           if(ex && ex.status === 409){
             saved = await updatePersonalInfo(payload);
             ok('Personal information updated');
@@ -724,7 +951,6 @@ document.addEventListener('DOMContentLoaded', function () {
         saved = await updatePersonalInfo(payload);
         ok('Personal information updated');
       }
-
       applyServerData(saved || payload);
     }catch(ex){
       err(ex.message || 'Save failed');
@@ -735,7 +961,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 
-  btnDelete.addEventListener('click', async ()=>{
+  btnDelete?.addEventListener('click', async ()=>{
     if(!hasRow){
       err('Nothing to delete yet');
       return;
@@ -756,7 +982,6 @@ document.addEventListener('DOMContentLoaded', function () {
     try{
       await deletePersonalInfo();
       ok('Deleted');
-
       const fresh = await fetchPersonalInfo();
       applyServerData(fresh);
     }catch(ex){
@@ -784,6 +1009,6 @@ document.addEventListener('DOMContentLoaded', function () {
       showInlineLoading(false);
     }
   })();
-});
+})();
 </script>
 @endpush
