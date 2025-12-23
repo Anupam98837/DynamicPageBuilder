@@ -90,17 +90,6 @@ class UserPersonalInformationController extends Controller
     }
 
     /* =========================
-     * Safe column setters
-     * ========================= */
-
-    private function setIfColumn(array &$arr, string $col, $val): void
-    {
-        if (Schema::hasColumn($this->table, $col)) {
-            $arr[$col] = $val;
-        }
-    }
-
-    /* =========================
      * Qualification helpers
      * ========================= */
 
@@ -109,11 +98,11 @@ class UserPersonalInformationController extends Controller
         if (!$row) return $row;
 
         $raw = null;
-
         if (property_exists($row, 'qualification')) {
             $raw = $row->qualification;
         }
 
+        // MariaDB/MySQL JSON columns usually come as string
         if (is_string($raw)) {
             $decoded = json_decode($raw, true);
             $row->qualification = is_array($decoded) ? $decoded : [];
@@ -127,33 +116,125 @@ class UserPersonalInformationController extends Controller
     }
 
     /**
-     * Accept qualification as:
-     * - JSON body array
-     * - stringified JSON
+     * Decode raw JSON body safely.
+     */
+    private function decodedJsonBody(Request $request): ?array
+    {
+        $raw = (string) $request->getContent();
+        $rawTrim = trim($raw);
+        if ($rawTrim === '') return null;
+
+        $decoded = json_decode($rawTrim, true);
+        if (json_last_error() !== JSON_ERROR_NONE) return null;
+        if (!is_array($decoded)) return null;
+
+        return $decoded;
+    }
+
+    /**
+     * Normalize list of strings:
+     * - trims
+     * - collapses spaces
+     * - dedupes (case-insensitive)
+     */
+    private function normalizeStringList(array $arr): array
+    {
+        $clean = [];
+        $seen = [];
+        foreach ($arr as $item) {
+            if (!is_string($item)) continue;
+            $t = trim(preg_replace('/\s+/', ' ', $item));
+            if ($t === '') continue;
+            $k = mb_strtolower($t);
+            if (isset($seen[$k])) continue;
+            $seen[$k] = true;
+            $clean[] = $t;
+        }
+        return $clean;
+    }
+
+    /**
+     * ✅ FIXED: reliable qualification read for PUT/PATCH JSON + form-data.
+     * Returns: [present(bool), value(?array), error(?string)]
      */
     private function readQualificationFromRequest(Request $request): array
     {
-        if (!$request->exists('qualification')) return [false, null, null];
+        $present = false;
+        $q = null;
 
-        $q = $request->input('qualification');
+        /**
+         * 1) Most reliable: exists() checks presence of key even if null/empty
+         * (works across JSON/form-data/query).
+         */
+        if (method_exists($request, 'exists') && $request->exists('qualification')) {
+            $present = true;
+            $q = $request->input('qualification'); // could be array|string|null
+        } else {
+            // fallback for older versions: check keys
+            $all = $request->all();
+            if (is_array($all) && array_key_exists('qualification', $all)) {
+                $present = true;
+                $q = $all['qualification'];
+            }
+        }
 
-        if (is_array($q)) return [true, $q, null];
+        /**
+         * 2) Fallback: raw JSON decode (some PUT/PATCH clients can be weird)
+         */
+        if (!$present) {
+            $decoded = $this->decodedJsonBody($request);
+            if (is_array($decoded) && array_key_exists('qualification', $decoded)) {
+                $present = true;
+                $q = $decoded['qualification'];
+            }
+        }
 
+        if (!$present) return [false, null, null];
+
+        // Explicit null means "empty list"
+        if ($q === null) return [true, [], null];
+
+        // Array payload
+        if (is_array($q)) {
+            return [true, $this->normalizeStringList($q), null];
+        }
+
+        // String payload: can be JSON string OR comma-separated OR single value
         if (is_string($q)) {
             $s = trim($q);
             if ($s === '') return [true, [], null];
 
-            $decoded = json_decode($s, true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                return [true, null, 'Qualification JSON invalid: ' . json_last_error_msg()];
+            // If it looks like JSON, decode it
+            $first = substr($s, 0, 1);
+            if ($first === '[' || $first === '{' || $first === '"') {
+                $decoded = json_decode($s, true);
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    return [true, null, 'Qualification JSON invalid: ' . json_last_error_msg()];
+                }
+
+                // allow decoded string like "a,b"
+                if (is_string($decoded)) {
+                    $parts = array_map('trim', explode(',', $decoded));
+                    return [true, $this->normalizeStringList($parts), null];
+                }
+
+                if ($decoded === null) return [true, [], null];
+                if (!is_array($decoded)) return [true, null, 'Qualification must decode to an array'];
+
+                return [true, $this->normalizeStringList($decoded), null];
             }
-            if ($decoded !== null && !is_array($decoded)) {
-                return [true, null, 'Qualification must decode to an array'];
+
+            // comma-separated fallback
+            if (str_contains($s, ',')) {
+                $parts = array_map('trim', explode(',', $s));
+                return [true, $this->normalizeStringList($parts), null];
             }
-            return [true, $decoded ?? [], null];
+
+            // single value fallback
+            return [true, $this->normalizeStringList([$s]), null];
         }
 
-        return [true, null, 'Qualification must be an array or JSON string'];
+        return [true, null, 'Qualification must be an array or string'];
     }
 
     /* =====================================================
@@ -202,6 +283,7 @@ class UserPersonalInformationController extends Controller
         ])) return $resp;
 
         Log::info('PI.store.request', [
+            'method'       => $request->method(),
             'content_type' => $request->header('Content-Type'),
             'raw_body'     => substr($request->getContent(), 0, 2000),
             'all_keys'     => array_keys($request->all()),
@@ -233,6 +315,7 @@ class UserPersonalInformationController extends Controller
             'present' => $qPresent,
             'value'   => $qValue,
             'type'    => gettype($qValue),
+            'count'   => is_array($qValue) ? count($qValue) : null,
             'error'   => $qErr,
         ]);
 
@@ -261,8 +344,7 @@ class UserPersonalInformationController extends Controller
             $insert = [
                 'uuid'             => (string) Str::uuid(),
                 'user_id'          => (int) $user->id,
-                // ✅ since your column is JSON, store JSON string
-                'qualification'    => json_encode($qValue ?? []),
+                'qualification'    => json_encode($qValue ?? [], JSON_UNESCAPED_UNICODE),
                 'affiliation'      => $data['affiliation']      ?? null,
                 'specification'    => $data['specification']    ?? null,
                 'experience'       => $data['experience']       ?? null,
@@ -275,23 +357,12 @@ class UserPersonalInformationController extends Controller
                 'updated_at'       => $now,
             ];
 
-            Log::info('PI.store.insert_payload', $insert);
-
             $id = DB::table($this->table)->insertGetId($insert);
-
             DB::commit();
 
             $this->logWithActor('user_personal_information.store.success', $request, [
                 'id'      => $id,
                 'user_id' => (int)$user->id,
-            ]);
-
-            // log what DB actually stored
-            $rawRow = DB::table($this->table)->select('id','qualification')->where('id', $id)->first();
-            Log::info('PI.store.db_after_insert', [
-                'id' => $id,
-                'qualification_db' => $rawRow->qualification ?? null,
-                'qualification_db_type' => isset($rawRow->qualification) ? gettype($rawRow->qualification) : null,
             ]);
 
             $row = DB::table($this->table)->where('id', $id)->first();
@@ -318,7 +389,10 @@ class UserPersonalInformationController extends Controller
         ])) return $resp;
 
         Log::info('PI.update.request', [
-            'raw_body' => substr($request->getContent(), 0, 2000),
+            'method'       => $request->method(),
+            'content_type' => $request->header('Content-Type'),
+            'raw_body'     => substr($request->getContent(), 0, 2000),
+            'all_keys'     => array_keys($request->all()),
             'qualification_value' => $request->input('qualification'),
             'qualification_type'  => gettype($request->input('qualification')),
         ]);
@@ -337,7 +411,6 @@ class UserPersonalInformationController extends Controller
             'interest'         => ['sometimes', 'nullable', 'string'],
             'administration'   => ['sometimes', 'nullable', 'string'],
             'research_project' => ['sometimes', 'nullable', 'string'],
-            // qualification handled separately
             'qualification_force_clear' => ['sometimes','boolean'],
         ]);
 
@@ -348,6 +421,7 @@ class UserPersonalInformationController extends Controller
         Log::info('PI.update.qualification_parse', [
             'present' => $qPresent,
             'value'   => $qValue,
+            'type'    => gettype($qValue),
             'count'   => is_array($qValue) ? count($qValue) : null,
             'error'   => $qErr,
         ]);
@@ -375,19 +449,24 @@ class UserPersonalInformationController extends Controller
 
             $update = [];
 
-            // ✅ IMPORTANT: prevent accidental overwrite with empty []
-            // if you truly want to clear it, send: qualification_force_clear = true
+            // UI sends qualification_force_clear=true when user intentionally clears all tags
             $forceClear = (bool)($data['qualification_force_clear'] ?? false);
 
+            /**
+             * ✅ IMPORTANT FIX:
+             * - if qualification key is present -> we consider updating it
+             * - update even when client changes size (4 -> 3 etc.)
+             * - prevent accidental overwrite to [] unless forceClear=true
+             */
             if ($qPresent) {
                 if (is_array($qValue) && count($qValue) === 0 && !$forceClear) {
                     Log::warning('PI.update.skip_empty_qualification', [
-                        'reason' => 'qualification came as empty array - skipping to avoid accidental overwrite',
+                        'reason'  => 'qualification present but empty - skipping unless qualification_force_clear=true',
                         'user_id' => (int)$user->id,
-                        'row_id' => (int)$row->id,
+                        'row_id'  => (int)($row->id ?? 0),
                     ]);
                 } else {
-                    $update['qualification'] = json_encode($qValue ?? []);
+                    $update['qualification'] = json_encode($qValue ?? [], JSON_UNESCAPED_UNICODE);
                 }
             }
 
@@ -405,18 +484,31 @@ class UserPersonalInformationController extends Controller
 
             $update['updated_at'] = $now;
 
-            Log::info('PI.update.update_payload', $update);
-
-            DB::table($this->table)->where('id', $row->id)->update($update);
+            /**
+             * ✅ BIG FIX:
+             * Update by user_id (not only by id) so it can’t silently fail
+             * if primary key assumptions differ.
+             */
+            $affected = DB::table($this->table)
+                ->where('user_id', $user->id)
+                ->whereNull('deleted_at')
+                ->update($update);
 
             DB::commit();
 
-            $fresh = DB::table($this->table)->where('id', $row->id)->first();
+            $fresh = DB::table($this->table)
+                ->where('user_id', $user->id)
+                ->whereNull('deleted_at')
+                ->first();
+
             $fresh = $this->decodeQualificationRow($fresh);
 
             $this->logWithActor('user_personal_information.update.success', $request, [
-                'id'      => $row->id,
-                'user_id' => (int)$user->id,
+                'row_id'      => (int)($row->id ?? 0),
+                'user_id'     => (int)$user->id,
+                'affected'    => (int)$affected,
+                'q_present'   => (bool)$qPresent,
+                'q_count'     => is_array($qValue) ? count($qValue) : null,
             ]);
 
             return response()->json(['success' => true, 'data' => $fresh]);
@@ -453,15 +545,15 @@ class UserPersonalInformationController extends Controller
 
         if (!$row) return response()->json(['success' => false, 'error' => 'Personal information not found'], 404);
 
-        $now   = Carbon::now();
+        $now = Carbon::now();
 
-        DB::table($this->table)->where('id', $row->id)->update([
+        DB::table($this->table)->where('user_id', $user->id)->update([
             'deleted_at' => $now,
             'updated_at' => $now,
         ]);
 
         $this->logWithActor('user_personal_information.destroy', $request, [
-            'id'      => $row->id,
+            'row_id'  => (int)($row->id ?? 0),
             'user_id' => (int)$user->id,
         ]);
 
@@ -489,17 +581,21 @@ class UserPersonalInformationController extends Controller
 
         if (!$row) return response()->json(['success' => false, 'error' => 'No deleted personal information found'], 404);
 
-        DB::table($this->table)->where('id', $row->id)->update([
+        DB::table($this->table)->where('user_id', $user->id)->update([
             'deleted_at' => null,
             'updated_at' => Carbon::now(),
         ]);
 
         $this->logWithActor('user_personal_information.restore', $request, [
-            'id'      => $row->id,
+            'row_id'  => (int)($row->id ?? 0),
             'user_id' => (int)$user->id,
         ]);
 
-        $fresh = DB::table($this->table)->where('id', $row->id)->first();
+        $fresh = DB::table($this->table)
+            ->where('user_id', $user->id)
+            ->whereNull('deleted_at')
+            ->first();
+
         $fresh = $this->decodeQualificationRow($fresh);
 
         return response()->json(['success' => true, 'data' => $fresh]);

@@ -87,11 +87,7 @@
 .rte-help{font-size:12px;color:var(--muted-color);margin-top:6px}
 
 /* =========================
- * Course-module-like Dual Editor (Text / Code tabs)
- * - Tabs are square (no radius)
- * - Text mode shows formatted output
- * - Code mode shows raw HTML
- * - Bold/Italic/Underline works reliably (selection preserved)
+ * Dual Editor (Text / Code tabs)
  * ========================= */
 .rte-row{margin-bottom:16px;}
 .rte-wrap{
@@ -100,8 +96,6 @@
   overflow:hidden;
   background:var(--surface);
 }
-
-/* Toolbar row */
 .rte-toolbar{
   display:flex;
   align-items:center;
@@ -158,7 +152,6 @@
   font-weight:700;
 }
 
-/* Area */
 .rte-area{position:relative}
 .rte-editor{
   min-height:180px;
@@ -167,7 +160,6 @@
 }
 .rte-editor:empty:before{content:attr(data-placeholder);color:var(--muted-color);}
 
-/* keep formatting visible like course module editor */
 .rte-editor b, .rte-editor strong{font-weight:800}
 .rte-editor i, .rte-editor em{font-style:italic}
 .rte-editor u{text-decoration:underline}
@@ -198,7 +190,6 @@
   border:0;background:transparent;padding:0;display:block;white-space:pre;
 }
 
-/* Code textarea */
 .rte-code{
   display:none;
   width:100%;
@@ -370,6 +361,7 @@
         <button type="button" class="btn btn-outline-danger" id="btnDelete">
           <i class="fa fa-trash me-1"></i> Delete
         </button>
+        {{-- note: outside form, so use form="piForm" --}}
         <button type="submit" class="btn btn-primary" id="btnSave" form="piForm">
           <i class="fa fa-floppy-disk me-1"></i> Save
         </button>
@@ -402,12 +394,29 @@
 
 <script>
 (function(){
+  // ✅ If this blade is included twice or scripts stack renders twice,
+  // this prevents double event-binding (double requests).
+  if (window.__PI_PERSONAL_INFO_INIT__) return;
+  window.__PI_PERSONAL_INFO_INIT__ = true;
+
   const token = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
   if (!token) { window.location.href = '/'; return; }
 
   const inlineLoader = document.getElementById('inlineLoader');
   const showInlineLoading = (show)=> inlineLoader?.classList.toggle('show', !!show);
-  const authHeaders = (extra={}) => Object.assign({ 'Authorization': 'Bearer ' + token }, extra);
+
+  // ✅ Always send Accept: application/json
+  const authHeaders = (extra={}) => Object.assign({
+    'Authorization': 'Bearer ' + token,
+    'Accept': 'application/json'
+  }, extra);
+
+  // Safe focus with preventScroll
+  function safeFocus(el){
+    if(!el) return;
+    try{ el.focus({ preventScroll:true }); }
+    catch(_){ try{ el.focus(); } catch(__){} }
+  }
 
   const toastOk = new bootstrap.Toast(document.getElementById('toastSuccess'));
   const toastErr = new bootstrap.Toast(document.getElementById('toastError'));
@@ -431,22 +440,24 @@
   }
 
   // =========================
-  // Tags (Qualification) - Delegation (works after swaps)
+  // Tags (Qualification)
   // =========================
   const state = { qualification: [] };
   let currentUser = { id:null, uuid:'', role:'' };
   let hasRow = false;
   let lastServerData = null;
+  let saving = false; // ✅ prevents double submits
 
   function sanitizeTag(s){ return (s ?? '').toString().replace(/\s+/g,' ').trim(); }
   function uniqLower(arr){
     const seen = new Set();
     const out = [];
-    for(const x of arr){
-      const key = (x||'').toLowerCase();
+    for(const x of (arr||[])){
+      const t = sanitizeTag(x);
+      const key = (t||'').toLowerCase();
       if(!key || seen.has(key)) continue;
       seen.add(key);
-      out.push(x);
+      out.push(t);
     }
     return out;
   }
@@ -474,12 +485,12 @@
   function addTag(raw){
     const t = sanitizeTag(raw);
     if(!t) return;
-    state.qualification = uniqLower([...state.qualification, t]);
+    state.qualification = uniqLower([...(state.qualification||[]), t]);
     renderTags();
     const qualInput = document.getElementById('qualInput');
     if(qualInput){
       qualInput.value = '';
-      qualInput.focus();
+      safeFocus(qualInput);
     }
   }
 
@@ -519,18 +530,17 @@
   });
 
   // =========================
-  // Course-module-like Dual Editor
+  // Dual Editor
   // =========================
   const rteKeys = ['affiliation','specification','experience','interest','administration','research_project'];
-  const rte = {};            // { key: {wrap, editor, code, mode} }
-  const savedRange = {};     // { key: Range }
+  const rte = {};
+  const savedRange = {};
 
   function htmlOrEmpty(v){
     const s = (v ?? '').toString().trim();
     return s ? s : '';
   }
 
-  // keep <pre> content safe (and consistent)
   function ensureWrappedInPreCode(html){
     return (html || '').replace(/<pre>([\s\S]*?)<\/pre>/gi, (m, inner)=>{
       if(/<code[\s>]/i.test(inner)) return `<pre>${inner}</pre>`;
@@ -553,7 +563,7 @@
     if(!o || o.mode !== 'text' || !savedRange[key]) return false;
     const sel = window.getSelection();
     if(!sel) return false;
-    o.editor.focus();
+    safeFocus(o.editor);
     sel.removeAllRanges();
     sel.addRange(savedRange[key]);
     return true;
@@ -586,8 +596,8 @@
 
     rte[key] = { wrap, editor, code, mode:'text' };
 
-    // selection tracking
     editor.addEventListener('focus', ()=> { window.__ACTIVE_RTE__ = key; });
+
     ['click','mouseup','keyup','input'].forEach(ev=>{
       editor.addEventListener(ev, ()=>{
         saveSelectionFor(key);
@@ -596,7 +606,6 @@
     });
     editor.addEventListener('blur', ()=> saveSelectionFor(key));
 
-    // sync editor -> code
     const syncToCode = ()=>{
       if(rte[key].mode === 'text'){
         code.value = ensureWrappedInPreCode(editor.innerHTML || '');
@@ -605,28 +614,28 @@
     editor.addEventListener('input', syncToCode);
     editor.addEventListener('blur', syncToCode);
 
-    // sync code -> editor while typing in code mode
     code.addEventListener('input', ()=>{
       if(rte[key].mode === 'code'){
         editor.innerHTML = ensureWrappedInPreCode(code.value || '');
       }
     });
   }
-
   rteKeys.forEach(registerRTE);
 
-  function setMode(key, mode){
+  // ✅ FIXED: supports opts.focus + preventScroll to stop auto scrolling bottom
+  function setMode(key, mode, opts = {}){
     const o = rte[key];
     if(!o) return;
+
+    const focus = (opts.focus ?? true);
+
     o.mode = (mode === 'code') ? 'code' : 'text';
     o.wrap.classList.toggle('mode-code', o.mode === 'code');
 
-    // activate tabs
     o.wrap.querySelectorAll('.rte-tabs .tab').forEach(t=>{
       t.classList.toggle('active', t.dataset.mode === o.mode);
     });
 
-    // disable formatting buttons in code mode
     o.wrap.querySelectorAll('.rte-toolbar .rte-btn').forEach(btn=>{
       btn.disabled = (o.mode === 'code');
       btn.style.opacity = (o.mode === 'code') ? '0.55' : '';
@@ -635,19 +644,21 @@
 
     if(o.mode === 'code'){
       o.code.value = ensureWrappedInPreCode(o.editor.innerHTML || '');
-      setTimeout(()=>o.code.focus(), 0);
+      if(focus) setTimeout(()=> safeFocus(o.code), 0);
     }else{
       o.editor.innerHTML = ensureWrappedInPreCode(o.code.value || '');
-      setTimeout(()=>{
-        o.editor.focus();
-        saveSelectionFor(key);
-        updateToolbarActive(key);
-      }, 0);
+      if(focus){
+        setTimeout(()=>{
+          safeFocus(o.editor);
+          saveSelectionFor(key);
+          updateToolbarActive(key);
+        }, 0);
+      }
     }
   }
 
   function wrapSelectionAsHeading(tag, editorEl){
-    editorEl.focus();
+    safeFocus(editorEl);
     const sel = window.getSelection();
     if(!sel || sel.rangeCount === 0) return;
     const range = sel.getRangeAt(0);
@@ -655,39 +666,31 @@
 
     const txt = sel.toString();
     if(!txt.trim()){
-      // If nothing selected, just insert empty heading at cursor
       document.execCommand('insertHTML', false, `<${tag}></${tag}>`);
-      // Move cursor inside the new heading
       const headings = editorEl.getElementsByTagName(tag);
       if(headings.length > 0){
         const lastHeading = headings[headings.length - 1];
-        const range = document.createRange();
-        range.selectNodeContents(lastHeading);
-        range.collapse(true);
-        const sel = window.getSelection();
+        const r = document.createRange();
+        r.selectNodeContents(lastHeading);
+        r.collapse(true);
         sel.removeAllRanges();
-        sel.addRange(range);
+        sel.addRange(r);
       }
     }else{
-      // Wrap selected text with heading tag
       const fragment = range.extractContents();
       const heading = document.createElement(tag);
       heading.appendChild(fragment);
       range.insertNode(heading);
-      
-      // Restore selection
+
       const newRange = document.createRange();
       newRange.selectNodeContents(heading);
-      newRange.collapse(false); // Move to end
+      newRange.collapse(false);
       sel.removeAllRanges();
       sel.addRange(newRange);
     }
-    
-    // Clean up any empty <p> tags
     editorEl.innerHTML = editorEl.innerHTML.replace(/<p>\s*<\/p>/gi, '');
   }
 
-  // ✅ KEY FIX: preserve selection while clicking toolbar (so B/I/U works)
   document.addEventListener('pointerdown', (e)=>{
     if(e.target.closest('.rte-toolbar')) e.preventDefault();
   });
@@ -701,17 +704,15 @@
   });
 
   document.addEventListener('click', (e)=>{
-    // tabs
     const tab = e.target.closest('.rte-tabs .tab');
     if(tab){
       const wrap = tab.closest('.rte-wrap');
       if(!wrap) return;
       const key = wrap.id.replace('Wrap','');
-      setMode(key, tab.dataset.mode);
+      setMode(key, tab.dataset.mode, { focus:true });
       return;
     }
 
-    // toolbar button
     const btn = e.target.closest('.rte-toolbar .rte-btn');
     if(!btn) return;
 
@@ -721,9 +722,7 @@
     if(rte[key].mode === 'code') return;
 
     const editorEl = rte[key].editor;
-
-    // ✅ restore selection BEFORE exec
-    if(!restoreSelectionFor(key)) editorEl.focus();
+    if(!restoreSelectionFor(key)) safeFocus(editorEl);
 
     const cmd = btn.getAttribute('data-cmd');
     const val = btn.getAttribute('data-val');
@@ -740,7 +739,6 @@
 
     if(cmd === 'insertHTML' && val){
       if(val === '<code>code</code>'){
-        // For inline code, wrap selection
         const sel = window.getSelection();
         if(sel && sel.rangeCount > 0 && !sel.isCollapsed){
           const range = sel.getRangeAt(0);
@@ -762,7 +760,6 @@
     }
 
     if(cmd === 'formatBlock' && val === 'pre'){
-      // For code blocks, wrap selection
       const sel = window.getSelection();
       if(sel && sel.rangeCount > 0){
         const range = sel.getRangeAt(0);
@@ -781,10 +778,7 @@
     }
 
     if(cmd){
-      try{ 
-        // For standard formatting commands, use execCommand directly
-        document.execCommand(cmd, false, null); 
-      }
+      try{ document.execCommand(cmd, false, null); }
       catch(ex){ console.error('execCommand failed', cmd, ex); }
       editorEl.innerHTML = ensureWrappedInPreCode(editorEl.innerHTML || '');
       rte[key].code.value = ensureWrappedInPreCode(editorEl.innerHTML||'');
@@ -793,7 +787,6 @@
     }
   });
 
-  // hidden inputs
   const hidden = {
     affiliation: document.getElementById('affiliation'),
     specification: document.getElementById('specification'),
@@ -804,6 +797,8 @@
   };
 
   function collectPayload(){
+    const qual = uniqLower((state.qualification || []).map(sanitizeTag).filter(Boolean));
+
     rteKeys.forEach(k=>{
       const o = rte[k];
       if(!o || !hidden[k]) return;
@@ -812,7 +807,7 @@
     });
 
     const payload = {
-      qualification: state.qualification.slice(),
+      qualification: qual,
       affiliation: hidden.affiliation.value || null,
       specification: hidden.specification.value || null,
       experience: hidden.experience.value || null,
@@ -821,33 +816,37 @@
       research_project: hidden.research_project.value || null,
     };
 
+    if (hasRow && Array.isArray(payload.qualification) && payload.qualification.length === 0) {
+      payload.qualification_force_clear = true;
+    }
+
     Object.keys(payload).forEach(k=>{
       if(typeof payload[k] === 'string'){
         const t = payload[k].replace(/<br\s*\/?>/gi,'').replace(/&nbsp;/gi,' ').trim();
         if(!t) payload[k] = null;
       }
     });
+
     return payload;
   }
 
+  // ✅ FIXED: no focus during apply (prevents auto scroll to bottom)
   function applyServerData(d){
     lastServerData = d;
     hasRow = !!(d && d.id);
 
-    // qualification (supports json string)
     let q = d?.qualification ?? d?.qualifications ?? [];
     if (typeof q === 'string') { try { q = JSON.parse(q); } catch(e){ q = []; } }
     state.qualification = Array.isArray(q) ? q.filter(Boolean).map(sanitizeTag) : [];
     state.qualification = uniqLower(state.qualification);
     renderTags();
 
-    // editors
     rteKeys.forEach(k=>{
       const o = rte[k];
       if(!o) return;
       o.editor.innerHTML = ensureWrappedInPreCode(htmlOrEmpty(d?.[k]));
       o.code.value = ensureWrappedInPreCode(o.editor.innerHTML || '');
-      setMode(k, 'text');
+      setMode(k, 'text', { focus:false }); // ✅ no scroll
       updateToolbarActive(k);
     });
 
@@ -927,14 +926,20 @@
   // =========================
   form?.addEventListener('submit', async (e)=>{
     e.preventDefault();
+    e.stopPropagation();
+
+    // ✅ prevents double request (double click / enter / duplicated bindings)
+    if (saving) return;
+    saving = true;
 
     const payload = collectPayload();
-    if(!Array.isArray(payload.qualification)) payload.qualification = [];
 
     setButtonLoading(btnSave, true);
     showInlineLoading(true);
+
     try{
       let saved = null;
+
       if(!hasRow){
         try{
           saved = await createPersonalInfo(payload);
@@ -951,11 +956,14 @@
         saved = await updatePersonalInfo(payload);
         ok('Personal information updated');
       }
+
       applyServerData(saved || payload);
+
     }catch(ex){
       err(ex.message || 'Save failed');
       console.error(ex);
     }finally{
+      saving = false;
       setButtonLoading(btnSave, false);
       showInlineLoading(false);
     }
@@ -1009,6 +1017,7 @@
       showInlineLoading(false);
     }
   })();
+
 })();
 </script>
 @endpush

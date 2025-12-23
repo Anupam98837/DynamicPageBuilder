@@ -1015,11 +1015,11 @@ document.addEventListener('DOMContentLoaded', function () {
     };
 
       /* ✅ PROFILE REDIRECT */
-    if (act === 'profile') {
-      const profileUrl = `/user/profile/${encodeURIComponent(uuid)}`;
-      window.open(profileUrl, '_blank', 'noopener');
-      return;
-    }
+  if (act === 'profile') {
+    const profileUrl = `/user/profile/${encodeURIComponent(uuid)}`;
+    window.open(profileUrl, '_blank', 'noopener');
+    return;
+  }
 
 
     if (act === 'view') {
