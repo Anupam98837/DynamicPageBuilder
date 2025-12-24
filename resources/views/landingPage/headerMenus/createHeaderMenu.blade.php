@@ -74,6 +74,16 @@
 @endpush
 
 @section('content')
+@php
+  use Illuminate\Support\Facades\DB;
+  $departments = DB::table('departments')
+      ->select('id','title')
+      ->whereNull('deleted_at')
+      ->where('active', true)
+      ->orderBy('title','asc')
+      ->get();
+@endphp
+
 <div id="hmRoot" class="sm-wrap">
   <div class="sm card shadow-2" style="position:relative">
     <div class="dim" id="busy"><div class="spin" aria-label="Working…"></div></div>
@@ -146,17 +156,31 @@
           <div class="err" data-for="parent_id"></div>
         </div>
 
-        {{-- Switches --}}
+        {{-- Department + Active --}}
         <div class="col-12 col-md-4">
-          <div class="row g-3">
-            <div class="col-12 switch-inline">
-              <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" id="active" checked>
-              </div>
-              <label class="form-check-label" for="active">Active</label>
+          <label class="form-label">Department <span class="pill ms-1">optional</span></label>
+          <div class="input-group">
+            <span class="input-group-text"><i class="fa-solid fa-building-columns"></i></span>
+            <select class="form-select" id="department_id">
+              <option value="">Global (No department)</option>
+              @foreach($departments as $d)
+                <option value="{{ $d->id }}">{{ $d->title }}</option>
+              @endforeach
+            </select>
+          </div>
+          <small class="text-muted tiny">
+            Leave empty for global. If selected, this menu will be linked to that department.
+          </small>
+          <div class="err" data-for="department_id"></div>
+
+          <div class="mt-3 switch-inline">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="active" checked>
             </div>
+            <label class="form-check-label" for="active">Active</label>
           </div>
         </div>
+
       </div>
 
       <div class="divider-soft my-3"></div>
@@ -317,7 +341,10 @@
 
     parentId: byId('parent_id'),
     parentBadge: byId('parentBadge'),
+
+    department: byId('department_id'), // ✅ NEW
     active: byId('active'),
+
     btnCreate: byId('btnCreate'),
     btnCreateLabel: byId('btnCreateLabel'),
     btnReset: byId('btnReset'),
@@ -345,6 +372,11 @@
   const EDIT_ID = IS_EDIT ? Number(EDIT_ID_RAW) : null;
 
   let initialData = null;
+
+  // track selected parent dept (for compatibility on dept changes)
+  const state = {
+    parentDeptId: null
+  };
 
   /* ---------- utilities ---------- */
   function showBusy(on){ busy.classList.toggle('show', !!on); }
@@ -390,6 +422,22 @@
     };
   }
 
+  function selectedDeptId(){
+    const v = (els.department?.value || '').trim();
+    if (!v) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function isParentCompatible(parentDeptId, childDeptId){
+    // parentDeptId != null => child MUST be same dept (not null)
+    if (parentDeptId !== null && parentDeptId !== undefined){
+      return childDeptId !== null && childDeptId !== undefined && Number(childDeptId) === Number(parentDeptId);
+    }
+    // global parent ok for any child (global or dept-specific)
+    return true;
+  }
+
   /* ---------- slug auto (menu slug) ---------- */
   function maybeUpdateSlug(){
     if (!els.slugAuto.checked) return;
@@ -405,11 +453,32 @@
   els.btnRegen.addEventListener('click', ()=>{ els.slug.value = slugify(els.title.value); });
 
   /* ---------- parent selector (tree) ---------- */
-  function setParent(id, label){
+  function setParent(id, label, parentDeptId=null){
     els.parentId.value = id || '';
     els.parentBadge.textContent = id ? `#${id}: ${label}` : 'Self (Root)';
+    state.parentDeptId = (id ? (parentDeptId === null ? null : Number(parentDeptId)) : null);
   }
-  els.btnClearParent.addEventListener('click', ()=> setParent('', 'Self (Root)'));
+  els.btnClearParent.addEventListener('click', ()=> setParent('', 'Self (Root)', null));
+
+  // ✅ If department changes and current parent is incompatible, clear parent (safe)
+  els.department.addEventListener('change', ()=>{
+    const childDept = selectedDeptId();
+    const parentDept = state.parentDeptId;
+
+    // If current parent is dept-specific, it must match new dept (and new dept must not be null)
+    if (parentDept !== null && parentDept !== undefined) {
+      if (childDept === null || Number(childDept) !== Number(parentDept)) {
+        setParent('', 'Self (Root)', null);
+        ok('Department changed. Parent cleared to avoid mismatch.');
+      }
+    }
+
+    // If modal is open, reload so buttons reflect new selection
+    const pm = byId('parentModal');
+    if (pm && pm.classList.contains('show')) {
+      loadTree();
+    }
+  });
 
   function closeParentPicker(){
     try { els.parentModal.hide(); } catch {}
@@ -424,7 +493,7 @@
 
   els.btnPickSelf.addEventListener('click', ()=>{
     setBtnBusy(els.btnPickSelf, true, '<i class="fa-regular fa-circle-check"></i> Select “Self (Root)”');
-    setParent('', 'Self (Root)');
+    setParent('', 'Self (Root)', null);
     setTimeout(()=>{ setBtnBusy(els.btnPickSelf, false); closeParentPicker(); }, 150);
   });
 
@@ -461,7 +530,8 @@
       const pageSlug  = n.page_slug ? ' • page: /' + n.page_slug : '';
       const pageUrl   = n.page_url ? ' • url: ' + n.page_url : '';
       const statusText = n.active ? ' • active' : ' • inactive';
-      meta.textContent = slugText + pageSlug + pageUrl + statusText;
+      const deptText = (n.department_id === null || n.department_id === undefined) ? ' • dept: global' : (' • dept: #' + n.department_id);
+      meta.textContent = slugText + pageSlug + pageUrl + statusText + deptText;
 
       const actions = document.createElement('div');
       actions.className = 'tree-actions';
@@ -470,9 +540,23 @@
       pickBtn.type = 'button';
       pickBtn.className = 'btn btn-sm btn-outline-primary';
       pickBtn.innerHTML = '<span class="label"><i class="fa-regular fa-circle-check me-1"></i>Use as parent</span><span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>';
+
+      const childDept = selectedDeptId();
+      const parentDept = (n.department_id === null || n.department_id === undefined) ? null : Number(n.department_id);
+
+      const allowed = isParentCompatible(parentDept, childDept);
+      if (!allowed){
+        pickBtn.disabled = true;
+        pickBtn.classList.add('disabled');
+        pickBtn.title = (childDept === null)
+          ? 'Select a department first to use a department-specific parent.'
+          : 'This parent belongs to a different department.';
+      }
+
       pickBtn.addEventListener('click', ()=>{
+        if (pickBtn.disabled) return;
         setBtnBusy(pickBtn, true);
-        setParent(n.id, n.title || '-');
+        setParent(n.id, n.title || '-', parentDept);
         setTimeout(()=>{ setBtnBusy(pickBtn, false); closeParentPicker(); }, 120);
       });
 
@@ -533,6 +617,7 @@
     els.treeLoader.classList.add('show');
     setBtnBusy(els.btnReloadTree, true);
     try{
+      // keep existing behavior: load full tree; UI disables incompatible parents based on selected department
       const j = await fetchJSON('/api/header-menus/tree?only_active=0');
       renderTree(Array.isArray(j.data) ? j.data : []);
     }catch(e){
@@ -588,13 +673,24 @@
 
       els.active.checked = !!m.active;
 
-      // parent label best-effort
-      const parentLabel =
-        m.parent_title ||
-        (m.parent && m.parent.title) ||
-        (m.parent_id ? ('#' + m.parent_id) : 'Self (Root)');
+      // ✅ department
+      els.department.value = (m.department_id !== null && m.department_id !== undefined) ? String(m.department_id) : '';
 
-      setParent(m.parent_id || '', parentLabel);
+      // parent label best-effort (and try to fetch parent for exact dept/title)
+      const parentId = m.parent_id || '';
+      if (parentId){
+        try{
+          const pj = await fetchJSON('/api/header-menus/' + encodeURIComponent(parentId));
+          const p = (pj && typeof pj === 'object' && 'data' in pj) ? pj.data : pj;
+          const pLabel = (p && p.title) ? p.title : ('#' + parentId);
+          const pDept  = (p && (p.department_id !== null && p.department_id !== undefined)) ? Number(p.department_id) : null;
+          setParent(parentId, pLabel, pDept);
+        }catch{
+          setParent(parentId, ('#' + parentId), null);
+        }
+      } else {
+        setParent('', 'Self (Root)', null);
+      }
 
     }catch(e){
       console.error(e);
@@ -619,11 +715,14 @@
       els.slug.value = slugify(els.title.value);
     }
 
+    const deptId = selectedDeptId();
+
     const payload = {
       title: els.title.value.trim(),
       description: els.desc.value.trim() || null,
       slug: els.slug.value.trim() || undefined,
       parent_id: els.parentId.value ? parseInt(els.parentId.value,10) : null,
+      department_id: deptId, // ✅ NEW (null = global)
       active: !!els.active.checked,
 
       page_slug: els.pageSlug.value.trim() || null,
@@ -710,12 +809,15 @@
 
       els.active.checked = !!initialData.active;
 
-      const parentLabel =
-        initialData.parent_title ||
-        (initialData.parent && initialData.parent.title) ||
-        (initialData.parent_id ? ('#' + initialData.parent_id) : 'Self (Root)');
+      // ✅ reset department
+      els.department.value = (initialData.department_id !== null && initialData.department_id !== undefined) ? String(initialData.department_id) : '';
 
-      setParent(initialData.parent_id || '', parentLabel);
+      // parent dept might be unknown here; keep safe reset
+      if (initialData.parent_id){
+        setParent(initialData.parent_id, ('#' + initialData.parent_id), null);
+      } else {
+        setParent('', 'Self (Root)', null);
+      }
 
     } else {
       els.title.value='';
@@ -725,7 +827,11 @@
       els.pageShortcode.value='';
       els.pageUrl.value='';
       els.active.checked=true;
-      setParent('', 'Self (Root)');
+
+      // ✅ reset department
+      els.department.value = '';
+
+      setParent('', 'Self (Root)', null);
 
       // reset slug mode for create
       els.slugAuto.checked = true;

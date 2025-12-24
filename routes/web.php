@@ -52,6 +52,22 @@ Route::get('/user/personal-information/manage', function () {
 Route::get('/department/manage', function () {
     return view('pages.users.pages.departments.manageDepartment');
 });
+
+Route::get('/department/curriculum-syllabus', function () {
+    return view('pages.users.pages.departments.manageCurriculumSyllabuses');
+});
+
+Route::get('/department/announcements', function () {
+    return view('pages.users.pages.departments.manageAnnouncements');
+});
+
+Route::get('/department/achievements', function () {
+    return view('pages.users.pages.departments.manageAchievements');
+});
+
+Route::get('/department/notices', function () {
+    return view('pages.users.pages.departments.manageNotices');
+});
 Route::get('/department/menu/create', function () {
     return view('pages.users.pages.deptMenu.createMenu');
 });

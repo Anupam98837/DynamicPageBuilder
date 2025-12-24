@@ -52,8 +52,25 @@ class HeaderMenuController extends Controller
         return 'HM' . time();
     }
 
-    /** Guard that parent exists and is not self */
-    private function validateParent(?int $parentId, ?int $selfId = null): void
+    /** Guard that department exists (if provided) */
+    private function validateDepartment(?int $departmentId): void
+    {
+        if ($departmentId === null) {
+            return;
+        }
+
+        $ok = DB::table('departments')
+            ->where('id', $departmentId)
+            ->whereNull('deleted_at')
+            ->exists();
+
+        if (!$ok) {
+            abort(response()->json(['error' => 'Invalid department_id'], 422));
+        }
+    }
+
+    /** Guard that parent exists and is not self; and respects department rules */
+    private function validateParent(?int $parentId, ?int $selfId = null, ?int $childDepartmentId = null): void
     {
         if ($parentId === null) {
             return;
@@ -63,13 +80,25 @@ class HeaderMenuController extends Controller
             abort(response()->json(['error' => 'Parent cannot be self'], 422));
         }
 
-        $ok = DB::table('header_menus')
+        $parent = DB::table('header_menus')
+            ->select('id', 'department_id')
             ->where('id', $parentId)
             ->whereNull('deleted_at')
-            ->exists();
+            ->first();
 
-        if (!$ok) {
+        if (!$parent) {
             abort(response()->json(['error' => 'Invalid parent_id'], 422));
+        }
+
+        /**
+         * Department compatibility:
+         * - If parent is department-specific => child must be same department
+         * - If parent is global (NULL) => child can be global or department-specific
+         */
+        if ($parent->department_id !== null) {
+            if ($childDepartmentId === null || (int) $childDepartmentId !== (int) $parent->department_id) {
+                abort(response()->json(['error' => 'Parent belongs to a different department'], 422));
+            }
         }
     }
 
@@ -100,6 +129,7 @@ class HeaderMenuController extends Controller
         $q    = trim((string) $r->query('q', ''));
         $activeParam = $r->query('active', null); // null, '0', '1'
         $parentId = $r->query('parent_id', 'any'); // 'any' | null | int
+        $departmentIdParam = $r->query('department_id', 'any'); // 'any' | null | 'null' | int
         $sort = (string) $r->query('sort', 'position'); // position|title|created_at
         $direction = strtolower((string) $r->query('direction', 'asc')) === 'desc' ? 'desc' : 'asc';
 
@@ -132,6 +162,13 @@ class HeaderMenuController extends Controller
             $base->where('parent_id', (int) $parentId);
         }
 
+        // ✅ Department filter (optional)
+        if ($departmentIdParam === null || $departmentIdParam === 'null') {
+            $base->whereNull('department_id');
+        } elseif ($departmentIdParam !== 'any' && $departmentIdParam !== '') {
+            $base->where('department_id', (int) $departmentIdParam);
+        }
+
         $total = (clone $base)->count();
         $rows  = $base->orderBy($sort, $direction)
                       ->orderBy('id', 'asc')
@@ -153,9 +190,17 @@ class HeaderMenuController extends Controller
     {
         $page = max(1, (int) $r->query('page', 1));
         $per  = min(100, max(5, (int) $r->query('per_page', 20)));
+        $departmentIdParam = $r->query('department_id', 'any'); // optional
 
         $base = DB::table('header_menus')
             ->whereNotNull('deleted_at');
+
+        // ✅ Optional department filter in trash too
+        if ($departmentIdParam === null || $departmentIdParam === 'null') {
+            $base->whereNull('department_id');
+        } elseif ($departmentIdParam !== 'any' && $departmentIdParam !== '') {
+            $base->where('department_id', (int) $departmentIdParam);
+        }
 
         $total = (clone $base)->count();
         $rows  = $base->orderBy('deleted_at', 'desc')
@@ -176,12 +221,20 @@ class HeaderMenuController extends Controller
     public function tree(Request $r)
     {
         $onlyActive = (int) $r->query('only_active', 0) === 1;
+        $departmentIdParam = $r->query('department_id', 'any'); // optional
 
         $q = DB::table('header_menus')
             ->whereNull('deleted_at');
 
         if ($onlyActive) {
             $q->where('active', true);
+        }
+
+        // ✅ Optional department filter
+        if ($departmentIdParam === null || $departmentIdParam === 'null') {
+            $q->whereNull('department_id');
+        } elseif ($departmentIdParam !== 'any' && $departmentIdParam !== '') {
+            $q->where('department_id', (int) $departmentIdParam);
         }
 
         $rows = $q->orderBy('position', 'asc')
@@ -275,6 +328,7 @@ class HeaderMenuController extends Controller
             'slug'           => 'sometimes|nullable|string|max:160',   // menu slug (auto from title in UI)
             'shortcode'      => 'sometimes|nullable|string|max:100',   // menu shortcode (auto if empty)
             'parent_id'      => 'sometimes|nullable|integer',
+            'department_id'  => 'sometimes|nullable|integer',          // ✅ NEW (optional)
             'position'       => 'sometimes|integer|min:0',
             'active'         => 'sometimes|boolean',
             // page section
@@ -283,11 +337,17 @@ class HeaderMenuController extends Controller
             'page_url'       => 'sometimes|nullable|string|max:255',
         ]);
 
+        $departmentId = array_key_exists('department_id', $data)
+            ? ($data['department_id'] === null ? null : (int) $data['department_id'])
+            : null;
+
+        $this->validateDepartment($departmentId);
+
         $parentId = array_key_exists('parent_id', $data)
             ? ($data['parent_id'] === null ? null : (int) $data['parent_id'])
             : null;
 
-        $this->validateParent($parentId, null);
+        $this->validateParent($parentId, null, $departmentId);
 
         // MENU SLUG (auto from title if not passed)
         $slug = $this->normSlug($data['slug'] ?? $data['title'] ?? '');
@@ -383,6 +443,7 @@ class HeaderMenuController extends Controller
                 ->where('id', $trashed->id)
                 ->update([
                     'parent_id'       => $parentId,
+                    'department_id'   => $departmentId, // ✅ NEW
                     'title'           => $data['title'],
                     'description'     => $data['description'] ?? null,
                     'slug'            => $slug,
@@ -410,6 +471,7 @@ class HeaderMenuController extends Controller
         $id = DB::table('header_menus')->insertGetId([
             'uuid'            => (string) Str::uuid(),
             'parent_id'       => $parentId,
+            'department_id'   => $departmentId, // ✅ NEW
             'title'           => $data['title'],
             'description'     => $data['description'] ?? null,
             'slug'            => $slug,
@@ -449,6 +511,7 @@ class HeaderMenuController extends Controller
             'slug'           => 'sometimes|nullable|string|max:160', // pass empty + regenerate_slug to regenerate
             'shortcode'      => 'sometimes|nullable|string|max:100',
             'parent_id'      => 'sometimes|nullable|integer',
+            'department_id'  => 'sometimes|nullable|integer',         // ✅ NEW
             'position'       => 'sometimes|integer|min:0',
             'active'         => 'sometimes|boolean',
             'regenerate_slug'=> 'sometimes|boolean',
@@ -458,11 +521,17 @@ class HeaderMenuController extends Controller
             'page_url'       => 'sometimes|nullable|string|max:255',
         ]);
 
+        $departmentId = array_key_exists('department_id', $data)
+            ? ($data['department_id'] === null ? null : (int) $data['department_id'])
+            : ($row->department_id ?? null);
+
+        $this->validateDepartment($departmentId);
+
         $parentId = array_key_exists('parent_id', $data)
             ? ($data['parent_id'] === null ? null : (int) $data['parent_id'])
             : ($row->parent_id ?? null);
 
-        $this->validateParent($parentId, (int) $row->id);
+        $this->validateParent($parentId, (int) $row->id, $departmentId);
 
         // Handle menu slug (strict, no automatic "-2" suffixes)
         $slug = $row->slug;
@@ -558,6 +627,7 @@ class HeaderMenuController extends Controller
 
         $upd = [
             'parent_id'       => $parentId,
+            'department_id'   => $departmentId, // ✅ NEW
             'title'           => $data['title'] ?? $row->title,
             'description'     => array_key_exists('description', $data) ? $data['description'] : $row->description,
             'slug'            => $slug,
@@ -709,7 +779,8 @@ class HeaderMenuController extends Controller
                 }
 
                 if ($pid !== null) {
-                    $this->validateParent($pid, $id);
+                    $childDept = $row->department_id === null ? null : (int) $row->department_id;
+                    $this->validateParent($pid, $id, $childDept);
                 }
 
                 DB::table('header_menus')
@@ -720,26 +791,25 @@ class HeaderMenuController extends Controller
                         'updated_at' => now(),
                     ]);
 
-                    // inside foreach ($payload['orders'] as $o) { ... }
+                // inside foreach ($payload['orders'] as $o) { ... }
 
-$currentPid = $row->parent_id === null ? null : (int)$row->parent_id;
+                $currentPid = $row->parent_id === null ? null : (int)$row->parent_id;
 
-// if client sends parent_id, enforce it matches current parent
-$incomingPid = array_key_exists('parent_id', $o)
-  ? ($o['parent_id'] === null ? null : (int)$o['parent_id'])
-  : $currentPid;
+                // if client sends parent_id, enforce it matches current parent
+                $incomingPid = array_key_exists('parent_id', $o)
+                  ? ($o['parent_id'] === null ? null : (int)$o['parent_id'])
+                  : $currentPid;
 
-if ($incomingPid !== $currentPid) {
-  throw new \RuntimeException("Parent change not allowed for id {$id}");
-}
+                if ($incomingPid !== $currentPid) {
+                  throw new \RuntimeException("Parent change not allowed for id {$id}");
+                }
 
-DB::table('header_menus')->where('id', $id)->update([
-  'position'     => $pos,
-  'updated_at'   => now(),
-  'updated_by'   => $this->actor($r)['id'] ?: null,
-  'updated_at_ip'=> $r->ip(),
-]);
-
+                DB::table('header_menus')->where('id', $id)->update([
+                  'position'     => $pos,
+                  'updated_at'   => now(),
+                  'updated_by'   => $this->actor($r)['id'] ?: null,
+                  'updated_at_ip'=> $r->ip(),
+                ]);
             }
 
             DB::commit();
@@ -755,41 +825,57 @@ DB::table('header_menus')->where('id', $id)->update([
     }
 
     // Add this method to HeaderMenuController.php
-public function publicTree(Request $r)
-{
-    $onlyActive = true; // Always only active for public
-    $onlyTopLevel = (int) $r->query('top_level', 0) === 1;
+    public function publicTree(Request $r)
+    {
+        $onlyActive = true; // Always only active for public
+        $onlyTopLevel = (int) $r->query('top_level', 0) === 1;
 
-    $q = DB::table('header_menus')
-        ->whereNull('deleted_at')
-        ->where('active', true);
+        $departmentIdParam = $r->query('department_id', null); // optional (keep backward compatible)
 
-    if ($onlyTopLevel) {
-        $q->whereNull('parent_id');
-    }
+        $q = DB::table('header_menus')
+            ->whereNull('deleted_at')
+            ->where('active', true);
 
-    $rows = $q->orderBy('position', 'asc')
-              ->orderBy('id', 'asc')
-              ->get();
-
-    // Build tree in memory
-    $byParent = [];
-    foreach ($rows as $row) {
-        $pid = $row->parent_id ?? 0;
-        $byParent[$pid][] = $row;
-    }
-
-    $make = function ($pid) use (&$make, &$byParent) {
-        $nodes = $byParent[$pid] ?? [];
-        foreach ($nodes as $n) {
-            $n->children = $make($n->id);
+        // ✅ If department_id is provided, return global + that department
+        // ✅ If not provided, keep old behavior (no department filtering)
+        if ($departmentIdParam !== null && $departmentIdParam !== '' && $departmentIdParam !== 'any') {
+            if ($departmentIdParam === 'null') {
+                $q->whereNull('department_id');
+            } else {
+                $deptId = (int) $departmentIdParam;
+                $q->where(function ($x) use ($deptId) {
+                    $x->whereNull('department_id')
+                      ->orWhere('department_id', $deptId);
+                });
+            }
         }
-        return $nodes;
-    };
 
-    return response()->json([
-        'success' => true,
-        'data' => $make(0),
-    ]);
-}
+        if ($onlyTopLevel) {
+            $q->whereNull('parent_id');
+        }
+
+        $rows = $q->orderBy('position', 'asc')
+                  ->orderBy('id', 'asc')
+                  ->get();
+
+        // Build tree in memory
+        $byParent = [];
+        foreach ($rows as $row) {
+            $pid = $row->parent_id ?? 0;
+            $byParent[$pid][] = $row;
+        }
+
+        $make = function ($pid) use (&$make, &$byParent) {
+            $nodes = $byParent[$pid] ?? [];
+            foreach ($nodes as $n) {
+                $n->children = $make($n->id);
+            }
+            return $nodes;
+        };
+
+        return response()->json([
+            'success' => true,
+            'data' => $make(0),
+        ]);
+    }
 }

@@ -269,6 +269,21 @@
         </div>
       </div>
 
+<!-- Departments -->
+<div class="w3-group">
+  <a href="#" class="w3-link w3-toggle" data-target="sm-departments" aria-expanded="false">
+    <i class="fa-solid fa-building"></i><span>Departments</span>
+    <i class="fa fa-chevron-down w3-chev"></i>
+  </a>
+  <div id="sm-departments" class="w3-submenu" role="group" aria-label="Departments submenu">
+    <a href="/department/manage" class="w3-link">Manage Departments</a>
+    <a href="/department/curriculum-syllabus" class="w3-link">Curriculum & Syllabus</a>
+    <a href="/department/announcements" class="w3-link">Announcements</a>
+    <a href="/department/achievements" class="w3-link">Achievements</a>
+    <a href="/department/notices" class="w3-link">Notices</a>
+  </div>
+</div>
+
       <!-- Header Menu -->
       <div class="w3-group">
         <a href="#" class="w3-link w3-toggle" data-target="sm-header-menu" aria-expanded="false">
@@ -280,6 +295,18 @@
           <a href="/header/menu/manage" class="w3-link">Manage Header Menus</a>
         </div>
       </div>
+
+      <!-- Pages -->
+<div class="w3-group">
+  <a href="#" class="w3-link w3-toggle" data-target="sm-pages" aria-expanded="false">
+    <i class="fa-solid fa-file-lines"></i><span>Pages</span>
+    <i class="fa fa-chevron-down w3-chev"></i>
+  </a>
+  <div id="sm-pages" class="w3-submenu" role="group" aria-label="Pages submenu">
+    <a href="/department-pages/create" class="w3-link">Create Page</a>
+    <a href="/departmentPage/manage" class="w3-link">Manage Page</a>
+  </div>
+</div>
 
       <!-- Page Submenu -->
 <div class="w3-group">

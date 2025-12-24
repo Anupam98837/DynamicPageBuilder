@@ -195,6 +195,11 @@
 
       {{-- ===== DESTINATION SECTION ===== --}}
       <div class="section-label">Destination</div>
+      <div class="text-muted tiny mb-2">
+        Note: Choose <b>only one</b> destination option. When you fill/select one, the others will be disabled automatically.
+        Clear the selected option to enable the rest.
+      </div>
+
       <div class="row g-3">
 
         {{-- Destination Slug --}}
@@ -221,7 +226,7 @@
         </div>
 
         {{-- Destination URL --}}
-        <div class="col-12">
+        <div class="col-12 col-md-6">
           <label class="form-label">Destination URL <span class="pill ms-1">optional</span></label>
           <div class="input-group">
             <span class="input-group-text"><i class="fa-solid fa-globe"></i></span>
@@ -232,6 +237,21 @@
             If both are empty, it falls back to <code>/submenu-slug</code>.
           </small>
           <div class="err" data-for="page_url"></div>
+        </div>
+
+        {{-- Includable Path --}}
+        <div class="col-12 col-md-6">
+          <label class="form-label">Includable Path <span class="pill ms-1">optional</span></label>
+          <div class="input-group">
+            <span class="input-group-text"><i class="fa-solid fa-puzzle-piece"></i></span>
+            <select class="form-select" id="includable_path">
+              <option value="">Loading modules…</option>
+            </select>
+          </div>
+          <small class="text-muted tiny">
+            Select an existing Blade view path (example: <code>modules.pageEditor.pageEditor</code>).
+          </small>
+          <div class="err" data-for="includable_path"></div>
         </div>
       </div>
 
@@ -352,6 +372,7 @@
     pageSlug: byId('page_slug'),
     pageShortcode: byId('page_shortcode'),
     pageUrl: byId('page_url'),
+    includablePath: byId('includable_path'),
 
     // parent
     parentId: byId('parent_id'),
@@ -445,10 +466,16 @@
   function ensurePageOption(id, title, slug){
     const existing = Array.from(els.pageId.options).find(o => String(o.value) === String(id));
     if (existing) return;
+
+    const t = (title || '').toString().trim();
+    const s = (slug || '').toString().trim();
+
+    const label = (t ? t : (s ? ('/' + s) : 'Untitled page')) + (t && s ? ('  •  /' + s) : '');
+
     const opt = document.createElement('option');
     opt.value = String(id);
-    opt.setAttribute('data-slug', slug ? String(slug) : '');
-    opt.textContent = `#${id} — ${title || ('Page #' + id)}${slug ? ('  •  /' + slug) : ''}`;
+    opt.setAttribute('data-slug', s);
+    opt.textContent = label;
     els.pageId.appendChild(opt);
   }
 
@@ -490,14 +517,12 @@
       const title = (p?.title ?? p?.name ?? p?.page_title ?? '').toString().trim();
       const slug  = (p?.slug ?? p?.page_slug ?? '').toString().trim();
 
-      const label =
-        (title ? title : (slug ? ('/' + slug) : ('Page #' + id))) +
-        (slug && title ? ('  •  /' + slug) : '');
+      const label = (title ? title : (slug ? ('/' + slug) : 'Untitled page')) + (title && slug ? ('  •  /' + slug) : '');
 
       const opt = document.createElement('option');
       opt.value = String(id);
       opt.setAttribute('data-slug', slug);
-      opt.textContent = `#${id} — ${label}`;
+      opt.textContent = label; // ✅ no "#id" shown
       els.pageId.appendChild(opt);
     });
 
@@ -554,6 +579,150 @@
     if (on) maybeUpdateSlug();
   });
   els.btnRegen.addEventListener('click', ()=>{ els.slug.value = slugify(els.title.value); });
+
+  /* ---------- destination single-select lock ---------- */
+  const DEST_KEYS = ['pageUrl','includablePath','pageSlug','pageShortcode']; // precedence
+  function getDestValues(){
+    return {
+      pageUrl: (els.pageUrl.value || '').trim(),
+      includablePath: (els.includablePath.value || '').trim(),
+      pageSlug: (els.pageSlug.value || '').trim(),
+      pageShortcode: (els.pageShortcode.value || '').trim(),
+    };
+  }
+  function pickActiveDestKey(preferKey){
+    const v = getDestValues();
+    if (preferKey && v[preferKey]) return preferKey;
+    for (const k of DEST_KEYS){
+      if (v[k]) return k;
+    }
+    return '';
+  }
+  function syncDestinationLocks(preferKey){
+    const v = getDestValues();
+    const activeKey = pickActiveDestKey(preferKey);
+
+    // enable all first
+    els.pageUrl.disabled = false;
+    els.includablePath.disabled = false;
+    els.pageSlug.disabled = false;
+    els.pageShortcode.disabled = false;
+
+    if (!activeKey) return activeKey;
+
+    // disable others (keep values; payload will send only active field)
+    if (activeKey !== 'pageUrl') els.pageUrl.disabled = true;
+    if (activeKey !== 'includablePath') els.includablePath.disabled = true;
+    if (activeKey !== 'pageSlug') els.pageSlug.disabled = true;
+    if (activeKey !== 'pageShortcode') els.pageShortcode.disabled = true;
+
+    return activeKey;
+  }
+
+  els.pageUrl.addEventListener('input', ()=> syncDestinationLocks('pageUrl'));
+  els.pageSlug.addEventListener('input', ()=> syncDestinationLocks('pageSlug'));
+  els.pageShortcode.addEventListener('input', ()=> syncDestinationLocks('pageShortcode'));
+  els.includablePath.addEventListener('change', ()=> syncDestinationLocks('includablePath'));
+
+  /* ==========================================================
+     ✅ CHANGED: includable paths dropdown is now DYNAMIC
+     - Tries API first:
+         GET /api/page-submenus/includables
+       Expected response formats (any one):
+         { success:true, data:["modules.a.b", ...] }
+         { success:true, data:[{label:"Page Editor", value:"modules.pageEditor.pageEditor"}] }
+         { modules:[...] } or { items:[...] } also supported
+     - If API fails, it falls back to the array below.
+     ========================================================== */
+
+  // 🔧 FALLBACK LIST (you can insert modules here anytime)
+  const INCLUDABLE_PATHS_FALLBACK = [
+    // "modules.pageEditor.pageEditor",
+    // "modules.someModule.index",
+  ];
+
+  function normalizeIncludableItem(x){
+    // allow string or {label,value}
+    if (typeof x === 'string') {
+      const v = x.trim();
+      return v ? { label: v, value: v } : null;
+    }
+    if (x && typeof x === 'object'){
+      const value = String(x.value ?? x.path ?? x.view ?? '').trim();
+      if (!value) return null;
+      const label = String(x.label ?? value).trim();
+      return { label, value };
+    }
+    return null;
+  }
+
+  function extractIncludablesArray(j){
+    if (Array.isArray(j?.data)) return j.data;
+    if (Array.isArray(j?.modules)) return j.modules;
+    if (Array.isArray(j?.items)) return j.items;
+    if (Array.isArray(j?.data?.data)) return j.data.data; // pagination-safe
+    return [];
+  }
+
+  function setIncludableOptions(list){
+    const current = (els.includablePath.value || '').trim();
+    els.includablePath.innerHTML = '';
+
+    const opt0 = document.createElement('option');
+    opt0.value = '';
+    opt0.textContent = 'Select module…';
+    els.includablePath.appendChild(opt0);
+
+    (list || [])
+      .map(normalizeIncludableItem)
+      .filter(Boolean)
+      .forEach(({label, value})=>{
+        const opt = document.createElement('option');
+        opt.value = value;
+        opt.textContent = label;
+        els.includablePath.appendChild(opt);
+      });
+
+    // restore selection if possible
+    if (current){
+      els.includablePath.value = current;
+    }
+  }
+
+  async function loadIncludablePaths(){
+    // loading state
+    els.includablePath.disabled = true;
+    els.includablePath.innerHTML = '<option value="">Loading modules…</option>';
+
+    const candidates = [
+      '/api/page-submenus/includables?_ts=' + Date.now(),
+      '/api/page-submenus/includables'
+    ];
+
+    for (const url of candidates){
+      try{
+        const j = await fetchJSON(url);
+        const arr = extractIncludablesArray(j);
+
+        if (Array.isArray(arr) && arr.length){
+          setIncludableOptions(arr);
+          els.includablePath.disabled = false;
+          return;
+        }
+      }catch(e){
+        // try next
+      }
+    }
+
+    // fallback
+    setIncludableOptions(INCLUDABLE_PATHS_FALLBACK);
+    els.includablePath.disabled = false;
+
+    // only show error toast if fallback is also empty
+    if (!INCLUDABLE_PATHS_FALLBACK.length){
+      err('Modules list API not found. Add paths in INCLUDABLE_PATHS_FALLBACK or create /api/page-submenus/includables.');
+    }
+  }
 
   /* ---------- parent selector (tree) ---------- */
   function setParent(id, label){
@@ -740,7 +909,11 @@
       // belongs-to page
       if (m.page_id){
         // ensure option exists even if API /pages list didn't include it
-        ensurePageOption(m.page_id, m.page_title || m.page_name || ('Page #' + m.page_id), m.belongs_page_slug || m.belongs_slug || m.page_slug || '');
+        ensurePageOption(
+          m.page_id,
+          m.page_title || m.page_name || '',
+          m.belongs_page_slug || m.belongs_slug || m.page_slug || ''
+        );
         els.pageId.value = String(m.page_id);
       }
 
@@ -761,9 +934,10 @@
       els.slug.value  = m.slug || '';
 
       // destination
-      els.pageSlug.value      = m.page_slug || '';
-      els.pageShortcode.value = m.page_shortcode || '';
-      els.pageUrl.value       = m.page_url || '';
+      els.pageSlug.value       = m.page_slug || '';
+      els.pageShortcode.value  = m.page_shortcode || '';
+      els.pageUrl.value        = m.page_url || '';
+      els.includablePath.value = m.includable_path || '';
 
       els.active.checked = !!m.active;
 
@@ -774,6 +948,9 @@
         (m.parent_id ? ('#' + m.parent_id) : 'Self (Root)');
 
       setParent(m.parent_id || '', parentLabel);
+
+      // apply destination locks (based on current values)
+      syncDestinationLocks();
 
     }catch(e){
       console.error(e);
@@ -804,6 +981,10 @@
       els.slug.value = slugify(els.title.value);
     }
 
+    // determine active destination and send ONLY that one (others null)
+    const activeDestKey = syncDestinationLocks();
+
+    const v = getDestValues();
     const payload = {
       page_id: pid,
       title: els.title.value.trim(),
@@ -812,10 +993,11 @@
       parent_id: els.parentId.value ? parseInt(els.parentId.value,10) : null,
       active: !!els.active.checked,
 
-      // destination
-      page_slug: els.pageSlug.value.trim() || null,
-      page_shortcode: els.pageShortcode.value.trim() || null,
-      page_url: els.pageUrl.value.trim() || null
+      // destination (only one allowed)
+      page_slug:       (activeDestKey === 'pageSlug')       ? (v.pageSlug || null) : null,
+      page_shortcode:  (activeDestKey === 'pageShortcode')  ? (v.pageShortcode || null) : null,
+      page_url:        (activeDestKey === 'pageUrl')        ? (v.pageUrl || null) : null,
+      includable_path: (activeDestKey === 'includablePath') ? (v.includablePath || null) : null
     };
 
     const url = IS_EDIT
@@ -882,7 +1064,7 @@
     if (IS_EDIT && initialData){
       // restore loaded data
       if (initialData.page_id){
-        ensurePageOption(initialData.page_id, initialData.page_title || ('Page #' + initialData.page_id), initialData.page_slug || '');
+        ensurePageOption(initialData.page_id, initialData.page_title || '', initialData.page_slug || '');
         els.pageId.value = String(initialData.page_id);
       }
       els.belongsPageSlug.value = initialData.belongs_page_slug || initialData.page_slug || selectedPageSlug() || '';
@@ -891,9 +1073,10 @@
       els.desc.value  = initialData.description || '';
       els.slug.value  = initialData.slug || '';
 
-      els.pageSlug.value      = initialData.page_slug || '';
-      els.pageShortcode.value = initialData.page_shortcode || '';
-      els.pageUrl.value       = initialData.page_url || '';
+      els.pageSlug.value       = initialData.page_slug || '';
+      els.pageShortcode.value  = initialData.page_shortcode || '';
+      els.pageUrl.value        = initialData.page_url || '';
+      els.includablePath.value = initialData.includable_path || '';
 
       els.active.checked = !!initialData.active;
 
@@ -920,6 +1103,7 @@
       els.pageSlug.value='';
       els.pageShortcode.value='';
       els.pageUrl.value='';
+      els.includablePath.value='';
       els.active.checked=true;
       setParent('', 'Self (Root)');
 
@@ -928,6 +1112,9 @@
       els.btnRegen.disabled = true;
       maybeUpdateSlug();
     }
+
+    // re-apply destination locks
+    syncDestinationLocks();
 
     setTimeout(()=> setBtnBusy(els.btnReset, false, '<i class="fa-regular fa-trash-can"></i> Reset'), 120);
   });
@@ -942,6 +1129,12 @@
     els.slug.disabled = true;
     els.btnRegen.disabled = true;
     maybeUpdateSlug();
+
+    // ✅ CHANGED: load includables dynamically (API -> fallback array)
+    await loadIncludablePaths();
+
+    // default destination lock state
+    syncDestinationLocks();
 
     await loadPagesDropdown();
 

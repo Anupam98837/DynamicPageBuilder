@@ -281,111 +281,94 @@ class CurriculumSyllabusController extends Controller
      * - sort_order, active, metadata
      */
     public function store(Request $request)
-    {
-        $v = Validator::make($request->all(), [
-            'department_id' => 'nullable|integer',
-            'department'    => 'nullable|string', // id|uuid|slug alternative
+{
+    $validated = $request->validate([
+        'department_id' => ['required','integer','exists:departments,id'],
+        'title'         => ['required','string','max:180'],
+        'slug'          => ['nullable','string','max:200'],
+        'active'        => ['nullable','in:0,1','boolean'],
+        'sort_order'    => ['nullable','integer','min:0'],
 
-            'title'      => 'required|string|max:180',
-            'slug'       => 'nullable|string|max:200',
-            'sort_order' => 'sometimes|integer|min:0|max:1000000',
-            'active'     => 'sometimes|boolean',
-            'metadata'   => 'nullable|array',
+        'pdf'           => ['required','file','mimes:pdf','max:20480'], // 20MB
+    ]);
 
-            'pdf'        => 'required|file|mimes:pdf|max:20480', // 20MB
-        ]);
-
-        if ($v->fails()) return response()->json(['errors' => $v->errors()], 422);
-
-        $data  = $v->validated();
-        $actor = $this->actor($request);
-        $ip    = $request->ip();
-
-        // resolve department
-        $dept = null;
-        if (!empty($data['department_id'])) {
-            $dept = $this->resolveDepartment((string) $data['department_id'], false);
-        } elseif (!empty($data['department'])) {
-            $dept = $this->resolveDepartment((string) $data['department'], false);
-        }
-        if (! $dept) {
-            return response()->json(['message' => 'Valid department is required'], 422);
-        }
-
-        // slug generation (unique per department among non-deleted)
-        $slug = trim((string) ($data['slug'] ?? ''));
-        if ($slug === '') {
-            $base = Str::slug($data['title']) ?: 'curriculum-syllabus';
-            $slug = $base; $i = 1;
-            while (
-                DB::table('curriculum_syllabuses')
-                    ->where('department_id', (int) $dept->id)
-                    ->where('slug', $slug)
-                    ->whereNull('deleted_at')
-                    ->exists()
-            ) {
-                $slug = $base . '-' . $i++;
-            }
-        } else {
-            $slug = Str::slug($slug) ?: 'curriculum-syllabus';
-            $exists = DB::table('curriculum_syllabuses')
-                ->where('department_id', (int) $dept->id)
-                ->where('slug', $slug)
-                ->whereNull('deleted_at')
-                ->exists();
-            if ($exists) {
-                return response()->json(['errors' => ['slug' => ['Slug already exists for this department.']]], 422);
-            }
-        }
-
-        // file move to /public/depy_uploads/curriculum_syllabus/dept-{id}/
-        $uuid = (string) Str::uuid();
-        $dirRel = 'depy_uploads/curriculum_syllabus/dept-' . (int) $dept->id;
-        $dirAbs = public_path($dirRel);
-
-        if (! File::exists($dirAbs)) {
-            File::makeDirectory($dirAbs, 0755, true);
-        }
-
-        $file = $request->file('pdf');
-        $fileName = $uuid . '.pdf';
-        $file->move($dirAbs, $fileName);
-
-        $pdfPath = $dirRel . '/' . $fileName;
-
-        $payload = [
-            'uuid'          => $uuid,
-            'department_id' => (int) $dept->id,
-            'title'         => $data['title'],
-            'slug'          => $slug,
-
-            'pdf_path'      => $pdfPath,
-            'original_name' => $file->getClientOriginalName(),
-            'mime_type'     => $file->getClientMimeType() ?: 'application/pdf',
-            'file_size'     => (int) ($file->getSize() ?: 0),
-
-            'sort_order'    => array_key_exists('sort_order', $data) ? (int) $data['sort_order'] : 0,
-            'active'        => array_key_exists('active', $data) ? (bool) $data['active'] : true,
-
-            'created_by'    => $actor['id'] ?: null,
-            'created_at_ip' => $ip,
-            'created_at'    => now(),
-            'updated_at'    => now(),
-        ];
-
-        if (array_key_exists('metadata', $data)) {
-            $payload['metadata'] = $data['metadata'] !== null ? json_encode($data['metadata']) : null;
-        }
-
-        $id = DB::table('curriculum_syllabuses')->insertGetId($payload);
-
-        $row = $this->resolveSyllabus($request, (string) $id, true);
-
-        return response()->json([
-            'success' => true,
-            'item'    => $this->normalizeRow($row),
-        ], 201);
+    if (!$request->hasFile('pdf')) {
+        return response()->json(['success' => false, 'message' => 'PDF file is required'], 422);
     }
+
+    $pdf = $request->file('pdf');
+    if (!$pdf || !$pdf->isValid()) {
+        $code = $pdf ? $pdf->getError() : null;
+        return response()->json([
+            'success' => false,
+            'message' => 'Upload failed' . ($code !== null ? " (code: {$code})" : ''),
+        ], 422);
+    }
+
+    // ✅ Read meta BEFORE move (prevents SplFileInfo::getSize stat failed)
+    $originalName = $pdf->getClientOriginalName();
+    $mimeType     = $pdf->getClientMimeType() ?: $pdf->getMimeType();
+    $fileSize     = (int) $pdf->getSize();
+    $ext          = strtolower($pdf->getClientOriginalExtension() ?: 'pdf');
+
+    // slug
+    $slug = trim((string)($validated['slug'] ?? ''));
+    $slug = $slug !== '' ? Str::slug($slug) : Str::slug($validated['title']);
+
+    // ✅ ensure unique slug per department (ignoring soft-deleted rows)
+    $baseSlug = $slug;
+    $i = 2;
+    while (DB::table('curriculum_syllabuses')
+        ->where('department_id', (int)$validated['department_id'])
+        ->where('slug', $slug)
+        ->whereNull('deleted_at')
+        ->exists()
+    ) {
+        $slug = $baseSlug . '-' . $i++;
+    }
+
+    // destination (public/)
+    $dirRel = 'depy_uploads/curriculum_syllabuses/' . (int)$validated['department_id'];
+    $dirAbs = public_path($dirRel);
+    if (!is_dir($dirAbs)) {
+        @mkdir($dirAbs, 0775, true);
+    }
+
+    $filename = $slug . '-' . Str::random(6) . '.' . $ext;
+
+    // ✅ Move file (tmp disappears after this)
+    $pdf->move($dirAbs, $filename);
+
+    $pdfPathRel = $dirRel . '/' . $filename; // store in DB
+
+    $uuid = (string) Str::uuid();
+    $now  = now();
+
+    $id = DB::table('curriculum_syllabuses')->insertGetId([
+        'uuid'          => $uuid,
+        'department_id' => (int)$validated['department_id'],
+        'title'         => $validated['title'],
+        'slug'          => $slug,
+        'active'        => (int)($validated['active'] ?? 1),
+        'sort_order'    => (int)($validated['sort_order'] ?? 0),
+
+        'pdf_path'      => $pdfPathRel,
+        'original_name' => $originalName,
+        'mime_type'     => $mimeType,
+        'file_size'     => $fileSize,
+
+        'created_at'    => $now,
+        'updated_at'    => $now,
+    ]);
+
+    $row = DB::table('curriculum_syllabuses')->where('id', $id)->first();
+
+    return response()->json([
+        'success' => true,
+        'data'    => $row ? $this->normalizeRow($row) : null,
+    ]);
+}
+
 
     /**
      * STORE under department (nested)
@@ -405,121 +388,113 @@ class CurriculumSyllabusController extends Controller
     /**
      * UPDATE (partial) + optional PDF replace
      */
-    public function update(Request $request, $identifier)
-    {
-        $row = $this->resolveSyllabus($request, $identifier, true);
-        if (! $row) {
-            return response()->json(['message' => 'Curriculum & Syllabus not found'], 404);
-        }
-
-        $v = Validator::make($request->all(), [
-            'title'      => 'sometimes|required|string|max:180',
-            'slug'       => [
-                'sometimes',
-                'nullable',
-                'string',
-                'max:200',
-                Rule::unique('curriculum_syllabuses', 'slug')
-                    ->ignore($row->id)
-                    ->where(fn ($q) => $q->where('department_id', (int) $row->department_id)->whereNull('deleted_at')),
-            ],
-            'sort_order' => 'sometimes|integer|min:0|max:1000000',
-            'active'     => 'sometimes|boolean',
-            'metadata'   => 'sometimes|nullable|array',
-
-            'pdf'        => 'sometimes|file|mimes:pdf|max:20480',
-        ]);
-
-        if ($v->fails()) return response()->json(['errors' => $v->errors()], 422);
-
-        $data    = $v->validated();
-        $payload = [];
-
-        if (array_key_exists('title', $data)) {
-            $payload['title'] = $data['title'];
-        }
-
-        if (array_key_exists('slug', $data)) {
-            $slug = trim((string) ($data['slug'] ?? ''));
-            $payload['slug'] = $slug === '' ? null : (Str::slug($slug) ?: 'curriculum-syllabus');
-        } elseif (array_key_exists('title', $data)) {
-            // title changed but slug not provided -> regenerate slug
-            $base = Str::slug($data['title']) ?: 'curriculum-syllabus';
-            $slug = $base; $i = 1;
-            while (
-                DB::table('curriculum_syllabuses')
-                    ->where('department_id', (int) $row->department_id)
-                    ->where('id', '!=', (int) $row->id)
-                    ->where('slug', $slug)
-                    ->whereNull('deleted_at')
-                    ->exists()
-            ) {
-                $slug = $base . '-' . $i++;
-            }
-            $payload['slug'] = $slug;
-        }
-
-        if (array_key_exists('sort_order', $data)) {
-            $payload['sort_order'] = (int) $data['sort_order'];
-        }
-
-        if (array_key_exists('active', $data)) {
-            $payload['active'] = (bool) $data['active'];
-        }
-
-        if (array_key_exists('metadata', $data)) {
-            $payload['metadata'] = $data['metadata'] !== null ? json_encode($data['metadata']) : null;
-        }
-
-        // optional PDF replace
-        if ($request->hasFile('pdf')) {
-            $deptId = (int) $row->department_id;
-
-            $dirRel = 'depy_uploads/curriculum_syllabus/dept-' . $deptId;
-            $dirAbs = public_path($dirRel);
-            if (! File::exists($dirAbs)) {
-                File::makeDirectory($dirAbs, 0755, true);
-            }
-
-            $file = $request->file('pdf');
-            $newName = (string) $row->uuid . '.pdf'; // keep same uuid-based filename
-            $file->move($dirAbs, $newName);
-
-            $payload['pdf_path']      = $dirRel . '/' . $newName;
-            $payload['original_name'] = $file->getClientOriginalName();
-            $payload['mime_type']     = $file->getClientMimeType() ?: 'application/pdf';
-            $payload['file_size']     = (int) ($file->getSize() ?: 0);
-        }
-
-        // if slug became null (because user passed empty), regenerate properly
-        if (array_key_exists('slug', $payload) && ($payload['slug'] === null)) {
-            $base = Str::slug($payload['title'] ?? $row->title) ?: 'curriculum-syllabus';
-            $slug = $base; $i = 1;
-            while (
-                DB::table('curriculum_syllabuses')
-                    ->where('department_id', (int) $row->department_id)
-                    ->where('id', '!=', (int) $row->id)
-                    ->where('slug', $slug)
-                    ->whereNull('deleted_at')
-                    ->exists()
-            ) {
-                $slug = $base . '-' . $i++;
-            }
-            $payload['slug'] = $slug;
-        }
-
-        if (! empty($payload)) {
-            $payload['updated_at'] = now();
-            DB::table('curriculum_syllabuses')->where('id', (int) $row->id)->update($payload);
-        }
-
-        $fresh = $this->resolveSyllabus($request, (string) $row->id, true);
-
-        return response()->json([
-            'success' => true,
-            'item'    => $this->normalizeRow($fresh),
-        ]);
+    public function update(Request $request, string $uuid)
+{
+    $row = DB::table('curriculum_syllabuses')->where('uuid', $uuid)->first();
+    if (!$row) {
+        return response()->json(['success' => false, 'message' => 'Not found'], 404);
     }
+
+    $validated = $request->validate([
+        'department_id' => ['nullable','integer','exists:departments,id'],
+        'title'         => ['nullable','string','max:180'],
+        'slug'          => ['nullable','string','max:200'],
+        'active'        => ['nullable','in:0,1','boolean'],
+        'sort_order'    => ['nullable','integer','min:0'],
+
+        'pdf'           => ['nullable','file','mimes:pdf','max:20480'],
+    ]);
+
+    $update = ['updated_at' => now()];
+
+    // normal fields
+    foreach (['department_id','title','active','sort_order'] as $k) {
+        if (array_key_exists($k, $validated)) {
+            $update[$k] = ($k === 'department_id' || $k === 'sort_order')
+                ? (int) $validated[$k]
+                : ($k === 'active' ? (int) $validated[$k] : $validated[$k]);
+        }
+    }
+
+    // slug update (if provided)
+    $newSlug = null;
+    if (array_key_exists('slug', $validated) && trim((string)$validated['slug']) !== '') {
+        $newSlug = Str::slug($validated['slug']);
+    }
+
+    // if title changed but slug not provided, keep existing slug (your current behavior)
+    if ($newSlug !== null) {
+        // ensure unique slug per department (current/updated department)
+        $depId = array_key_exists('department_id', $update) ? (int)$update['department_id'] : (int)$row->department_id;
+
+        $base = $newSlug;
+        $i = 2;
+        while (DB::table('curriculum_syllabuses')
+            ->where('department_id', $depId)
+            ->where('slug', $newSlug)
+            ->whereNull('deleted_at')
+            ->where('uuid', '!=', $uuid)
+            ->exists()
+        ) {
+            $newSlug = $base . '-' . $i++;
+        }
+
+        $update['slug'] = $newSlug;
+    }
+
+    // ✅ Replace PDF if provided
+    if ($request->hasFile('pdf')) {
+        $pdf = $request->file('pdf');
+        if (!$pdf || !$pdf->isValid()) {
+            $code = $pdf ? $pdf->getError() : null;
+            return response()->json([
+                'success' => false,
+                'message' => 'Upload failed' . ($code !== null ? " (code: {$code})" : ''),
+            ], 422);
+        }
+
+        // meta BEFORE move
+        $originalName = $pdf->getClientOriginalName();
+        $mimeType     = $pdf->getClientMimeType() ?: $pdf->getMimeType();
+        $fileSize     = (int) $pdf->getSize();
+        $ext          = strtolower($pdf->getClientOriginalExtension() ?: 'pdf');
+
+        $depId = array_key_exists('department_id', $update) ? (int)$update['department_id'] : (int)$row->department_id;
+
+        // destination
+        $dirRel = 'depy_uploads/curriculum_syllabuses/' . $depId;
+        $dirAbs = public_path($dirRel);
+        if (!is_dir($dirAbs)) @mkdir($dirAbs, 0775, true);
+
+        $useSlug = $update['slug'] ?? $row->slug ?? 'syllabus';
+        $filename = $useSlug . '-' . Str::random(6) . '.' . $ext;
+
+        // delete old file (if exists)
+        if (!empty($row->pdf_path)) {
+            $oldAbs = public_path(ltrim((string)$row->pdf_path, '/'));
+            if (is_file($oldAbs)) @unlink($oldAbs);
+        }
+
+        $pdf->move($dirAbs, $filename);
+
+        $pdfPathRel = $dirRel . '/' . $filename;
+
+        $update['pdf_path']      = $pdfPathRel;
+        $update['original_name'] = $originalName;
+        $update['mime_type']     = $mimeType;
+        $update['file_size']     = $fileSize;
+    }
+
+    DB::table('curriculum_syllabuses')->where('uuid', $uuid)->update($update);
+
+    $fresh = DB::table('curriculum_syllabuses')->where('uuid', $uuid)->first();
+
+    return response()->json([
+        'success' => true,
+        'data'    => $fresh ? $this->normalizeRow($fresh) : null,
+    ]);
+}
+
 
     /**
      * Toggle active

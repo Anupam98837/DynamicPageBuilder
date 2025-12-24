@@ -24,6 +24,9 @@ use App\Http\Controllers\API\UserEducationsController;
 use App\Http\Controllers\API\UserSocialMediaController;
 use App\Http\Controllers\API\UserProfileController;
 use App\Http\Controllers\API\CurriculumSyllabusController;
+use App\Http\Controllers\API\AnnouncementController;
+use App\Http\Controllers\API\AchievementController;
+use App\Http\Controllers\API\NoticeController;
 
 
 /*
@@ -492,7 +495,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify departments
-Route::middleware('checkRole:director,principal,hod,faculty,technical_assistant,it_person')
+Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')
     ->group(function () {
         Route::post('/departments',                         [DepartmentController::class, 'store']);
         Route::get('/departments-trash',                    [DepartmentController::class, 'trash']);
@@ -698,4 +701,118 @@ Route::prefix('public')->group(function () {
     Route::get('/departments/{department}/curriculum-syllabuses', [CurriculumSyllabusController::class, 'publicIndexByDepartment']);
     Route::get('/curriculum-syllabuses/{identifier}/stream',      [CurriculumSyllabusController::class, 'publicStream']);
     Route::get('/curriculum-syllabuses/{identifier}/download',    [CurriculumSyllabusController::class, 'publicDownload']);
+});
+/*
+|--------------------------------------------------------------------------
+| Announcements Routes
+|--------------------------------------------------------------------------
+*/
+
+// Read-only (authenticated)
+Route::middleware('checkRole')->group(function () {
+    Route::get('/announcements',                 [AnnouncementController::class, 'index']);
+    Route::get('/announcements/{identifier}',    [AnnouncementController::class, 'show']);
+
+    Route::get('/departments/{department}/announcements',              [AnnouncementController::class, 'indexByDepartment']);
+    Route::get('/departments/{department}/announcements/{identifier}', [AnnouncementController::class, 'showByDepartment']);
+});
+
+// Modify (authenticated role-based)
+Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+    Route::post('/announcements', [AnnouncementController::class, 'store']);
+    Route::post('/departments/{department}/announcements', [AnnouncementController::class, 'storeForDepartment']);
+
+    Route::get('/announcements-trash', [AnnouncementController::class, 'trash']);
+
+    Route::match(['put','patch'], '/announcements/{identifier}', [AnnouncementController::class, 'update']);
+    Route::patch('/announcements/{identifier}/toggle-featured',  [AnnouncementController::class, 'toggleFeatured']);
+
+    Route::delete('/announcements/{identifier}',        [AnnouncementController::class, 'destroy']);
+    Route::post('/announcements/{identifier}/restore',  [AnnouncementController::class, 'restore']);
+    Route::delete('/announcements/{identifier}/force',  [AnnouncementController::class, 'forceDelete']);
+});
+
+// Public (no auth)
+Route::prefix('public')->group(function () {
+    Route::get('/announcements', [AnnouncementController::class, 'publicIndex']);
+    Route::get('/announcements/{identifier}', [AnnouncementController::class, 'publicShow']);
+
+    Route::get('/departments/{department}/announcements', [AnnouncementController::class, 'publicIndexByDepartment']);
+});
+
+
+/*
+|--------------------------------------------------------------------------
+| Achievements Routes
+|--------------------------------------------------------------------------
+*/
+
+// Read-only (authenticated)
+Route::middleware('checkRole')->group(function () {
+    Route::get('/achievements',              [AchievementController::class, 'index']);
+    Route::get('/achievements/{identifier}', [AchievementController::class, 'show']);
+
+    Route::get('/departments/{department}/achievements',              [AchievementController::class, 'indexByDepartment']);
+    Route::get('/departments/{department}/achievements/{identifier}', [AchievementController::class, 'showByDepartment']);
+});
+
+// Modify (authenticated role-based)
+Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+    Route::post('/achievements', [AchievementController::class, 'store']);
+    Route::post('/departments/{department}/achievements', [AchievementController::class, 'storeForDepartment']);
+
+    Route::get('/achievements-trash', [AchievementController::class, 'trash']);
+
+    Route::match(['put','patch'], '/achievements/{identifier}', [AchievementController::class, 'update']);
+    Route::patch('/achievements/{identifier}/toggle-featured',  [AchievementController::class, 'toggleFeatured']);
+
+    Route::delete('/achievements/{identifier}',       [AchievementController::class, 'destroy']);
+    Route::post('/achievements/{identifier}/restore', [AchievementController::class, 'restore']);
+    Route::delete('/achievements/{identifier}/force', [AchievementController::class, 'forceDelete']);
+});
+
+// Public (no auth)
+Route::prefix('public')->group(function () {
+    Route::get('/achievements',              [AchievementController::class, 'publicIndex']);
+    Route::get('/achievements/{identifier}', [AchievementController::class, 'publicShow']);
+
+    Route::get('/departments/{department}/achievements', [AchievementController::class, 'publicIndexByDepartment']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Notices Routes
+|--------------------------------------------------------------------------
+*/
+
+// Read-only (authenticated)
+Route::middleware('checkRole')->group(function () {
+    Route::get('/notices',              [NoticeController::class, 'index']);
+    Route::get('/notices/{identifier}', [NoticeController::class, 'show']);
+
+    Route::get('/departments/{department}/notices',              [NoticeController::class, 'indexByDepartment']);
+    Route::get('/departments/{department}/notices/{identifier}', [NoticeController::class, 'showByDepartment']);
+});
+
+// Modify (authenticated role-based)
+Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+    Route::post('/notices', [NoticeController::class, 'store']);
+    Route::post('/departments/{department}/notices', [NoticeController::class, 'storeForDepartment']);
+
+    Route::get('/notices-trash', [NoticeController::class, 'trash']);
+
+    Route::match(['put','patch'], '/notices/{identifier}', [NoticeController::class, 'update']);
+    Route::patch('/notices/{identifier}/toggle-featured',  [NoticeController::class, 'toggleFeatured']);
+
+    Route::delete('/notices/{identifier}',       [NoticeController::class, 'destroy']);
+    Route::post('/notices/{identifier}/restore', [NoticeController::class, 'restore']);
+    Route::delete('/notices/{identifier}/force', [NoticeController::class, 'forceDelete']);
+});
+
+// Public (no auth)
+Route::prefix('public')->group(function () {
+    Route::get('/notices',              [NoticeController::class, 'publicIndex']);
+    Route::get('/notices/{identifier}', [NoticeController::class, 'publicShow']);
+
+    Route::get('/departments/{department}/notices', [NoticeController::class, 'publicIndexByDepartment']);
 });
