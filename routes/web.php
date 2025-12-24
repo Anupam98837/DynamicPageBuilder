@@ -68,6 +68,18 @@ Route::get('/department/achievements', function () {
 Route::get('/department/notices', function () {
     return view('pages.users.pages.departments.manageNotices');
 });
+
+Route::get('/department/student-activities', function () {
+    return view('pages.users.pages.departments.manageStudentActivities');
+});
+
+Route::get('/department/gallery', function () {
+    return view('pages.users.pages.departments.manageGallery');
+});
+
+Route::get('/course/manage', function () {
+    return view('pages.users.pages.course.manageCourses');
+});
 Route::get('/department/menu/create', function () {
     return view('pages.users.pages.deptMenu.createMenu');
 });

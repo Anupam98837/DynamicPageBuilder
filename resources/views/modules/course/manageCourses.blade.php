@@ -1,5 +1,5 @@
-{{-- resources/views/modules/notice/manageNotices.blade.php --}}
-@section('title','Notices')
+{{-- resources/views/modules/course/manageCourses.blade.php --}}
+@section('title','Courses')
 
 @push('styles')
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
@@ -7,10 +7,10 @@
 
 <style>
 /* =========================
- * Notices UI (same structure reference, rewritten)
+ * Courses (Manage) – UI/UX inspired by Announcements
  * ========================= */
 
-/* Dropdown safety inside table */
+/* Dropdowns inside table */
 .table-wrap .dropdown{position:relative}
 .dropdown .dd-toggle{border-radius:10px}
 .dropdown-menu{
@@ -18,7 +18,7 @@
   border:1px solid var(--line-strong);
   box-shadow:var(--shadow-2);
   min-width:230px;
-  z-index:5000;
+  z-index:5000
 }
 .dropdown-menu.show{display:block !important}
 .dropdown-item{display:flex;align-items:center;gap:.6rem}
@@ -34,7 +34,7 @@
 }
 .tab-content,.tab-pane{overflow:visible}
 
-/* Table card */
+/* Table Card */
 .table-wrap.card{
   position:relative;
   border:1px solid var(--line-strong);
@@ -50,17 +50,18 @@
   color:var(--muted-color);
   font-size:13px;
   border-bottom:1px solid var(--line-strong);
-  background:var(--surface);
+  background:var(--surface)
 }
 .table thead.sticky-top{z-index:3}
 .table tbody tr{border-top:1px solid var(--line-soft)}
 .table tbody tr:hover{background:var(--page-hover)}
+td .fw-semibold{color:var(--ink)}
 .small{font-size:12.5px}
 
-/* Slug column */
-th.col-slug, td.col-slug{width:190px;max-width:190px}
-td.col-slug{overflow:hidden}
-td.col-slug code{
+/* Slug/Code column smaller + ellipsis */
+th.col-code, td.col-code{width:190px;max-width:190px}
+td.col-code{overflow:hidden}
+td.col-code code{
   display:inline-block;
   max-width:180px;
   overflow:hidden;
@@ -70,43 +71,58 @@ td.col-slug code{
 }
 
 /* Badges */
+.badge-soft-primary{
+  background:color-mix(in oklab, var(--primary-color) 12%, transparent);
+  color:var(--primary-color)
+}
 .badge-soft-success{
   background:color-mix(in oklab, var(--success-color) 12%, transparent);
   color:var(--success-color)
-}
-.badge-soft-warning{
-  background:color-mix(in oklab, var(--warning-color, #f59e0b) 14%, transparent);
-  color:var(--warning-color, #f59e0b)
 }
 .badge-soft-muted{
   background:color-mix(in oklab, var(--muted-color) 10%, transparent);
   color:var(--muted-color)
 }
+.badge-soft-warning{
+  background:color-mix(in oklab, var(--warning-color, #f59e0b) 14%, transparent);
+  color:var(--warning-color, #f59e0b)
+}
+.badge-soft-danger{
+  background:color-mix(in oklab, var(--danger-color) 12%, transparent);
+  color:var(--danger-color)
+}
 
-/* Global loading overlay */
+/* Loading overlay */
 .loading-overlay{
-  position:fixed; inset:0;
-  background:rgba(0,0,0,.45);
-  display:flex; align-items:center; justify-content:center;
+  position:fixed;
+  top:0;left:0;width:100%;height:100%;
+  background:rgba(0,0,0,0.45);
+  display:flex;
+  justify-content:center;
+  align-items:center;
   z-index:9999;
-  backdrop-filter:blur(2px);
+  backdrop-filter:blur(2px)
 }
 .loading-spinner{
   background:var(--surface);
   padding:20px 22px;
   border-radius:14px;
-  display:flex;flex-direction:column;align-items:center;gap:10px;
-  box-shadow:0 10px 26px rgba(0,0,0,.3)
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:10px;
+  box-shadow:0 10px 26px rgba(0,0,0,0.3)
 }
 .spinner{
-  width:40px;height:40px;border-radius:50%;
+  width:40px;height:40px;
+  border-radius:50%;
   border:4px solid rgba(148,163,184,0.3);
   border-top:4px solid var(--primary-color);
   animation:spin 1s linear infinite
 }
-@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
 
-/* Button spinner */
+/* Button loading state */
 .btn-loading{position:relative;color:transparent !important}
 .btn-loading::after{
   content:'';
@@ -120,41 +136,48 @@ td.col-slug code{
   animation:spin 1s linear infinite
 }
 
-/* Toolbar responsive */
-@media (max-width:768px){
-  .nt-toolbar .d-flex{flex-direction:column;gap:12px !important}
-  .nt-toolbar .position-relative{min-width:100% !important}
-  .toolbar-buttons{display:flex;gap:8px;flex-wrap:wrap}
-  .toolbar-buttons .btn{flex:1;min-width:120px}
+/* Responsive toolbar */
+@media (max-width: 768px){
+  .crs-toolbar .d-flex{flex-direction:column;gap:12px !important}
+  .crs-toolbar .position-relative{min-width:100% !important}
+  .toolbar-buttons{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap
+  }
+  .toolbar-buttons .btn{
+    flex:1;
+    min-width:120px
+  }
 }
 
 /* Horizontal scroll */
 .table-responsive{
-  display:block;width:100%;
+  display:block;
+  width:100%;
+  max-width:100%;
   overflow-x:auto !important;
   overflow-y:visible !important;
   -webkit-overflow-scrolling:touch;
   position:relative;
 }
-.table-responsive > .table{width:max-content;min-width:1120px}
-.table-responsive th,.table-responsive td{white-space:nowrap}
-
-/* Cover thumbnail in table */
-.thumb{
-  width:46px;height:34px;border-radius:10px;
-  border:1px solid var(--line-soft);
-  background:color-mix(in oklab, var(--muted-color) 10%, transparent);
-  overflow:hidden;
-  display:flex;align-items:center;justify-content:center;
+.table-responsive > .table{
+  width:max-content;
+  min-width:1180px;
 }
-.thumb img{width:100%;height:100%;object-fit:cover;display:block}
-.thumb i{opacity:.55}
+.table-responsive th,
+.table-responsive td{
+  white-space:nowrap;
+}
+@media (max-width: 576px){
+  .table-responsive > .table{ min-width:1120px; }
+}
 
 /* =========================
- * RTE (single toolbar, stable caret)
+ * RTE (lightweight)
  * ========================= */
 .rte-help{font-size:12px;color:var(--muted-color);margin-top:6px}
-.rte-row{margin-bottom:14px}
+.rte-row{margin-bottom:14px;}
 .rte-wrap{
   border:1px solid var(--line-strong);
   border-radius:14px;
@@ -162,7 +185,10 @@ td.col-slug code{
   background:var(--surface);
 }
 .rte-toolbar{
-  display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
   padding:8px;
   border-bottom:1px solid var(--line-strong);
   background:color-mix(in oklab, var(--surface) 92%, transparent);
@@ -175,7 +201,10 @@ td.col-slug code{
   border-radius:10px;
   line-height:1;
   cursor:pointer;
-  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
   user-select:none;
 }
 .rte-btn:hover{background:var(--page-hover)}
@@ -193,7 +222,8 @@ td.col-slug code{
   overflow:hidden;
 }
 .rte-tabs .tab{
-  border:0;border-right:1px solid var(--line-soft);
+  border:0;
+  border-right:1px solid var(--line-soft);
   border-radius:0;
   padding:7px 12px;
   font-size:12px;
@@ -208,22 +238,20 @@ td.col-slug code{
   background:color-mix(in oklab, var(--primary-color) 12%, transparent);
   font-weight:700;
 }
-
 .rte-area{position:relative}
 .rte-editor{
   min-height:220px;
   padding:12px 12px;
   outline:none;
 }
-.rte-editor:empty:before{content:attr(data-placeholder);color:var(--muted-color)}
-
-.rte-editor b,.rte-editor strong{font-weight:800}
-.rte-editor i,.rte-editor em{font-style:italic}
+.rte-editor:empty:before{content:attr(data-placeholder);color:var(--muted-color);}
+.rte-editor b, .rte-editor strong{font-weight:800}
+.rte-editor i, .rte-editor em{font-style:italic}
 .rte-editor u{text-decoration:underline}
 .rte-editor h1{font-size:20px;margin:8px 0}
 .rte-editor h2{font-size:18px;margin:8px 0}
 .rte-editor h3{font-size:16px;margin:8px 0}
-.rte-editor ul,.rte-editor ol{padding-left:22px}
+.rte-editor ul, .rte-editor ol{padding-left:22px}
 .rte-editor p{margin:0 0 10px}
 .rte-editor a{color:var(--primary-color);text-decoration:underline}
 .rte-editor code{
@@ -242,8 +270,7 @@ td.col-slug code{
   overflow:auto;
   margin:8px 0;
 }
-.rte-editor pre code{border:0;background:transparent;padding:0;display:block;white-space:pre}
-
+.rte-editor pre code{border:0;background:transparent;padding:0;display:block;white-space:pre;}
 .rte-code{
   display:none;
   width:100%;
@@ -258,10 +285,10 @@ td.col-slug code{
   font-size:12.5px;
   line-height:1.45;
 }
-.rte-wrap.mode-code .rte-editor{display:none}
-.rte-wrap.mode-code .rte-code{display:block}
+.rte-wrap.mode-code .rte-editor{display:none;}
+.rte-wrap.mode-code .rte-code{display:block;}
 
-/* Cover preview */
+/* Cover preview box */
 .cover-box{
   border:1px solid var(--line-strong);
   border-radius:14px;
@@ -274,7 +301,7 @@ td.col-slug code{
   padding:10px 12px;
   border-bottom:1px solid var(--line-soft);
 }
-.cover-box .cover-body{padding:12px}
+.cover-box .cover-body{padding:12px;}
 .cover-box img{
   width:100%;
   max-height:260px;
@@ -284,23 +311,6 @@ td.col-slug code{
   background:#fff;
 }
 .cover-meta{font-size:12.5px;color:var(--muted-color);margin-top:10px}
-
-/* Small helper row (department load state) */
-.dept-hint{
-  font-size:12px;
-  color:var(--muted-color);
-  margin-top:6px;
-  display:flex;
-  align-items:center;
-  gap:8px;
-}
-.dept-dot{
-  width:8px;height:8px;border-radius:99px;
-  background:var(--muted-color);
-  opacity:.6;
-}
-.dept-dot.ok{background:var(--success-color);opacity:.9}
-.dept-dot.bad{background:var(--danger-color);opacity:.9}
 </style>
 @endpush
 
@@ -319,7 +329,7 @@ td.col-slug code{
   <ul class="nav nav-tabs mb-3" role="tablist">
     <li class="nav-item">
       <a class="nav-link active" data-bs-toggle="tab" href="#tab-active" role="tab" aria-selected="true">
-        <i class="fa-solid fa-circle-info me-2"></i>Active
+        <i class="fa-solid fa-graduation-cap me-2"></i>Active
       </a>
     </li>
     <li class="nav-item">
@@ -340,7 +350,7 @@ td.col-slug code{
     <div class="tab-pane fade show active" id="tab-active" role="tabpanel">
 
       {{-- Toolbar --}}
-      <div class="row align-items-center g-2 mb-3 nt-toolbar panel">
+      <div class="row align-items-center g-2 mb-3 crs-toolbar panel">
         <div class="col-12 col-lg d-flex align-items-center flex-wrap gap-2">
           <div class="d-flex align-items-center gap-2">
             <label class="text-muted small mb-0">Per Page</label>
@@ -353,24 +363,23 @@ td.col-slug code{
           </div>
 
           <div class="position-relative" style="min-width:280px;">
-            <input id="searchInput" type="search" class="form-control ps-5" placeholder="Search by title or slug…">
+            <input id="searchInput" type="search" class="form-control ps-5" placeholder="Search by title, code or slug…">
             <i class="fa fa-search position-absolute" style="left:12px;top:50%;transform:translateY(-50%);opacity:.6;"></i>
           </div>
 
-          <div class="toolbar-buttons">
-            <button id="btnFilter" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#filterModal">
-              <i class="fa fa-sliders me-1"></i>Filter
-            </button>
-            <button id="btnReset" class="btn btn-light">
-              <i class="fa fa-rotate-left me-1"></i>Reset
-            </button>
-          </div>
+          <button id="btnFilter" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#filterModal">
+            <i class="fa fa-sliders me-1"></i>Filter
+          </button>
+
+          <button id="btnReset" class="btn btn-light">
+            <i class="fa fa-rotate-left me-1"></i>Reset
+          </button>
         </div>
 
         <div class="col-12 col-lg-auto ms-lg-auto d-flex justify-content-lg-end">
           <div id="writeControls" style="display:none;">
             <button type="button" class="btn btn-primary" id="btnAddItem">
-              <i class="fa fa-plus me-1"></i> Add Notice
+              <i class="fa fa-plus me-1"></i> Add Course
             </button>
           </div>
         </div>
@@ -383,12 +392,12 @@ td.col-slug code{
             <table class="table table-hover table-borderless align-middle mb-0">
               <thead class="sticky-top">
                 <tr>
-                  <th style="width:70px;">Cover</th>
                   <th>Title</th>
-                  <th class="col-slug">Slug</th>
+                  <th class="col-code">Code/Slug</th>
+                  <th style="width:170px;">Department</th>
                   <th style="width:120px;">Status</th>
-                  <th style="width:150px;">Publish At</th>
-                  <th style="width:110px;">Sort</th>
+                  <th style="width:140px;">Level</th>
+                  <th style="width:120px;">Duration</th>
                   <th style="width:170px;">Updated</th>
                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
@@ -400,8 +409,8 @@ td.col-slug code{
           </div>
 
           <div id="empty-active" class="empty p-4 text-center" style="display:none;">
-            <i class="fa fa-circle-info mb-2" style="font-size:32px;opacity:.6;"></i>
-            <div>No active notices found.</div>
+            <i class="fa-solid fa-graduation-cap mb-2" style="font-size:32px;opacity:.6;"></i>
+            <div>No active courses found.</div>
           </div>
 
           <div class="d-flex flex-wrap align-items-center justify-content-between p-3 gap-2">
@@ -420,12 +429,12 @@ td.col-slug code{
             <table class="table table-hover table-borderless align-middle mb-0">
               <thead class="sticky-top">
                 <tr>
-                  <th style="width:70px;">Cover</th>
                   <th>Title</th>
-                  <th class="col-slug">Slug</th>
+                  <th class="col-code">Code/Slug</th>
+                  <th style="width:170px;">Department</th>
                   <th style="width:120px;">Status</th>
-                  <th style="width:150px;">Publish At</th>
-                  <th style="width:110px;">Sort</th>
+                  <th style="width:140px;">Level</th>
+                  <th style="width:120px;">Duration</th>
                   <th style="width:170px;">Updated</th>
                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
@@ -438,7 +447,7 @@ td.col-slug code{
 
           <div id="empty-inactive" class="empty p-4 text-center" style="display:none;">
             <i class="fa fa-circle-pause mb-2" style="font-size:32px;opacity:.6;"></i>
-            <div>No inactive notices found.</div>
+            <div>No inactive courses found.</div>
           </div>
 
           <div class="d-flex flex-wrap align-items-center justify-content-between p-3 gap-2">
@@ -457,16 +466,15 @@ td.col-slug code{
             <table class="table table-hover table-borderless align-middle mb-0">
               <thead class="sticky-top">
                 <tr>
-                  <th style="width:70px;">Cover</th>
                   <th>Title</th>
-                  <th class="col-slug">Slug</th>
+                  <th class="col-code">Code/Slug</th>
+                  <th style="width:170px;">Department</th>
                   <th style="width:150px;">Deleted</th>
-                  <th style="width:110px;">Sort</th>
                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
               </thead>
               <tbody id="tbody-trash">
-                <tr><td colspan="6" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+                <tr><td colspan="5" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -495,15 +503,38 @@ td.col-slug code{
         <h5 class="modal-title"><i class="fa fa-sliders me-2"></i>Filter</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
+
       <div class="modal-body">
         <div class="row g-3">
           <div class="col-12">
             <label class="form-label">Status</label>
             <select id="modal_status" class="form-select">
               <option value="">All</option>
-              <option value="published">Published</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
               <option value="draft">Draft</option>
               <option value="archived">Archived</option>
+            </select>
+            <div class="form-text">If your Course API uses different status values, adjust these options.</div>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">Department</label>
+            <select id="modal_department" class="form-select">
+              <option value="">All</option>
+            </select>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">Level</label>
+            <select id="modal_level" class="form-select">
+              <option value="">Any</option>
+              <option value="ug">UG</option>
+              <option value="pg">PG</option>
+              <option value="diploma">Diploma</option>
+              <option value="phd">PhD</option>
+              <option value="certificate">Certificate</option>
+              <option value="other">Other</option>
             </select>
           </div>
 
@@ -515,14 +546,13 @@ td.col-slug code{
               <option value="-updated_at">Recently Updated</option>
               <option value="title">Title A-Z</option>
               <option value="-title">Title Z-A</option>
-              <option value="sort_order">Sort Order ↑</option>
-              <option value="-sort_order">Sort Order ↓</option>
-              <option value="-publish_at">Publish At (Desc)</option>
-              <option value="publish_at">Publish At (Asc)</option>
+              <option value="code">Code A-Z</option>
+              <option value="-code">Code Z-A</option>
             </select>
           </div>
         </div>
       </div>
+
       <div class="modal-footer">
         <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
         <button type="button" id="btnApplyFilters" class="btn btn-primary">
@@ -538,7 +568,7 @@ td.col-slug code{
   <div class="modal-dialog modal-xl modal-dialog-centered">
     <form class="modal-content" id="itemForm" autocomplete="off">
       <div class="modal-header">
-        <h5 class="modal-title" id="itemModalTitle">Add Notice</h5>
+        <h5 class="modal-title" id="itemModalTitle">Add Course</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
 
@@ -549,52 +579,54 @@ td.col-slug code{
         <div class="row g-3">
           <div class="col-lg-6">
             <div class="row g-3">
-
-              {{-- ✅ Department dropdown added --}}
-              <div class="col-12">
-                <label class="form-label">Department</label>
-                <select class="form-select" id="department_id">
-                  <option value="">General (No Department)</option>
-                </select>
-                <div class="dept-hint">
-                  <span id="deptDot" class="dept-dot"></span>
-                  <span id="deptHintText">Loading departments…</span>
-                </div>
-              </div>
-
               <div class="col-12">
                 <label class="form-label">Title <span class="text-danger">*</span></label>
-                <input class="form-control" id="title" required maxlength="255" placeholder="e.g., Semester Exam Notice">
+                <input class="form-control" id="title" required maxlength="255" placeholder="e.g., BCA (Bachelor of Computer Applications)">
               </div>
 
-              <div class="col-md-8">
+              <div class="col-md-6">
+                <label class="form-label">Code (optional)</label>
+                <input class="form-control" id="code" maxlength="80" placeholder="e.g., BCA">
+              </div>
+
+              <div class="col-md-6">
                 <label class="form-label">Slug (optional)</label>
-                <input class="form-control" id="slug" maxlength="160" placeholder="semester-exam-notice">
+                <input class="form-control" id="slug" maxlength="160" placeholder="bca">
                 <div class="form-text">Auto-generated from title until you edit this field manually.</div>
               </div>
 
-              <div class="col-md-4">
-                <label class="form-label">Sort Order</label>
-                <input type="number" class="form-control" id="sort_order" min="0" max="1000000" value="0">
+              <div class="col-md-6">
+                <label class="form-label">Department</label>
+                <select id="department_id" class="form-select">
+                  <option value="">Select department</option>
+                </select>
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Level</label>
+                <select id="level" class="form-select">
+                  <option value="ug">UG</option>
+                  <option value="pg">PG</option>
+                  <option value="diploma">Diploma</option>
+                  <option value="phd">PhD</option>
+                  <option value="certificate">Certificate</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Duration (optional)</label>
+                <input class="form-control" id="duration" maxlength="60" placeholder="e.g., 3 Years / 6 Semesters">
               </div>
 
               <div class="col-md-6">
                 <label class="form-label">Status</label>
                 <select class="form-select" id="status">
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
                   <option value="draft">Draft</option>
-                  <option value="published">Published</option>
                   <option value="archived">Archived</option>
                 </select>
-              </div>
-
-              <div class="col-md-6">
-                <label class="form-label">Publish At</label>
-                <input type="datetime-local" class="form-control" id="publish_at">
-              </div>
-
-              <div class="col-md-6">
-                <label class="form-label">Expire At</label>
-                <input type="datetime-local" class="form-control" id="expire_at">
               </div>
 
               <div class="col-12">
@@ -606,7 +638,7 @@ td.col-slug code{
               <div class="col-12">
                 <label class="form-label">Attachments (optional)</label>
                 <input type="file" class="form-control" id="attachments" multiple>
-                <div class="form-text">Optional multiple attachments.</div>
+                <div class="form-text">Optional multiple attachments (syllabus/brochure etc.).</div>
                 <div class="small text-muted mt-2" id="currentAttachmentsInfo" style="display:none;">
                   <i class="fa fa-paperclip me-1"></i>
                   <span id="currentAttachmentsText">—</span>
@@ -616,12 +648,12 @@ td.col-slug code{
           </div>
 
           <div class="col-lg-6">
-            {{-- RTE for Body (HTML allowed) --}}
+            {{-- RTE for Description --}}
             <div class="rte-row">
-              <label class="form-label">Body (HTML allowed) <span class="text-danger">*</span></label>
+              <label class="form-label">Description (HTML allowed) <span class="text-danger">*</span></label>
 
-              <div class="rte-wrap" id="bodyWrap">
-                <div class="rte-toolbar" data-for="body">
+              <div class="rte-wrap" id="descWrap">
+                <div class="rte-toolbar" data-for="description">
                   <button type="button" class="rte-btn" data-cmd="bold" title="Bold"><i class="fa fa-bold"></i></button>
                   <button type="button" class="rte-btn" data-cmd="italic" title="Italic"><i class="fa fa-italic"></i></button>
                   <button type="button" class="rte-btn" data-cmd="underline" title="Underline"><i class="fa fa-underline"></i></button>
@@ -653,14 +685,14 @@ td.col-slug code{
                 </div>
 
                 <div class="rte-area">
-                  <div id="bodyEditor" class="rte-editor" contenteditable="true" data-placeholder="Write notice content…"></div>
-                  <textarea id="bodyCode" class="rte-code" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"
+                  <div id="descEditor" class="rte-editor" contenteditable="true" data-placeholder="Write course description…"></div>
+                  <textarea id="descCode" class="rte-code" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"
                     placeholder="HTML code…"></textarea>
                 </div>
               </div>
 
               <div class="rte-help">Use <b>Text</b> for rich editing or switch to <b>Code</b> to paste HTML.</div>
-              <input type="hidden" id="body" name="body">
+              <input type="hidden" id="description" name="description">
             </div>
 
             {{-- Cover preview --}}
@@ -683,8 +715,8 @@ td.col-slug code{
                 <div class="cover-meta" id="coverMeta" style="display:none;">—</div>
               </div>
             </div>
-
           </div>
+
         </div>
       </div>
 
@@ -721,11 +753,26 @@ td.col-slug code{
 
 <script>
 (() => {
-  if (window.__NOTICES_MODULE_INIT__) return;
-  window.__NOTICES_MODULE_INIT__ = true;
+  if (window.__COURSES_MODULE_INIT__) return;
+  window.__COURSES_MODULE_INIT__ = true;
 
   const $ = (id) => document.getElementById(id);
   const debounce = (fn, ms=300) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
+
+  // =========================
+  // ✅ API Map (edit here if your routes differ)
+  // =========================
+  const API = {
+    me:          () => '/api/users/me',
+    departments: () => '/api/departments', // should return {data:[...]} or [...]
+    list:        () => '/api/courses',
+    create:      () => '/api/courses',
+    update:      (id) => `/api/courses/${encodeURIComponent(id)}`,     // PATCH via _method
+    remove:      (id) => `/api/courses/${encodeURIComponent(id)}`,     // DELETE
+    restore:     (id) => `/api/courses/${encodeURIComponent(id)}/restore`, // POST
+    force:       (id) => `/api/courses/${encodeURIComponent(id)}/force`,   // DELETE
+    toggle:      (id) => `/api/courses/${encodeURIComponent(id)}`
+  };
 
   function esc(str){
     return (str ?? '').toString().replace(/[&<>"']/g, s => ({
@@ -764,8 +811,67 @@ td.col-slug code{
   async function fetchWithTimeout(url, opts={}, ms=15000){
     const ctrl = new AbortController();
     const t = setTimeout(()=>ctrl.abort(), ms);
-    try{ return await fetch(url, { ...opts, signal: ctrl.signal }); }
-    finally{ clearTimeout(t); }
+    try{
+      return await fetch(url, { ...opts, signal: ctrl.signal });
+    } finally {
+      clearTimeout(t);
+    }
+  }
+
+  // ✅ department id must be integer
+  function isIntString(v){
+    return typeof v === 'string' && /^\d+$/.test(v.trim());
+  }
+  function resolveDepartmentId(valueOrUuid, departments){
+    const v = (valueOrUuid ?? '').toString().trim();
+    if (!v) return '';
+    if (isIntString(v)) return v;
+
+    // try map uuid -> integer id
+    const found = (departments || []).find(d => String(d?.uuid) === v);
+    const id = found?.id;
+    return (id !== null && id !== undefined) ? String(id) : '';
+  }
+
+  // ✅ FIX #3: robust level extraction (API key variations / nested objects)
+  function getLevelFromRow(r){
+    let v =
+      r?.level ??
+      r?.course_level ??
+      r?.courseLevel ??
+      r?.course_level_code ??
+      r?.level_code ??
+      r?.level_name ??
+      r?.course_level_name ??
+      r?.program_level ??
+      r?.meta?.level ??
+      r?.meta?.course_level ??
+      r?.metadata?.level ??
+      r?.metadata?.course_level ??
+      '';
+
+    if (v && typeof v === 'object'){
+      v = v.code || v.slug || v.value || v.name || v.title || v.label || '';
+    }
+    return (v ?? '').toString().trim();
+  }
+
+  // ✅ FIX #2: robust duration extraction (API key variations / nested objects)
+  function getDurationFromRow(r){
+    let v =
+      r?.duration ??
+      r?.duration_text ??
+      r?.course_duration ??
+      r?.courseDuration ??
+      r?.duration_label ??
+      r?.meta?.duration ??
+      r?.metadata?.duration ??
+      '';
+
+    if (v && typeof v === 'object'){
+      v = v.text || v.label || v.value || v.name || '';
+    }
+    return (v ?? '').toString().trim();
   }
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -779,7 +885,6 @@ td.col-slug code{
     const toastErrEl = $('toastError');
     const toastOk = toastOkEl ? new bootstrap.Toast(toastOkEl) : null;
     const toastErr = toastErrEl ? new bootstrap.Toast(toastErrEl) : null;
-
     const ok = (m) => { const el=$('toastSuccessText'); if(el) el.textContent=m||'Done'; toastOk && toastOk.show(); };
     const err = (m) => { const el=$('toastErrorText'); if(el) el.textContent=m||'Something went wrong'; toastErr && toastErr.show(); };
 
@@ -788,7 +893,6 @@ td.col-slug code{
       'Accept': 'application/json'
     });
 
-    // Elements
     const perPageSel = $('perPage');
     const searchInput = $('searchInput');
     const btnReset = $('btnReset');
@@ -816,6 +920,8 @@ td.col-slug code{
     const filterModal = filterModalEl ? new bootstrap.Modal(filterModalEl) : null;
     const modalStatus = $('modal_status');
     const modalSort = $('modal_sort');
+    const modalDepartment = $('modal_department');
+    const modalLevel = $('modal_level');
 
     const itemModalEl = $('itemModal');
     const itemModal = itemModalEl ? new bootstrap.Modal(itemModalEl) : null;
@@ -826,18 +932,15 @@ td.col-slug code{
     const itemUuid = $('itemUuid');
     const itemId = $('itemId');
     const titleInput = $('title');
+    const codeInput = $('code');
     const slugInput = $('slug');
-    const sortOrderInput = $('sort_order');
+    const deptSel = $('department_id');
+    const levelSel = $('level');
+    const durationInput = $('duration');
     const statusSel = $('status');
-    const publishAtInput = $('publish_at');
-    const expireAtInput = $('expire_at');
+
     const coverInput = $('cover_image');
     const attachmentsInput = $('attachments');
-
-    // ✅ Department dropdown refs
-    const departmentSel = $('department_id');
-    const deptDot = $('deptDot');
-    const deptHintText = $('deptHintText');
 
     const currentAttachmentsInfo = $('currentAttachmentsInfo');
     const currentAttachmentsText = $('currentAttachmentsText');
@@ -847,10 +950,9 @@ td.col-slug code{
     const coverMeta = $('coverMeta');
     const btnOpenCover = $('btnOpenCover');
 
-    // Permissions
+    // ---------- permissions ----------
     const ACTOR = { role: '' };
     let canCreate=false, canEdit=false, canDelete=false;
-
     function computePermissions(){
       const r = (ACTOR.role || '').toLowerCase();
       const createDeleteRoles = ['admin','super_admin','director','principal'];
@@ -860,10 +962,9 @@ td.col-slug code{
       canEdit   = writeRoles.includes(r);
       if (writeControls) writeControls.style.display = canCreate ? 'flex' : 'none';
     }
-
     async function fetchMe(){
       try{
-        const res = await fetchWithTimeout('/api/users/me', { headers: authHeaders() }, 8000);
+        const res = await fetchWithTimeout(API.me(), { headers: authHeaders() }, 8000);
         if (res.ok){
           const js = await res.json().catch(()=> ({}));
           const role = js?.data?.role || js?.role;
@@ -876,16 +977,16 @@ td.col-slug code{
       computePermissions();
     }
 
-    // State
+    // ---------- state ----------
     const state = {
-      filters: { q:'', status:'', sort:'-created_at' },
+      filters: { q:'', status:'', department:'', level:'', sort:'-updated_at' },
       perPage: parseInt(perPageSel?.value || '20', 10) || 20,
-      departments: [], // ✅ loaded departments
       tabs: {
         active:   { page:1, lastPage:1, items:[] },
         inactive: { page:1, lastPage:1, items:[] },
         trash:    { page:1, lastPage:1, items:[] }
-      }
+      },
+      departments: []
     };
 
     const getTabKey = () => {
@@ -904,17 +1005,19 @@ td.col-slug code{
       const q = (state.filters.q || '').trim();
       if (q) params.set('q', q);
 
-      const s = state.filters.sort || '-created_at';
+      const s = state.filters.sort || '-updated_at';
       params.set('sort', s.startsWith('-') ? s.slice(1) : s);
       params.set('direction', s.startsWith('-') ? 'desc' : 'asc');
 
       if (state.filters.status) params.set('status', state.filters.status);
+      if (state.filters.department) params.set('department', state.filters.department); // keep as-is for your API
+      if (state.filters.level) params.set('level', state.filters.level);
 
       if (tabKey === 'active') params.set('active', '1');
       if (tabKey === 'inactive') params.set('active', '0');
       if (tabKey === 'trash') params.set('only_trashed', '1');
 
-      return `/api/notices?${params.toString()}`;
+      return `${API.list()}?${params.toString()}`;
     }
 
     function setEmpty(tabKey, show){
@@ -922,18 +1025,33 @@ td.col-slug code{
       if (el) el.style.display = show ? '' : 'none';
     }
 
-    function statusBadge(status){
-      const s = (status || '').toString().toLowerCase();
-      if (s === 'published') return `<span class="badge badge-soft-success">Published</span>`;
-      if (s === 'draft') return `<span class="badge badge-soft-warning">Draft</span>`;
+    // ✅ FIX #1: prefer boolean active/is_active for Active/Inactive,
+    // but still show Draft/Archived if present.
+    function statusBadge(status, activeBool){
+      const s = (status || '').toString().toLowerCase().trim();
+
+      if (s === 'draft') return `<span class="badge badge-soft-muted">Draft</span>`;
       if (s === 'archived') return `<span class="badge badge-soft-muted">Archived</span>`;
-      return `<span class="badge badge-soft-muted">${esc(s || '—')}</span>`;
+
+      if (typeof activeBool === 'boolean'){
+        return activeBool
+          ? `<span class="badge badge-soft-success">Active</span>`
+          : `<span class="badge badge-soft-warning">Inactive</span>`;
+      }
+
+      if (s === 'active' || s === 'published') return `<span class="badge badge-soft-success">Active</span>`;
+      if (s === 'inactive') return `<span class="badge badge-soft-warning">Inactive</span>`;
+      if (!s) return `<span class="badge badge-soft-muted">—</span>`;
+      return `<span class="badge badge-soft-muted">${esc(s)}</span>`;
     }
 
-    function coverThumb(url){
-      const u = normalizeUrl(url);
-      if (!u) return `<div class="thumb" title="No cover"><i class="fa-regular fa-image"></i></div>`;
-      return `<div class="thumb" title="Cover"><img src="${esc(u)}" alt="cover"></div>`;
+    function levelBadge(level){
+      const s = (level || '').toString().toLowerCase().trim();
+      const label = s ? s.toUpperCase() : '—';
+      if (['ug','pg','phd'].includes(s)) return `<span class="badge badge-soft-primary">${esc(label)}</span>`;
+      if (s === 'diploma') return `<span class="badge badge-soft-success">DIPLOMA</span>`;
+      if (s === 'certificate') return `<span class="badge badge-soft-warning">CERT</span>`;
+      return `<span class="badge badge-soft-muted">${esc(label)}</span>`;
     }
 
     function renderPager(tabKey){
@@ -959,6 +1077,24 @@ td.col-slug code{
       pagerEl.innerHTML = html;
     }
 
+    function deptNameFromRow(r){
+      const d = r.department || r.dept || null;
+      if (typeof d === 'string') return d;
+      if (d && typeof d === 'object') return d.title || d.name || d.department_name || '—';
+
+      const id = r.department_id || r.dept_id || '';
+      if (!id) return '—';
+
+      const found = state.departments.find(x => String(x.id) === String(id) || String(x.uuid) === String(id));
+      return found ? (found.title || found.name || '—') : '—';
+    }
+
+    function codeSlug(r){
+      const code = r.code || r.course_code || '';
+      const slug = r.slug || r.course_slug || '';
+      return (code || slug || '—');
+    }
+
     function renderTable(tabKey){
       const tbody = tabKey==='active' ? tbodyActive : (tabKey==='inactive' ? tbodyInactive : tbodyTrash);
       const rows = state.tabs[tabKey].items || [];
@@ -973,15 +1109,23 @@ td.col-slug code{
       setEmpty(tabKey, false);
 
       tbody.innerHTML = rows.map(r => {
-        const uuid = r.uuid || '';
-        const title = r.title || '—';
-        const slug = r.slug || '—';
-        const status = r.status || (r.active ? 'published' : 'draft');
-        const publishAt = r.publish_at || '—';
-        const updated = r.updated_at || '—';
+        const uuid = r.uuid || r.id || r.identifier || '';
+        const title = r.title || r.name || r.course_title || '—';
+        const cs = codeSlug(r);
+        const dept = deptNameFromRow(r);
+
+        const activeBool =
+          (typeof r.active === 'boolean') ? r.active :
+          (typeof r.is_active === 'boolean') ? r.is_active :
+          (typeof r.isActive === 'boolean') ? r.isActive :
+          null;
+
+        const status = r.status || '';
+        const level = getLevelFromRow(r);
+        const duration = getDurationFromRow(r) || '—';
+
+        const updated = r.updated_at || r.modified_at || r.updated || '—';
         const deleted = r.deleted_at || '—';
-        const sortOrder = (r.sort_order ?? 0);
-        const coverUrl = r.cover_image_url || r.cover_url || r.cover_image || '';
 
         let actions = `
           <div class="dropdown text-end">
@@ -997,6 +1141,11 @@ td.col-slug code{
 
         if (canEdit && tabKey !== 'trash'){
           actions += `<li><button type="button" class="dropdown-item" data-action="edit"><i class="fa fa-pen-to-square"></i> Edit</button></li>`;
+          if (tabKey === 'active'){
+            actions += `<li><button type="button" class="dropdown-item" data-action="mark_inactive"><i class="fa fa-circle-pause"></i> Mark Inactive</button></li>`;
+          } else if (tabKey === 'inactive'){
+            actions += `<li><button type="button" class="dropdown-item" data-action="mark_active"><i class="fa fa-circle-check"></i> Mark Active</button></li>`;
+          }
         }
 
         if (tabKey !== 'trash'){
@@ -1017,23 +1166,22 @@ td.col-slug code{
         if (tabKey === 'trash'){
           return `
             <tr data-uuid="${esc(uuid)}">
-              <td>${coverThumb(coverUrl)}</td>
               <td class="fw-semibold">${esc(title)}</td>
-              <td class="col-slug"><code>${esc(slug)}</code></td>
-              <td>${esc(deleted)}</td>
-              <td>${esc(String(sortOrder))}</td>
+              <td class="col-code"><code>${esc(cs)}</code></td>
+              <td>${esc(dept)}</td>
+              <td>${esc(String(deleted))}</td>
               <td class="text-end">${actions}</td>
             </tr>`;
         }
 
         return `
           <tr data-uuid="${esc(uuid)}">
-            <td>${coverThumb(coverUrl)}</td>
             <td class="fw-semibold">${esc(title)}</td>
-            <td class="col-slug"><code>${esc(slug)}</code></td>
-            <td>${statusBadge(status)}</td>
-            <td>${esc(String(publishAt))}</td>
-            <td>${esc(String(sortOrder))}</td>
+            <td class="col-code"><code>${esc(cs)}</code></td>
+            <td>${esc(dept)}</td>
+            <td>${statusBadge(status, activeBool)}</td>
+            <td>${levelBadge(level)}</td>
+            <td>${esc(String(duration || '—'))}</td>
             <td>${esc(String(updated))}</td>
             <td class="text-end">${actions}</td>
           </tr>`;
@@ -1045,10 +1193,9 @@ td.col-slug code{
     async function loadTab(tabKey){
       const tbody = tabKey==='active' ? tbodyActive : (tabKey==='inactive' ? tbodyInactive : tbodyTrash);
       if (tbody){
-        const cols = (tabKey==='trash') ? 6 : 8;
+        const cols = (tabKey==='trash') ? 5 : 8;
         tbody.innerHTML = `<tr><td colspan="${cols}" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>`;
       }
-
       try{
         const res = await fetchWithTimeout(buildUrl(tabKey), { headers: authHeaders() }, 15000);
         if (res.status === 401 || res.status === 403) { window.location.href = '/'; return; }
@@ -1056,15 +1203,16 @@ td.col-slug code{
         const js = await res.json().catch(()=> ({}));
         if (!res.ok) throw new Error(js?.message || 'Failed to load');
 
-        const items = Array.isArray(js.data) ? js.data : [];
+        const items = Array.isArray(js.data) ? js.data : (Array.isArray(js) ? js : []);
         const p = js.pagination || js.meta || {};
         state.tabs[tabKey].items = items;
         state.tabs[tabKey].lastPage = parseInt(p.last_page || p.total_pages || 1, 10) || 1;
 
-        const totalText = (p.total ? `${p.total} result(s)` : '—');
-        if (tabKey === 'active' && infoActive) infoActive.textContent = totalText;
-        if (tabKey === 'inactive' && infoInactive) infoInactive.textContent = totalText;
-        if (tabKey === 'trash' && infoTrash) infoTrash.textContent = totalText;
+        const total = p.total ?? p.total_items ?? null;
+        const infoTxt = total !== null ? `${total} result(s)` : '—';
+        if (tabKey === 'active' && infoActive) infoActive.textContent = infoTxt;
+        if (tabKey === 'inactive' && infoInactive) infoInactive.textContent = infoTxt;
+        if (tabKey === 'trash' && infoTrash) infoTrash.textContent = infoTxt;
 
         renderTable(tabKey);
       }catch(e){
@@ -1077,89 +1225,7 @@ td.col-slug code{
 
     function reloadCurrent(){ loadTab(getTabKey()); }
 
-    // ✅ Departments
-    function deptLabel(d){
-      return (d?.title || d?.name || d?.department_title || d?.department_name || d?.label || '').toString().trim()
-        || `Department #${d?.id ?? ''}`;
-    }
-
-    function setDeptHint(stateKey, text){
-      if (deptHintText) deptHintText.textContent = text || '';
-      if (deptDot){
-        deptDot.classList.remove('ok','bad');
-        if (stateKey === 'ok') deptDot.classList.add('ok');
-        else if (stateKey === 'bad') deptDot.classList.add('bad');
-      }
-    }
-
-    function hydrateDeptSelect(selectedValue=''){
-      if (!departmentSel) return;
-      const keepGeneral = departmentSel.querySelector('option[value=""]') ? true : false;
-
-      const options = [];
-      if (keepGeneral){
-        options.push(`<option value="">General (No Department)</option>`);
-      } else {
-        options.push(`<option value="">Select Department</option>`);
-      }
-
-      (state.departments || []).forEach(d => {
-        const id = (d?.id ?? d?.department_id ?? '').toString();
-        if (!id) return;
-        const name = deptLabel(d);
-        options.push(`<option value="${esc(id)}">${esc(name)}</option>`);
-      });
-
-      departmentSel.innerHTML = options.join('');
-      departmentSel.value = (selectedValue ?? '').toString();
-    }
-
-    async function loadDepartments(){
-      if (!departmentSel) return;
-      setDeptHint('', 'Loading departments…');
-      departmentSel.disabled = true;
-
-      const candidates = [
-        '/api/departments?per_page=500&active=1',
-        '/api/departments?per_page=500',
-        '/api/departments'
-      ];
-
-      for (const url of candidates){
-        try{
-          const res = await fetchWithTimeout(url, { headers: authHeaders() }, 12000);
-          if (res.status === 401 || res.status === 403) { window.location.href = '/'; return; }
-          const js = await res.json().catch(()=> ({}));
-          if (!res.ok) continue;
-
-          const items = Array.isArray(js.data) ? js.data : (Array.isArray(js?.departments) ? js.departments : []);
-          if (!Array.isArray(items)) continue;
-
-          state.departments = items
-            .filter(d => (d?.id ?? d?.department_id))
-            .map(d => ({
-              id: d.id ?? d.department_id,
-              title: d.title ?? d.name ?? d.department_title ?? d.department_name ?? d.label ?? ''
-            }))
-            .sort((a,b) => (a.title || '').localeCompare((b.title || ''), undefined, { sensitivity:'base' }));
-
-          hydrateDeptSelect('');
-          departmentSel.disabled = false;
-          setDeptHint('ok', state.departments.length ? `${state.departments.length} department(s) loaded` : 'No departments found');
-          return;
-        }catch(_){
-          // try next candidate
-        }
-      }
-
-      // fallback failed
-      state.departments = [];
-      hydrateDeptSelect('');
-      departmentSel.disabled = false; // allow "General"
-      setDeptHint('bad', 'Could not load departments (still can save as General).');
-    }
-
-    // Pager click
+    // ---------- pager ----------
     document.addEventListener('click', (e) => {
       const a = e.target.closest('a.page-link[data-page]');
       if (!a) return;
@@ -1173,7 +1239,7 @@ td.col-slug code{
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
 
-    // Filters
+    // ---------- filters ----------
     searchInput?.addEventListener('input', debounce(() => {
       state.filters.q = (searchInput.value || '').trim();
       state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
@@ -1187,28 +1253,31 @@ td.col-slug code{
     });
 
     filterModalEl?.addEventListener('show.bs.modal', () => {
-      if (!modalStatus || !modalSort) return;
-      modalStatus.value = state.filters.status || '';
-      modalSort.value = state.filters.sort || '-created_at';
+      if (modalStatus) modalStatus.value = state.filters.status || '';
+      if (modalSort) modalSort.value = state.filters.sort || '-updated_at';
+      if (modalDepartment) modalDepartment.value = state.filters.department || '';
+      if (modalLevel) modalLevel.value = state.filters.level || '';
     });
 
     btnApplyFilters?.addEventListener('click', () => {
       state.filters.status = modalStatus?.value || '';
-      state.filters.sort = modalSort?.value || '-created_at';
+      state.filters.sort = modalSort?.value || '-updated_at';
+      state.filters.department = modalDepartment?.value || '';
+      state.filters.level = modalLevel?.value || '';
       state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
       filterModal && filterModal.hide();
       reloadCurrent();
     });
 
     btnReset?.addEventListener('click', () => {
-      state.filters = { q:'', status:'', sort:'-created_at' };
+      state.filters = { q:'', status:'', department:'', level:'', sort:'-updated_at' };
       state.perPage = 20;
-
       if (searchInput) searchInput.value = '';
       if (perPageSel) perPageSel.value = '20';
       if (modalStatus) modalStatus.value = '';
-      if (modalSort) modalSort.value = '-created_at';
-
+      if (modalDepartment) modalDepartment.value = '';
+      if (modalLevel) modalLevel.value = '';
+      if (modalSort) modalSort.value = '-updated_at';
       state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
       reloadCurrent();
     });
@@ -1217,13 +1286,38 @@ td.col-slug code{
     document.querySelector('a[href="#tab-inactive"]')?.addEventListener('shown.bs.tab', () => loadTab('inactive'));
     document.querySelector('a[href="#tab-trash"]')?.addEventListener('shown.bs.tab', () => loadTab('trash'));
 
-    // -------- RTE --------
+    // ---------- Departments ----------
+    function fillDeptSelects(){
+      // ✅ FIX: use integer id ONLY as value (backend expects integer department_id)
+      const opts = state.departments.map(d => {
+        const id = d?.id; // integer
+        const name = d?.title || d?.name || d?.department_name || '—';
+        if (id === null || id === undefined || String(id).trim() === '') return '';
+        return `<option value="${esc(String(id))}">${esc(String(name))}</option>`;
+      }).join('');
+
+      if (deptSel) deptSel.innerHTML = `<option value="">Select department</option>${opts}`;
+      if (modalDepartment) modalDepartment.innerHTML = `<option value="">All</option>${opts}`;
+    }
+
+    async function loadDepartments(){
+      try{
+        const res = await fetchWithTimeout(API.departments(), { headers: authHeaders() }, 12000);
+        if (!res.ok) return;
+        const js = await res.json().catch(()=> ({}));
+        const rows = Array.isArray(js.data) ? js.data : (Array.isArray(js) ? js : []);
+        state.departments = rows || [];
+        fillDeptSelects();
+      }catch(_){}
+    }
+
+    // ---------- RTE ----------
     const rte = {
-      wrap: $('bodyWrap'),
-      toolbar: document.querySelector('#bodyWrap .rte-toolbar'),
-      editor: $('bodyEditor'),
-      code: $('bodyCode'),
-      hidden: $('body'),
+      wrap: $('descWrap'),
+      toolbar: document.querySelector('#descWrap .rte-toolbar'),
+      editor: $('descEditor'),
+      code: $('descCode'),
+      hidden: $('description'),
       mode: 'text',
       enabled: true
     };
@@ -1302,7 +1396,6 @@ td.col-slug code{
     }
 
     rte.toolbar?.addEventListener('pointerdown', (e) => { e.preventDefault(); });
-
     rte.editor?.addEventListener('input', () => { syncRteToCode(); updateToolbarActive(); });
     ['mouseup','keyup','click'].forEach(ev => rte.editor?.addEventListener(ev, updateToolbarActive));
     document.addEventListener('selectionchange', () => {
@@ -1310,10 +1403,10 @@ td.col-slug code{
     });
 
     document.addEventListener('click', (e) => {
-      const tab = e.target.closest('#bodyWrap .rte-tabs .tab');
+      const tab = e.target.closest('#descWrap .rte-tabs .tab');
       if (tab){ setRteMode(tab.dataset.mode); return; }
 
-      const btn = e.target.closest('#bodyWrap .rte-toolbar .rte-btn');
+      const btn = e.target.closest('#descWrap .rte-toolbar .rte-btn');
       if (!btn || rte.mode !== 'text' || !rte.enabled) return;
 
       rteFocus();
@@ -1375,7 +1468,7 @@ td.col-slug code{
       });
     }
 
-    // -------- cover preview --------
+    // ---------- cover preview ----------
     let coverObjectUrl = null;
 
     function clearCoverPreview(revoke=true){
@@ -1435,7 +1528,7 @@ td.col-slug code{
       if (currentAttachmentsText) currentAttachmentsText.textContent = `${files.length} selected`;
     });
 
-    // -------- modal helpers --------
+    // ---------- modal helpers ----------
     let saving = false;
     let slugDirty = false;
     let settingSlug = false;
@@ -1446,26 +1539,12 @@ td.col-slug code{
       btn.classList.toggle('btn-loading', !!loading);
     }
 
-    function normalizeAttachments(r){
-      let a = r?.attachments || r?.attachments_json || r?.attachments_list || null;
-      if (typeof a === 'string') { try{ a = JSON.parse(a); }catch(_){ a=null; } }
-      return Array.isArray(a) ? a : [];
-    }
-
     function resetForm(){
       itemForm?.reset();
       itemUuid.value = '';
       itemId.value = '';
-
       slugDirty = false;
       settingSlug = false;
-
-      // ✅ reset department
-      if (departmentSel){
-        departmentSel.value = '';
-        // if departments already loaded, keep them; otherwise still show General
-        if (state.departments?.length) hydrateDeptSelect('');
-      }
 
       if (rte.editor) rte.editor.innerHTML = '';
       if (rte.code) rte.code.value = '';
@@ -1492,37 +1571,37 @@ td.col-slug code{
       }
     }
 
-    function toLocal(s){
-      if (!s) return '';
-      const t = String(s).replace(' ', 'T');
-      return t.length >= 16 ? t.slice(0,16) : t;
-    }
-
     function fillFormFromRow(r, viewOnly=false){
-      itemUuid.value = r.uuid || '';
+      itemUuid.value = r.uuid || r.id || r.identifier || '';
       itemId.value = r.id || '';
 
-      // ✅ set department_id (supports nested department too)
-      const deptId = (r.department_id ?? r?.department?.id ?? r?.department?.department_id ?? '').toString();
-      if (departmentSel){
-        if (state.departments?.length) hydrateDeptSelect(deptId);
-        departmentSel.value = deptId;
-      }
+      titleInput.value = r.title || r.name || '';
+      codeInput.value = r.code || r.course_code || '';
+      slugInput.value = r.slug || r.course_slug || '';
 
-      titleInput.value = r.title || '';
-      slugInput.value = r.slug || '';
-      sortOrderInput.value = String(r.sort_order ?? 0);
+      // ✅ FIX: always set department select to INTEGER ID
+      const rawDid = r.department_id || r.dept_id || r.department?.id || r.department?.uuid || '';
+      const did = resolveDepartmentId(String(rawDid || ''), state.departments);
+      if (deptSel) deptSel.value = did ? String(did) : '';
 
-      statusSel.value = (r.status || (r.active ? 'published' : 'draft') || 'draft');
-      publishAtInput.value = toLocal(r.publish_at);
-      expireAtInput.value = toLocal(r.expire_at);
+      // ✅ FIX #3: use robust getter so value actually appears in edit modal
+      const lvl = getLevelFromRow(r) || 'ug';
+      levelSel.value = lvl.toString().toLowerCase();
 
-      const bodyHtml = (r.body ?? r.body_html ?? r.body_content ?? '') || '';
-      if (rte.editor) rte.editor.innerHTML = ensurePreHasCode(bodyHtml);
+      // ✅ FIX #2: use robust getter so duration appears; also helps edits
+      durationInput.value = getDurationFromRow(r) || '';
+
+      const st = (r.status || '').toString().toLowerCase().trim();
+      if (st) statusSel.value = st;
+      else if (typeof r.active === 'boolean') statusSel.value = r.active ? 'active' : 'inactive';
+      else if (typeof r.is_active === 'boolean') statusSel.value = r.is_active ? 'active' : 'inactive';
+
+      const descHtml = (r.description ?? r.description_html ?? r.body ?? r.about ?? '') || '';
+      if (rte.editor) rte.editor.innerHTML = ensurePreHasCode(descHtml);
       syncRteToCode();
       setRteMode('text');
 
-      const coverUrl = r.cover_image_url || r.cover_url || r.cover_image || '';
+      const coverUrl = r.cover_image_url || r.cover_url || r.cover_image || r.image_url || '';
       if (coverUrl){
         const meta = r.cover_original_name ? `${r.cover_original_name}${r.cover_file_size ? ' • ' + bytes(r.cover_file_size) : ''}` : '';
         clearCoverPreview(true);
@@ -1531,7 +1610,10 @@ td.col-slug code{
         clearCoverPreview(true);
       }
 
-      const atts = normalizeAttachments(r);
+      let atts = r.attachments || r.attachments_json || r.attachments_list || null;
+      if (typeof atts === 'string') { try{ atts = JSON.parse(atts); }catch(_){ atts=null; } }
+      atts = Array.isArray(atts) ? atts : [];
+
       if (atts.length){
         if (currentAttachmentsInfo) currentAttachmentsInfo.style.display = '';
         if (currentAttachmentsText) currentAttachmentsText.textContent = `${atts.length} file(s) attached`;
@@ -1567,9 +1649,10 @@ td.col-slug code{
         ...(state.tabs.inactive.items || []),
         ...(state.tabs.trash.items || []),
       ];
-      return all.find(x => x?.uuid === uuid) || null;
+      return all.find(x => String(x?.uuid || x?.id || x?.identifier) === String(uuid)) || null;
     }
 
+    // auto slug while creating
     titleInput?.addEventListener('input', debounce(() => {
       if (itemForm?.dataset.mode === 'view') return;
       if (itemUuid.value) return;
@@ -1589,7 +1672,7 @@ td.col-slug code{
     btnAddItem?.addEventListener('click', () => {
       if (!canCreate) return;
       resetForm();
-      if (itemModalTitle) itemModalTitle.textContent = 'Add Notice';
+      if (itemModalTitle) itemModalTitle.textContent = 'Add Course';
       itemForm.dataset.intent = 'create';
       itemModal && itemModal.show();
     });
@@ -1598,7 +1681,42 @@ td.col-slug code{
       if (coverObjectUrl){ try{ URL.revokeObjectURL(coverObjectUrl); }catch(_){ } coverObjectUrl=null; }
     });
 
-    // Row actions
+    // ---------- row actions ----------
+    // ✅ FIX #1: backend likely validates "status" enum (and doesn't allow "inactive").
+    // So: for active/inactive toggle we update only active/is_active, and (optionally) keep existing status.
+    async function toggleActive(uuid, makeActive, row=null){
+      const fd = new FormData();
+      fd.append('_method', 'PATCH');
+
+      const v = makeActive ? '1' : '0';
+      fd.append('active', v);
+      fd.append('is_active', v);     // extra compatibility
+      fd.append('isActive', v);      // extra compatibility
+
+      // keep existing allowed status (draft/archived/active etc.), but never send "inactive"
+      const rowStatus = (row?.status || '').toString().toLowerCase().trim();
+      if (rowStatus && rowStatus !== 'inactive') {
+        fd.append('status', rowStatus);
+      }
+
+      showLoading(true);
+      try{
+        const res = await fetchWithTimeout(API.toggle(uuid), {
+          method: 'POST',
+          headers: authHeaders(),
+          body: fd
+        }, 15000);
+        const js = await res.json().catch(()=> ({}));
+        if (!res.ok || js.success === false) throw new Error(js?.message || 'Update failed');
+        ok(makeActive ? 'Marked active' : 'Marked inactive');
+        await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
+      }catch(ex){
+        err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
+      }finally{
+        showLoading(false);
+      }
+    }
+
     document.addEventListener('click', async (e) => {
       const btn = e.target.closest('button[data-action]');
       if (!btn) return;
@@ -1610,23 +1728,48 @@ td.col-slug code{
 
       const row = findRowByUuid(uuid);
 
-      // close dropdown (bootstrap-managed)
       const toggle = btn.closest('.dropdown')?.querySelector('.dd-toggle');
       if (toggle) { try { bootstrap.Dropdown.getOrCreateInstance(toggle).hide(); } catch (_) {} }
 
       if (act === 'view' || act === 'edit'){
         if (act === 'edit' && !canEdit) return;
         resetForm();
-        if (itemModalTitle) itemModalTitle.textContent = act === 'view' ? 'View Notice' : 'Edit Notice';
+        if (itemModalTitle) itemModalTitle.textContent = act === 'view' ? 'View Course' : 'Edit Course';
         fillFormFromRow(row || {}, act === 'view');
         itemModal && itemModal.show();
+        return;
+      }
+
+      if (act === 'mark_inactive'){
+        if (!canEdit) return;
+        const conf = await Swal.fire({
+          title: 'Mark this course inactive?',
+          icon: 'question',
+          showCancelButton: true,
+          confirmButtonText: 'Mark Inactive'
+        });
+        if (!conf.isConfirmed) return;
+        await toggleActive(uuid, false, row);
+        return;
+      }
+
+      if (act === 'mark_active'){
+        if (!canEdit) return;
+        const conf = await Swal.fire({
+          title: 'Mark this course active?',
+          icon: 'question',
+          showCancelButton: true,
+          confirmButtonText: 'Mark Active'
+        });
+        if (!conf.isConfirmed) return;
+        await toggleActive(uuid, true, row);
         return;
       }
 
       if (act === 'delete'){
         if (!canDelete) return;
         const conf = await Swal.fire({
-          title: 'Delete this notice?',
+          title: 'Delete this course?',
           text: 'This will move the item to Trash.',
           icon: 'warning',
           showCancelButton: true,
@@ -1637,7 +1780,7 @@ td.col-slug code{
 
         showLoading(true);
         try{
-          const res = await fetchWithTimeout(`/api/notices/${encodeURIComponent(uuid)}`, {
+          const res = await fetchWithTimeout(API.remove(uuid), {
             method: 'DELETE',
             headers: authHeaders()
           }, 15000);
@@ -1665,7 +1808,7 @@ td.col-slug code{
 
         showLoading(true);
         try{
-          const res = await fetchWithTimeout(`/api/notices/${encodeURIComponent(uuid)}/restore`, {
+          const res = await fetchWithTimeout(API.restore(uuid), {
             method: 'POST',
             headers: authHeaders()
           }, 15000);
@@ -1687,7 +1830,7 @@ td.col-slug code{
 
         const conf = await Swal.fire({
           title: 'Delete permanently?',
-          text: 'This cannot be undone (files will be removed).',
+          text: 'This cannot be undone (files may be removed).',
           icon: 'warning',
           showCancelButton: true,
           confirmButtonText: 'Delete Permanently',
@@ -1697,7 +1840,7 @@ td.col-slug code{
 
         showLoading(true);
         try{
-          const res = await fetchWithTimeout(`/api/notices/${encodeURIComponent(uuid)}/force`, {
+          const res = await fetchWithTimeout(API.force(uuid), {
             method: 'DELETE',
             headers: authHeaders()
           }, 15000);
@@ -1715,7 +1858,7 @@ td.col-slug code{
       }
     });
 
-    // Submit create/edit
+    // ---------- submit (create/edit) ----------
     itemForm?.addEventListener('submit', async (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -1732,39 +1875,69 @@ td.col-slug code{
         if (!isEdit && !canCreate) return;
 
         const title = (titleInput.value || '').trim();
+        const code = (codeInput.value || '').trim();
         const slug = (slugInput.value || '').trim();
-        const status = (statusSel.value || 'draft').trim();
-        const sortOrder = String(parseInt(sortOrderInput.value || '0', 10) || 0);
 
-        const rawBody = (rte.mode === 'code') ? (rte.code.value || '') : (rte.editor.innerHTML || '');
-        const cleanBody = ensurePreHasCode(rawBody).trim();
-        if (rte.hidden) rte.hidden.value = cleanBody;
+        // ✅ ensure department_id is integer
+        const deptRaw = (deptSel?.value || '').trim();
+        const deptId = resolveDepartmentId(deptRaw, state.departments);
+
+        const level = (levelSel?.value || 'ug').trim();
+
+        // ✅ FIX #2: send duration with multiple common keys (API variations)
+        const duration = (durationInput.value || '').trim();
+
+        // ✅ FIX #1: if UI selected "inactive", do NOT send status=inactive (often fails validation).
+        const statusUi = (statusSel.value || 'active').trim().toLowerCase();
+        const activeVal = (statusUi === 'inactive') ? '0' : '1';
+
+        // keep existing status if editing and user picked "inactive" (so backend enum stays valid)
+        const existingRow = isEdit ? findRowByUuid(itemUuid.value) : null;
+        const existingStatus = (existingRow?.status || 'active').toString().trim().toLowerCase();
+        const statusToSend = (statusUi === 'inactive')
+          ? (existingStatus && existingStatus !== 'inactive' ? existingStatus : 'active')
+          : statusUi;
+
+        const rawDesc = (rte.mode === 'code') ? (rte.code.value || '') : (rte.editor.innerHTML || '');
+        const cleanDesc = ensurePreHasCode(rawDesc).trim();
+        if (rte.hidden) rte.hidden.value = cleanDesc;
 
         if (!title){ err('Title is required'); titleInput.focus(); return; }
-        if (!cleanBody){ err('Body is required'); rteFocus(); return; }
+        if (!cleanDesc){ err('Description is required'); rteFocus(); return; }
 
         const fd = new FormData();
-
-        // ✅ department_id included
-        const deptId = (departmentSel?.value || '').toString().trim();
-        if (deptId) fd.append('department_id', deptId);
-
         fd.append('title', title);
+        if (code) fd.append('code', code);
         if (slug) fd.append('slug', slug);
-        fd.append('status', status);
-        fd.append('sort_order', sortOrder);
-        if ((publishAtInput.value || '').trim()) fd.append('publish_at', publishAtInput.value);
-        if ((expireAtInput.value || '').trim()) fd.append('expire_at', expireAtInput.value);
-        fd.append('body', cleanBody);
+
+        // ✅ send integer only
+        if (deptId) fd.append('department_id', String(parseInt(deptId, 10)));
+
+        fd.append('level', level);
+
+        // ✅ FIX #2: duration key compatibility
+        if (duration){
+          fd.append('duration', duration);
+          fd.append('duration_text', duration);
+          fd.append('course_duration', duration);
+          fd.append('courseDuration', duration);
+        }
+
+        // ✅ FIX #1: status + active handling
+        if (statusToSend) fd.append('status', statusToSend);
+        fd.append('active', activeVal);
+        fd.append('is_active', activeVal);
+        fd.append('isActive', activeVal);
+
+        fd.append('description', cleanDesc);
+        fd.append('body', cleanDesc);
 
         const cover = coverInput.files?.[0] || null;
         if (cover) fd.append('cover_image', cover);
+
         Array.from(attachmentsInput.files || []).forEach(f => fd.append('attachments[]', f));
 
-        const url = isEdit
-          ? `/api/notices/${encodeURIComponent(itemUuid.value)}`
-          : `/api/notices`;
-
+        const url = isEdit ? API.update(itemUuid.value) : API.create();
         if (isEdit) fd.append('_method', 'PATCH');
 
         setBtnLoading(saveBtn, true);
@@ -1800,15 +1973,12 @@ td.col-slug code{
       }
     });
 
-    // Init
+    // ---------- init ----------
     (async () => {
       showLoading(true);
       try{
         await fetchMe();
-
-        // ✅ load departments before modals are used (create/edit/view)
         await loadDepartments();
-
         await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
       }catch(ex){
         err(ex?.message || 'Initialization failed');

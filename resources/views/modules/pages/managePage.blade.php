@@ -318,7 +318,7 @@
   /* ================= ACTIONS ================= */
 
 window.editPage = id =>
-  location.href = `/department-pages/create?id=${id}`;
+  location.href = `/pages/create?id=${id}`;
 
   window.archivePage = id => {
     Swal.fire({
@@ -374,7 +374,7 @@ window.editPage = id =>
   };
 
   document.getElementById('btnCreate').onclick =
-    () => location.href='/department-pages/create';
+    () => location.href='/pages/create';
 
   document.querySelector('a[href="#tab-archived"]')
     .addEventListener('shown.bs.tab', loadArchived);

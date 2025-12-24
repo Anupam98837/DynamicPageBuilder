@@ -2,7 +2,6 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-
 use App\Http\Controllers\API\UserController;
 use App\Http\Controllers\API\ForgotPasswordController;
 use App\Http\Controllers\API\PrivilegeController;
@@ -27,6 +26,9 @@ use App\Http\Controllers\API\CurriculumSyllabusController;
 use App\Http\Controllers\API\AnnouncementController;
 use App\Http\Controllers\API\AchievementController;
 use App\Http\Controllers\API\NoticeController;
+use App\Http\Controllers\API\StudentActivityController;
+use App\Http\Controllers\API\GalleryController;
+use App\Http\Controllers\API\CourseController;
 
 
 /*
@@ -815,4 +817,118 @@ Route::prefix('public')->group(function () {
     Route::get('/notices/{identifier}', [NoticeController::class, 'publicShow']);
 
     Route::get('/departments/{department}/notices', [NoticeController::class, 'publicIndexByDepartment']);
+});
+
+
+/*
+|--------------------------------------------------------------------------
+| Student Activities Routes
+|--------------------------------------------------------------------------
+*/
+
+// Read-only (authenticated)
+Route::middleware('checkRole')->group(function () {
+    Route::get('/student-activities',              [StudentActivityController::class, 'index']);
+    Route::get('/student-activities/{identifier}', [StudentActivityController::class, 'show']);
+
+    Route::get('/departments/{department}/student-activities',              [StudentActivityController::class, 'indexByDepartment']);
+    Route::get('/departments/{department}/student-activities/{identifier}', [StudentActivityController::class, 'showByDepartment']);
+});
+
+// Modify (authenticated role-based)
+Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+    Route::post('/student-activities', [StudentActivityController::class, 'store']);
+    Route::post('/departments/{department}/student-activities', [StudentActivityController::class, 'storeForDepartment']);
+
+    Route::get('/student-activities-trash', [StudentActivityController::class, 'trash']);
+
+    Route::put('/student-activities/{identifier}', [StudentActivityController::class, 'update']);
+
+    Route::post('/student-activities/{identifier}/toggle-featured', [StudentActivityController::class, 'toggleFeatured']);
+
+    Route::delete('/student-activities/{identifier}', [StudentActivityController::class, 'destroy']);
+    Route::post('/student-activities/{identifier}/restore', [StudentActivityController::class, 'restore']);
+    Route::delete('/student-activities/{identifier}/force', [StudentActivityController::class, 'forceDelete']);
+});
+
+// Public (no auth)
+Route::get('/public/student-activities',              [StudentActivityController::class, 'publicIndex']);
+Route::get('/public/student-activities/{identifier}', [StudentActivityController::class, 'publicShow']);
+Route::get('/public/departments/{department}/student-activities', [StudentActivityController::class, 'publicIndexByDepartment']);
+
+
+
+/*
+|--------------------------------------------------------------------------
+| Gallery Routes
+|--------------------------------------------------------------------------
+*/
+
+// Public (no auth)
+Route::get('/public/gallery',                          [GalleryController::class, 'publicIndex']);
+Route::get('/public/departments/{department}/gallery', [GalleryController::class, 'publicIndexByDepartment']);
+Route::get('/public/gallery/{identifier}',             [GalleryController::class, 'publicShow']);
+
+// Read-only (authenticated)
+Route::middleware('checkRole')->group(function () {
+    Route::get('/gallery',              [GalleryController::class, 'index']);
+    Route::get('/gallery/{identifier}', [GalleryController::class, 'show']);
+
+    Route::get('/departments/{department}/gallery',              [GalleryController::class, 'indexByDepartment']);
+    Route::get('/departments/{department}/gallery/{identifier}', [GalleryController::class, 'showByDepartment']);
+});
+
+// Modify (authenticated role-based)
+Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+    Route::post('/gallery', [GalleryController::class, 'store']);
+    Route::post('/departments/{department}/gallery', [GalleryController::class, 'storeForDepartment']);
+
+    Route::get('/gallery-trash', [GalleryController::class, 'trash']);
+
+    Route::put('/gallery/{identifier}', [GalleryController::class, 'update']);
+
+    Route::patch('/gallery/{identifier}/toggle-featured', [GalleryController::class, 'toggleFeatured']);
+
+    Route::delete('/gallery/{identifier}', [GalleryController::class, 'destroy']);
+    Route::post('/gallery/{identifier}/restore', [GalleryController::class, 'restore']);
+    Route::delete('/gallery/{identifier}/force-delete', [GalleryController::class, 'forceDelete']);
+});
+
+
+/*
+|--------------------------------------------------------------------------
+| Courses Routes
+|--------------------------------------------------------------------------
+*/
+
+// Read-only (authenticated)
+Route::middleware('checkRole')->group(function () {
+    Route::get('/courses',                 [CourseController::class, 'index']);
+    Route::get('/courses/{identifier}',    [CourseController::class, 'show']);
+
+    Route::get('/departments/{department}/courses',              [CourseController::class, 'indexByDepartment']);
+    Route::get('/departments/{department}/courses/{identifier}', [CourseController::class, 'showByDepartment']);
+});
+
+// Modify (authenticated role-based)
+Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+    Route::post('/courses', [CourseController::class, 'store']);
+    Route::post('/departments/{department}/courses', [CourseController::class, 'storeForDepartment']);
+
+    Route::get('/courses-trash', [CourseController::class, 'trash']);
+
+    Route::match(['put','patch'], '/courses/{identifier}', [CourseController::class, 'update']);
+    Route::patch('/courses/{identifier}/toggle-featured',  [CourseController::class, 'toggleFeatured']);
+
+    Route::delete('/courses/{identifier}',       [CourseController::class, 'destroy']);
+    Route::post('/courses/{identifier}/restore', [CourseController::class, 'restore']);
+    Route::delete('/courses/{identifier}/force', [CourseController::class, 'forceDelete']);
+});
+
+// Public (no auth)
+Route::prefix('public')->group(function () {
+    Route::get('/courses',              [CourseController::class, 'publicIndex']);
+    Route::get('/courses/{identifier}', [CourseController::class, 'publicShow']);
+
+    Route::get('/departments/{department}/courses', [CourseController::class, 'publicIndexByDepartment']);
 });

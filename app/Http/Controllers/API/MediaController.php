@@ -9,42 +9,50 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\File;
+use App\Models\User;
 
 class MediaController extends Controller
 {
     /**
      * Extract authenticated user ID from Bearer token.
      */
-    private function getAuthenticatedUserId(Request $request)
-    {
-        $header = $request->header('Authorization');
-        if (! $header || ! preg_match('/Bearer\s(\S+)/', $header, $m)) {
-            Log::warning('Authorization header missing or malformed');
-            abort(response()->json([
-                'status'  => 'error',
-                'message' => 'Token not provided',
-            ], 401));
-        }
+   private function getAuthenticatedUserId(Request $request)
+{
+    $header = $request->header('Authorization');
 
-        $tokenHash = hash('sha256', $m[1]);
-        Log::info('Looking up personal_access_token', ['token_hash' => $tokenHash]);
-
-        $record = DB::table('personal_access_tokens')
-            ->where('token', $tokenHash)
-            ->where('tokenable_type', 'user')
-            ->first();
-
-        if (! $record) {
-            Log::warning('Invalid personal_access_token', ['token_hash' => $tokenHash]);
-            abort(response()->json([
-                'status'  => 'error',
-                'message' => 'Invalid token',
-            ], 401));
-        }
-
-        Log::info('Authenticated user', ['user_id' => $record->tokenable_id]);
-        return $record->tokenable_id;
+    if (!$header || !preg_match('/Bearer\s(\S+)/', $header, $m)) {
+        return response()->json([
+            'status'  => 'error',
+            'message' => 'Token not provided',
+        ], 401)->throwResponse();
     }
+
+    $bearer = trim($m[1]);
+
+    // ✅ Sanctum tokens are like: "id|plainTextToken"
+    $plainToken = $bearer;
+    if (str_contains($bearer, '|')) {
+        [, $plainToken] = explode('|', $bearer, 2);
+    }
+
+    $tokenHash = hash('sha256', $plainToken);
+
+    $record = DB::table('personal_access_tokens')
+        ->where('token', $tokenHash)
+        // ✅ Sanctum stores tokenable_type as full class name
+        ->where('tokenable_type', User::class)
+        ->first();
+
+    if (!$record) {
+        return response()->json([
+            'status'  => 'error',
+            'message' => 'Invalid token',
+        ], 401)->throwResponse();
+    }
+
+    return (int) $record->tokenable_id;
+}
+
 
     /**
      * GET /api/media

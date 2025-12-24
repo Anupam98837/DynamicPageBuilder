@@ -425,11 +425,13 @@ td .fw-semibold{color:var(--ink)}
 
         <div class="row g-3">
 
+          {{-- ✅ Department dropdown (title/name) for Create + Edit (and we now ALWAYS send department_id on save) --}}
           <div class="col-md-6">
             <label class="form-label">Department</label>
             <select class="form-select" id="department_id">
               <option value="">Global (no department)</option>
             </select>
+            <div class="form-text">Choose a department (optional). Options show department <b>title/name</b>.</div>
           </div>
 
           <div class="col-md-3 d-flex align-items-end">
@@ -764,6 +766,9 @@ document.addEventListener('DOMContentLoaded', function () {
     button.classList.toggle('btn-loading', !!loading);
   }
 
+  // ✅ Departments index to resolve edit payload shapes (id/uuid/slug → id)
+  const DEPT_INDEX = new Map(); // key:string -> id:string
+
   // State
   const state = {
     items: [],
@@ -1020,14 +1025,32 @@ document.addEventListener('DOMContentLoaded', function () {
     const rows = Array.isArray(js.data) ? js.data : (Array.isArray(js) ? js : []);
     const items = rows.filter(d => !d.deleted_at);
 
+    // ✅ Only show title/name in dropdown text (fallback to Department #id)
+    const label = (d) => {
+      const t = (d?.title || '').toString().trim();
+      const n = (d?.name || '').toString().trim();
+      return t || n || (`Department #${d?.id ?? ''}`.trim());
+    };
+
+    // ✅ build index for edit payload shapes (id/uuid/slug → id)
+    DEPT_INDEX.clear();
+    items.forEach(d=>{
+      const id = (d?.id ?? '').toString();
+      if(id) DEPT_INDEX.set(id, id);
+      const uuid = (d?.uuid ?? '').toString().trim();
+      if(uuid) DEPT_INDEX.set(uuid, id);
+      const slug = (d?.slug ?? '').toString().trim();
+      if(slug) DEPT_INDEX.set(slug, id);
+    });
+
     // filter modal
     modalDept.innerHTML = `<option value="">All</option>` + items.map(d =>
-      `<option value="${escapeHtml(String(d.id))}">${escapeHtml(d.title || d.name || d.slug || ('Dept #' + d.id))}</option>`
+      `<option value="${escapeHtml(String(d.id))}">${escapeHtml(label(d))}</option>`
     ).join('');
 
     // form select
     department_id.innerHTML = `<option value="">Global (no department)</option>` + items.map(d =>
-      `<option value="${escapeHtml(String(d.id))}">${escapeHtml(d.title || d.name || d.slug || ('Dept #' + d.id))}</option>`
+      `<option value="${escapeHtml(String(d.id))}">${escapeHtml(label(d))}</option>`
     ).join('');
   }
 
@@ -1155,7 +1178,20 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function fillForm(r){
     achIdentifier.value = r.uuid || r.id || r.slug || '';
-    department_id.value = r.department_id ? String(r.department_id) : '';
+
+    // ✅ Robust department selection for edit/view:
+    // Support shapes: department_id, department.id, department.uuid, department_slug, etc.
+    const rawDept =
+      (r.department_id ?? r.departmentId ?? '') ||
+      (r.department?.id ?? '') ||
+      (r.department_uuid ?? '') ||
+      (r.department?.uuid ?? '') ||
+      (r.department_slug ?? '') ||
+      (r.department?.slug ?? '');
+
+    const resolvedDeptId = rawDept ? (DEPT_INDEX.get(String(rawDept)) || String(rawDept)) : '';
+    department_id.value = resolvedDeptId || '';
+
     is_featured_home.checked = ((+r.is_featured_home) === 1);
 
     title.value = r.title || '';
@@ -1542,11 +1578,13 @@ document.addEventListener('DOMContentLoaded', function () {
     catch(ex){ err(ex.message); metadata.focus(); return; }
 
     const isEdit = !!achIdentifier.value;
-    const dept = (department_id.value || '').trim();
+
+    // ✅ selected department (id) from dropdown
+    const deptId = (department_id.value || '').trim();
 
     const endpoint = isEdit
       ? API.update(achIdentifier.value)
-      : (dept ? API.storeForDept(dept) : API.store);
+      : (deptId ? API.storeForDept(deptId) : API.store);
 
     try{
       setButtonLoading(saveBtn, true);
@@ -1554,9 +1592,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
       const fd = new FormData();
 
-      // If creating and you selected department but endpoint is /departments/{department}/achievements,
-      // the controller should set department_id automatically. Still send department_id for safety on non-dept endpoint.
-      if(!dept && department_id.value) fd.append('department_id', department_id.value);
+      // ✅ FIX: department_id was missing in payload (edit + create-by-dept).
+      // Always send department_id when selected; backend can ignore if route-based.
+      if(deptId) fd.append('department_id', deptId);
 
       fd.append('title', title.value.trim());
 
@@ -1631,12 +1669,6 @@ document.addEventListener('DOMContentLoaded', function () {
       cleanupModalBackdrops();
     }
   });
-
-  // ✅ Department filter should use dept endpoints
-  // (also keeps selected department for "view/show" calls)
-  const onDeptChange = () => {
-    state.department = (modalDept.value || '').trim();
-  };
 
   // init
   (async ()=>{

@@ -281,6 +281,19 @@
     <a href="/department/announcements" class="w3-link">Announcements</a>
     <a href="/department/achievements" class="w3-link">Achievements</a>
     <a href="/department/notices" class="w3-link">Notices</a>
+    <a href="/department/student-activities" class="w3-link">Student Activities</a>
+    <a href="/department/gallery" class="w3-link">Gallery</a>
+  </div>
+</div>
+
+<!-- Courses -->
+<div class="w3-group">
+  <a href="#" class="w3-link w3-toggle" data-target="sm-courses" aria-expanded="false">
+    <i class="fa-solid fa-book-open-reader"></i><span>Courses</span>
+    <i class="fa fa-chevron-down w3-chev"></i>
+  </a>
+  <div id="sm-courses" class="w3-submenu" role="group" aria-label="Courses submenu">
+    <a href="/course/manage" class="w3-link">Manage Courses</a>
   </div>
 </div>
 

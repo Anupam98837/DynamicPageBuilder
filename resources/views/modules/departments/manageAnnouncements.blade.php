@@ -584,6 +584,16 @@ td.col-slug code{
                 <input type="number" class="form-control" id="sort_order" min="0" max="1000000" value="0">
               </div>
 
+              {{-- ✅ Department dropdown (create/edit/view) --}}
+              <div class="col-12">
+                <label class="form-label">Department (optional)</label>
+                <select class="form-select" id="department_id">
+                  <option value="">General (All Departments)</option>
+                  <option value="" disabled>Loading departments…</option>
+                </select>
+                <div class="form-text">Choose a department to make this announcement department-specific (or keep General).</div>
+              </div>
+
               <div class="col-md-6">
                 <label class="form-label">Status</label>
                 <select class="form-select" id="status">
@@ -844,6 +854,7 @@ td.col-slug code{
     const titleInput = $('title');
     const slugInput = $('slug');
     const sortOrderInput = $('sort_order');
+    const departmentSel = $('department_id'); // ✅ NEW
     const statusSel = $('status');
     const featuredSel = $('is_featured_home');
     const publishAtInput = $('publish_at');
@@ -894,8 +905,137 @@ td.col-slug code{
         active:   { page:1, lastPage:1, items:[] },
         inactive: { page:1, lastPage:1, items:[] },
         trash:    { page:1, lastPage:1, items:[] }
-      }
+      },
+      departments: [],           // ✅ NEW
+      departmentsLoaded: false   // ✅ NEW
     };
+
+    // ---------- departments (for department_id dropdown) ----------
+    function pickDeptLabel(d){
+      return (d?.title || d?.name || d?.department_title || d?.department_name || d?.label || '').toString().trim();
+    }
+    function pickDeptId(d){
+      const id = d?.id ?? d?.department_id ?? d?.dept_id ?? null;
+      return (id === null || id === undefined) ? '' : String(id);
+    }
+
+    function renderDepartmentsOptions(selectedValue=''){
+      if (!departmentSel) return;
+
+      const opts = [];
+      opts.push(`<option value="">General (All Departments)</option>`);
+
+      if (!state.departmentsLoaded){
+        opts.push(`<option value="" disabled>Loading departments…</option>`);
+        departmentSel.innerHTML = opts.join('');
+        departmentSel.value = selectedValue || '';
+        return;
+      }
+
+      if (!state.departments.length){
+        opts.push(`<option value="" disabled>No departments found</option>`);
+        departmentSel.innerHTML = opts.join('');
+        departmentSel.value = selectedValue || '';
+        return;
+      }
+
+      for (const d of state.departments){
+        const id = pickDeptId(d);
+        const label = pickDeptLabel(d) || ('Department #' + id);
+        opts.push(`<option value="${esc(id)}">${esc(label)}</option>`);
+      }
+      departmentSel.innerHTML = opts.join('');
+      departmentSel.value = (selectedValue ?? '').toString();
+    }
+
+    function ensureDeptOptionExists(deptId, deptName){
+      if (!departmentSel) return;
+      const id = (deptId ?? '').toString();
+      if (!id) return;
+
+      const exists = Array.from(departmentSel.options || []).some(o => (o.value || '') === id);
+      if (exists) return;
+
+      const label = (deptName || '').toString().trim() || ('Department #' + id);
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = label;
+
+      // insert after "General" option (index 0)
+      const insertAt = Math.min(1, departmentSel.options.length);
+      departmentSel.add(opt, departmentSel.options[insertAt] || null);
+    }
+
+    async function fetchDepartments(){
+      // ✅ tries multiple endpoints (won't break if your exact endpoint differs)
+      const urls = [
+        '/api/departments?per_page=500&active=1',
+        '/api/departments?per_page=500',
+        '/api/departments?all=1',
+        '/api/departments'
+      ];
+
+      for (const url of urls){
+        try{
+          const res = await fetchWithTimeout(url, { headers: authHeaders() }, 12000);
+          if (res.status === 401 || res.status === 403) { window.location.href = '/'; return []; }
+          if (!res.ok) continue;
+
+          const js = await res.json().catch(()=> ({}));
+
+          // common shapes:
+          // - {data:[...]}
+          // - {data:{data:[...]}} (paginator)
+          // - {departments:[...]}
+          // - [...]
+          let rows = [];
+          if (Array.isArray(js?.data)) rows = js.data;
+          else if (Array.isArray(js?.data?.data)) rows = js.data.data;
+          else if (Array.isArray(js?.departments)) rows = js.departments;
+          else if (Array.isArray(js)) rows = js;
+
+          rows = (rows || []).filter(Boolean).map(d => ({
+            raw: d,
+            id: pickDeptId(d),
+            label: pickDeptLabel(d)
+          })).filter(x => x.id);
+
+          // de-dupe by id
+          const seen = new Set();
+          const out = [];
+          for (const x of rows){
+            if (seen.has(x.id)) continue;
+            seen.add(x.id);
+            out.push(x.raw);
+          }
+
+          return out;
+        }catch(_){
+          // try next
+        }
+      }
+      return [];
+    }
+
+    async function ensureDepartmentsLoaded(selectedValue=''){
+      if (!departmentSel) return;
+
+      // show temp loading state (but keep current selection)
+      if (!state.departmentsLoaded){
+        renderDepartmentsOptions(selectedValue || departmentSel.value || '');
+      }
+
+      if (state.departmentsLoaded) {
+        // already loaded, just ensure selected stays
+        if (selectedValue !== undefined) departmentSel.value = (selectedValue ?? '').toString();
+        return;
+      }
+
+      const rows = await fetchDepartments();
+      state.departments = rows;
+      state.departmentsLoaded = true;
+      renderDepartmentsOptions(selectedValue || departmentSel.value || '');
+    }
 
     const getTabKey = () => {
       const a = document.querySelector('.nav-tabs .nav-link.active');
@@ -1396,6 +1536,14 @@ td.col-slug code{
       setRteMode('text');
       setRteEnabled(true);
 
+      // ✅ reset department
+      if (departmentSel){
+        // keep options, just clear selection
+        if (state.departmentsLoaded) renderDepartmentsOptions('');
+        else renderDepartmentsOptions('');
+        departmentSel.value = '';
+      }
+
       if (currentAttachmentsInfo) currentAttachmentsInfo.style.display = 'none';
       if (currentAttachmentsText) currentAttachmentsText.textContent = '—';
 
@@ -1428,6 +1576,15 @@ td.col-slug code{
       titleInput.value = r.title || '';
       slugInput.value = r.slug || '';
       sortOrderInput.value = String(r.sort_order ?? 0);
+
+      // ✅ department id
+      const deptId = r.department_id ?? r?.department?.id ?? r?.department?.department_id ?? '';
+      const deptName = r?.department?.title || r?.department?.name || '';
+      if (departmentSel){
+        const v = (deptId === null || deptId === undefined) ? '' : String(deptId);
+        if (v) ensureDeptOptionExists(v, deptName);
+        departmentSel.value = v || '';
+      }
 
       statusSel.value = (r.status || (r.active ? 'published' : 'draft') || 'draft');
       featuredSel.value = String((r.is_featured_home ?? r.featured ?? 0) ? 1 : 0);
@@ -1504,11 +1661,15 @@ td.col-slug code{
       slugDirty = !!(slugInput.value || '').trim();
     });
 
-    btnAddItem?.addEventListener('click', () => {
+    btnAddItem?.addEventListener('click', async () => {
       if (!canCreate) return;
       resetForm();
       if (itemModalTitle) itemModalTitle.textContent = 'Add Announcement';
       itemForm.dataset.intent = 'create';
+
+      // ✅ load departments before showing modal
+      await ensureDepartmentsLoaded('');
+
       itemModal && itemModal.show();
     });
 
@@ -1534,7 +1695,13 @@ td.col-slug code{
 
       if (act === 'view' || act === 'edit'){
         if (act === 'edit' && !canEdit) return;
+
         resetForm();
+
+        // ✅ ensure departments loaded, then fill so selection is accurate
+        const deptId = row?.department_id ?? row?.department?.id ?? '';
+        await ensureDepartmentsLoaded((deptId === null || deptId === undefined) ? '' : String(deptId));
+
         if (itemModalTitle) itemModalTitle.textContent = act === 'view' ? 'View Announcement' : 'Edit Announcement';
         fillFormFromRow(row || {}, act === 'view');
         itemModal && itemModal.show();
@@ -1665,6 +1832,10 @@ td.col-slug code{
         const fd = new FormData();
         fd.append('title', title);
         if (slug) fd.append('slug', slug);
+
+        // ✅ department_id (always append; Laravel converts "" -> null via ConvertEmptyStringsToNull)
+        if (departmentSel) fd.append('department_id', (departmentSel.value ?? '').toString());
+
         fd.append('status', status);
         fd.append('is_featured_home', featured === '1' ? '1' : '0');
         fd.append('sort_order', sortOrder);
@@ -1721,6 +1892,10 @@ td.col-slug code{
       showLoading(true);
       try{
         await fetchMe();
+
+        // ✅ pre-load departments quietly (won't block if endpoint missing)
+        ensureDepartmentsLoaded('').catch(()=>{});
+
         await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
       }catch(ex){
         err(ex?.message || 'Initialization failed');

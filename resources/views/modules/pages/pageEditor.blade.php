@@ -50,6 +50,7 @@ body {
   border-bottom: 1px solid var(--line-soft);
   background: var(--surface-2);
   align-items: start;
+  
 }
 
 .meta-field {
@@ -61,11 +62,11 @@ body {
 .meta-field.title {
   grid-column: 1 / 3;
 }
-
-.meta-field.description {
-  grid-column: 1 / 3;
+.meta-field.description{
+  grid-column: 1 / -1;  /* full width across all grid columns */
   grid-row: 2;
 }
+
 
 .meta-field:nth-child(3) {
   grid-column: 3;
@@ -774,6 +775,261 @@ input[type="checkbox"]:checked::before {
   }
 }
 /* =========================================================
+   FIX: Bootstrap .row inside .meta-row grid
+   (Your <div class="row g-3"> was inside a CSS grid cell)
+========================================================= */
+.meta-row .row.g-3{
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.meta-row .row.g-3 > [class*="col-"]{
+  padding-left: 0;
+  padding-right: 0;
+}
+.meta-row .row.g-3 .form-control,
+.meta-row .row.g-3 .form-select{
+  width: 100%;
+}
+
+/* Make all "extra" fields span nicely on desktop */
+@media (min-width: 992px){
+  .meta-row .row.g-3{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  .meta-row .row.g-3 .col-md-6{
+    width: auto;
+    max-width: none;
+  }
+}
+
+/* =========================================================
+   FORM ACTIONS (Bottom Save Bar)
+========================================================= */
+.form-actions{
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--surface);
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+}
+
+/* status text/pill */
+.save-status{
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-13);
+  color: var(--muted-color);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.save-status .pill{
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line-soft);
+  background: var(--surface-2);
+  color: var(--muted-color);
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.save-status.is-success .pill{
+  border-color: rgba(16,185,129,.35);
+  background: rgba(16,185,129,.10);
+  color: var(--success-color);
+}
+.save-status.is-error .pill{
+  border-color: rgba(220,38,38,.35);
+  background: rgba(220,38,38,.08);
+  color: var(--danger-color);
+}
+
+/* Buttons in bottom bar (non-bootstrap) */
+.btn-save,
+.btn-cancel{
+  appearance: none;
+  border: 1px solid var(--line-medium);
+  background: var(--surface);
+  color: var(--text-color);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: var(--fs-14);
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  transition: var(--transition);
+  user-select: none;
+}
+.btn-cancel:hover{
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+}
+.btn-save{
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+  color: #fff;
+}
+.btn-save:hover{
+  background: var(--secondary-color);
+  border-color: var(--secondary-color);
+}
+.btn-save:disabled,
+.btn-cancel:disabled{
+  opacity: .6;
+  cursor: not-allowed;
+}
+.btn-save:focus-visible,
+.btn-cancel:focus-visible{
+  outline: none;
+  box-shadow: var(--ring);
+  border-color: var(--accent-color);
+}
+
+/* Stack buttons on mobile */
+@media (max-width: 640px){
+  .form-actions{
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .btn-save, .btn-cancel{
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* =========================================================
+   CODE TAB polish
+========================================================= */
+.ce-code-pane{
+  background: var(--surface-2);
+}
+#ceCodePreview{
+  background: #fff;
+  border: 1px solid var(--line-medium) !important;
+  border-radius: 10px !important;
+  box-shadow: var(--shadow-1);
+}
+html.theme-dark #ceCodePreview{
+  background: var(--surface);
+}
+
+/* Code pane header spacing */
+.ce-code-left .ce-panel-header,
+.ce-code-right .ce-panel-header{
+  color: var(--text-color);
+}
+
+/* =========================================================
+   CANVAS placeholder behavior
+   (hide placeholder when content exists)
+========================================================= */
+.ce-canvas:not(:empty)::before{
+  display: none;
+}
+
+/* Canvas inner spacing + nicer default */
+#ceCanvasEdit{
+  padding: 16px;
+}
+#ceCanvasEdit .ce-block{
+  border: 1px dashed transparent;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+#ceCanvasEdit .ce-block.ce-selected{
+  border-color: rgba(99,102,241,.35);
+  background: rgba(99,102,241,.06);
+}
+
+/* Slot (drop target) visible */
+#ceCanvasEdit .ce-slot{
+  min-height: 28px;
+  border: 1px dashed var(--line-medium);
+  border-radius: 10px;
+  padding: 10px;
+  background: var(--surface);
+}
+
+/* =========================================================
+   INSPECTOR: common field styles (for your JS-generated UI)
+========================================================= */
+.ce-inspector-body .ce-prop-group{
+  margin-bottom: 14px;
+}
+.ce-inspector-body .ce-prop-label{
+  font-size: var(--fs-13);
+  font-weight: 600;
+  color: var(--muted-color);
+  margin-bottom: 6px;
+  display: block;
+}
+.ce-inspector-body .ce-prop-input,
+.ce-inspector-body input[type="text"],
+.ce-inspector-body input[type="number"],
+.ce-inspector-body select,
+.ce-inspector-body textarea{
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line-medium);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text-color);
+  font-size: var(--fs-13);
+}
+.ce-inspector-body textarea{
+  min-height: 90px;
+  resize: vertical;
+}
+.ce-inspector-body .ce-prop-input:focus,
+.ce-inspector-body input:focus,
+.ce-inspector-body select:focus,
+.ce-inspector-body textarea:focus{
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: var(--ring);
+}
+
+/* =========================================================
+   MEDIA TAB container polish
+========================================================= */
+#tab-media{
+  background: var(--surface);
+  border-top: 1px solid var(--line-soft);
+  padding: 18px;
+}
+#tab-media .container,
+#tab-media .container-fluid{
+  max-width: 100%;
+}
+
+/* =========================================================
+   MODAL polish (your custom modal)
+========================================================= */
+#ceModal{
+  backdrop-filter: blur(2px);
+}
+.ce-modal-box{
+  border: 1px solid var(--line-soft);
+  box-shadow: var(--shadow-2);
+}
+#ceExport{
+  color: var(--text-color);
+  background: var(--surface-2);
+}
+
+/* =========================================================
    META DESCRIPTION – RTE
 ========================================================= */
 
@@ -823,12 +1079,476 @@ input[type="checkbox"]:checked::before {
   border-color: var(--danger-color);
   box-shadow: 0 0 0 2px rgba(220,38,38,.15);
 }
+/* =========================================================
+   INSPECTOR PROPERTY TABS (ce-prop-tab-btn)
+========================================================= */
 
+.ce-prop-tabs{
+  display:flex;
+  align-items:center;
+  gap: 4px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.ce-prop-tab-btn{
+  appearance:none;
+  border: 0;
+  background: transparent;
+  color: var(--muted-color);
+  padding: 10px 12px;
+  font-size: var(--fs-13);
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 2px solid transparent; /* underline style */
+  transition: var(--transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: -1px; /* sit on the border-bottom */
+  user-select: none;
+}
+
+.ce-prop-tab-btn:hover{
+  color: var(--accent-color);
+}
+
+/* ACTIVE */
+.ce-prop-tab-btn.active,
+.ce-prop-tab-btn.ce-active{
+  color: var(--accent-color);
+  border-bottom-color: var(--accent-color);
+}
+
+/* Optional: focus ring */
+.ce-prop-tab-btn:focus-visible{
+  outline: none;
+  box-shadow: var(--ring);
+  border-radius: 8px;
+}
+
+/* Optional: icon sizing inside button */
+.ce-prop-tab-btn i{
+  font-size: 14px;
+  width: 16px;
+  text-align: center;
+}
+/* =========================================================
+   UNIT TOGGLE (e.g., px / % / rem)
+========================================================= */
+.ce-unit-toggle{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+}
+
+.ce-unit-toggle .ce-typo-btn,
+.ce-unit-toggle button{
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted-color);
+  padding: 6px 10px;
+  font-size: var(--fs-13);
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: var(--transition);
+  line-height: 1;
+}
+
+.ce-unit-toggle .ce-typo-btn:hover,
+.ce-unit-toggle button:hover{
+  color: var(--accent-color);
+  background: var(--surface);
+  border-color: var(--line-soft);
+}
+
+/* active state (supports both .active and .ce-active) */
+.ce-unit-toggle .active,
+.ce-unit-toggle .ce-active{
+  background: var(--accent-color);
+  color: #fff;
+  border-color: var(--accent-color);
+  box-shadow: 0 6px 16px rgba(0,0,0,.10);
+}
+
+/* =========================================================
+   TYPOGRAPHY TOOLS BAR (bold/italic/underline, align, etc.)
+========================================================= */
+.ce-typo-tools{
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  box-shadow: var(--shadow-1);
+  margin-bottom: 12px;
+}
+
+.ce-typo-tools .ce-sep{
+  width: 1px;
+  height: 22px;
+  background: var(--line-soft);
+  margin: 0 2px;
+}
+
+/* =========================================================
+   TYPO BUTTON
+========================================================= */
+.ce-typo-btn{
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  padding: 8px 10px;
+  min-height: 34px;
+  min-width: 34px;
+
+  border: 1px solid var(--line-medium);
+  background: var(--surface);
+  color: var(--text-color);
+
+  border-radius: 10px;
+  cursor: pointer;
+  transition: var(--transition);
+  user-select: none;
+}
+
+.ce-typo-btn i{ font-size: 14px; }
+
+.ce-typo-btn:hover{
+  border-color: var(--accent-color);
+  background: var(--surface-2);
+  color: var(--accent-color);
+}
+
+/* Active toggle state */
+.ce-typo-btn.active,
+.ce-typo-btn.ce-active{
+  background: rgba(99,102,241,.12); /* safe fallback look */
+  border-color: rgba(99,102,241,.35);
+  color: var(--accent-color);
+}
+
+/* If you want active to look "solid" */
+.ce-typo-btn.active.is-solid,
+.ce-typo-btn.ce-active.is-solid{
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+  color: #fff;
+}
+
+/* Disabled */
+.ce-typo-btn:disabled{
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+/* Focus ring */
+.ce-typo-btn:focus-visible{
+  outline: none;
+  box-shadow: var(--ring);
+  border-color: var(--accent-color);
+}
+/* =========================================================
+   ALIGN BUTTONS (ce-align-btn)
+========================================================= */
+.ce-align-btn{
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  padding: 8px 10px;
+  min-height: 34px;
+  min-width: 34px;
+
+  border: 1px solid var(--line-medium);
+  background: var(--surface);
+  color: var(--text-color);
+
+  border-radius: 10px;
+  cursor: pointer;
+  transition: var(--transition);
+  user-select: none;
+}
+
+.ce-align-btn i{ font-size: 14px; }
+
+.ce-align-btn:hover{
+  border-color: var(--accent-color);
+  background: var(--surface-2);
+  color: var(--accent-color);
+}
+
+/* Active state */
+.ce-align-btn.active,
+.ce-align-btn.ce-active{
+  background: rgba(99,102,241,.12);
+  border-color: rgba(99,102,241,.35);
+  color: var(--accent-color);
+}
+
+/* Optional: focus ring */
+.ce-align-btn:focus-visible{
+  outline: none;
+  box-shadow: var(--ring);
+  border-color: var(--accent-color);
+}
+
+/* Optional: disabled */
+.ce-align-btn:disabled{
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.pbx-btn{
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px;
+  text-decoration: none;
+  margin-bottom: 8px;
+  font-weight: 800;
+  font-size: 13px;
+  color: #fff;
+  background: var(--accent-color);
+  border: 1px solid var(--accent-color);
+  border-radius: 12px;
+  transition: var(--transition);
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--accent-color) 22%, transparent);
+}
+.pbx-btn:hover{
+  background: var(--secondary-color);
+  border-color: var(--secondary-color);
+  transform: translateY(-1px);
+}
+.pbx-btn:focus-visible{
+  outline: none;
+  box-shadow: var(--ring);
+}
+.pbx-header{
+  top: 0;
+  z-index: 90;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line-soft);
+  box-shadow: var(--shadow-1);
+}
+
+.pbx-inner{
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 12px 24px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+}
+
+/* Brand (left) */
+.pbx-brand{
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: var(--text-color);
+  min-width: 280px;
+}
+
+
+
+/* ✅ Logo image */
+.pbx-logo{
+  height: 45px;
+  width: auto;
+  display: block;
+  position: relative;
+  z-index: 1;
+  /* Optional polish (still minimal) */
+  filter: drop-shadow(0 8px 18px color-mix(in srgb, var(--accent-color) 14%, transparent));
+}
+
+/* Brand text */
+.pbx-brandText{
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  min-width: 0;
+}
+.pbx-brandName{
+  font-weight: 900;
+  font-size: 14px;
+  letter-spacing: .2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 320px;
+}
+.pbx-brandSub{
+  margin-top: 2px;
+  font-weight: 700;
+  font-size: 12px;
+  color: color-mix(in srgb, var(--text-color) 62%, transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 320px;
+}
+
+/* Center: make it vertical so subtitle sits below title */
+.pbx-center{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* Subtitle under title (slightly more centered-friendly) */
+.pbx-centerSub{
+  margin: 0;                 /* remove default p margin */
+  text-align: center;
+  max-width: 520px;          /* wider than brand area */
+}
+
+/* Mobile: align left like your existing responsive behavior */
+@media (max-width: 992px){
+  .pbx-center{
+    align-items: flex-start;
+  }
+  .pbx-centerSub{
+    text-align: left;
+  }
+}
+
+
+.pbx-title{
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+
+  font-weight: 900;
+  font-size: 14px;
+  letter-spacing: .2px;
+  color: var(--text-color);
+
+  padding: 8px 14px;
+  border-radius: 999px;
+
+  border: 1px solid color-mix(in srgb, var(--accent-color) 18%, var(--line-soft));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--primary-color) 9%, transparent),
+    color-mix(in srgb, var(--accent-color) 10%, transparent)
+  );
+  /* box-shadow: 0 10px 22px color-mix(in srgb, var(--accent-color) 10%, transparent); */
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* Right side */
+.pbx-actions{
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  min-width: 280px;
+}
+
+/* Accent line */
+.pbx-accent{
+  height: 3px;
+  width: 100%;
+  background: linear-gradient(90deg, var(--primary-color), var(--accent-color), var(--secondary-color));
+}
+
+/* Hover polish */
+.pbx-brand:hover .pbx-logoWrap{
+  transform: translateY(-1px);
+}
+
+/* Responsive */
+@media (max-width: 992px){
+  .pbx-inner{
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "brand actions"
+      "center center";
+    gap: 10px;
+  }
+  .pbx-brand{ grid-area: brand; min-width: 0; }
+  .pbx-actions{ grid-area: actions; min-width: 0; }
+  .pbx-center{ grid-area: center; justify-content: flex-start; }
+  .pbx-brandName, .pbx-brandSub{ max-width: 220px; }
+}
+
+@media (max-width: 520px){
+  .pbx-inner{ padding: 10px 14px; }
+  .pbx-brandSub{ display:none; }
+  .pbx-logoWrap{ width: 42px; height: 42px; border-radius: 12px; }
+  .pbx-title{ padding: 7px 12px; }
+}
 
     </style>
 </head>
 <body>
+  <!-- pageBuilderHeader.html (pure HTML + CSS) -->
+<header class="pbx-header" role="banner" aria-label="Page builder header">
+  <div class="pbx-inner">
+
+    <!-- Brand (left) -->
+    <a class="pbx-brand" href="/" aria-label="Company Home">
+      <span class="pbx-logoWrap" aria-hidden="true">
+        <!-- ✅ Your logo image here -->
+        <img class="pbx-logo" src="/assets/media/images/web/logo.png" alt="Company logo">
+      </span>
+
+      
+    </a>
+
+    <!-- Center (you can keep title OR replace with another logo) -->
+    <!-- Center -->
+<div class="pbx-center">
+  <div class="pbx-title">Page Builder</div>
+  <p class="pbx-brandSub pbx-centerSub">Create your Page Here</p>
+</div>
+
+
+    <!-- Right side (put buttons here later) -->
+    <div class="pbx-actions">
+      <!-- Example:
+      <button class="pbx-actionBtn">Save</button>
+      -->
+    </div>
+
+  </div>
+  <div class="pbx-accent" aria-hidden="true"></div>
+</header>
+
     <div class="form-container">
+       <a class="pbx-btn" href="/pages/manage" title="Back to pages">
+          <i class="fa-solid fa-arrow-left"></i>
+          <span>Back</span>
+        </a>
 <form
   id="pageMetaForm"
   class="page-meta-form"
@@ -939,8 +1659,8 @@ input[type="checkbox"]:checked::before {
                     </div>
                 </div>
             </div>
-           <div style="margin-bottom:10px;">
-  <label style="font-weight:600;color:#111827;">
+           <div style="margin-bottom:10px;margin-top:10px; text-align:center;">
+  <label style="font-weight:600;color:#111827;font-size:18px; ">
     Content HTML
   </label>
   <div style="font-size:12px;color:#6b7280;">
@@ -1064,19 +1784,19 @@ input[type="checkbox"]:checked::before {
 
                         <div class="ce-components-list" id="list-sections">
                             <div class="ce-component" draggable="true" data-key="ce-section-1" 
-                                 data-html="<section style='max-width:768px;margin:0 auto;padding:0;'><div class='ce-section-slot-wrapper' style='width:100%!important;max-width:768px;display:flex;justify-content:space-between;flex-wrap:wrap;'><div class='ce-section-slot' style='flex:1;min-width:100%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div></div></section>">
+                                 data-html="<section style='margin:0 auto;padding:0;'><div class='ce-section-slot-wrapper' style='width:100%!important;display:flex;justify-content:space-between;flex-wrap:wrap;'><div class='ce-section-slot' style='flex:1;min-width:100%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div></div></section>">
                                 <i class="fa-solid fa-square"></i> 1 Column
                             </div>
                             <div class="ce-component" draggable="true" data-key="ce-section-2" 
-                                 data-html="<section style='max-width:768px;margin:0 auto;padding:0;'><div class='ce-section-slot-wrapper' style='width:100%!important;max-width:768px;display:flex;justify-content:space-between;flex-wrap:wrap;'><div class='ce-section-slot' style='flex:1;min-width:49%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1;min-width:49%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div></div></section>">
+                                 data-html="<section style='margin:0 auto;padding:0;'><div class='ce-section-slot-wrapper' style='width:100%!important;display:flex;justify-content:space-between;flex-wrap:wrap;'><div class='ce-section-slot' style='flex:1;min-width:49%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1;min-width:49%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div></div></section>">
                                 <i class="fa-solid fa-table-columns"></i> 2 Columns
                             </div>
                             <div class="ce-component" draggable="true" data-key="ce-section-3" 
-                                 data-html="<section style='max-width:768px;margin:0 auto;padding:0;'><div class='ce-section-slot-wrapper' style='width:100%!important;max-width:768px;display:flex;justify-content:space-between;flex-wrap:wrap;'><div class='ce-section-slot' style='flex:1;min-width:32%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1;min-width:32%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1;min-width:32%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div></div></section>">
+                                 data-html="<section style='margin:0 auto;padding:0;'><div class='ce-section-slot-wrapper' style='width:100%!important;display:flex;justify-content:space-between;flex-wrap:wrap;'><div class='ce-section-slot' style='flex:1;min-width:32%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1;min-width:32%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1;min-width:32%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div></div></section>">
                                 <i class="fa-solid fa-border-all"></i> 3 Columns
                             </div>
                             <div class="ce-component" draggable="true" data-key="ce-section-4" 
-                                 data-html="<section style='max-width:768px;margin:0 auto;padding:0;'><div class='ce-section-slot-wrapper' style='width:100%!important;max-width:768px;display:flex;justify-content:space-between;flex-wrap:wrap;'><div class='ce-section-slot' style='flex:1;min-width:23%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1;min-width:23%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1;min-width:23%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1;min-width:23%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div></div></section>">
+                                 data-html="<section style='margin:0 auto;padding:0;'><div class='ce-section-slot-wrapper' style='width:100%!important;display:flex;justify-content:space-between;flex-wrap:wrap;'><div class='ce-section-slot' style='flex:1;min-width:23%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1;min-width:23%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1;min-width:23%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1;min-width:23%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div></div></section>">
                                 <i class="fa-solid fa-grip-lines"></i> 4 Columns
                             </div>
                         </div>
@@ -1138,6 +1858,7 @@ input[type="checkbox"]:checked::before {
         </div>
     </div>
 
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
 
@@ -1295,26 +2016,28 @@ input[type="checkbox"]:checked::before {
         console.log('Save successful:', result);
         
         // Success
-        hasUnsavedChanges = false;
-        if (saveStatus) {
-          saveStatus.textContent = '✓ Saved successfully';
-          saveStatus.className = 'save-status success';
-        }
-        showToast('Page saved successfully!', 'success');
-        
-        // Update form if new page
-        if (!pageId && result.data?.id) {
-          form.dataset.pageId = result.data.id;
-          window.history.pushState({}, '', `/pages/${result.data.id}/edit`);
-          if (saveText) saveText.textContent = 'Update Page';
-        }
+        // Success
+hasUnsavedChanges = false;
 
-        setTimeout(() => {
-          if (saveStatus) {
-            saveStatus.textContent = '';
-            saveStatus.className = 'save-status';
-          }
-        }, 3000);
+// ✅ remove the "saved img" / tick text completely
+if (saveStatus) {
+  saveStatus.textContent = '';
+  saveStatus.className = 'save-status';
+}
+
+// ✅ SweetAlert success popup
+if (window.Swal) {
+  Swal.fire({
+    icon: 'success',
+    title: 'Saved!',
+    text: 'Page saved successfully.',
+    timer: 1400,
+    showConfirmButton: false
+  });
+} else {
+  alert('Page saved successfully.');
+}
+
 
       } catch (error) {
         console.error('Save error:', error);
@@ -2451,7 +3174,6 @@ function addButtonContentField(panel, el, idx) {
     .wrapper { width:100% !important; background:#f3f4f6; }
     .inner   {
       width:100% !important;
-      max-width:768px;
       margin:0 auto;
       background:#ffffff;
       box-shadow:0 1px 3px rgba(0,0,0,0.1);
@@ -2463,7 +3185,6 @@ function addButtonContentField(panel, el, idx) {
     }
       .ce-section-slot-wrapper {
         width:100% !important;
-        max-width:768px;
         display: flex;
         }
 
