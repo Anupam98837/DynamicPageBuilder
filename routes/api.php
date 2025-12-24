@@ -23,6 +23,7 @@ use App\Http\Controllers\API\UserConferencePublicationsController;
 use App\Http\Controllers\API\UserEducationsController;
 use App\Http\Controllers\API\UserSocialMediaController;
 use App\Http\Controllers\API\UserProfileController;
+use App\Http\Controllers\API\CurriculumSyllabusController;
 
 
 /*
@@ -645,4 +646,56 @@ Route::prefix('media')->group(function(){
     Route::get('/',          [MediaController::class, 'index']);
     Route::post('/',         [MediaController::class, 'store']);
     Route::delete('{id}',    [MediaController::class, 'destroy']);
+});
+
+
+/*
+|--------------------------------------------------------------------------
+| Curriculum & Syllabus Routes
+|--------------------------------------------------------------------------
+*/
+
+// Read-only (authenticated)
+Route::middleware('checkRole')->group(function () {
+    // Global listing + show
+    Route::get('/curriculum-syllabuses',              [CurriculumSyllabusController::class, 'index']);
+    Route::get('/curriculum-syllabuses/{identifier}', [CurriculumSyllabusController::class, 'show']);
+
+    // Nested listing + show (department can be id|uuid|slug)
+    Route::get('/departments/{department}/curriculum-syllabuses',                 [CurriculumSyllabusController::class, 'indexByDepartment']);
+    Route::get('/departments/{department}/curriculum-syllabuses/{identifier}',    [CurriculumSyllabusController::class, 'showByDepartment']);
+
+    // Preview + Download
+    Route::get('/curriculum-syllabuses/{identifier}/stream',   [CurriculumSyllabusController::class, 'stream']);
+    Route::get('/curriculum-syllabuses/{identifier}/download', [CurriculumSyllabusController::class, 'download']);
+});
+
+// Modify (authenticated role-based)
+Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+    // Create
+    Route::post('/curriculum-syllabuses', [CurriculumSyllabusController::class, 'store']);
+
+    // Create under department (optional helper)
+    Route::post('/departments/{department}/curriculum-syllabuses', [CurriculumSyllabusController::class, 'storeForDepartment']);
+
+    // Trash listing
+    Route::get('/curriculum-syllabuses-trash', [CurriculumSyllabusController::class, 'trash']);
+
+    // Update
+    Route::match(['put', 'patch'], '/curriculum-syllabuses/{identifier}', [CurriculumSyllabusController::class, 'update']);
+
+    // Toggle active
+    Route::patch('/curriculum-syllabuses/{identifier}/toggle-active', [CurriculumSyllabusController::class, 'toggleActive']);
+
+    // Soft delete / Restore / Force delete
+    Route::delete('/curriculum-syllabuses/{identifier}',       [CurriculumSyllabusController::class, 'destroy']);
+    Route::post('/curriculum-syllabuses/{identifier}/restore', [CurriculumSyllabusController::class, 'restore']);
+    Route::delete('/curriculum-syllabuses/{identifier}/force', [CurriculumSyllabusController::class, 'forceDelete']);
+});
+
+// Public (no auth) - for website render page
+Route::prefix('public')->group(function () {
+    Route::get('/departments/{department}/curriculum-syllabuses', [CurriculumSyllabusController::class, 'publicIndexByDepartment']);
+    Route::get('/curriculum-syllabuses/{identifier}/stream',      [CurriculumSyllabusController::class, 'publicStream']);
+    Route::get('/curriculum-syllabuses/{identifier}/download',    [CurriculumSyllabusController::class, 'publicDownload']);
 });
