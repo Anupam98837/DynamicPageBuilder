@@ -900,6 +900,14 @@ public function mySidebarMenus(Request $r)
         return response()->json(['message' => 'Unauthenticated'], 401);
     }
 
+        // ✅ If admin => return string "all"
+        if (($actor['role'] ?? '') === 'admin') {
+            return response()->json([
+                'user_uuid' => $this->getUserUuid((int)$actor['id']),
+                'tree'      => 'all',   // ✅ string response
+            ], 200);
+        }
+
     $withActions = filter_var($r->query('with_actions', false), FILTER_VALIDATE_BOOLEAN);
 
     // 1) Load stored tree for actor

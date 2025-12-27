@@ -148,10 +148,7 @@ td .fw-semibold{color:var(--ink)}
 <div class="crs-wrap">
 
   <div id="inlineLoader" class="inline-loader">
-    <div class="loader-card">
-      <div class="spinner-border" role="status" aria-hidden="true"></div>
-      <p class="small text-muted mb-0">Loading…</p>
-    </div>
+    @include('partials.overlay')
   </div>
 
   {{-- ✅ Removed count badge completely --}}

@@ -134,11 +134,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
 
   {{-- Loading Overlay --}}
   <div id="dep_globalLoading" class="dep-loading-overlay" aria-hidden="true">
-    <div class="dep-loading">
-      <div class="dep-ring"></div>
-      <div class="dep-dots"><span></span><span></span><span></span></div>
-      <div class="small text-muted">Processing…</div>
-    </div>
+    @include('partials.overlay')
   </div>
 
   {{-- ================= Tabs ================= --}}

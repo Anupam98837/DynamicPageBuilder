@@ -937,3 +937,11 @@ Route::prefix('public')->group(function () {
 
     Route::get('/departments/{department}/courses', [CourseController::class, 'publicIndexByDepartment']);
 });
+
+
+Route::middleware('checkRole')->group(function () {
+    Route::get('/my/page-access', [MyAccessController::class, 'pageAccess']);
+    Route::get('/my/access-tree', [MyAccessController::class, 'myAccessTree']);
+    Route::get('/my/sidebar-menus', [\App\Http\Controllers\API\UserPrivilegeController::class, 'mySidebarMenus']);
+    
+    });

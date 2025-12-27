@@ -93,7 +93,7 @@ td.col-code code{
 }
 
 /* Loading overlay */
-.loading-overlay{
+/* .loading-overlay{
   position:fixed;
   top:0;left:0;width:100%;height:100%;
   background:rgba(0,0,0,0.45);
@@ -102,7 +102,7 @@ td.col-code code{
   align-items:center;
   z-index:9999;
   backdrop-filter:blur(2px)
-}
+} */
 .loading-spinner{
   background:var(--surface);
   padding:20px 22px;
@@ -319,10 +319,7 @@ td.col-code code{
 
   {{-- Loading Overlay --}}
   <div id="globalLoading" class="loading-overlay" style="display:none;">
-    <div class="loading-spinner">
-      <div class="spinner"></div>
-      <div class="small">Loading…</div>
-    </div>
+    @include('partials.overlay')
   </div>
 
   {{-- Tabs --}}

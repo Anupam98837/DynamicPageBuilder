@@ -11,14 +11,12 @@
   <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('assets/media/images/favicons/favicon.png') }}">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet"/>
-  {{-- MSIT Home Builder design system --}}
   <link rel="stylesheet" href="{{ asset('/assets/css/common/main.css') }}">
 
   @stack('styles')
-@yield('styles')
+  @yield('styles')
 
   <style>
-    /* ================= MSIT Home Builder Layout (namespaced; no overrides of main.css) ================= */
     :root{
       --w3-rail-w: 256px;
       --w3-rail-bg:       var(--surface);
@@ -41,35 +39,15 @@
       transform:translateX(0); transition:transform .28s ease;
     }
     .w3-sidebar-head{
-  height:88px;                         /* taller header */
-  display:flex;
-  align-items:center;
-  justify-content:center;              /* center the logo horizontally */
-  padding:12px 0;                      /* equal top/bottom padding */
-  border-bottom:1px solid var(--w3-rail-border);
-}
-
-.w3-brand{
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  text-decoration:none;
-}
-
-.w3-brand img{
-  height:56px;                         /* bigger logo */
-  width:auto;
-  max-width:180px;                     /* prevent overflow on very small screens */
-  display:block;
-}
-
-.w3-app-logo{
-  display:flex;
-  align-items:center;
-  text-decoration:none;
-}
-.w3-app-logo img{height:22px;}
-    .w3-brand span{font-family:var(--font-head); font-weight:700; color:var(--ink); font-size:1.02rem}
+      height:88px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:12px 0;
+      border-bottom:1px solid var(--w3-rail-border);
+    }
+    .w3-brand{display:flex; align-items:center; justify-content:center; text-decoration:none;}
+    .w3-brand img{height:56px; width:auto; max-width:180px; display:block;}
 
     .w3-sidebar-scroll{flex:1; overflow:auto; padding:8px 10px}
 
@@ -87,7 +65,9 @@
     .w3-menu{display:grid; gap:4px; padding:6px 4px}
     .w3-link{
       display:flex; align-items:center; gap:10px; padding:9px 10px;
-      color:var(--w3-rail-text); border-radius:10px; transition:background .18s ease, transform .18s ease;
+      color:var(--w3-rail-text); border-radius:10px;
+      transition:background .18s ease, transform .18s ease;
+      text-decoration:none;
     }
     .w3-link i{opacity:.9; min-width:18px; text-align:center}
     .w3-link:hover{background:var(--w3-rail-hover); transform:translateX(2px)}
@@ -109,7 +89,7 @@
       display:grid; gap:2px; margin-left:8px; padding-left:8px; border-left:1px dashed var(--w3-rail-border);
       max-height:0; overflow:hidden; transition:max-height .24s ease;
     }
-    .w3-submenu.w3-open{max-height:600px}
+    .w3-submenu.w3-open{max-height:800px}
     .w3-submenu .w3-link{padding:8px 10px 8px 34px; font-size:.86rem}
 
     .w3-sidebar-foot{border-top:1px solid var(--w3-rail-border); padding:8px 10px}
@@ -123,9 +103,6 @@
       width:100%;
       display:flex; align-items:center; gap:10px; padding:0 12px;
     }
-    @media (min-width: 992px){
-      .w3-appbar-inner{ margin-left: 0; }
-    }
 
     /* Mobile appbar logo */
     .w3-app-logo{display:flex; align-items:center; gap:8px; text-decoration:none}
@@ -134,14 +111,21 @@
 
     .w3-icon-btn{
       width:36px; height:36px; display:inline-grid; place-items:center; border:1px solid var(--line-strong);
-      background:#fff; color:var(--secondary-color); border-radius:999px; transition:transform .18s ease, background .18s ease;
+      background:#fff; color:var(--secondary-color); border-radius:999px;
+      transition:transform .18s ease, background .18s ease;
     }
     .w3-icon-btn:hover{background:#f6f8fc; transform:translateY(-1px)}
 
     /* Hamburger (morph) */
-    .w3-hamburger{width:40px; height:40px; border:1px solid var(--line-strong); border-radius:999px; background:#fff; display:inline-grid; place-items:center; cursor:pointer}
+    .w3-hamburger{
+      width:40px; height:40px; border:1px solid var(--line-strong); border-radius:999px;
+      background:#fff; display:inline-grid; place-items:center; cursor:pointer
+    }
     .w3-bars{position:relative; width:18px; height:12px}
-    .w3-bar{position:absolute; left:0; width:100%; height:2px; background:#1f2a44; border-radius:2px; transition:transform .25s ease, opacity .2s ease, top .25s ease}
+    .w3-bar{
+      position:absolute; left:0; width:100%; height:2px; background:#1f2a44; border-radius:2px;
+      transition:transform .25s ease, opacity .2s ease, top .25s ease
+    }
     .w3-bar:nth-child(1){top:0}
     .w3-bar:nth-child(2){top:5px}
     .w3-bar:nth-child(3){top:10px}
@@ -149,7 +133,7 @@
     .w3-hamburger.is-active .w3-bar:nth-child(2){opacity:0}
     .w3-hamburger.is-active .w3-bar:nth-child(3){top:5px; transform:rotate(-45deg)}
 
-    /* Content (max 1280px) */
+    /* Content */
     .w3-content{
       padding:16px;
       max-width:1280px;
@@ -158,9 +142,10 @@
     }
     @media (min-width: 992px){
       .w3-content{ padding-left: calc(16px + var(--w3-rail-w)); }
+      .w3-app-logo{display:none}
     }
 
-    /* Overlay (mobile) */
+    /* Overlay (mobile sidebar overlay) */
     .w3-overlay{
       position:fixed; top:0; bottom:0; right:0; left:var(--w3-rail-w);
       background:rgba(0,0,0,.45); z-index:1040; opacity:0; visibility:hidden; pointer-events:none;
@@ -168,21 +153,14 @@
     }
     .w3-overlay.w3-on{opacity:1; visibility:visible; pointer-events:auto}
 
-    /* Utilities */
-    .rounded-xs{ border-radius:6px; }
-
     /* Mobile */
     @media (max-width: 991px){
       .w3-sidebar{transform:translateX(-100%)}
       .w3-sidebar.w3-on{transform:translateX(0)}
       .w3-content{ padding-left:16px; }
-      .w3-appbar-inner{margin-left:0; padding-inline:10px}
       .js-theme-btn{display:none!important}
-      .w3-overlay{left:var(--w3-rail-w)}
       .w3-app-logo{display:flex}
-    }
-    @media (min-width: 992px){
-      .w3-app-logo{display:none}
+      .w3-overlay{left:var(--w3-rail-w)}
     }
 
     /* Dark flips */
@@ -205,32 +183,21 @@
 
   <style>
     /* Dark theme scrollbars */
-    html.theme-dark ::-webkit-scrollbar {
-      width: 8px !important;
-    }
-    html.theme-dark ::-webkit-scrollbar-track {
-      background: #1e293b !important;
-      border-radius: 4px !important;
-    }
-    html.theme-dark ::-webkit-scrollbar-thumb {
-      background: #475569 !important;
-      border-radius: 4px !important;
-    }
-    html.theme-dark ::-webkit-scrollbar-thumb:hover {
-      background: #64748b !important;
-    }
-    html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar {
-      width: 6px !important;
-    }
-    html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-track {
-      background: #1e293b !important;
-    }
-    html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
-      background: #475569 !important;
-    }
+    html.theme-dark ::-webkit-scrollbar { width: 8px !important; }
+    html.theme-dark ::-webkit-scrollbar-track { background: #1e293b !important; border-radius: 4px !important; }
+    html.theme-dark ::-webkit-scrollbar-thumb { background: #475569 !important; border-radius: 4px !important; }
+    html.theme-dark ::-webkit-scrollbar-thumb:hover { background: #64748b !important; }
+    html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar { width: 6px !important; }
+    html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-track { background: #1e293b !important; }
+    html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb { background: #475569 !important; }
   </style>
 </head>
 <body>
+
+{{-- ✅ Overlay partial inside wrapper (block while loading, none after loading) --}}
+<div id="pageLoadingWrap" style="display:block;">
+  @include('partials.overlay')
+</div>
 
 <!-- Sidebar -->
 <aside id="sidebar" class="w3-sidebar" aria-label="Sidebar">
@@ -241,7 +208,8 @@
   </div>
 
   <div class="w3-sidebar-scroll">
-    <!-- Overview -->
+
+    <!-- Overview (STATIC) -->
     <div class="w3-nav-section">
       <div class="w3-section-title"><i class="fa-solid fa-chart-simple"></i> OVERVIEW</div>
       <div class="w3-section-rule"></div>
@@ -252,184 +220,161 @@
       </a>
     </nav>
 
-    <!-- Site Builder -->
+    <!-- Site Builder heading (STATIC heading, contents dynamic/admin) -->
     <div class="w3-nav-section">
       <div class="w3-section-title"><i class="fa-solid fa-screwdriver-wrench"></i> SITE BUILDER</div>
       <div class="w3-section-rule"></div>
     </div>
-    <nav class="w3-menu" aria-label="Site Builder">
-      <!-- Users & Access -->
-      <div class="w3-group">
-        <a href="#" class="w3-link w3-toggle" data-target="sm-users" aria-expanded="false">
-          <i class="fa-solid fa-user-shield"></i><span>Users & Access</span>
-          <i class="fa fa-chevron-down w3-chev"></i>
-        </a>
-        <div id="sm-users" class="w3-submenu" role="group" aria-label="Users submenu">
-          <a href="/user/manage" class="w3-link">Users</a>
+
+    {{-- ✅ ADMIN FULL MENU (static) --}}
+    <div id="adminFullMenu" style="display:none">
+      <nav class="w3-menu" aria-label="Site Builder (Admin)">
+
+        <div class="w3-group">
+          <a href="#" class="w3-link w3-toggle" data-target="sm-users" aria-expanded="false">
+            <i class="fa-solid fa-user-shield"></i><span>Users & Access</span>
+            <i class="fa fa-chevron-down w3-chev"></i>
+          </a>
+          <div id="sm-users" class="w3-submenu" role="group" aria-label="Users submenu">
+            <a href="/user/manage" class="w3-link">Users</a>
+          </div>
         </div>
-      </div>
 
-<!-- Departments -->
-<div class="w3-group">
-  <a href="#" class="w3-link w3-toggle" data-target="sm-departments" aria-expanded="false">
-    <i class="fa-solid fa-building"></i><span>Departments</span>
-    <i class="fa fa-chevron-down w3-chev"></i>
-  </a>
-  <div id="sm-departments" class="w3-submenu" role="group" aria-label="Departments submenu">
-    <a href="/department/manage" class="w3-link">Manage Departments</a>
-    <a href="/department/curriculum-syllabus" class="w3-link">Curriculum & Syllabus</a>
-    <a href="/department/announcements" class="w3-link">Announcements</a>
-    <a href="/department/achievements" class="w3-link">Achievements</a>
-    <a href="/department/notices" class="w3-link">Notices</a>
-    <a href="/department/student-activities" class="w3-link">Student Activities</a>
-    <a href="/department/gallery" class="w3-link">Gallery</a>
-  </div>
-</div>
-
-<!-- Courses -->
-<div class="w3-group">
-  <a href="#" class="w3-link w3-toggle" data-target="sm-courses" aria-expanded="false">
-    <i class="fa-solid fa-book-open-reader"></i><span>Courses</span>
-    <i class="fa fa-chevron-down w3-chev"></i>
-  </a>
-  <div id="sm-courses" class="w3-submenu" role="group" aria-label="Courses submenu">
-    <a href="/course/manage" class="w3-link">Manage Courses</a>
-  </div>
-</div>
-
-      <!-- Header Menu -->
-      <div class="w3-group">
-        <a href="#" class="w3-link w3-toggle" data-target="sm-header-menu" aria-expanded="false">
-          <i class="fa-solid fa-bars"></i><span>Header Menu</span>
-          <i class="fa fa-chevron-down w3-chev"></i>
-        </a>
-        <div id="sm-header-menu" class="w3-submenu" role="group" aria-label="Header Menu submenu">
-          <a href="/header/menu/create" class="w3-link">Create Header Menu</a>
-          <a href="/header/menu/manage" class="w3-link">Manage Header Menus</a>
+        <div class="w3-group">
+          <a href="#" class="w3-link w3-toggle" data-target="sm-departments" aria-expanded="false">
+            <i class="fa-solid fa-building"></i><span>Departments</span>
+            <i class="fa fa-chevron-down w3-chev"></i>
+          </a>
+          <div id="sm-departments" class="w3-submenu" role="group" aria-label="Departments submenu">
+            <a href="/department/manage" class="w3-link">Manage Departments</a>
+            <a href="/department/curriculum-syllabus" class="w3-link">Curriculum & Syllabus</a>
+            <a href="/department/announcements" class="w3-link">Announcements</a>
+            <a href="/department/achievements" class="w3-link">Achievements</a>
+            <a href="/department/notices" class="w3-link">Notices</a>
+            <a href="/department/student-activities" class="w3-link">Student Activities</a>
+            <a href="/department/gallery" class="w3-link">Gallery</a>
+          </div>
         </div>
+
+        <div class="w3-group">
+          <a href="#" class="w3-link w3-toggle" data-target="sm-courses" aria-expanded="false">
+            <i class="fa-solid fa-book-open-reader"></i><span>Courses</span>
+            <i class="fa fa-chevron-down w3-chev"></i>
+          </a>
+          <div id="sm-courses" class="w3-submenu" role="group" aria-label="Courses submenu">
+            <a href="/course/manage" class="w3-link">Manage Courses</a>
+          </div>
+        </div>
+
+        <div class="w3-group">
+          <a href="#" class="w3-link w3-toggle" data-target="sm-header-menu" aria-expanded="false">
+            <i class="fa-solid fa-bars"></i><span>Header Menu</span>
+            <i class="fa fa-chevron-down w3-chev"></i>
+          </a>
+          <div id="sm-header-menu" class="w3-submenu" role="group" aria-label="Header Menu submenu">
+            <a href="/header/menu/create" class="w3-link">Create Header Menu</a>
+            <a href="/header/menu/manage" class="w3-link">Manage Header Menus</a>
+          </div>
+        </div>
+
+        <div class="w3-group">
+          <a href="#" class="w3-link w3-toggle" data-target="sm-pages" aria-expanded="false">
+            <i class="fa-solid fa-file-lines"></i><span>Pages</span>
+            <i class="fa fa-chevron-down w3-chev"></i>
+          </a>
+          <div id="sm-pages" class="w3-submenu" role="group" aria-label="Pages submenu">
+            <a href="/pages/create" class="w3-link">Create Page</a>
+            <a href="/pages/manage" class="w3-link">Manage Page</a>
+          </div>
+        </div>
+
+        <div class="w3-group">
+          <a href="#" class="w3-link w3-toggle" data-target="sm-page-submenu" aria-expanded="false">
+            <i class="fa-solid fa-sitemap"></i><span>Page Submenu</span>
+            <i class="fa fa-chevron-down w3-chev"></i>
+          </a>
+          <div id="sm-page-submenu" class="w3-submenu" role="group" aria-label="Page Submenu submenu">
+            <a href="/page/submenu/create" class="w3-link">Create Page Submenu</a>
+            <a href="/page/submenu/manage" class="w3-link">Manage Page Submenu</a>
+          </div>
+        </div>
+
+      </nav>
+
+      <!-- privileges (admin static) -->
+      <div class="w3-nav-section">
+        <div class="w3-section-title"><i class="fa-solid fa-screwdriver-wrench"></i> privileges</div>
+        <div class="w3-section-rule"></div>
       </div>
+      <nav class="w3-menu" aria-label="Privileges">
 
-      <!-- Pages -->
-<div class="w3-group">
-  <a href="#" class="w3-link w3-toggle" data-target="sm-pages" aria-expanded="false">
-    <i class="fa-solid fa-file-lines"></i><span>Pages</span>
-    <i class="fa fa-chevron-down w3-chev"></i>
-  </a>
-  <div id="sm-pages" class="w3-submenu" role="group" aria-label="Pages submenu">
-    <a href="/pages/create" class="w3-link">Create Page</a>
-    <a href="/pages/manage" class="w3-link">Manage Page</a>
-  </div>
-</div>
+        <div class="w3-group">
+          <a href="#" class="w3-link w3-toggle" data-target="sm-dashboard-menu" aria-expanded="false">
+            <i class="fa-solid fa-puzzle-piece"></i><span>Dashboard Menu</span>
+            <i class="fa fa-chevron-down w3-chev"></i>
+          </a>
+          <div id="sm-dashboard-menu" class="w3-submenu" role="group" aria-label="Dashboard Menu submenu">
+            <a href="/dashboard-menu/create" class="w3-link">
+              <i class="fa-solid fa-puzzle-piece"></i><span>Create Dashboard Menu</span>
+            </a>
+            <a href="/dashboard-menu/manage" class="w3-link">
+              <i class="fa-solid fa-puzzle-piece"></i><span>Manage Dashboard Menu</span>
+            </a>
+          </div>
+        </div>
 
-      <!-- Page Submenu -->
-<div class="w3-group">
-  <a href="#" class="w3-link w3-toggle" data-target="sm-page-submenu" aria-expanded="false">
-    <i class="fa-solid fa-sitemap"></i><span>Page Submenu</span>
-    <i class="fa fa-chevron-down w3-chev"></i>
-  </a>
-  <div id="sm-page-submenu" class="w3-submenu" role="group" aria-label="Page Submenu submenu">
-    <a href="/page/submenu/create" class="w3-link">Create Page Submenu</a>
-    <a href="/page/submenu/manage" class="w3-link">Manage Page Submenu</a>
-  </div>
-</div>
-    </nav>
+        <div class="w3-group">
+          <a href="#" class="w3-link w3-toggle" data-target="sm-page-privilege" aria-expanded="false">
+            <i class="fa-solid fa-shield-halved"></i><span>Page Privilege</span>
+            <i class="fa fa-chevron-down w3-chev"></i>
+          </a>
+          <div id="sm-page-privilege" class="w3-submenu" role="group" aria-label="Page Privilege submenu">
+            <a href="/page-privilege/create" class="w3-link">
+              <i class="fa-solid fa-circle-plus"></i><span>Create Page Privilege</span>
+            </a>
+            <a href="/page-privilege/manage" class="w3-link">
+              <i class="fa-solid fa-list-check"></i><span>Manage Page Privilege</span>
+            </a>
+          </div>
+        </div>
 
-   <!-- privileges -->
-   <div class="w3-nav-section">
-    <div class="w3-section-title"><i class="fa-solid fa-screwdriver-wrench"></i> privileges</div>
-    <div class="w3-section-rule"></div>
-  </div>
-  <nav class="w3-menu" aria-label="System">
-    <div class="w3-group">
-<a href="#" class="w3-link w3-toggle" data-target="sm-dashboard-menu" aria-expanded="false">
-  <i class="fa-solid fa-puzzle-piece"></i><span>Dashboard Menu</span>
-  <i class="fa fa-chevron-down w3-chev"></i>
-</a>
+      </nav>
+    </div>
 
-<div id="sm-dashboard-menu" class="w3-submenu" role="group" aria-label="Dashboard Menu submenu">
-  <a href="/dashboard-menu/create" class="w3-link">
-    <i class="fa-solid fa-puzzle-piece"></i><span>Create Dashboard Menu</span>
-  </a>
-  <a href="/dashboard-menu/manage" class="w3-link">
-    <i class="fa-solid fa-puzzle-piece"></i><span>Manage Dashboard Menu</span>
-  </a>
-</div>
-</div>
+    {{-- ✅ DYNAMIC MENU (normal users): populated from /api/my/sidebar-menus --}}
+    <nav id="dynamicMenu" class="w3-menu" aria-label="Site Builder (Dynamic)" style="display:none"></nav>
 
-    <div class="w3-group">
-<a href="#" class="w3-link w3-toggle" data-target="sm-page-privilege" aria-expanded="false">
-  <i class="fa-solid fa-shield-halved"></i><span>Page Privilege</span>
-  <i class="fa fa-chevron-down w3-chev"></i>
-</a>
-
-<div id="sm-page-privilege" class="w3-submenu" role="group" aria-label="Page Privilege submenu">
-  <a href="/page-privilege/create" class="w3-link">
-    <i class="fa-solid fa-circle-plus"></i><span>Create Page Privilege</span>
-  </a>
-  <a href="/page-privilege/manage" class="w3-link">
-    <i class="fa-solid fa-list-check"></i><span>Manage Page Privilege</span>
-  </a>
-</div>
-</div>
-
-    <!-- System -->
+    <!-- System (STATIC) -->
     <div class="w3-nav-section">
       <div class="w3-section-title"><i class="fa-solid fa-screwdriver-wrench"></i> SYSTEM</div>
       <div class="w3-section-rule"></div>
     </div>
     <nav class="w3-menu" aria-label="System">
-
-      <!-- Manage Profile -->
       <div class="w3-group">
         <a href="#" class="w3-link w3-toggle" data-target="sm-manage-profile" aria-expanded="false">
           <i class="fa-solid fa-user-gear"></i>
           <span>Manage Profile</span>
           <i class="fa fa-chevron-down w3-chev"></i>
         </a>
-    
+
         <div id="sm-manage-profile" class="w3-submenu" role="group" aria-label="Manage Profile submenu">
-    
-          <a href="/user/personal-information/manage" class="w3-link">
-            Personal Information
-          </a>
-    
-          <a href="/user/education/manage" class="w3-link">
-            Educations
-          </a>
-    
-          <a href="/user/honors/manage" class="w3-link">
-            Honors & Awards
-          </a>
-    
-          <a href="/user/journals/manage" class="w3-link">
-            Journals
-          </a>
-    
-          <a href="/user/conference-publications/manage" class="w3-link">
-            Conference Publications
-          </a>
-    
-          <a href="/user/teaching-engagements/manage" class="w3-link">
-            Teaching Engagements
-          </a>
-    
-          <a href="/user/social-media/manage" class="w3-link">
-            Social Media
-          </a>
-    
+          <a href="/user/personal-information/manage" class="w3-link">Personal Information</a>
+          <a href="/user/education/manage" class="w3-link">Educations</a>
+          <a href="/user/honors/manage" class="w3-link">Honors & Awards</a>
+          <a href="/user/journals/manage" class="w3-link">Journals</a>
+          <a href="/user/conference-publications/manage" class="w3-link">Conference Publications</a>
+          <a href="/user/teaching-engagements/manage" class="w3-link">Teaching Engagements</a>
+          <a href="/user/social-media/manage" class="w3-link">Social Media</a>
         </div>
       </div>
-    
-      <!-- Settings -->
+
       <a href="/settings/general" class="w3-link">
         <i class="fa-solid fa-gear"></i>
         <span>Settings</span>
       </a>
-    
     </nav>
-    
 
-    <!-- Account (visible only on small screens) -->
+    <!-- Account (mobile only) -->
     <div class="w3-nav-section d-lg-none">
       <div class="w3-section-title"><i class="fa-solid fa-user"></i> ACCOUNT</div>
       <div class="w3-section-rule"></div>
@@ -438,6 +383,7 @@
       <a href="/profile" class="w3-link"><i class="fa fa-id-badge"></i><span>Profile</span></a>
       <a href="/settings" class="w3-link"><i class="fa fa-gear"></i><span>Settings</span></a>
     </nav>
+
   </div>
 
   <div class="w3-sidebar-foot">
@@ -508,7 +454,7 @@
   </div>
 </header>
 
-<!-- Overlay (mobile) -->
+<!-- Overlay (mobile sidebar overlay) -->
 <div id="sidebarOverlay" class="w3-overlay" aria-hidden="true"></div>
 
 <!-- Content -->
@@ -518,27 +464,39 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
 @stack('scripts')
 @yield('scripts')
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   const html = document.documentElement;
+
+  // ✅ overlay wrapper (block while loading, none after)
+  const wrap = document.getElementById('pageLoadingWrap');
+  const showLoading = () => { if (wrap) wrap.style.display = 'block'; };
+  const hideLoading = () => { if (wrap) wrap.style.display = 'none'; };
+
+  showLoading();
+
+  // ===== Theme
   const THEME_KEY = 'theme';
   const btnTheme = document.getElementById('btnTheme');
   const themeIcon = document.getElementById('themeIcon');
 
-  // ===== Theme
   function setTheme(mode){
     const isDark = mode === 'dark';
     html.classList.toggle('theme-dark', isDark);
     localStorage.setItem(THEME_KEY, mode);
     if (themeIcon) themeIcon.className = isDark ? 'fa-regular fa-sun' : 'fa-regular fa-moon';
   }
-  setTheme(localStorage.getItem(THEME_KEY) || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+  setTheme(
+    localStorage.getItem(THEME_KEY) ||
+    (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+  );
   btnTheme?.addEventListener('click', () => setTheme(html.classList.contains('theme-dark') ? 'light' : 'dark'));
 
-  // ===== Sidebar toggle
+  // ===== Sidebar toggle (mobile)
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('sidebarOverlay');
   const btnHamburger = document.getElementById('btnHamburger');
@@ -562,52 +520,178 @@ document.addEventListener('DOMContentLoaded', () => {
   overlay?.addEventListener('click', closeSidebar);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSidebar(); });
 
-  // ===== Submenus
-  document.querySelectorAll('.w3-toggle').forEach(tg => {
-    tg.addEventListener('click', (e) => {
-      e.preventDefault();
-      const id = tg.dataset.target;
-      const el = document.getElementById(id);
-      if (!el) return;
-      const open = el.classList.toggle('w3-open');
-      tg.classList.toggle('w3-open', open);
-      tg.setAttribute('aria-expanded', open ? 'true' : 'false');
-    });
-  });
-
-  // ===== Active link + open parent
-  const path = window.location.pathname.replace(/\/+$/, '');
-  document.querySelectorAll('.w3-menu a[href]').forEach(a => {
-    const href = a.getAttribute('href');
-    if (href && href !== '#' && href.replace(/\/+$/, '') === path){
-      a.classList.add('active');
-      const sub = a.closest('.w3-submenu');
-      if (sub){
-        sub.classList.add('w3-open');
-        const toggle = sub.previousElementSibling;
-        toggle?.classList.add('w3-open');
-        toggle?.setAttribute('aria-expanded','true');
-      }
-    }
-  });
-
-  // ===== Role label ("Super Admin")
+  // ===== Role label
   const roleLabelEl = document.getElementById('userRoleLabel');
   function titleizeRole(r){
     if (!r) return 'Admin';
-    return r.replace(/_/g,' ')
-            .replace(/\b\w/g, c => c.toUpperCase());
+    return r.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
   }
   const roleFromStorage = sessionStorage.getItem('role') || localStorage.getItem('role');
-  roleLabelEl && (roleLabelEl.textContent = titleizeRole(roleFromStorage) || 'Super Admin');
+  if (roleLabelEl) roleLabelEl.textContent = titleizeRole(roleFromStorage) || 'Admin';
 
-  // ===== Logout (token-based; MSIT Home Builder API)
-  const API_LOGOUT = '/api/auth/logout';   // checkRole-protected
-  const LOGIN_PAGE = '/login';             // where your login.blade.php lives
-
+  // ===== Auth helpers
   function getBearerToken(){
     return sessionStorage.getItem('token') || localStorage.getItem('token') || null;
   }
+
+  // ===== Submenus (bind once per element)
+  function bindSubmenuToggles(root=document){
+    root.querySelectorAll('.w3-toggle').forEach(tg => {
+      if (tg.__bound) return;
+      tg.__bound = true;
+
+      tg.addEventListener('click', (e) => {
+        e.preventDefault();
+        const id = tg.dataset.target;
+        const el = document.getElementById(id);
+        if (!el) return;
+
+        const open = el.classList.toggle('w3-open');
+        tg.classList.toggle('w3-open', open);
+        tg.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+    });
+  }
+
+  // ===== Active link + open parent
+  function markActiveLinks(){
+    const path = window.location.pathname.replace(/\/+$/, '');
+    document.querySelectorAll('.w3-menu a[href]').forEach(a => {
+      const href = a.getAttribute('href');
+      if (href && href !== '#' && href.replace(/\/+$/, '') === path){
+        a.classList.add('active');
+        const sub = a.closest('.w3-submenu');
+        if (sub){
+          sub.classList.add('w3-open');
+          const toggle = sub.previousElementSibling;
+          toggle?.classList.add('w3-open');
+          toggle?.setAttribute('aria-expanded','true');
+        }
+      }
+    });
+  }
+
+  // ===== Dynamic menu builder
+  const adminFullMenu = document.getElementById('adminFullMenu');
+  const dynamicMenu = document.getElementById('dynamicMenu');
+
+  function safeText(v){ return (v ?? '').toString(); }
+
+  function iconHtml(iconClass, fallback='fa-solid fa-circle'){
+    const cls = safeText(iconClass).trim();
+    return `<i class="${cls || fallback}"></i>`;
+  }
+
+  function renderDynamicTree(tree){
+    if (!dynamicMenu) return;
+    dynamicMenu.innerHTML = '';
+
+    (tree || []).forEach((header, hi) => {
+      const hid = parseInt(header?.id || 0, 10);
+      if (!hid) return;
+
+      const headerName = safeText(header?.name || 'Menu');
+      const headerIcon = header?.icon_class || 'fa-solid fa-folder';
+      const subId = `dyn-sub-${hid}-${hi}`;
+
+      const wrap = document.createElement('div');
+      wrap.className = 'w3-group';
+
+      wrap.innerHTML = `
+        <a href="#" class="w3-link w3-toggle" data-target="${subId}" aria-expanded="false">
+          ${iconHtml(headerIcon, 'fa-solid fa-folder')}<span>${headerName}</span>
+          <i class="fa fa-chevron-down w3-chev"></i>
+        </a>
+        <div id="${subId}" class="w3-submenu" role="group" aria-label="${headerName} submenu"></div>
+      `;
+
+      const sub = wrap.querySelector(`#${subId}`);
+      const pages = Array.isArray(header?.children) ? header.children : [];
+
+      pages.forEach((p) => {
+        const href = safeText(p?.href || '#');
+        const name = safeText(p?.name || 'Page');
+        const pIcon = safeText(p?.icon_class || '');
+
+        const a = document.createElement('a');
+        a.className = 'w3-link';
+        a.href = href === '' ? '#' : href;
+
+        // For pages: if API sends icon_class null, we keep just text (like your sample)
+        a.innerHTML = pIcon ? `${iconHtml(pIcon)}<span>${name}</span>` : `<span>${name}</span>`;
+        sub.appendChild(a);
+      });
+
+      if (sub.children.length) dynamicMenu.appendChild(wrap);
+    });
+
+    bindSubmenuToggles(dynamicMenu);
+  }
+
+  async function loadSidebarByToken(){
+    const token = getBearerToken();
+    const role = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
+
+    // ✅ ADMIN: show full static menu
+    if (role === 'admin') {
+      if (adminFullMenu) adminFullMenu.style.display = '';
+      if (dynamicMenu) dynamicMenu.style.display = 'none';
+      if (adminFullMenu) bindSubmenuToggles(adminFullMenu);
+      return;
+    }
+
+    // ✅ Normal users: require token, otherwise keep only static Overview + System
+    if (!token) {
+      if (adminFullMenu) adminFullMenu.style.display = 'none';
+      if (dynamicMenu) dynamicMenu.style.display = 'none';
+      return;
+    }
+
+    try{
+      const res = await fetch('/api/my/sidebar-menus', {
+        method: 'GET',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!res.ok){
+        if (adminFullMenu) adminFullMenu.style.display = 'none';
+        if (dynamicMenu) dynamicMenu.style.display = 'none';
+        return;
+      }
+
+      const data = await res.json();
+
+      // ✅ If backend returns string "all" for admin-like access
+      if (data === 'all' || data?.tree === 'all') {
+        if (adminFullMenu) adminFullMenu.style.display = '';
+        if (dynamicMenu) dynamicMenu.style.display = 'none';
+        if (adminFullMenu) bindSubmenuToggles(adminFullMenu);
+        return;
+      }
+
+      const tree = Array.isArray(data?.tree) ? data.tree : [];
+      if (tree.length) {
+        if (adminFullMenu) adminFullMenu.style.display = 'none';
+        if (dynamicMenu) dynamicMenu.style.display = '';
+        renderDynamicTree(tree);
+      } else {
+        if (adminFullMenu) adminFullMenu.style.display = 'none';
+        if (dynamicMenu) dynamicMenu.style.display = 'none';
+      }
+
+    }catch(e){
+      if (adminFullMenu) adminFullMenu.style.display = 'none';
+      if (dynamicMenu) dynamicMenu.style.display = 'none';
+    }
+  }
+
+  // ===== Logout (token-based)
+  const API_LOGOUT = '/api/auth/logout';
+  const LOGIN_PAGE = '/login';
+
   function clearAuthStorage(){
     try { sessionStorage.removeItem('token'); } catch(e){}
     try { sessionStorage.removeItem('role'); } catch(e){}
@@ -659,18 +743,21 @@ document.addEventListener('DOMContentLoaded', () => {
     window.location.replace(LOGIN_PAGE);
   }
 
-  document.getElementById('logoutBtn')?.addEventListener('click', (e) => {
-    e.preventDefault();
-    performLogout();
-  });
-  document.getElementById('logoutBtnSidebar')?.addEventListener('click', (e) => {
-    e.preventDefault();
-    performLogout();
-  });
+  document.getElementById('logoutBtn')?.addEventListener('click', (e) => { e.preventDefault(); performLogout(); });
+  document.getElementById('logoutBtnSidebar')?.addEventListener('click', (e) => { e.preventDefault(); performLogout(); });
+
+  // ===== INIT (hide overlay only after theme + sidebar + active link is ready)
+  (async () => {
+    try{
+      bindSubmenuToggles(document);     // static: system + overview toggles (if any)
+      await loadSidebarByToken();       // dynamic/admin menu decision + build
+      markActiveLinks();               // after menu is rendered
+    } finally {
+      hideLoading();                   // ✅ wrapper display none
+    }
+  })();
 });
 </script>
 
-@stack('scripts')
-@yield('scripts')
 </body>
 </html>

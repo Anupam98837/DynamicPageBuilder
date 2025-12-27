@@ -204,10 +204,7 @@
 
   {{-- Loading Overlay --}}
   <div id="globalLoading" class="loading-overlay" style="display:none;">
-    <div class="loading-spinner">
-      <div class="spinner"></div>
-      <div class="small">Loading…</div>
-    </div>
+    @include('partials.overlay')
   </div>
 
   {{-- Tabs --}}

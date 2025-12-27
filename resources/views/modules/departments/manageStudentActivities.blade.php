@@ -287,10 +287,7 @@ td.col-slug code{
 
   {{-- Global loading --}}
   <div id="saLoading" class="sa-loading">
-    <div class="box">
-      <div class="spin"></div>
-      <div class="small">Loading…</div>
-    </div>
+    @include('partials.overlay')
   </div>
 
   {{-- Tabs --}}
