@@ -1,6 +1,6 @@
 @section('title', 'Manage Menu')
 
-@include('landingPage.pageSubmenus.managePageSubmenu')
+@include('modules.pageSubmenus.managePageSubmenu')
 
 @section('scripts')
 <script>

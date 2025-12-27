@@ -1,8 +1,6 @@
-@extends('pages.users.layout.structure')
+@section('title', 'Manage Menu')
 
-@section('title', 'Create Menu')
-
-@include('landingPage.headerMenus.createHeaderMenu')
+@include('modules.headerMenus.manageHeaderMenu')
 
 @section('scripts')
 <script>

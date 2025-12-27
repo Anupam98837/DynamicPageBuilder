@@ -406,7 +406,7 @@ html.theme-dark .kv-divider{
 
 <body>
 
-    @include('modules.header.header')
+    @include('landing.components.header')
 
 <div class="profile-layout">
 

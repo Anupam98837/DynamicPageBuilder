@@ -423,11 +423,54 @@
         padding: 0 0 0 14px;
         border-left: 1px dashed rgba(255,255,255,.25);
     }
+
+    /* =========================================================
+       LOADING OVERLAY (NEW)
+       ========================================================= */
+    .menu-loading-overlay{
+        position: fixed;
+        inset: 0;
+        background: rgba(10, 10, 10, 0.35);
+        backdrop-filter: blur(2px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 20000;
+        padding: 18px;
+    }
+    .menu-loading-overlay.show{ display: flex; }
+
+    .menu-loading-card{
+        background: var(--secondary-color, #6B2528);
+        border: 1px solid rgba(255,255,255,.16);
+        border-radius: 16px;
+        box-shadow: 0 18px 50px rgba(0,0,0,.35);
+        color: #fff;
+        padding: 16px 18px;
+        min-width: 260px;
+        max-width: 92vw;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .menu-loading-text{
+        display:flex;
+        flex-direction:column;
+        gap: 2px;
+        line-height: 1.2;
+    }
+    .menu-loading-text strong{ font-size: 1rem; }
+    .menu-loading-text small{ opacity: .85; font-size: .85rem; }
 </style>
+
+<!-- LOADING OVERLAY (NEW) -->
+<div id="menuLoadingOverlay" class="menu-loading-overlay" aria-hidden="true">
+    @include('partials.overlay')
+</div>
 
 <!-- Navbar HTML -->
 <div class="d-flex justify-content-center">
-    <a href="/dashboard" class="w3-brand">
+    <a href="/" class="w3-brand">
         <img style="width:auto;height:5rem;" id="logo" src="{{ asset('/assets/media/images/web/logo.png') }}" alt="MSIT Home Builder">
     </a>
 </div>
@@ -480,6 +523,9 @@
             this.activePathIds = [];
             this.activePathNodes = [];
 
+            // loading overlay
+            this.loadingEl = document.getElementById('menuLoadingOverlay');
+
             this.init();
         }
 
@@ -487,10 +533,24 @@
             this.loadMenu();
             this.setupResizeListener();
 
-            // If offcanvas is open and viewport becomes desktop, force-close it.
             window.addEventListener('resize', () => {
                 if (window.innerWidth >= 992) this.forceCloseOffcanvas();
             });
+        }
+
+        /* -------------------- Loading overlay (NEW) -------------------- */
+        showLoading(message = 'Loading menu…') {
+            if (!this.loadingEl) return;
+            const strong = this.loadingEl.querySelector('.menu-loading-text strong');
+            if (strong) strong.textContent = message;
+            this.loadingEl.classList.add('show');
+            this.loadingEl.setAttribute('aria-hidden', 'false');
+        }
+
+        hideLoading() {
+            if (!this.loadingEl) return;
+            this.loadingEl.classList.remove('show');
+            this.loadingEl.setAttribute('aria-hidden', 'true');
         }
 
         setupResizeListener() {
@@ -507,13 +567,16 @@
 
         getCurrentSlug() {
             const path = window.location.pathname || '';
+            if (path === '/' || path === '') return '__HOME__'; // ✅ special home marker
             if (path.startsWith('/page/')) return path.replace('/page/', '').replace(/^\/+/, '');
             return '';
         }
 
         async loadMenu() {
+            this.showLoading('Loading menu…');
+
             try {
-                const response = await fetch(`${this.apiBase}/tree`);
+                const response = await fetch(`${this.apiBase}/tree`, { headers: { 'Accept': 'application/json' } });
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
                 const data = await response.json();
@@ -521,11 +584,12 @@
                 if (data.success && data.data) {
                     this.menuData = data.data;
 
-                    // Build maps for quick access
                     this.buildNodeMaps(this.menuData);
 
                     // Active path (for offcanvas expand + mega prefill)
-                    this.activePathNodes = this.getActivePathNodes(this.menuData, this.currentSlug);
+                    this.activePathNodes = (this.currentSlug && this.currentSlug !== '__HOME__')
+                        ? this.getActivePathNodes(this.menuData, this.currentSlug)
+                        : [];
                     this.activePathIds = this.activePathNodes.map(n => n.id);
 
                     this.renderMenu();
@@ -535,7 +599,7 @@
                         this.adjustMenuSizing();
                         this.toggleOverflowMode();
                         this.bindMegaGuards();
-                        if (this.currentSlug) this.highlightActiveMenu();
+                        this.highlightActiveMenu();
                     }, 50);
                 } else {
                     this.showError();
@@ -543,11 +607,16 @@
             } catch (error) {
                 console.error('Error loading menu:', error);
                 this.showError();
+            } finally {
+                this.hideLoading();
             }
         }
 
         /* -------------------- Maps -------------------- */
         buildNodeMaps(items) {
+            this.nodeById.clear();
+            this.childrenById.clear();
+
             const walk = (nodes) => {
                 for (const n of nodes || []) {
                     this.nodeById.set(n.id, n);
@@ -617,7 +686,6 @@
 
             nav.classList.toggle('use-offcanvas', shouldOffcanvas);
 
-            // if we are not in offcanvas mode anymore (desktop/full screen), hide the sidebar immediately
             if (!shouldOffcanvas) {
                 this.forceCloseOffcanvas();
             }
@@ -630,7 +698,6 @@
             const inst = bootstrap.Offcanvas.getInstance(ocEl) || new bootstrap.Offcanvas(ocEl);
             try { inst.hide(); } catch(e){}
 
-            // Hard cleanup for any leftover backdrop/scroll lock
             document.querySelectorAll('.offcanvas-backdrop').forEach(b => b.remove());
             document.body.style.removeProperty('overflow');
             document.body.style.removeProperty('padding-right');
@@ -639,10 +706,61 @@
             ocEl.setAttribute('aria-hidden', 'true');
         }
 
+        /* ===========================================================
+           ✅ STATIC HOME ITEM (NEW)
+           - Always first menu item in desktop + offcanvas
+           - Route: /
+           =========================================================== */
+        buildHomeNavItem() {
+            const li = document.createElement('li');
+            li.className = 'nav-item';
+            li.dataset.id = 'home_static';
+            li.dataset.slug = '__HOME__';
+
+            const a = document.createElement('a');
+            a.className = 'nav-link';
+            a.href = '{{ url("/") }}';
+            a.innerHTML = `Home`;
+
+            // active state on home
+            if (this.currentSlug === '__HOME__') a.classList.add('active');
+
+            li.appendChild(a);
+            return li;
+        }
+
+        buildHomeOffcanvasItem() {
+            const li = document.createElement('li');
+
+            const row = document.createElement('div');
+            row.className = 'oc-row';
+
+            const link = document.createElement('a');
+            link.className = 'oc-link';
+            link.href = '{{ url("/") }}';
+            link.innerHTML = `<i class="fa-solid fa-house me-2"></i>Home`;
+
+            if (this.currentSlug === '__HOME__') link.classList.add('active');
+
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.forceCloseOffcanvas();
+                setTimeout(() => { window.location.href = link.href; }, 120);
+            });
+
+            row.appendChild(link);
+            li.appendChild(row);
+
+            return li;
+        }
+
         /* -------------------- Render top row -------------------- */
         renderMenu() {
             const container = document.getElementById('mainMenuContainer');
             container.innerHTML = '';
+
+            // ✅ add Home first
+            container.appendChild(this.buildHomeNavItem());
 
             if (!this.menuData || !this.menuData.length) return;
 
@@ -660,7 +778,6 @@
                 a.href = this.getMenuItemUrl(item);
                 a.textContent = item.title;
 
-                // external links
                 if (item.page_url && item.page_url.startsWith('http')) {
                     a.addEventListener('click', (e) => {
                         e.preventDefault();
@@ -682,21 +799,15 @@
         }
 
         /* -------------------- Mega dropdown builder -------------------- */
-
-        // Compute stagger offset so child column starts aligned with hovered parent submenu item
         getAnchorTop(panel, anchorEl) {
             if (!panel || !anchorEl) return 0;
 
             const panelRect = panel.getBoundingClientRect();
             const aRect = anchorEl.getBoundingClientRect();
 
-            // relative Y inside panel
             let top = (aRect.top - panelRect.top);
-
-            // small adjustment so the block aligns nicely with item padding
             top = Math.max(0, top - 4);
 
-            // clamp so it doesn't go too far down
             const minVisible = 140;
             const availableBelow = window.innerHeight - panelRect.top - 20;
             const maxTop = Math.max(0, availableBelow - minVisible);
@@ -713,17 +824,14 @@
             panel.className = 'mega-panel';
             dropdown.appendChild(panel);
 
-            // Column 0
             this.renderMegaColumn(panel, 0, children, 0);
 
-            // Prefill mega columns if current slug is inside this subtree
             if (activeNodesFromHere && activeNodesFromHere.length) {
                 this.prefillMega(panel, children, activeNodesFromHere);
             }
 
             parentLi.appendChild(dropdown);
 
-            // Hover delegation (desktop)
             dropdown.addEventListener('mousemove', (e) => {
                 if (window.innerWidth < 992) return;
                 const link = e.target.closest('a.dropdown-item[data-mid]');
@@ -733,7 +841,6 @@
                 const id = parseInt(link.dataset.mid || '0', 10);
                 if (!id) return;
 
-                // set active in this column
                 this.setActiveInColumn(panel, col, id);
 
                 const kids = this.childrenById.get(id) || [];
@@ -747,7 +854,6 @@
         }
 
         renderMegaColumn(panel, colIndex, items, alignTopPx = 0) {
-            // ensure column exists
             let col = panel.querySelector(`.mega-col[data-col="${colIndex}"]`);
             if (!col) {
                 col = document.createElement('div');
@@ -761,10 +867,7 @@
                 panel.appendChild(col);
             }
 
-            // apply stagger alignment (only for deeper columns)
             col.style.marginTop = (colIndex > 0 && alignTopPx > 0) ? `${alignTopPx}px` : '0px';
-
-            // wipe deeper columns
             this.clearMegaColumns(panel, colIndex + 1);
 
             const ul = col.querySelector('.mega-list');
@@ -782,14 +885,12 @@
                 a.href = this.getMenuItemUrl(item);
                 a.textContent = item.title;
 
-                // meta
                 a.dataset.mid = String(item.id);
                 a.dataset.col = String(colIndex);
 
                 const hasChildren = item.children && item.children.length > 0;
                 if (hasChildren) a.classList.add('has-children');
 
-                // external links
                 if (item.page_url && item.page_url.startsWith('http')) {
                     a.addEventListener('click', (e) => {
                         e.preventDefault();
@@ -821,7 +922,6 @@
         }
 
         prefillMega(panel, rootChildren, activeNodesFromHere) {
-            // Column 0 already contains rootChildren
             let currentCol = 0;
 
             for (let i = 0; i < activeNodesFromHere.length; i++) {
@@ -841,7 +941,6 @@
             }
         }
 
-        /* Keep mega dropdown in viewport */
         bindMegaGuards() {
             if (window.innerWidth < 992) return;
 
@@ -859,21 +958,18 @@
             const menu = li.querySelector(':scope > .dropdown-menu');
             if (!menu) return;
 
-            // reset
             menu.style.left = '0';
             menu.style.right = 'auto';
 
             const pad = 10;
             const rect = menu.getBoundingClientRect();
 
-            // If right overflows, align dropdown to right edge of parent
             if (rect.right > (window.innerWidth - pad)) {
                 menu.style.left = 'auto';
                 menu.style.right = '0';
             }
         }
 
-        /* -------------------- URL + Active highlight -------------------- */
         getMenuItemUrl(item) {
             if (item.page_url && item.page_url.trim() !== '') {
                 return item.page_url.startsWith('http') ? item.page_url : `{{ url('') }}${item.page_url}`;
@@ -888,16 +984,19 @@
         highlightActiveMenu() {
             document.querySelectorAll('.nav-link.active, .dropdown-item.active').forEach(link => link.classList.remove('active'));
 
+            // ✅ Home highlight
+            if (this.currentSlug === '__HOME__') {
+                const homeLink = document.querySelector(`.nav-item[data-slug="__HOME__"] > a.nav-link`);
+                if (homeLink) homeLink.classList.add('active');
+                return;
+            }
+
             if (this.activePathNodes && this.activePathNodes.length) {
                 const top = this.activePathNodes[0];
                 if (top) {
                     const topLink = document.querySelector(`[data-id="${top.id}"] > a.nav-link`);
                     if (topLink) topLink.classList.add('active');
                 }
-            }
-
-            if (window.location.pathname === '/' || window.location.pathname === '') {
-                document.querySelectorAll('[data-slug="home"] > a').forEach(a => a.classList.add('active'));
             }
         }
 
@@ -918,6 +1017,10 @@
             if (!root) return;
 
             root.innerHTML = '';
+
+            // ✅ add Home first in sidebar
+            root.appendChild(this.buildHomeOffcanvasItem());
+
             if (!this.menuData || this.menuData.length === 0) return;
 
             const sortedItems = [...this.menuData].sort((a,b) => (a.position||0) - (b.position||0));
@@ -942,7 +1045,6 @@
 
             const href = link.getAttribute('href') || '#';
 
-            // External links
             if (item.page_url && item.page_url.startsWith('http')) {
                 link.addEventListener('click', (e) => {
                     e.preventDefault();
@@ -950,7 +1052,6 @@
                     this.forceCloseOffcanvas();
                 });
             } else {
-                // FIX: make sidebar link actually navigate
                 link.addEventListener('click', (e) => {
                     if (href && href !== '#') {
                         e.preventDefault();

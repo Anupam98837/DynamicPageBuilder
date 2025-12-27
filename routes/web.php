@@ -4,16 +4,20 @@ use Illuminate\Support\Facades\Route;
 
 // Login Routes 
 
+
 Route::get('/', function () {
+    return view('landing.pages.home');
+});
+
+//pages route
+Route::get('/page/{slug}', function () {
+    return view('landing.pages.dynamicPage');
+});
+Route::get('/login', function () {
     return view('pages.auth.login');
 });
 
 
-Route::get('/page/{slug}', function () {
-    return view('test');
-});
-
-Route::view('/landingpage', 'landingPage.home')->name('home');
 
 Route::get('/dashboard', function () {
     return view('pages.users.pages.common.dashboard');
@@ -93,16 +97,16 @@ Route::get('/pages/manage', function () {
 });
 
 Route::get('/header/menu/create', function () {
-    return view('pages.users.pages.landingPage.headerMenus.createHeaderMenu');
+    return view('pages.users.pages.headerMenus.createHeaderMenu');
 });
 Route::get('/header/menu/manage', function () {
-    return view('pages.users.pages.landingPage.headerMenus.manageHeaderMenu');
+    return view('pages.users.pages.headerMenus.manageHeaderMenu');
 });
 Route::get('/page/submenu/create', function () {
-    return view('pages.users.pages.landingPage.pageSubmenus.createPageSubmenu');
+    return view('pages.users.pages.pageSubmenus.createPageSubmenu');
 });
 Route::get('/page/submenu/manage', function () {
-    return view('pages.users.pages.landingPage.pageSubmenus.managePageSubmenu');
+    return view('pages.users.pages.pageSubmenus.managePageSubmenu');
 });
 
 Route::get('/dashboard-menu/manage', function () {

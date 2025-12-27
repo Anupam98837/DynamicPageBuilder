@@ -1,4 +1,8 @@
 {{-- resources/views/partials/overlay.blade.php --}}
+@php
+  $appName = config('app.name', env('APP_NAME', 'Application'));
+@endphp
+
 <div id="pageOverlay" class="w3-loader-overlay">
     <div class="w3-loader-backdrop"></div>
 
@@ -11,12 +15,12 @@
             </div>
 
             <div class="w3-loader-logo-ring">
-                <img src="{{ asset('/assets/media/images/web/logo.png') }}" alt="W3Techiez" class="w3-loader-logo">
+                <img src="{{ asset('/assets/media/images/web/logo.png') }}" alt="{{ $appName }}" class="w3-loader-logo">
             </div>
         </div>
 
         <div class="w3-loader-text">
-            <h2>W3Techiez</h2>
+            <h2>{{ $appName }}</h2>
             <p>Loading your workspace…</p>
         </div>
 
@@ -32,7 +36,7 @@
 </div>
 
 <style>
-/* ================== W3Techiez Global Loading Overlay ================== */
+/* ================== Global Loading Overlay ================== */
 .w3-loader-overlay{
   position: fixed;
   inset: 0;

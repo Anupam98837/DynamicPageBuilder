@@ -135,7 +135,7 @@
 <body>
 
 {{-- Header --}}
-@include('modules.header.header')
+@include('landing.components.header')
 
 <main class="page-content">
     <div class="container">
@@ -156,7 +156,13 @@
                         <div class="mt-2" id="loadingText">Loading page…</div>
                     </div>
 
+                    {{-- fallback error box (for non-404 errors too) --}}
                     <div id="pageError" class="alert alert-danger d-none mb-0"></div>
+
+                    {{-- ✅ Not Found Partial Holder (NEW) --}}
+                    <div id="pageNotFoundWrap" class="d-none">
+                        @include('partials.pageNotFound')
+                    </div>
 
                     <div id="pageWrap" class="d-none">
                         <div class="dp-muted" id="pageMeta"></div>
@@ -213,12 +219,6 @@
                 }
             } catch(e){}
             const res = await origFetch(input, init);
-
-            // Optional global hint (don’t force redirect here)
-            if (String(res.status) === '401' || String(res.status) === '403') {
-                // let caller handle; but still useful in console
-                // console.warn('Auth error on API call', res.status);
-            }
             return res;
         };
     })();
@@ -251,6 +251,7 @@
     // ------------------------------------------------------------------
     const elLoading   = document.getElementById('pageLoading');
     const elError     = document.getElementById('pageError');
+    const elNotFound  = document.getElementById('pageNotFoundWrap'); // ✅ NEW
     const elWrap      = document.getElementById('pageWrap');
     const elTitle     = document.getElementById('pageTitle');
     const elMeta      = document.getElementById('pageMeta');
@@ -264,9 +265,9 @@
 
     function showLoading(msg){
         elLoadingText.textContent = msg || 'Loading…';
-        elError.classList.add('d-none');
-        elError.textContent = '';
+        elError.classList.add('d-none'); elError.textContent = '';
         elWrap.classList.add('d-none');
+        if (elNotFound) elNotFound.classList.add('d-none');
         elLoading.classList.remove('d-none');
     }
 
@@ -275,6 +276,20 @@
         elError.classList.remove('d-none');
         elLoading.classList.add('d-none');
         elWrap.classList.add('d-none');
+        if (elNotFound) elNotFound.classList.add('d-none');
+    }
+
+    function showNotFound(slug){ // ✅ NEW
+        // optional: set some text if your partial supports it
+        try{
+            const slot = document.querySelector('[data-dp-notfound-slug]');
+            if (slot) slot.textContent = slug || '';
+        } catch(e){}
+
+        elError.classList.add('d-none'); elError.textContent = '';
+        elLoading.classList.add('d-none');
+        elWrap.classList.add('d-none');
+        if (elNotFound) elNotFound.classList.remove('d-none');
     }
 
     function hideError(){
@@ -546,6 +561,7 @@
 
         elLoading.classList.add('d-none');
         elWrap.classList.remove('d-none');
+        if (elNotFound) elNotFound.classList.add('d-none');
         hideError();
     }
 
@@ -713,7 +729,7 @@
 
             const page2 = await resolvePublicPage(slugCandidate);
             if (!page2) {
-                showError('Page not found for: ' + slugCandidate);
+                showNotFound(slugCandidate);
                 return;
             }
 
@@ -732,6 +748,7 @@
 
             elLoading.classList.add('d-none');
             elWrap.classList.remove('d-none');
+            if (elNotFound) elNotFound.classList.add('d-none');
             hideError();
 
             const url = new URL(window.location.href);
@@ -762,7 +779,8 @@
 
         const page = await resolvePublicPage(slugCandidate);
         if (!page) {
-            showError('Page not found for: ' + slugCandidate);
+            // ✅ show partial instead of error
+            showNotFound(slugCandidate);
             return;
         }
 
@@ -788,6 +806,7 @@
 
         elLoading.classList.add('d-none');
         elWrap.classList.remove('d-none');
+        if (elNotFound) elNotFound.classList.add('d-none');
 
         await loadSidebarIfAny(page, currentLower);
 
