@@ -8,7 +8,7 @@
 
 @push('styles')
 <style>
-/* ===== SAME CSS AS MODULES (UNCHANGED) ===== */
+/* ===== SAME CSS AS MODULES (UNCHANGED-ish) ===== */
 .cm-wrap{max-width:1140px;margin:16px auto 40px;overflow:visible}
 .mfa-toolbar .form-control,.mfa-toolbar .form-select{height:40px;border-radius:12px}
 .table-wrap.card{border-radius:16px}
@@ -18,6 +18,12 @@
 .empty{color:var(--muted-color)}
 .icon-btn{height:34px;border-radius:10px}
 .dropdown-menu{border-radius:12px;min-width:220px}
+
+/* tiny helpers */
+#dept{min-width:220px}
+@media (max-width:768px){
+  #dept{min-width:160px}
+}
 </style>
 @endpush
 
@@ -49,27 +55,33 @@
 
     {{-- ACTIVE PAGES TAB --}}
     <div class="tab-pane fade show active" id="tab-active">
-      <div class="panel mb-3 d-flex gap-2 align-items-center">
-        <input id="q" class="form-control" placeholder="Search title / slug">
+      <div class="panel mb-3 d-flex gap-2 align-items-center flex-wrap">
+        <input id="q" class="form-control" placeholder="Search title / slug" style="min-width:220px">
         <select id="status" class="form-select" style="width:160px">
-          <option value="">All</option>
+          <option value="">All Status</option>
           <option value="Active">Active</option>
           <option value="Inactive">Inactive</option>
         </select>
+
+        {{-- ✅ NEW: Department filter --}}
+        <select id="dept" class="form-select">
+          <option value="">All Departments</option>
+        </select>
+
         <button id="btnFilter" class="btn btn-light">Filter</button>
+        <button id="btnReset" class="btn btn-outline-secondary">Reset</button>
       </div>
 
       <div class="card table-wrap">
         <table class="table table-hover mb-0">
           <thead>
             <tr>
-             <th>Title</th>
-<th>Slug</th>
-<th>Shortcode</th> <!-- NEW -->
-<th>Status</th>
-<th>Published</th>
-<th class="text-end">Actions</th>
-
+              <th>Title</th>
+              <th>Slug</th>
+              <th>Shortcode</th>
+              <th>Status</th>
+              <th>Published</th>
+              <th class="text-end">Actions</th>
             </tr>
           </thead>
           <tbody id="rows-active"></tbody>
@@ -131,7 +143,10 @@
   const TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token');
   if(!TOKEN) location.href='/';
 
-  const state = { active: 1, archived: 1, bin: 1 };
+  const state = {
+    active: 1, archived: 1, bin: 1,
+    departments: [] // ✅ NEW
+  };
 
   const api = (url, opt={}) =>
     fetch(url,{
@@ -141,40 +156,100 @@
         'Accept':'application/json',
         ...(opt.headers||{})
       }
-    }).then(r=>r.json());
+    }).then(async r=>{
+      // try to parse JSON safely
+      const ct = r.headers.get('content-type') || '';
+      let j = {};
+      if(ct.includes('application/json')) j = await r.json().catch(()=>({}));
+      else j = { message: await r.text().catch(()=> '') };
 
-  const esc = s => (s||'').replace(/[&<>"']/g,m=>({
+      if(!r.ok){
+        const msg = j?.message || j?.error || ('HTTP ' + r.status);
+        const e = new Error(msg);
+        e.status = r.status;
+        e.payload = j;
+        throw e;
+      }
+      return j;
+    });
+
+  const esc = s => (s||'').toString().replace(/[&<>"']/g,m=>({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
   }[m]));
 
   const badge = s =>
-    `<span class="badge ${s==='Active'?'badge-success':'badge-secondary'}">${s}</span>`;
+    `<span class="badge ${s==='Active'?'badge-success':'badge-secondary'}">${esc(s)}</span>`;
+
+  /* ================== ✅ DEPARTMENTS (NEW) ================== */
+  function deptLabel(d){
+    return d?.title || d?.name || d?.slug || (d?.id ? `Department #${d.id}` : 'Department');
+  }
+
+  async function loadDepartments(){
+    const deptSel = document.getElementById('dept');
+    if(!deptSel) return;
+
+    try{
+      const j = await api('/api/departments?per_page=200');
+      const arr = Array.isArray(j.data) ? j.data : (Array.isArray(j.departments) ? j.departments : []);
+      state.departments = arr || [];
+
+      let html = `<option value="">All Departments</option>`;
+      state.departments.forEach(d=>{
+        const id = d?.id;
+        if(id === undefined || id === null) return;
+        html += `<option value="${esc(String(id))}">${esc(deptLabel(d))}</option>`;
+      });
+      deptSel.innerHTML = html;
+    }catch(e){
+      console.warn('Departments load failed:', e);
+      // keep only default
+      deptSel.innerHTML = `<option value="">All Departments</option>`;
+    }
+  }
 
   /* ================= ACTIVE ================= */
 
-  function loadActive(){
-    const q = document.getElementById('q').value;
-    const status = document.getElementById('status').value;
+  async function loadActive(){
+    const q = document.getElementById('q')?.value || '';
+    const status = document.getElementById('status')?.value || '';
+    const dept = document.getElementById('dept')?.value || '';
 
-    api(`/api/pages?q=${encodeURIComponent(q)}&status=${status}&page=${state.active}`)
-    .then(j=>{
+    const params = new URLSearchParams();
+    params.set('q', q);
+    if(status) params.set('status', status);
+    params.set('page', String(state.active));
+
+    // ✅ NEW: department filter param (common patterns)
+    // Prefer "department_id", fallback can be "department"
+    if(dept) params.set('department_id', dept);
+
+    try{
+      const j = await api(`/api/pages?${params.toString()}`);
+
       const rows = document.getElementById('rows-active');
       rows.innerHTML = '';
 
-      if(!j.data.length){
-        rows.innerHTML =
-          '<tr><td colspan="5" class="text-center empty">No pages found</td></tr>';
+      if(!j.data || !j.data.length){
+        rows.innerHTML = '<tr><td colspan="6" class="text-center empty">No pages found</td></tr>';
+        document.getElementById('meta-active').textContent = `0 page(s)`;
         return;
       }
 
       j.data.forEach(r=>{
+        const slug = (r.slug || '');
+        const viewUrl = `/page/${encodeURIComponent(slug)}`;
+
+        // ✅ IMPORTANT: edit by uuid (fallback to id)
+        const editKey = (r.uuid || r.id || '');
+
         rows.innerHTML += `
         <tr>
           <td>${esc(r.title)}</td>
-<td><a target="_blank" href="/page/${esc(r.slug)}">/${esc(r.slug)}</a></td>
-<td><code>${esc(r.shortcode || '-')}</code></td> <!-- NEW -->
-<td>${badge(r.status)}</td>
-<td>${r.published_at || '-'}</td>
+          <td><a target="_blank" href="${viewUrl}">/${esc(slug)}</a></td>
+          <td><code>${esc(r.shortcode || '-')}</code></td>
+          <td>${badge(r.status || '-')}</td>
+          <td>${esc(r.published_at || '-')}</td>
 
           <td class="text-end">
             <div class="dropdown">
@@ -183,23 +258,23 @@
               </button>
               <ul class="dropdown-menu dropdown-menu-end">
                 <li>
-                  <a class="dropdown-item" target="_blank" href="/page/${esc(r.slug)}">
+                  <a class="dropdown-item" target="_blank" href="${viewUrl}">
                     <i class="fa fa-eye me-1"></i> View
                   </a>
                 </li>
                 <li>
-                  <button class="dropdown-item" onclick="editPage('${r.id}')">
+                  <button class="dropdown-item" onclick="editPage('${esc(String(editKey))}')">
                     <i class="fa fa-edit me-1"></i> Edit
                   </button>
                 </li>
                 <li>
-                  <button class="dropdown-item" onclick="archivePage('${r.id}')">
+                  <button class="dropdown-item" onclick="archivePage('${esc(String(r.id))}')">
                     <i class="fa fa-box-archive me-1"></i> Archive
                   </button>
                 </li>
                 <li><hr class="dropdown-divider"></li>
                 <li>
-                  <button class="dropdown-item text-danger" onclick="deletePage('${r.id}')">
+                  <button class="dropdown-item text-danger" onclick="deletePage('${esc(String(r.id))}')">
                     <i class="fa fa-trash me-1"></i> Delete
                   </button>
                 </li>
@@ -210,25 +285,29 @@
       });
 
       document.getElementById('meta-active').textContent =
-        `${j.pagination.total} page(s)`;
-    });
+        `${j.pagination?.total ?? j.data.length} page(s)`;
+    }catch(e){
+      console.error('Active load failed', e);
+      const rows = document.getElementById('rows-active');
+      rows.innerHTML = '<tr><td colspan="6" class="text-center empty">Failed to load pages</td></tr>';
+      document.getElementById('meta-active').textContent = `—`;
+      if(e.status === 401 || e.status === 403) location.href='/';
+    }
   }
 
   /* ================= ARCHIVED ================= */
 
-  function loadArchived(){
-  const params = new URLSearchParams({
-    page: state.archived
-  });
+  async function loadArchived(){
+    const params = new URLSearchParams({ page: state.archived });
 
-  api(`/api/pages/archived?${params.toString()}`)
-    .then(j=>{
+    try{
+      const j = await api(`/api/pages/archived?${params.toString()}`);
       const rows = document.getElementById('rows-archived');
       rows.innerHTML = '';
 
-      if(!j || !Array.isArray(j.data) || !j.data.length){
-        rows.innerHTML =
-          '<tr><td colspan="4" class="text-center empty">No archived pages</td></tr>';
+      if(!Array.isArray(j.data) || !j.data.length){
+        rows.innerHTML = '<tr><td colspan="4" class="text-center empty">No archived pages</td></tr>';
+        document.getElementById('meta-archived').textContent = `0 archived page(s)`;
         return;
       }
 
@@ -237,90 +316,90 @@
         <tr>
           <td>${esc(r.title)}</td>
           <td>/${esc(r.slug)}</td>
-          <td>${r.updated_at || '-'}</td>
+          <td>${esc(r.updated_at || '-')}</td>
           <td class="text-end">
-  <div class="dropdown">
-    <button class="btn btn-sm btn-primary" data-bs-toggle="dropdown">
-      <i class="fa fa-ellipsis-vertical"></i>
-    </button>
-    <ul class="dropdown-menu dropdown-menu-end">
-      <li>
-        <button class="dropdown-item text-success"
-          onclick="restorePage('${r.id}')">
-          <i class="fa fa-box-open me-1"></i> Unarchive
-        </button>
-      </li>
-    </ul>
-  </div>
-</td>
-
+            <div class="dropdown">
+              <button class="btn btn-sm btn-primary" data-bs-toggle="dropdown">
+                <i class="fa fa-ellipsis-vertical"></i>
+              </button>
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li>
+                  <button class="dropdown-item text-success" onclick="restorePage('${esc(String(r.id))}')">
+                    <i class="fa fa-box-open me-1"></i> Unarchive
+                  </button>
+                </li>
+              </ul>
+            </div>
+          </td>
         </tr>`;
       });
 
       document.getElementById('meta-archived').textContent =
-        `${j.pagination.total} archived page(s)`;
-    });
-}
+        `${j.pagination?.total ?? j.data.length} archived page(s)`;
+    }catch(e){
+      console.error('Archived load failed', e);
+      if(e.status === 401 || e.status === 403) location.href='/';
+    }
+  }
 
   /* ================= BIN ================= */
 
-  function loadBin(){
-  api(`/api/pages/trash?page=${state.bin}`)
-  .then(j=>{
-    const rows = document.getElementById('rows-bin');
-    rows.innerHTML = '';
+  async function loadBin(){
+    try{
+      const j = await api(`/api/pages/trash?page=${state.bin}`);
+      const rows = document.getElementById('rows-bin');
+      rows.innerHTML = '';
 
-    if(!j || !Array.isArray(j.data) || !j.data.length){
-      rows.innerHTML =
-        '<tr><td colspan="3" class="text-center empty">Bin is empty</td></tr>';
-      return;
+      if(!Array.isArray(j.data) || !j.data.length){
+        rows.innerHTML = '<tr><td colspan="3" class="text-center empty">Bin is empty</td></tr>';
+        document.getElementById('meta-bin').textContent = `0 item(s)`;
+        return;
+      }
+
+      j.data.forEach(r=>{
+        rows.innerHTML += `
+        <tr>
+          <td>${esc(r.title)}</td>
+          <td>${esc(r.deleted_at || '-')}</td>
+          <td class="text-end">
+            <div class="dropdown">
+              <button class="btn btn-sm btn-primary" data-bs-toggle="dropdown">
+                <i class="fa fa-ellipsis-vertical"></i>
+              </button>
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li>
+                  <button class="dropdown-item" onclick="restorePage('${esc(String(r.id))}')">
+                    <i class="fa fa-undo me-1"></i> Restore
+                  </button>
+                </li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                  <button class="dropdown-item text-danger" onclick="forceDeletePage('${esc(String(r.id))}')">
+                    <i class="fa fa-trash me-1"></i> Delete Permanently
+                  </button>
+                </li>
+              </ul>
+            </div>
+          </td>
+        </tr>`;
+      });
+
+      document.getElementById('meta-bin').textContent =
+        `${j.pagination?.total ?? j.data.length} item(s)`;
+    }catch(e){
+      console.error('Trash load failed', e);
+      if(e.status === 401 || e.status === 403) location.href='/';
     }
-
-    j.data.forEach(r=>{
-      rows.innerHTML += `
-      <tr>
-        <td>${esc(r.title)}</td>
-        <td>${r.deleted_at}</td>
-        <td class="text-end">
-  <div class="dropdown">
-    <button class="btn btn-sm btn-primary" data-bs-toggle="dropdown">
-      <i class="fa fa-ellipsis-vertical"></i>
-    </button>
-    <ul class="dropdown-menu dropdown-menu-end">
-      <li>
-        <button class="dropdown-item"
-          onclick="restorePage('${r.id}')">
-          <i class="fa fa-undo me-1"></i> Restore
-        </button>
-      </li>
-      <li><hr class="dropdown-divider"></li>
-      <li>
-        <button class="dropdown-item text-danger"
-          onclick="forceDeletePage('${r.id}')">
-          <i class="fa fa-trash me-1"></i> Delete Permanently
-        </button>
-      </li>
-    </ul>
-  </div>
-</td>
-
-      </tr>`;
-    });
-
-    document.getElementById('meta-bin').textContent =
-      `${j.pagination.total} item(s)`;
-  })
-  .catch(err=>{
-    console.error('Trash load failed', err);
-  });
-}
+  }
 
   /* ================= ACTIONS ================= */
 
-window.editPage = id =>
-  location.href = `/pages/create?id=${id}`;
+  // ✅ FIXED: redirect by uuid (the create/edit page reads ?uuid=...)
+  window.editPage = (uuid) => {
+    location.href = `/pages/create?uuid=${encodeURIComponent(uuid)}`;
+  };
 
-  window.archivePage = id => {
+  window.archivePage = (id) => {
     Swal.fire({
       title:'Archive page?',
       icon:'question',
@@ -328,13 +407,14 @@ window.editPage = id =>
       confirmButtonText:'Archive'
     }).then(r=>{
       if(r.isConfirmed){
-        api(`/api/pages/${id}/archive`,{method:'POST'})
-        .then(()=>{ loadActive(); Swal.fire('Archived','','success'); });
+        api(`/api/pages/${encodeURIComponent(id)}/archive`,{method:'POST'})
+        .then(()=>{ loadActive(); Swal.fire('Archived','','success'); })
+        .catch(e=>Swal.fire('Error', e.message || 'Failed', 'error'));
       }
     });
   };
 
-  window.deletePage = id => {
+  window.deletePage = (id) => {
     Swal.fire({
       title:'Move to bin?',
       icon:'warning',
@@ -342,17 +422,19 @@ window.editPage = id =>
       confirmButtonText:'Delete'
     }).then(r=>{
       if(r.isConfirmed){
-        api(`/api/pages/${id}`,{method:'DELETE'})
-        .then(()=>{ loadActive(); loadArchived(); Swal.fire('Deleted','','success'); });
+        api(`/api/pages/${encodeURIComponent(id)}`,{method:'DELETE'})
+        .then(()=>{ loadActive(); loadArchived(); Swal.fire('Deleted','','success'); })
+        .catch(e=>Swal.fire('Error', e.message || 'Failed', 'error'));
       }
     });
   };
 
-  window.restorePage = id =>
-    api(`/api/pages/${id}/restore`,{method:'POST'})
-    .then(()=>{ loadArchived(); loadBin(); loadActive(); });
+  window.restorePage = (id) =>
+    api(`/api/pages/${encodeURIComponent(id)}/restore`,{method:'POST'})
+    .then(()=>{ loadArchived(); loadBin(); loadActive(); })
+    .catch(e=>Swal.fire('Error', e.message || 'Failed', 'error'));
 
-  window.forceDeletePage = id => {
+  window.forceDeletePage = (id) => {
     Swal.fire({
       title:'Delete permanently?',
       icon:'error',
@@ -360,8 +442,9 @@ window.editPage = id =>
       confirmButtonText:'Delete Forever'
     }).then(r=>{
       if(r.isConfirmed){
-        api(`/api/pages/${id}/force`,{method:'DELETE'})
-        .then(()=>{ loadBin(); Swal.fire('Deleted','','success'); });
+        api(`/api/pages/${encodeURIComponent(id)}/force`,{method:'DELETE'})
+        .then(()=>{ loadBin(); Swal.fire('Deleted','','success'); })
+        .catch(e=>Swal.fire('Error', e.message || 'Failed', 'error'));
       }
     });
   };
@@ -373,8 +456,28 @@ window.editPage = id =>
     loadActive();
   };
 
-  document.getElementById('btnCreate').onclick =
-    () => location.href='/pages/create';
+  document.getElementById('btnReset').onclick = () => {
+    state.active = 1;
+    const q = document.getElementById('q');
+    const status = document.getElementById('status');
+    const dept = document.getElementById('dept');
+    if(q) q.value = '';
+    if(status) status.value = '';
+    if(dept) dept.value = '';
+    loadActive();
+  };
+
+  // quick reload on enter
+  document.getElementById('q')?.addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter'){
+      state.active = 1;
+      loadActive();
+    }
+  });
+
+  document.getElementById('btnCreate').onclick = () => {
+    location.href='/pages/create';
+  };
 
   document.querySelector('a[href="#tab-archived"]')
     .addEventListener('shown.bs.tab', loadArchived);
@@ -382,8 +485,11 @@ window.editPage = id =>
   document.querySelector('a[href="#tab-bin"]')
     .addEventListener('shown.bs.tab', loadBin);
 
-  loadActive();
+  // init
+  (async () => {
+    await loadDepartments(); // ✅ NEW
+    loadActive();
+  })();
 })();
 </script>
-
 @endpush

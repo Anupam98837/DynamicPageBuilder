@@ -316,8 +316,8 @@
     <i class="fa fa-chevron-down w3-chev"></i>
   </a>
   <div id="sm-pages" class="w3-submenu" role="group" aria-label="Pages submenu">
-    <a href="/department-pages/create" class="w3-link">Create Page</a>
-    <a href="/departmentPage/manage" class="w3-link">Manage Page</a>
+    <a href="/pages/create" class="w3-link">Create Page</a>
+    <a href="/pages/manage" class="w3-link">Manage Page</a>
   </div>
 </div>
 

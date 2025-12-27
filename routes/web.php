@@ -84,11 +84,11 @@ Route::get('/department/menu/create', function () {
     return view('pages.users.pages.deptMenu.createMenu');
 });
 
-Route::get('/department-pages/create', function () {
+Route::get('/pages/create', function () {
     return view('pages.users.pages.pages.pageEditor');
 });
 
-Route::get('/departmentPage/manage', function () {
+Route::get('/pages/manage', function () {
     return view('pages.users.pages.pages.managePage');
 });
 
