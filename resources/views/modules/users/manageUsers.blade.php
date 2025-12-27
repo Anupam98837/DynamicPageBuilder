@@ -504,8 +504,24 @@ document.addEventListener('DOMContentLoaded', function () {
     globalLoading.style.display = show ? 'flex' : 'none';
   }
 
+  /* ✅ FIX #1: always request JSON (avoid 302/html redirects on auth failure) */
   function authHeaders(extra = {}) {
-    return Object.assign({ 'Authorization': 'Bearer ' + token }, extra);
+    return Object.assign({
+      'Authorization': 'Bearer ' + token,
+      'Accept': 'application/json'
+    }, extra);
+  }
+
+  /* ✅ FIX #2: only redirect on 401 (token invalid), not on 403 (permission) */
+  function handleAuthStatus(res, forbiddenMessage) {
+    if (res.status === 401) {
+      window.location.href = '/';
+      return true; // handled
+    }
+    if (res.status === 403) {
+      throw new Error(forbiddenMessage || 'You are not allowed to perform this action.');
+    }
+    return false;
   }
 
   function escapeHtml(str) {
@@ -630,7 +646,8 @@ document.addEventListener('DOMContentLoaded', function () {
   async function fetchMe() {
     try {
       const res = await fetch('/api/users/me', { headers: authHeaders() });
-      if (res.status === 401 || res.status === 403) { window.location.href = '/'; return; }
+      if (handleAuthStatus(res, 'You are not allowed to access your profile.')) return;
+
       const js = await res.json().catch(() => ({}));
       if (js && js.success && js.data) {
         ACTOR.id = js.data.id || null;
@@ -639,7 +656,9 @@ document.addEventListener('DOMContentLoaded', function () {
         ACTOR.role = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
       }
       computePermissions();
-    } catch (e) { console.error('Failed to fetch /me', e); }
+    } catch (e) {
+      console.error('Failed to fetch /me', e);
+    }
   }
 
   // -------------------------
@@ -678,7 +697,8 @@ document.addEventListener('DOMContentLoaded', function () {
       if (showOverlay) showGlobalLoading(true);
 
       const res = await fetch('/api/departments', { headers: authHeaders() });
-      if (res.status === 401 || res.status === 403) { window.location.href = '/'; return; }
+      if (handleAuthStatus(res, 'You are not allowed to load departments.')) return;
+
       const js = await res.json().catch(() => ({}));
       if (!res.ok || js.success === false) throw new Error(js.error || js.message || 'Failed to load departments');
 
@@ -711,7 +731,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
       const url = '/api/users' + (params.toString() ? ('?' + params.toString()) : '');
       const res = await fetch(url, { headers: authHeaders() });
-      if (res.status === 401 || res.status === 403) { window.location.href = '/'; return; }
+      if (handleAuthStatus(res, 'You are not allowed to view users.')) return;
+
       const js = await res.json().catch(() => ({}));
       if (!res.ok || js.success === false) throw new Error(js.error || js.message || 'Failed to load users');
 
@@ -820,12 +841,19 @@ document.addEventListener('DOMContentLoaded', function () {
             <i class="fa fa-ellipsis-vertical"></i>
           </button>
           <ul class="dropdown-menu dropdown-menu-end">
-                  <!-- ✅ PROFILE -->
+            <!-- ✅ PROFILE -->
             <li>
               <button type="button" class="dropdown-item" data-action="profile">
                 <i class="fa fa-user"></i> Profile
               </button>
             </li>
+            <!-- ✅ ASSIGN PRIVILEGE -->
+<li>
+  <button type="button" class="dropdown-item" data-action="assign_privilege">
+    <i class="fa fa-key"></i> Assign Privilege
+  </button>
+</li>
+
             <li><button type="button" class="dropdown-item" data-action="view">
               <i class="fa fa-eye"></i> View
             </button></li>`;
@@ -979,6 +1007,8 @@ document.addEventListener('DOMContentLoaded', function () {
         headers: { ...authHeaders({ 'Content-Type': 'application/json' }) },
         body: JSON.stringify({ status: willActive ? 'active' : 'inactive' })
       });
+      if (handleAuthStatus(res, 'You are not allowed to update user status.')) return;
+
       const js = await res.json().catch(() => ({}));
       if (!res.ok || js.success === false) throw new Error(js.error || js.message || 'Status update failed');
 
@@ -997,6 +1027,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const btn = e.target.closest('button[data-action]');
     if (!btn) return;
 
+    // ✅ FIX: prevent double-trigger causing wrong mode
+    e.preventDefault();
+    e.stopPropagation();
+
     const tr = btn.closest('tr');
     const uuid = tr?.dataset?.uuid;
     const id = tr?.dataset?.id;
@@ -1014,14 +1048,21 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     };
 
-      /* ✅ PROFILE REDIRECT */
-  if (act === 'profile') {
-    const profileUrl = `/user/profile/${encodeURIComponent(uuid)}`;
-    window.open(profileUrl, '_blank', 'noopener');
-    return;
-  }
+    /* ✅ PROFILE REDIRECT */
+    if (act === 'profile') {
+      const profileUrl = `/user/profile/${encodeURIComponent(uuid)}`;
+      window.open(profileUrl, '_blank', 'noopener');
+      return;
+    }
+/* ✅ ASSIGN PRIVILEGE REDIRECT */
+if (act === 'assign_privilege') {
+  // open in same tab (change to window.open if you want new tab)
+  const url = `/user-privileges/manage?user_uuid=${encodeURIComponent(uuid)}&user_id=${encodeURIComponent(id || '')}`;
+  window.location.href = url;
+  return;
+}
 
-
+    // ✅ FIXED: view => viewOnly true, edit => viewOnly false
     if (act === 'view') {
       setSpin(true);
       openEdit(uuid, id, true).finally(() => setSpin(false));
@@ -1047,6 +1088,8 @@ document.addEventListener('DOMContentLoaded', function () {
             method: 'DELETE',
             headers: authHeaders()
           });
+          if (handleAuthStatus(res, 'You are not allowed to delete users.')) return;
+
           const js = await res.json().catch(() => ({}));
           if (!res.ok || js.success === false) throw new Error(js.error || js.message || 'Delete failed');
           ok('User deleted');
@@ -1110,7 +1153,8 @@ document.addEventListener('DOMContentLoaded', function () {
       if (!state.departmentsLoaded) await loadDepartments(false);
 
       const res = await fetch(`/api/users/${encodeURIComponent(uuid)}`, { headers: authHeaders() });
-      if (res.status === 401 || res.status === 403) { window.location.href = '/'; return; }
+      if (handleAuthStatus(res, 'You are not allowed to view this user.')) return;
+
       const js = await res.json().catch(() => ({}));
       if (!res.ok || js.success === false) throw new Error(js.error || js.message || 'Failed to fetch user');
 
@@ -1218,6 +1262,8 @@ document.addEventListener('DOMContentLoaded', function () {
         headers: { ...authHeaders({ 'Content-Type': 'application/json' }) },
         body: JSON.stringify(payload)
       });
+      if (handleAuthStatus(res, 'You are not allowed to save users.')) return;
+
       const js = await res.json().catch(() => ({}));
       if (!res.ok || js.success === false) {
         let msg = js.error || js.message || 'Save failed';
@@ -1241,6 +1287,8 @@ document.addEventListener('DOMContentLoaded', function () {
           headers: { ...authHeaders({ 'Content-Type': 'application/json' }) },
           body: JSON.stringify(pwPayload)
         });
+        if (handleAuthStatus(res2, 'You are not allowed to change passwords.')) return;
+
         const js2 = await res2.json().catch(() => ({}));
         if (!res2.ok || js2.success === false) {
           let msg2 = js2.error || js2.message || 'Password update failed';

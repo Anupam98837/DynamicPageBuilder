@@ -105,14 +105,20 @@ Route::get('/page/submenu/manage', function () {
     return view('pages.users.pages.landingPage.pageSubmenus.managePageSubmenu');
 });
 
-// Director routes
-
-Route::get('/module/manage', function () {
-    return view('modules.module.manageModule');
+Route::get('/dashboard-menu/manage', function () {
+    return view('modules.dashboardMenu.manageDashboardMenu');
 });
 
-Route::get('/privilege/manage', function () {
-    return view('modules.privileges.managePrivileges');
+Route::get('/dashboard-menu/create', function () {
+    return view('modules.dashboardMenu.createDashboardMenu');
+});
+
+Route::get('/page-privilege/manage', function () {
+    return view('modules.privileges.managePagePrivileges');
+});
+
+Route::get('/page-privilege/create', function () {
+    return view('modules.privileges.createPagePrivileges');
 });
 //   Route::get('/admin/privilege/assign/{userId?}', function ($userId = null) {
 //         return view('modules.privileges.assignPrivileges', compact('userId'));
@@ -123,10 +129,11 @@ Route::get('/user-privileges/manage', function () {
     $userUuid = request('user_uuid');
     $userId   = request('user_id'); // fallback
     
-    return view('pages.users.admin.pages.privileges.assignPrivileges', [
+    return view('modules.privileges.assignPrivileges', [
         'userUuid' => $userUuid,
         'userId'   => $userId,
     ]);
 })->name('modules.privileges.assign.user');
+
 
 

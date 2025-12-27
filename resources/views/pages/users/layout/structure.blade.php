@@ -334,15 +334,43 @@
 </div>
     </nav>
 
-    <!-- privileges -->
-    <div class="w3-nav-section">
-      <div class="w3-section-title"><i class="fa-solid fa-screwdriver-wrench"></i> privileges</div>
-      <div class="w3-section-rule"></div>
-    </div>
-    <nav class="w3-menu" aria-label="System">
-      <a href="/module/manage" class="w3-link"><i class="fa-solid fa-puzzle-piece"></i><span>Module</span></a>
-      <a href="/privilege/manage" class="w3-link"><i class="fa-solid fa-user-shield"></i><span>Privilege</span></a>
-    </nav>
+   <!-- privileges -->
+   <div class="w3-nav-section">
+    <div class="w3-section-title"><i class="fa-solid fa-screwdriver-wrench"></i> privileges</div>
+    <div class="w3-section-rule"></div>
+  </div>
+  <nav class="w3-menu" aria-label="System">
+    <div class="w3-group">
+<a href="#" class="w3-link w3-toggle" data-target="sm-dashboard-menu" aria-expanded="false">
+  <i class="fa-solid fa-puzzle-piece"></i><span>Dashboard Menu</span>
+  <i class="fa fa-chevron-down w3-chev"></i>
+</a>
+
+<div id="sm-dashboard-menu" class="w3-submenu" role="group" aria-label="Dashboard Menu submenu">
+  <a href="/dashboard-menu/create" class="w3-link">
+    <i class="fa-solid fa-puzzle-piece"></i><span>Create Dashboard Menu</span>
+  </a>
+  <a href="/dashboard-menu/manage" class="w3-link">
+    <i class="fa-solid fa-puzzle-piece"></i><span>Manage Dashboard Menu</span>
+  </a>
+</div>
+</div>
+
+    <div class="w3-group">
+<a href="#" class="w3-link w3-toggle" data-target="sm-page-privilege" aria-expanded="false">
+  <i class="fa-solid fa-shield-halved"></i><span>Page Privilege</span>
+  <i class="fa fa-chevron-down w3-chev"></i>
+</a>
+
+<div id="sm-page-privilege" class="w3-submenu" role="group" aria-label="Page Privilege submenu">
+  <a href="/page-privilege/create" class="w3-link">
+    <i class="fa-solid fa-circle-plus"></i><span>Create Page Privilege</span>
+  </a>
+  <a href="/page-privilege/manage" class="w3-link">
+    <i class="fa-solid fa-list-check"></i><span>Manage Page Privilege</span>
+  </a>
+</div>
+</div>
 
     <!-- System -->
     <div class="w3-nav-section">
