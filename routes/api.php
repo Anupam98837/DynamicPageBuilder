@@ -31,6 +31,7 @@ use App\Http\Controllers\API\GalleryController;
 use App\Http\Controllers\API\CourseController;
 use App\Http\Controllers\API\ContactInfoController;
 use App\Http\Controllers\API\HeroCarouselController;
+use App\Http\Controllers\API\HeroCarouselSettingsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -990,4 +991,26 @@ Route::prefix('hero-carousel')->group(function () {
     /* ===== Public ===== */
     Route::get('/public/list',    [HeroCarouselController::class, 'publicIndex']); // visible published list
     Route::get('/public/{id}',    [HeroCarouselController::class, 'publicShow']);  // visible published show
+});
+
+
+Route::prefix('hero-carousel-settings')->group(function () {
+    // current settings (frontend-friendly)
+    Route::get('/current', [HeroCarouselSettingsController::class, 'current']);
+
+    // admin list + trash
+    Route::get('/',        [HeroCarouselSettingsController::class, 'index']);
+    Route::get('/trash',   [HeroCarouselSettingsController::class, 'trash']);
+
+    // CRUD
+    Route::get('/{idOrUuid}',              [HeroCarouselSettingsController::class, 'show']);
+    Route::post('/',                       [HeroCarouselSettingsController::class, 'store']);
+    Route::post('/upsert-current',         [HeroCarouselSettingsController::class, 'upsertCurrent']);
+    Route::put('/{idOrUuid}',              [HeroCarouselSettingsController::class, 'update']);
+    Route::patch('/{idOrUuid}',            [HeroCarouselSettingsController::class, 'update']);
+    Route::delete('/{idOrUuid}',           [HeroCarouselSettingsController::class, 'destroy']);
+
+    // restore / force delete
+    Route::post('/{idOrUuid}/restore',     [HeroCarouselSettingsController::class, 'restore']);
+    Route::delete('/{idOrUuid}/force',     [HeroCarouselSettingsController::class, 'forceDelete']);
 });

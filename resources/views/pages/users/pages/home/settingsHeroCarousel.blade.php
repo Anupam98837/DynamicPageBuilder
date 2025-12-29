@@ -1,8 +1,8 @@
 @extends('pages.users.layout.structure')
 
-@section('title', 'Manage Hero Carousel')
+@section('title', 'Settings Hero Carousel')
 
-@include('modules.home.manageHeroCarousel')
+@include('modules.home.settingsHeroCarousel')
 
 @section('scripts')
 <script>

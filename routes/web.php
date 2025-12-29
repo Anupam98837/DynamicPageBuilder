@@ -143,3 +143,11 @@ Route::get('/user-privileges/manage', function () {
 Route::get('/contact-info/manage', function () {
     return view('pages.users.pages.contact.manageContactInfo');
 });
+
+Route::get('/hero-carousel/manage', function () {
+    return view('pages.users.pages.home.manageHeroCarousel');
+});
+
+Route::get('/hero-carousel/settings', function () {
+    return view('pages.users.pages.home.settingsHeroCarousel');
+});

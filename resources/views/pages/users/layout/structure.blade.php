@@ -312,6 +312,17 @@
   </div>
 </div>
 
+<!-- Hero Carousel -->
+<div class="w3-group">
+  <a href="#" class="w3-link w3-toggle" data-target="sm-hero-carousel" aria-expanded="false">
+    <i class="fa-solid fa-images"></i><span>Hero Carousel</span>
+    <i class="fa fa-chevron-down w3-chev"></i>
+  </a>
+  <div id="sm-hero-carousel" class="w3-submenu" role="group" aria-label="Hero Carousel submenu">
+    <a href="/hero-carousel/manage" class="w3-link">Manage Hero Carousel</a>
+    <a href="/hero-carousel/settings" class="w3-link">Hero Carousel Settings</a>
+  </div>
+</div>
       </nav>
 
       <!-- privileges (admin static) -->
