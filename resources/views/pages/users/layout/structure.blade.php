@@ -299,6 +299,19 @@
           </div>
         </div>
 
+        <!-- Contact Info -->
+<div class="w3-group">
+  <a href="#" class="w3-link w3-toggle" data-target="sm-contact-info" aria-expanded="false">
+    <i class="fa-solid fa-address-book"></i><span>Contact Info</span>
+    <i class="fa fa-chevron-down w3-chev"></i>
+  </a>
+  <div id="sm-contact-info" class="w3-submenu" role="group" aria-label="Contact Info submenu">
+    <a href="/contact-info/manage" class="w3-link">Manage Contact Info</a>
+    <!-- <a href="/contact/forms/manage" class="w3-link">Contact Forms</a>
+    <a href="/contact/locations/manage" class="w3-link">Office Locations</a> -->
+  </div>
+</div>
+
       </nav>
 
       <!-- privileges (admin static) -->

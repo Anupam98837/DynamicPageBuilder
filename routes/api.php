@@ -29,7 +29,8 @@ use App\Http\Controllers\API\NoticeController;
 use App\Http\Controllers\API\StudentActivityController;
 use App\Http\Controllers\API\GalleryController;
 use App\Http\Controllers\API\CourseController;
-
+use App\Http\Controllers\API\ContactInfoController;
+use App\Http\Controllers\API\HeroCarouselController;
 
 /*
 |--------------------------------------------------------------------------
@@ -945,3 +946,48 @@ Route::middleware('checkRole')->group(function () {
     Route::get('/my/sidebar-menus', [\App\Http\Controllers\API\UserPrivilegeController::class, 'mySidebarMenus']);
     
     });
+
+
+Route::prefix('contact-info')->group(function () {
+    // Admin CRUD (wrap with auth middleware if needed)
+    Route::get('/', [ContactInfoController::class, 'index']);
+    Route::get('/trash', [ContactInfoController::class, 'trash']);
+
+    Route::get('/{identifier}', [ContactInfoController::class, 'show']);
+
+    Route::post('/', [ContactInfoController::class, 'store']);
+
+    Route::put('/{identifier}', [ContactInfoController::class, 'update']);
+    Route::patch('/{identifier}', [ContactInfoController::class, 'update']);
+
+    Route::post('/{identifier}/toggle-featured', [ContactInfoController::class, 'toggleFeatured']);
+
+    Route::delete('/{identifier}', [ContactInfoController::class, 'destroy']);
+    Route::post('/{identifier}/restore', [ContactInfoController::class, 'restore']);
+    Route::delete('/{identifier}/force', [ContactInfoController::class, 'forceDelete']);
+});
+
+// Public (no auth) - website usage
+Route::get('/public/contact-info', [ContactInfoController::class, 'publicIndex']);
+Route::get('/public/contact-info/{identifier}', [ContactInfoController::class, 'publicShow']);
+
+
+Route::prefix('hero-carousel')->group(function () {
+
+    /* ===== Admin ===== */
+    Route::get('/',               [HeroCarouselController::class, 'index']);       // list (supports filters)
+    Route::get('/trash',          [HeroCarouselController::class, 'trash']);       // only deleted
+    Route::get('/{id}',           [HeroCarouselController::class, 'show']);        // show by id|uuid|slug
+    Route::post('/',              [HeroCarouselController::class, 'store']);       // create
+    Route::put('/{id}',           [HeroCarouselController::class, 'update']);      // update
+    Route::delete('/{id}',        [HeroCarouselController::class, 'destroy']);     // soft delete
+    Route::put('/{id}/restore',   [HeroCarouselController::class, 'restore']);     // restore
+    Route::delete('/{id}/force',  [HeroCarouselController::class, 'forceDelete']); // permanent delete
+
+    // optional utility: reorder many items at once
+    Route::post('/reorder',       [HeroCarouselController::class, 'reorder']);     // [{id, sort_order},...]
+
+    /* ===== Public ===== */
+    Route::get('/public/list',    [HeroCarouselController::class, 'publicIndex']); // visible published list
+    Route::get('/public/{id}',    [HeroCarouselController::class, 'publicShow']);  // visible published show
+});

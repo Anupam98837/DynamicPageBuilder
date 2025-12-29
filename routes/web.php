@@ -140,4 +140,6 @@ Route::get('/user-privileges/manage', function () {
 })->name('modules.privileges.assign.user');
 
 
-
+Route::get('/contact-info/manage', function () {
+    return view('pages.users.pages.contact.manageContactInfo');
+});
