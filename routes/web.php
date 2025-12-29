@@ -151,3 +151,15 @@ Route::get('/hero-carousel/manage', function () {
 Route::get('/hero-carousel/settings', function () {
     return view('pages.users.pages.home.settingsHeroCarousel');
 });
+
+Route::get('/recruiters', function () {
+    return view('pages.users.pages.home.recruiters');
+});
+
+Route::get('/success-stories/manage', function () {
+    return view('pages.users.pages.home.manageSuccessStories');
+});
+
+Route::get('/events/manage', function () {
+    return view('pages.users.pages.home.manageEvents');
+});

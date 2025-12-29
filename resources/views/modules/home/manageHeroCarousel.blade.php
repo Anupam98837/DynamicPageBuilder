@@ -95,13 +95,13 @@ td.col-slug code{
 
 /* ===== Dropdown fix (actions) ===== */
 .table-card .dropdown{position:relative}
-.dropdown .dd-toggle{border-radius:10px}
+.dropdown .hc-dd-toggle{border-radius:10px}
 .dropdown-menu{
   border-radius:12px;
   border:1px solid var(--line-strong);
   box-shadow:var(--shadow-2);
   min-width:230px;
-  z-index:6000;
+  z-index:99999; /* ✅ match contact page behavior */
 }
 .dropdown-menu.show{display:block !important}
 .dropdown-item{display:flex;align-items:center;gap:.6rem}
@@ -770,12 +770,12 @@ textarea.editor-code{
       pagerEl.innerHTML = html;
     }
 
+    // ✅ match ContactInfo approach: DO NOT use data-bs-toggle, we will toggle manually with Popper "fixed"
     function rowActions(tabKey){
-      // IMPORTANT: no custom togglers — bootstrap handles dropdown reliably
       let html = `
         <div class="dropdown text-end">
-          <button type="button" class="btn btn-light btn-sm dd-toggle"
-            data-bs-toggle="dropdown" data-bs-auto-close="true" aria-expanded="false" title="Actions">
+          <button type="button" class="btn btn-light btn-sm hc-dd-toggle"
+            aria-expanded="false" title="Actions">
             <i class="fa fa-ellipsis-vertical"></i>
           </button>
           <ul class="dropdown-menu dropdown-menu-end">
@@ -873,8 +873,8 @@ textarea.editor-code{
     /* ========= Load ========= */
     async function loadTab(tabKey){
       const tbody = (tabKey === 'active')
-  ? $('hcTbodyActive')
-  : (tabKey === 'inactive' ? $('hcTbodyInactive') : $('hcTbodyTrash'));
+        ? $('hcTbodyActive')
+        : (tabKey === 'inactive' ? $('hcTbodyInactive') : $('hcTbodyTrash'));
       const cols = tabKey==='trash' ? 5 : (tabKey==='inactive' ? 8 : 9);
       tbody.innerHTML = `<tr><td colspan="${cols}" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>`;
 
@@ -1157,8 +1157,8 @@ textarea.editor-code{
     }
 
     $('hcTitleInput').addEventListener('input', debounce(() => {
-      if ($('hcUuid').value) return;       // edit mode -> keep slug
-      if (slugDirty) return;              // user edited slug
+      if ($('hcUuid').value) return;
+      if (slugDirty) return;
       const t = $('hcTitleInput').value || '';
       const next = t.trim() ? slugify(t) : '';
       settingSlug = true;
@@ -1219,6 +1219,48 @@ textarea.editor-code{
       return all.find(x => x?.uuid === uuid) || null;
     }
 
+    // ---------- ✅ ACTION DROPDOWN FIX (copied behavior from ContactInfo) ----------
+    function closeAllDropdownsExcept(exceptToggle){
+      document.querySelectorAll('.hc-dd-toggle').forEach(t => {
+        if (t === exceptToggle) return;
+        try{
+          const inst = bootstrap.Dropdown.getInstance(t);
+          inst && inst.hide();
+        }catch(_){}
+      });
+    }
+
+    // click outside -> close
+    document.addEventListener('click', () => {
+      closeAllDropdownsExcept(null);
+    }, { capture: true });
+
+    // toggle click -> manual bootstrap dropdown with Popper "fixed" (escapes overflow clipping)
+    document.addEventListener('click', (e) => {
+      const toggle = e.target.closest('.hc-dd-toggle');
+      if (!toggle) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      closeAllDropdownsExcept(toggle);
+
+      try{
+        const inst = bootstrap.Dropdown.getOrCreateInstance(toggle, {
+          autoClose: true,
+          popperConfig: (def) => {
+            const base = def || {};
+            const mods = Array.isArray(base.modifiers) ? base.modifiers.slice() : [];
+            mods.push({ name:'preventOverflow', options:{ boundary:'viewport', padding:8 } });
+            mods.push({ name:'flip', options:{ boundary:'viewport', padding:8 } });
+            return { ...base, strategy:'fixed', modifiers: mods };
+          }
+        });
+        inst.toggle();
+      }catch(_){}
+    });
+    // ---------- end dropdown fix ----------
+
     /* ========= Actions ========= */
     document.addEventListener('click', async (e) => {
       const btn = e.target.closest('button[data-action]');
@@ -1230,8 +1272,10 @@ textarea.editor-code{
       if (!uuid) return;
 
       // close dropdown safely
-      const toggle = btn.closest('.dropdown')?.querySelector('.dd-toggle');
-      if (toggle){ try{ bootstrap.Dropdown.getOrCreateInstance(toggle).hide(); }catch(_){ } }
+      const toggle = btn.closest('.dropdown')?.querySelector('.hc-dd-toggle');
+      if (toggle){
+        try{ bootstrap.Dropdown.getInstance(toggle)?.hide(); }catch(_){}
+      }
 
       const tab = currentTab();
       const row = findRow(uuid) || {};
@@ -1241,7 +1285,6 @@ textarea.editor-code{
 
         showLoading(true);
         try{
-          // fetch fresh
           const res = await fetchWithTimeout(`${API}/${encodeURIComponent(uuid)}`, { headers: authHeaders() }, 15000);
           const js = await res.json().catch(()=> ({}));
           if (!res.ok) throw new Error(js?.message || 'Failed to load item');
@@ -1391,7 +1434,6 @@ textarea.editor-code{
       if (isEdit && !canEdit) return;
       if (!isEdit && !canCreate) return;
 
-      // sync overlay
       overlaySyncToHidden();
 
       const title = ($('hcTitleInput').value || '').trim();
@@ -1403,7 +1445,6 @@ textarea.editor-code{
       const desktopPath = ($('hcDesktopPath').value || '').trim();
       const desktopFile = $('hcDesktopFile').files?.[0] || null;
 
-      // required by schema (image_url NOT NULL)
       if (!desktopFile && !desktopPath && !isEdit){
         err('Desktop image is required (upload or path/url).');
         return;
@@ -1424,19 +1465,16 @@ textarea.editor-code{
       const overlayText = ($('hcOverlayHidden').value || '').trim();
       if (overlayText) fd.append('overlay_text', overlayText);
 
-      // desktop: file OR path
       if (desktopFile) fd.append('desktop_image', desktopFile);
       else if (desktopPath) fd.append('image_url', desktopPath);
 
-      // mobile
       const mobilePath = ($('hcMobilePath').value || '').trim();
       const mobileFile = $('hcMobileFile').files?.[0] || null;
       if (mobileFile) fd.append('mobile_image', mobileFile);
       else if (mobilePath) fd.append('mobile_image_url', mobilePath);
 
-      // remove flags (edit)
       if (isEdit){
-        fd.append('_method', 'PUT'); // multipart-safe update
+        fd.append('_method', 'PUT');
         if ($('hcDesktopRemove').checked) fd.append('desktop_image_remove', '1');
         if ($('hcMobileRemove').checked) fd.append('mobile_image_remove', '1');
       }

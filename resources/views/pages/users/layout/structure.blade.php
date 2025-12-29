@@ -323,6 +323,22 @@
     <a href="/hero-carousel/settings" class="w3-link">Hero Carousel Settings</a>
   </div>
 </div>
+
+<!-- Recruiters (Single Link) -->
+<a href="/recruiters" class="w3-link">
+  <i class="fa-solid fa-handshake"></i><span>Recruiters</span>
+</a>
+
+<!-- Success Stories (Single Link) -->
+<a href="/success-stories/manage" class="w3-link">
+  <i class="fa-solid fa-trophy"></i><span>Success Stories</span>
+</a>
+
+<!-- Events (Single Link) -->
+<a href="/events/manage" class="w3-link">
+  <i class="fa-solid fa-calendar-days"></i><span>Events</span>
+</a>
+
       </nav>
 
       <!-- privileges (admin static) -->

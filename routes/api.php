@@ -32,6 +32,9 @@ use App\Http\Controllers\API\CourseController;
 use App\Http\Controllers\API\ContactInfoController;
 use App\Http\Controllers\API\HeroCarouselController;
 use App\Http\Controllers\API\HeroCarouselSettingsController;
+use App\Http\Controllers\API\RecruiterController;
+use App\Http\Controllers\API\SuccessStoryController;
+use App\Http\Controllers\API\EventController;
 
 /*
 |--------------------------------------------------------------------------
@@ -1013,4 +1016,99 @@ Route::prefix('hero-carousel-settings')->group(function () {
     // restore / force delete
     Route::post('/{idOrUuid}/restore',     [HeroCarouselSettingsController::class, 'restore']);
     Route::delete('/{idOrUuid}/force',     [HeroCarouselSettingsController::class, 'forceDelete']);
+});
+
+Route::prefix('recruiters')->group(function () {
+    // Admin CRUD
+    Route::get('/', [RecruiterController::class, 'index']);
+    Route::get('/trash', [RecruiterController::class, 'trash']);
+
+    Route::get('/department/{department}', [RecruiterController::class, 'indexByDepartment']);
+    Route::post('/department/{department}', [RecruiterController::class, 'storeForDepartment']);
+    Route::get('/department/{department}/{identifier}', [RecruiterController::class, 'showByDepartment']);
+
+    Route::get('/{identifier}', [RecruiterController::class, 'show']);
+    Route::post('/', [RecruiterController::class, 'store']);
+    Route::match(['put','patch'], '/{identifier}', [RecruiterController::class, 'update']);
+
+    Route::patch('/{identifier}/toggle-featured', [RecruiterController::class, 'toggleFeatured']);
+
+    Route::delete('/{identifier}', [RecruiterController::class, 'destroy']);
+    Route::post('/{identifier}/restore', [RecruiterController::class, 'restore']);
+    Route::delete('/{identifier}/force', [RecruiterController::class, 'forceDelete']);
+});
+
+// Public (no auth)
+Route::prefix('public')->group(function () {
+    Route::get('/recruiters', [RecruiterController::class, 'publicIndex']);
+    Route::get('/recruiters/department/{department}', [RecruiterController::class, 'publicIndexByDepartment']);
+    Route::get('/recruiters/{identifier}', [RecruiterController::class, 'publicShow']);
+});
+
+
+
+Route::prefix('success-stories')->group(function () {
+    // Admin CRUD
+    Route::get('/',                [SuccessStoryController::class, 'index']);
+    Route::get('/trash',           [SuccessStoryController::class, 'trash']);
+    Route::get('/{identifier}',    [SuccessStoryController::class, 'show']);
+    Route::post('/',               [SuccessStoryController::class, 'store']);
+    Route::put('/{identifier}',    [SuccessStoryController::class, 'update']);
+    Route::patch('/{identifier}/toggle-featured', [SuccessStoryController::class, 'toggleFeatured']);
+    Route::delete('/{identifier}', [SuccessStoryController::class, 'destroy']);
+    Route::post('/{identifier}/restore',          [SuccessStoryController::class, 'restore']);
+    Route::delete('/{identifier}/force',          [SuccessStoryController::class, 'forceDelete']);
+});
+
+// Department-scoped (admin)
+Route::prefix('departments/{department}')->group(function () {
+    Route::get('/success-stories',                [SuccessStoryController::class, 'indexByDepartment']);
+    Route::post('/success-stories',               [SuccessStoryController::class, 'storeForDepartment']);
+    Route::get('/success-stories/{identifier}',   [SuccessStoryController::class, 'showByDepartment']);
+});
+
+// Public (no auth)
+Route::prefix('public')->group(function () {
+    Route::get('/success-stories',                      [SuccessStoryController::class, 'publicIndex']);
+    Route::get('/departments/{department}/success-stories', [SuccessStoryController::class, 'publicIndexByDepartment']);
+    Route::get('/success-stories/{identifier}',         [SuccessStoryController::class, 'publicShow']);
+});
+
+
+/*
+|--------------------------------------------------------------------------
+| Events (Admin / Auth side)
+|--------------------------------------------------------------------------
+| Wrap this group with your auth middleware if needed.
+| Example:
+| Route::middleware(['auth:sanctum'])->group(function(){ ... });
+*/
+Route::prefix('events')->group(function () {
+    Route::get('/', [EventController::class, 'index']);
+    Route::get('/trash', [EventController::class, 'trash']);
+
+    Route::get('/department/{department}', [EventController::class, 'indexByDepartment']);
+    Route::get('/department/{department}/{identifier}', [EventController::class, 'showByDepartment']);
+    Route::post('/department/{department}', [EventController::class, 'storeForDepartment']);
+
+    Route::get('/{identifier}', [EventController::class, 'show']);
+    Route::post('/', [EventController::class, 'store']);
+    Route::put('/{identifier}', [EventController::class, 'update']);
+
+    Route::patch('/{identifier}/toggle-featured', [EventController::class, 'toggleFeatured']);
+
+    Route::delete('/{identifier}', [EventController::class, 'destroy']);
+    Route::patch('/{identifier}/restore', [EventController::class, 'restore']);
+    Route::delete('/{identifier}/force', [EventController::class, 'forceDelete']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Events (Public)
+|--------------------------------------------------------------------------
+*/
+Route::prefix('public/events')->group(function () {
+    Route::get('/', [EventController::class, 'publicIndex']);
+    Route::get('/department/{department}', [EventController::class, 'publicIndexByDepartment']);
+    Route::get('/{identifier}', [EventController::class, 'publicShow']);
 });
