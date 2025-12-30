@@ -281,6 +281,11 @@
           </div>
         </div>
 
+        <!-- Header Components (Single Link) -->
+<a href="/header-components/manage" class="w3-link">
+  <i class="fa-solid fa-header"></i><span>Header Components</span>
+</a>
+
         <div class="w3-group">
           <a href="#" class="w3-link w3-toggle" data-target="sm-pages" aria-expanded="false">
             <i class="fa-solid fa-file-lines"></i><span>Pages</span>

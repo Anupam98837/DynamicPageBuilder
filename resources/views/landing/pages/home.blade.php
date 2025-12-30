@@ -276,6 +276,8 @@
 </head>
 
 <body>
+{{-- Main Header --}}
+@include('landing.components.mainHeader')
 
 {{-- Header (your existing) --}}
 @include('landing.components.header')

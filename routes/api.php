@@ -37,6 +37,7 @@ use App\Http\Controllers\API\SuccessStoryController;
 use App\Http\Controllers\API\EventController;
 use App\Http\Controllers\API\PlacedStudentController;
 use App\Http\Controllers\API\SuccessfulEntrepreneurController;
+use App\Http\Controllers\API\HeaderComponentController;
 
 /*
 |--------------------------------------------------------------------------
@@ -1218,4 +1219,22 @@ Route::prefix('public')->group(function () {
     Route::get('/successful-entrepreneurs',                       [SuccessfulEntrepreneurController::class, 'publicIndex']);
     Route::get('/departments/{department}/successful-entrepreneurs',[SuccessfulEntrepreneurController::class, 'publicIndexByDepartment']);
     Route::get('/successful-entrepreneurs/{identifier}',          [SuccessfulEntrepreneurController::class, 'publicShow']);
+});
+
+
+
+Route::prefix('header-components')->group(function () {
+
+    Route::get('/recruiter-options', [HeaderComponentController::class, 'recruiterOptions']);
+
+    Route::get('/',              [HeaderComponentController::class, 'index']);
+    Route::get('/trash',         [HeaderComponentController::class, 'trash']);
+    Route::get('/{identifier}',  [HeaderComponentController::class, 'show']);
+
+    Route::post('/',             [HeaderComponentController::class, 'store']);
+    Route::put('/{identifier}',  [HeaderComponentController::class, 'update']);
+
+    Route::delete('/{identifier}',          [HeaderComponentController::class, 'destroy']);
+    Route::put('/{identifier}/restore',     [HeaderComponentController::class, 'restore']);
+    Route::delete('/{identifier}/force',    [HeaderComponentController::class, 'forceDelete']);
 });

@@ -175,3 +175,7 @@ Route::get('/success-stories/manage', function () {
 Route::get('/events/manage', function () {
     return view('pages.users.pages.home.manageEvents');
 });
+
+Route::get('/header-components/manage', function () {
+    return view('pages.users.pages.headerComponents.manageHeaderComponents');
+});

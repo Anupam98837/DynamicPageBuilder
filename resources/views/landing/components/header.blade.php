@@ -469,12 +469,6 @@
 </div>
 
 <!-- Navbar HTML -->
-<div class="d-flex justify-content-center">
-    <a href="/" class="w3-brand">
-        <img style="width:auto;height:5rem;" id="logo" src="{{ asset('/assets/media/images/web/logo.png') }}" alt="MSIT Home Builder">
-    </a>
-</div>
-
 <nav class="dynamic-navbar" id="dynamicNavbar">
     <div class="navbar-container">
         <div class="menu-row" id="menuRow">
