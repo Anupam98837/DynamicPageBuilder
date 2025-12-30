@@ -221,6 +221,26 @@ td.col-slug code{
 }
 .logo-preview .meta{font-size:12.5px;color:var(--muted-color);margin-top:10px}
 
+/* ✅ Job Roles builder (like Success Stories -> Social Links) */
+.rec-roles{
+  border:1px solid var(--line-strong);
+  border-radius:14px;
+  padding:12px;
+  background:var(--surface);
+}
+.rec-role-row{
+  display:grid;
+  grid-template-columns: 1.6fr 1fr auto;
+  gap:10px;
+  align-items:center;
+  margin-bottom:10px;
+}
+.rec-role-row:last-child{margin-bottom:0}
+@media (max-width: 992px){
+  .rec-role-row{grid-template-columns:1fr 1fr}
+  .rec-role-row .span2{grid-column: span 2}
+}
+
 /* Mobile toolbar */
 @media (max-width: 768px){
   .rec-toolbar .d-flex{flex-direction:column;gap:12px !important}
@@ -543,14 +563,25 @@ td.col-slug code{
                 </label>
               </div>
 
+              {{-- ✅ Job Roles Builder (Role + CTC) --}}
               <div class="col-12">
-                <label class="form-label">Job Roles JSON (optional)</label>
-                <textarea class="form-control" id="recJobRoles" rows="5" placeholder='Example:
-[
-  {"role":"Software Engineer","ctc":"9 LPA"},
-  {"role":"Data Analyst","ctc":"6 LPA"}
-]'></textarea>
-                <div class="form-text">Paste a JSON array (optional). Keep empty if not needed.</div>
+                <label class="form-label">Job Roles (optional)</label>
+                <div class="rec-roles">
+                  <div class="d-flex align-items-center justify-content-between mb-2">
+                    <div class="small text-muted">Add roles like: <b>Software Engineer</b> • <b>9 LPA</b></div>
+                    <button type="button" class="btn btn-light btn-sm" id="recAddRoleBtn">
+                      <i class="fa fa-plus me-1"></i>Add Role
+                    </button>
+                  </div>
+                  <div id="recRolesWrap"></div>
+                </div>
+
+                {{-- hidden JSON holder (kept for internal use/debug) --}}
+                <input type="hidden" id="recJobRolesJson" value="">
+                <div class="form-text">
+                  Saved as JSON array in backend:
+                  <code>[{"role":"...","ctc":"..."}]</code>
+                </div>
               </div>
 
               <div class="col-12">
@@ -807,7 +838,11 @@ td.col-slug code{
     const logoUrlEl = $('recLogoUrl');
     const logoRemoveEl = $('recLogoRemove');
 
-    const jobRolesEl = $('recJobRoles');
+    // ✅ Job Roles builder elements
+    const rolesWrap = $('recRolesWrap');
+    const addRoleBtn = $('recAddRoleBtn');
+    const jobRolesJsonEl = $('recJobRolesJson');
+
     const metaEl = $('recMeta');
 
     // mini RTE
@@ -1320,6 +1355,68 @@ td.col-slug code{
       });
     }
 
+    /* ========= ✅ Job Roles Builder (Role + CTC) ========= */
+    function roleRowTpl(data={}, viewOnly=false){
+      const role = (data?.role ?? data?.title ?? '').toString();
+      const ctc  = (data?.ctc  ?? data?.package ?? data?.salary ?? '').toString();
+
+      const dis = viewOnly ? 'disabled' : '';
+      const ro  = viewOnly ? 'readonly' : '';
+
+      return `
+        <div class="rec-role-row" data-role-row>
+          <input class="form-control" placeholder="Role (e.g., Software Engineer)" value="${esc(role)}" ${ro}>
+          <input class="form-control" placeholder="CTC (e.g., 9 LPA)" value="${esc(ctc)}" ${ro}>
+          <button type="button" class="btn btn-light btn-sm" data-remove-role ${dis}>
+            <i class="fa fa-xmark"></i>
+          </button>
+        </div>
+      `;
+    }
+
+    function getRolesFromUI(){
+      const rows = Array.from(rolesWrap?.querySelectorAll('[data-role-row]') || []);
+      const out = [];
+      rows.forEach(row => {
+        const inputs = row.querySelectorAll('input');
+        const role = (inputs[0]?.value || '').trim();
+        const ctc  = (inputs[1]?.value || '').trim();
+        if (!role && !ctc) return;
+        out.push({ role: role || null, ctc: ctc || null });
+      });
+      return out;
+    }
+
+    function setRolesUI(arr, viewOnly=false){
+      if (!rolesWrap) return;
+      rolesWrap.innerHTML = '';
+      const list = Array.isArray(arr) ? arr : [];
+      if (!list.length){
+        rolesWrap.innerHTML = roleRowTpl({}, viewOnly);
+        return;
+      }
+      rolesWrap.innerHTML = list.map(x => roleRowTpl(x, viewOnly)).join('');
+    }
+
+    addRoleBtn?.addEventListener('click', () => {
+      if (!rolesWrap) return;
+      rolesWrap.insertAdjacentHTML('beforeend', roleRowTpl({}));
+    });
+
+    document.addEventListener('click', (e) => {
+      const rm = e.target.closest('[data-remove-role]');
+      if (!rm) return;
+      const row = rm.closest('[data-role-row]');
+      if (!row) return;
+
+      const all = rolesWrap?.querySelectorAll('[data-role-row]') || [];
+      if (all.length <= 1){
+        row.querySelectorAll('input').forEach(i => i.value = '');
+        return;
+      }
+      row.remove();
+    });
+
     /* ========= Modal helpers ========= */
     let saving = false;
     let slugDirty = false;
@@ -1344,6 +1441,11 @@ td.col-slug code{
       if (descHidden) descHidden.value = '';
       setRteMode('text');
       setRteEnabled(true);
+
+      // ✅ reset roles builder
+      setRolesUI([], false);
+      if (jobRolesJsonEl) jobRolesJsonEl.value = '';
+      if (addRoleBtn) addRoleBtn.style.display = '';
 
       clearLogoObjectUrl();
       setLogoPreview('', '');
@@ -1382,10 +1484,23 @@ td.col-slug code{
       applyDeptOptions();
       if (deptSelEl) deptSelEl.value = (deptId != null) ? String(deptId) : '';
 
-      if (jobRolesEl){
-        const jr = row.job_roles_json ?? row.job_roles ?? null;
-        jobRolesEl.value = Array.isArray(jr) ? JSON.stringify(jr, null, 2) : (typeof jr === 'string' ? jr : '');
+      // ✅ job roles -> builder
+      let jr = row.job_roles_json ?? row.job_roles ?? null;
+      if (typeof jr === 'string'){
+        const s = jr.trim();
+        if (s){
+          try{ jr = JSON.parse(s); }catch(_){ jr = []; }
+        } else {
+          jr = [];
+        }
       }
+      const jrArr = Array.isArray(jr) ? jr : [];
+      setRolesUI(jrArr, viewOnly);
+      if (jobRolesJsonEl){
+        try{ jobRolesJsonEl.value = JSON.stringify(jrArr); }catch(_){ jobRolesJsonEl.value = ''; }
+      }
+      if (addRoleBtn) addRoleBtn.style.display = viewOnly ? 'none' : '';
+
       if (metaEl){
         const md = row.metadata ?? row.meta ?? null;
         metaEl.value = (md && typeof md === 'object') ? JSON.stringify(md, null, 2) : (typeof md === 'string' ? md : '');
@@ -1471,8 +1586,6 @@ td.col-slug code{
 
     /* =========================================================
        ✅ ACTION DROPDOWN FIX (same pattern as HeroCarousel)
-       - manual toggle via bootstrap.Dropdown with Popper fixed strategy
-       - avoids table/overflow clipping & click conflicts
     ========================================================= */
     function closeAllDropdownsExcept(exceptToggle){
       document.querySelectorAll('.rec-dd-toggle').forEach(t => {
@@ -1484,12 +1597,10 @@ td.col-slug code{
       });
     }
 
-    // click outside -> close
     document.addEventListener('click', () => {
       closeAllDropdownsExcept(null);
     }, { capture: true });
 
-    // toggle click -> manual bootstrap dropdown
     document.addEventListener('click', (e) => {
       const toggle = e.target.closest('.rec-dd-toggle');
       if (!toggle) return;
@@ -1698,8 +1809,16 @@ td.col-slug code{
 
         if (description) fd.append('description', description);
 
-        const jr = asJsonString(jobRolesEl?.value || '');
-        if (jr) fd.append('job_roles_json', jr);
+        // ✅ Job roles from UI -> JSON array
+        const roles = getRolesFromUI();
+        if (roles.length){
+          fd.append('job_roles_json', JSON.stringify(roles));
+          if (jobRolesJsonEl) jobRolesJsonEl.value = JSON.stringify(roles);
+        } else {
+          // allow clearing on edit
+          if (isEdit) fd.append('job_roles_json', '[]');
+          if (jobRolesJsonEl) jobRolesJsonEl.value = '';
+        }
 
         const md = asJsonString(metaEl?.value || '');
         if (md) fd.append('metadata', md);
@@ -1769,6 +1888,10 @@ td.col-slug code{
       try{
         await fetchMe();
         await loadDepartments(); // ✅ so table shows only department names
+
+        // ✅ ensure roles builder has at least one row on first open
+        setRolesUI([], false);
+
         await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
       }catch(ex){
         err(ex?.message || 'Initialization failed');

@@ -4,7 +4,6 @@
 @push('styles')
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
 <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css"/>
 
 <style>
 /* Dropdowns inside table */
@@ -156,17 +155,58 @@ td .fw-semibold{color:var(--ink)}
 .img-cell .img-meta a{font-size:12.5px}
 .img-cell .img-meta .muted{font-size:12px;color:var(--muted-color)}
 
-/* Quill in modal */
-.quill-wrap{
+/* =========================
+   ✅ Custom Mini RTE (Recruiters reference)
+   - used for Achievement Body
+========================= */
+.ach-rte{
   border:1px solid var(--line-strong);
-  border-radius:12px;
+  border-radius:14px;
   overflow:hidden;
-  background:var(--surface)
+  background:var(--surface);
 }
-.quill-wrap .ql-toolbar{border-bottom:1px solid var(--line-strong)}
-.quill-wrap .ql-container{border:0}
-.quill-wrap .ql-editor{min-height:220px}
-.quill-readonly .ql-toolbar{display:none}
+.ach-rte .bar{
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+  padding:8px;border-bottom:1px solid var(--line-strong);
+  background:color-mix(in oklab, var(--surface) 92%, transparent);
+}
+.ach-rte .btnx{
+  border:1px solid var(--line-soft);
+  background:transparent;
+  color:var(--ink);
+  padding:7px 9px;
+  border-radius:10px;
+  line-height:1;
+  cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;
+}
+.ach-rte .btnx:hover{background:var(--page-hover)}
+.ach-rte .btnx.active{
+  background:color-mix(in oklab, var(--primary-color) 14%, transparent);
+  border-color:color-mix(in oklab, var(--primary-color) 35%, var(--line-soft));
+}
+.ach-rte .mode{
+  margin-left:auto;display:flex;border:1px solid var(--line-soft);border-radius:12px;overflow:hidden
+}
+.ach-rte .mode button{
+  border:0;background:transparent;color:var(--ink);
+  padding:7px 12px;font-size:12px;cursor:pointer
+}
+.ach-rte .mode button.active{
+  background:color-mix(in oklab, var(--primary-color) 12%, transparent);
+  font-weight:800;
+}
+.ach-rte .area{position:relative}
+.ach-rte .editor{min-height:220px;padding:12px;outline:none}
+.ach-rte .editor:empty:before{content:attr(data-placeholder);color:var(--muted-color)}
+.ach-rte textarea{
+  display:none;width:100%;min-height:220px;padding:12px;border:0;outline:none;resize:vertical;
+  background:transparent;color:var(--ink);
+  font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size:12.5px;line-height:1.45;
+}
+.ach-rte.code .editor{display:none}
+.ach-rte.code textarea{display:block}
 
 @media (max-width: 768px){
   .ach-toolbar .d-flex{flex-direction:column;gap:12px !important}
@@ -493,12 +533,38 @@ td .fw-semibold{color:var(--ink)}
             </div>
           </div>
 
+          {{-- ✅ Custom editor (same as Recruiters mini RTE) --}}
           <div class="col-md-12">
             <label class="form-label">Body <span class="text-danger">*</span></label>
-            <div class="quill-wrap" id="quillWrap">
-              <div id="bodyEditor"></div>
+
+            <div class="ach-rte" id="achRte">
+              <div class="bar">
+                <button type="button" class="btnx" data-cmd="bold" title="Bold"><i class="fa fa-bold"></i></button>
+                <button type="button" class="btnx" data-cmd="italic" title="Italic"><i class="fa fa-italic"></i></button>
+                <button type="button" class="btnx" data-cmd="underline" title="Underline"><i class="fa fa-underline"></i></button>
+                <span style="width:1px;height:24px;background:var(--line-soft);margin:0 4px"></span>
+                <button type="button" class="btnx" data-cmd="insertUnorderedList" title="Bullets"><i class="fa fa-list-ul"></i></button>
+                <button type="button" class="btnx" data-cmd="insertOrderedList" title="Numbering"><i class="fa fa-list-ol"></i></button>
+                <span style="width:1px;height:24px;background:var(--line-soft);margin:0 4px"></span>
+                <button type="button" class="btnx" data-cmd="createLink" title="Link"><i class="fa fa-link"></i></button>
+                <button type="button" class="btnx" data-cmd="removeFormat" title="Clear"><i class="fa fa-eraser"></i></button>
+
+                <div class="mode">
+                  <button type="button" class="active" data-mode="text">Text</button>
+                  <button type="button" data-mode="code">Code</button>
+                </div>
+              </div>
+
+              <div class="area">
+                <div id="achBodyEditor" class="editor" contenteditable="true" data-placeholder="Write achievement details…"></div>
+                <textarea id="achBodyCode" spellcheck="false" placeholder="HTML code…"></textarea>
+              </div>
             </div>
-            <div class="form-text">Rich text editor. Saved as HTML.</div>
+
+            {{-- hidden value used for API payload --}}
+            <input type="hidden" id="body">
+
+            <div class="form-text">HTML allowed. Use <b>Text</b> mode or edit raw <b>Code</b>.</div>
           </div>
 
           <div class="col-md-12">
@@ -541,7 +607,6 @@ td .fw-semibold{color:var(--ink)}
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
 
 <script>
 // ✅ dropdown fix (safe)
@@ -609,7 +674,6 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function normalizeLink(src){
-    // ✅ FIX: handle object-ish / backslashes / weird values safely
     const raw = (src ?? '');
     const s = (typeof raw === 'string' ? raw : String(raw)).trim().replace(/\\/g,'/');
     if(!s) return '';
@@ -702,36 +766,119 @@ document.addEventListener('DOMContentLoaded', function () {
   const attachmentsModeWrap = document.getElementById('attachmentsModeWrap');
   const attachments_mode = document.getElementById('attachments_mode');
 
-  // Quill
-  const quillWrap = document.getElementById('quillWrap');
+  /* =========================
+     ✅ Mini RTE (Recruiters reference)
+  ========================= */
+  const rteWrap = document.getElementById('achRte');
+  const rteEditor = document.getElementById('achBodyEditor');
+  const rteCode = document.getElementById('achBodyCode');
+  const bodyHidden = document.getElementById('body');
 
-  const quill = new Quill('#bodyEditor', {
-    theme: 'snow',
-    modules: {
-      toolbar: [
-        [{ header: [1, 2, 3, false] }],
-        ['bold', 'italic', 'underline', 'strike'],
-        [{ color: [] }, { background: [] }],
-        [{ list: 'ordered' }, { list: 'bullet' }, { align: [] }],
-        ['link', 'blockquote', 'code-block'],
-        ['clean']
-      ]
+  const rte = { mode:'text', enabled:true };
+
+  function syncBodyToHidden(){
+    const html = (rte.mode === 'code') ? (rteCode.value || '') : (rteEditor.innerHTML || '');
+    if (bodyHidden) bodyHidden.value = (html || '').trim();
+  }
+
+  function setRteMode(mode){
+    rte.mode = (mode === 'code') ? 'code' : 'text';
+    rteWrap?.classList.toggle('code', rte.mode === 'code');
+
+    rteWrap?.querySelectorAll('.mode button').forEach(b => {
+      b.classList.toggle('active', b.dataset.mode === rte.mode);
+    });
+
+    const disableBar = (rte.mode === 'code') || !rte.enabled;
+    rteWrap?.querySelectorAll('.bar .btnx').forEach(b => {
+      b.disabled = disableBar;
+      b.style.opacity = disableBar ? '0.55' : '';
+      b.style.pointerEvents = disableBar ? 'none' : '';
+    });
+
+    if (rte.mode === 'code'){
+      rteCode.value = rteEditor.innerHTML || '';
+      setTimeout(()=>{ try{ rteCode.focus(); }catch(_){ } }, 0);
+    }else{
+      rteEditor.innerHTML = rteCode.value || '';
+      setTimeout(()=>{ try{ rteEditor.focus({preventScroll:true}); }catch(_){ try{ rteEditor.focus(); }catch(__){} } }, 0);
     }
+    syncBodyToHidden();
+    updateRteActive();
+  }
+
+  function updateRteActive(){
+    if (rte.mode !== 'text') return;
+    const set = (cmd, on) => {
+      const b = rteWrap?.querySelector(`.btnx[data-cmd="${cmd}"]`);
+      if (b) b.classList.toggle('active', !!on);
+    };
+    try{
+      set('bold', document.queryCommandState('bold'));
+      set('italic', document.queryCommandState('italic'));
+      set('underline', document.queryCommandState('underline'));
+    }catch(_){}
+  }
+
+  // keep focus inside editor when clicking toolbar
+  rteWrap?.querySelector('.bar')?.addEventListener('pointerdown', (e) => e.preventDefault());
+
+  rteEditor?.addEventListener('input', () => { syncBodyToHidden(); updateRteActive(); });
+  rteCode?.addEventListener('input', () => syncBodyToHidden());
+  ['mouseup','keyup','click'].forEach(ev => rteEditor?.addEventListener(ev, updateRteActive));
+  document.addEventListener('selectionchange', () => {
+    if (document.activeElement === rteEditor) updateRteActive();
   });
 
-  // ✅ FIX #2: remove duplicated/extra toolbar (keep ONLY the toolbar bound to this Quill instance)
-  try{
-    const boundTb = quill.getModule('toolbar')?.container || null;
-    if(boundTb && quillWrap){
-      quillWrap.querySelectorAll('.ql-toolbar').forEach(tb=>{
-        if(tb !== boundTb) tb.remove();
-      });
-    }
-  }catch(ex){ console.warn('Quill toolbar cleanup failed', ex); }
+  document.addEventListener('click', (e) => {
+    const modeBtn = e.target.closest('#achRte .mode button');
+    if (modeBtn){ setRteMode(modeBtn.dataset.mode); return; }
 
-  function setQuillReadonly(on){
-    quill.enable(!on);
-    quillWrap.classList.toggle('quill-readonly', !!on);
+    const btn = e.target.closest('#achRte .btnx');
+    if (!btn || rte.mode !== 'text' || !rte.enabled) return;
+
+    try{ rteEditor.focus({preventScroll:true}); }catch(_){ try{ rteEditor.focus(); }catch(__){} }
+
+    const cmd = btn.getAttribute('data-cmd');
+    if (cmd === 'createLink'){
+      const url = prompt('Enter URL (https://...)');
+      if (url) { try{ document.execCommand('createLink', false, url); }catch(_){ } }
+    } else {
+      try{ document.execCommand(cmd, false, null); }catch(_){ }
+    }
+    syncBodyToHidden();
+    updateRteActive();
+  });
+
+  function setRteEnabled(on){
+    rte.enabled = !!on;
+    if (rteEditor) rteEditor.setAttribute('contenteditable', on ? 'true' : 'false');
+    if (rteCode) rteCode.disabled = !on;
+
+    const disableBar = (rte.mode === 'code') || !rte.enabled;
+    rteWrap?.querySelectorAll('.bar .btnx').forEach(b => {
+      b.disabled = disableBar;
+      b.style.opacity = disableBar ? '0.55' : '';
+      b.style.pointerEvents = disableBar ? 'none' : '';
+    });
+    rteWrap?.querySelectorAll('.mode button').forEach(b => {
+      b.style.pointerEvents = on ? '' : 'none';
+      b.style.opacity = on ? '' : '0.7';
+    });
+  }
+
+  function getBodyHtml(){
+    syncBodyToHidden();
+    return (bodyHidden?.value || '').toString().trim();
+  }
+  function bodyPlainText(html){
+    return (html || '')
+      .toString()
+      .replace(/<style[\s\S]*?<\/style>/gi,' ')
+      .replace(/<script[\s\S]*?<\/script>/gi,' ')
+      .replace(/<[^>]*>/g,' ')
+      .replace(/\s+/g,' ')
+      .trim();
   }
 
   function cleanupModalBackdrops(){
@@ -821,7 +968,6 @@ document.addEventListener('DOMContentLoaded', function () {
           </div>
         </div>`;
     }
-    // ✅ FIX #1: don't rely on lazy-loading inside overflow containers (Safari/scroll containers can skip it)
     return `
       <div class="img-cell">
         <a class="img-thumb" href="${escapeHtml(src)}" target="_blank" rel="noopener" title="Open image">
@@ -862,12 +1008,10 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function pickImageFromRow(r){
-    // ✅ FIX #1: handle list endpoint shapes where image can be object/array/nested
     const tryVal = (v) => {
       if(!v) return '';
       if(typeof v === 'string') return v.trim();
       if(typeof v === 'object'){
-        // common shapes: {url}, {path}, {full_url}, {src}
         const u =
           v.url || v.path || v.full_url || v.fullUrl || v.file_url || v.fileUrl || v.src || v.href || '';
         if(typeof u === 'string' && u.trim()) return u.trim();
@@ -875,7 +1019,6 @@ document.addEventListener('DOMContentLoaded', function () {
       return '';
     };
 
-    // direct candidates
     const direct = [
       r.image_url, r.image,
       r.cover_image_url, r.cover_image,
@@ -888,14 +1031,12 @@ document.addEventListener('DOMContentLoaded', function () {
       if(out) return out;
     }
 
-    // nested candidates
     const nestedObjs = [r.media, r.image_media, r.cover, r.thumbnail_media, r.thumb_media];
     for(const o of nestedObjs){
       const out = tryVal(o);
       if(out) return out;
     }
 
-    // last chance: some APIs return {image:{data:{url}}}
     try{
       const deep = r?.image?.data?.url || r?.image?.data?.path || r?.media?.data?.url || '';
       if(typeof deep === 'string' && deep.trim()) return deep.trim();
@@ -1015,21 +1156,18 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   async function loadDepartments(){
-    // uses your existing departments API in system
     const res = await fetch(API.departments, { headers: authHeaders() });
     const js = await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(js.message || 'Failed to load departments');
     const rows = Array.isArray(js.data) ? js.data : (Array.isArray(js) ? js : []);
     const items = rows.filter(d => !d.deleted_at);
 
-    // ✅ Only show title/name in dropdown text (fallback to Department #id)
     const label = (d) => {
       const t = (d?.title || '').toString().trim();
       const n = (d?.name || '').toString().trim();
       return t || n || (`Department #${d?.id ?? ''}`.trim());
     };
 
-    // ✅ build index for edit payload shapes (id/uuid/slug → id)
     DEPT_INDEX.clear();
     items.forEach(d=>{
       const id = (d?.id ?? '').toString();
@@ -1040,12 +1178,10 @@ document.addEventListener('DOMContentLoaded', function () {
       if(slug) DEPT_INDEX.set(slug, id);
     });
 
-    // filter modal
     modalDept.innerHTML = `<option value="">All</option>` + items.map(d =>
       `<option value="${escapeHtml(String(d.id))}">${escapeHtml(label(d))}</option>`
     ).join('');
 
-    // form select
     department_id.innerHTML = `<option value="">Global (no department)</option>` + items.map(d =>
       `<option value="${escapeHtml(String(d.id))}">${escapeHtml(label(d))}</option>`
     ).join('');
@@ -1074,7 +1210,6 @@ document.addEventListener('DOMContentLoaded', function () {
     try{
       if(showLoader) showInlineLoading(true);
 
-      // ✅ If a department is selected, use department endpoints
       const dept = (state.department || '').trim();
       const url = dept ? API.listByDept(dept, buildActiveQuery()) : API.list(buildActiveQuery());
 
@@ -1152,8 +1287,13 @@ document.addEventListener('DOMContentLoaded', function () {
     attachmentsModeWrap.style.display = 'none';
     attachments_mode.value = 'append';
 
-    quill.setContents([]);
-    quill.root.innerHTML = '';
+    // ✅ reset custom RTE
+    if (rteEditor) rteEditor.innerHTML = '';
+    if (rteCode) rteCode.value = '';
+    if (bodyHidden) bodyHidden.value = '';
+    setRteEnabled(true);
+    setRteMode('text');
+
     achForm.dataset.mode = 'edit';
   }
 
@@ -1170,14 +1310,13 @@ document.addEventListener('DOMContentLoaded', function () {
         el.readOnly = false;
       }
     });
-    setQuillReadonly(on);
+    // ✅ custom RTE
+    setRteEnabled(!on);
   }
 
   function fillForm(r){
     achIdentifier.value = r.uuid || r.id || r.slug || '';
 
-    // ✅ Robust department selection for edit/view:
-    // Support shapes: department_id, department.id, department.uuid, department_slug, etc.
     const rawDept =
       (r.department_id ?? r.departmentId ?? '') ||
       (r.department?.id ?? '') ||
@@ -1195,8 +1334,12 @@ document.addEventListener('DOMContentLoaded', function () {
     slug.value = r.slug || '';
     published_at.value = serverToDtLocal(r.published_at || r.publish_at);
 
-    // body html
-    quill.root.innerHTML = (r.body || r.description || '');
+    // ✅ body html -> custom RTE
+    const html = (r.body || r.description || '');
+    if (rteEditor) rteEditor.innerHTML = html;
+    if (rteCode) rteCode.value = html;
+    if (bodyHidden) bodyHidden.value = html;
+    setRteMode('text'); // default view in Text mode
 
     // metadata
     if(r.metadata && typeof r.metadata === 'object'){
@@ -1369,7 +1512,7 @@ document.addEventListener('DOMContentLoaded', function () {
     setFormReadonly(false);
     saveBtn.style.display = '';
     achModal.show();
-    setTimeout(()=>{ try{ quill.focus(); }catch(_){} }, 150);
+    setTimeout(()=>{ try{ rteEditor?.focus(); }catch(_){} }, 150);
   });
 
   // Actions (Active table)
@@ -1562,11 +1705,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if(!title.value.trim()){ title.focus(); return; }
 
-    const bodyHtml = (quill.root.innerHTML || '').trim();
-    const bodyPlain = quill.getText().trim();
+    const bodyHtml = getBodyHtml();
+    const bodyPlain = bodyPlainText(bodyHtml);
     if(!bodyPlain){
       err('Body is required');
-      try{ quill.focus(); }catch(_){}
+      try{ rteEditor?.focus(); }catch(_){}
       return;
     }
 
@@ -1576,7 +1719,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const isEdit = !!achIdentifier.value;
 
-    // ✅ selected department (id) from dropdown
     const deptId = (department_id.value || '').trim();
 
     const endpoint = isEdit
@@ -1589,8 +1731,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
       const fd = new FormData();
 
-      // ✅ FIX: department_id was missing in payload (edit + create-by-dept).
-      // Always send department_id when selected; backend can ignore if route-based.
       if(deptId) fd.append('department_id', deptId);
 
       fd.append('title', title.value.trim());
@@ -1606,19 +1746,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
       if(metaObj !== null) fd.append('metadata', JSON.stringify(metaObj));
 
-      // image remove (edit)
       if(isEdit && image_remove.checked) fd.append('image_remove', '1');
 
-      // image upload
       const imgFile = image?.files?.[0];
       if(imgFile) fd.append('image', imgFile);
 
-      // attachments mode (edit)
       if(isEdit && currentAttachmentsWrap.style.display !== 'none'){
         fd.append('attachments_mode', attachments_mode.value || 'append');
       }
 
-      // attachments remove (edit)
       if(isEdit){
         const remove = [];
         currentAttachmentsList.querySelectorAll('.att-remove:checked').forEach(x=>{
@@ -1628,7 +1764,6 @@ document.addEventListener('DOMContentLoaded', function () {
         remove.forEach(p => fd.append('attachments_remove[]', p));
       }
 
-      // new attachments
       const files = Array.from(attachments?.files || []);
       if(files.length){
         for(const f of files) fd.append('attachments[]', f);
@@ -1639,7 +1774,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
       const res = await fetch(endpoint, {
         method,
-        headers: authHeaders(), // do not set content-type for FormData
+        headers: authHeaders(),
         body: fd
       });
 
@@ -1674,6 +1809,10 @@ document.addEventListener('DOMContentLoaded', function () {
       await fetchMe();
       await loadDepartments();
       await loadActive(false);
+
+      // ensure RTE starts in correct mode
+      setRteEnabled(true);
+      setRteMode('text');
     }catch(ex){
       err(ex.message);
     }finally{

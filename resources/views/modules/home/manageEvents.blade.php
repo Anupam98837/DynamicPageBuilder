@@ -1233,7 +1233,6 @@ td.col-slug code{
       const { toggle, menu } = openDD;
       if (!toggle || !menu) return;
 
-      // measure
       menu.style.visibility = 'hidden';
       menu.style.position = 'fixed';
       menu.style.top = '0px';
@@ -1255,7 +1254,6 @@ td.col-slug code{
       let top  = openUp ? (rect.top - mh - 6) : (rect.bottom + 6);
       let left = rect.right - mw;
 
-      // clamp
       left = Math.max(gap, Math.min(left, vw - mw - gap));
       top  = Math.max(gap, Math.min(top,  vh - mh - gap));
 
@@ -1271,7 +1269,6 @@ td.col-slug code{
       const menu = wrap?.querySelector('.dropdown-menu');
       if (!menu) return;
 
-      // create placeholder & move menu to body
       const placeholder = document.createComment('ev-dd-placeholder');
       wrap.insertBefore(placeholder, menu);
       document.body.appendChild(menu);
@@ -1291,7 +1288,6 @@ td.col-slug code{
       portalOpen(toggle);
     }
 
-    // Toggle click
     document.addEventListener('click', (e) => {
       const toggle = e.target.closest('.ev-dd-toggle');
       if (toggle){
@@ -1301,18 +1297,14 @@ td.col-slug code{
         return;
       }
 
-      // click inside open menu -> keep open
       if (openDD && openDD.menu && (e.target === openDD.menu || openDD.menu.contains(e.target))) return;
-
       portalClose();
     }, true);
 
-    // close on any action click
     document.addEventListener('click', (e) => {
       if (e.target.closest('.dropdown-item[data-action]')) portalClose();
     }, true);
 
-    // reposition on scroll/resize (capture scroll from any container)
     window.addEventListener('resize', portalPosition);
     window.addEventListener('scroll', portalPosition, true);
 
@@ -1344,6 +1336,42 @@ td.col-slug code{
       if (rte.mode === 'text') rte.code.value = ensurePreHasCode(rte.editor.innerHTML || '');
     }
 
+    /* =========================================================
+       ✅ FIX: Active state for toolbar buttons (like Recruiters)
+    ========================================================= */
+    function updateRteActive(){
+      if (rte.mode !== 'text' || !rte.enabled) return;
+      if (!rte.wrap || !rte.editor) return;
+
+      // only update when selection is inside editor (or editor focused)
+      const sel = window.getSelection?.();
+      const anchor = sel?.anchorNode || null;
+      const inEditor = !!(anchor && rte.editor.contains(anchor));
+      if (!inEditor && document.activeElement !== rte.editor) return;
+
+      const setCmd = (cmd, on) => {
+        const b = rte.wrap.querySelector(`.ev-rte-btn[data-cmd="${cmd}"]`);
+        if (b) b.classList.toggle('active', !!on);
+      };
+
+      try{
+        setCmd('bold', document.queryCommandState('bold'));
+        setCmd('italic', document.queryCommandState('italic'));
+        setCmd('underline', document.queryCommandState('underline'));
+        setCmd('insertUnorderedList', document.queryCommandState('insertUnorderedList'));
+        setCmd('insertOrderedList', document.queryCommandState('insertOrderedList'));
+
+        // Headings active (H2/H3)
+        let fb = (document.queryCommandValue('formatBlock') || '').toString().toLowerCase().trim();
+        fb = fb.replace(/[<>]/g,''); // sometimes returns "<h2>"
+        rte.wrap.querySelectorAll('.ev-rte-btn[data-block]').forEach(btn => {
+          const blk = (btn.getAttribute('data-block') || '').toLowerCase().trim();
+          btn.classList.toggle('active', !!blk && fb === blk);
+        });
+      }catch(_){}
+    }
+    /* ====================== end active-state fix ====================== */
+
     function setRteMode(mode){
       rte.mode = (mode === 'code') ? 'code' : 'text';
       rte.wrap?.classList.toggle('mode-code', rte.mode === 'code');
@@ -1364,12 +1392,22 @@ td.col-slug code{
         setTimeout(()=>{ try{ rte.code?.focus(); }catch(_){ } }, 0);
       } else {
         rte.editor.innerHTML = ensurePreHasCode(rte.code.value || '');
-        setTimeout(()=>{ rteFocus(); }, 0);
+        setTimeout(()=>{ rteFocus(); updateRteActive(); }, 0);
       }
     }
 
     rte.toolbar?.addEventListener('pointerdown', (e) => { e.preventDefault(); });
-    rte.editor?.addEventListener('input', () => { syncRteToCode(); });
+
+    rte.editor?.addEventListener('input', () => {
+      syncRteToCode();
+      updateRteActive();
+    });
+
+    // keep active state synced when selection changes inside editor
+    ['mouseup','keyup','click'].forEach(ev => rte.editor?.addEventListener(ev, updateRteActive));
+    document.addEventListener('selectionchange', () => {
+      if (document.activeElement === rte.editor) updateRteActive();
+    });
 
     document.addEventListener('click', (e) => {
       const tab = e.target.closest('#evRteWrap .ev-rte-tabs .tab');
@@ -1387,6 +1425,7 @@ td.col-slug code{
       if (block){
         try{ document.execCommand('formatBlock', false, `<${block}>`); }catch(_){}
         syncRteToCode();
+        updateRteActive();
         return;
       }
 
@@ -1399,6 +1438,7 @@ td.col-slug code{
           document.execCommand('insertHTML', false, `<code></code>&#8203;`);
         }
         syncRteToCode();
+        updateRteActive();
         return;
       }
 
@@ -1411,12 +1451,14 @@ td.col-slug code{
           document.execCommand('insertHTML', false, `<pre><code></code></pre>&#8203;`);
         }
         syncRteToCode();
+        updateRteActive();
         return;
       }
 
       if (cmd){
         try{ document.execCommand(cmd, false, null); }catch(_){}
         syncRteToCode();
+        updateRteActive();
       }
     });
 
@@ -1424,6 +1466,12 @@ td.col-slug code{
       rte.enabled = !!on;
       if (rte.editor) rte.editor.setAttribute('contenteditable', on ? 'true' : 'false');
       if (rte.code) rte.code.disabled = !on;
+
+      // when disabling (view mode), clear active UI safely
+      if (!on && rte.wrap){
+        rte.wrap.querySelectorAll('.ev-rte-btn.active').forEach(b => b.classList.remove('active'));
+      }
+      if (on) setTimeout(updateRteActive, 0);
     }
 
     // Cover preview
@@ -1552,6 +1600,7 @@ td.col-slug code{
       if (rte.editor) rte.editor.innerHTML = ensurePreHasCode(bodyHtml || '');
       syncRteToCode();
       setRteMode('text');
+      setTimeout(updateRteActive, 0);
 
       const coverUrl = coalesce(r.cover_image_url, r.cover_url, r.cover_image, r.banner_url, r.banner, '');
       if (coverUrl){
@@ -1613,6 +1662,7 @@ td.col-slug code{
       if (itemTitle) itemTitle.textContent = 'Add Event';
       itemForm.dataset.intent = 'create';
       itemModal && itemModal.show();
+      setTimeout(()=>{ try{ rte.editor?.focus({preventScroll:true}); }catch(_){ } updateRteActive(); }, 0);
     });
 
     itemModalEl?.addEventListener('hidden.bs.modal', () => {

@@ -1,3 +1,4 @@
+```blade
 {{-- resources/views/modules/home/settingsHeroCarousel.blade.php --}}
 @section('title','Hero Carousel Settings')
 
@@ -11,20 +12,20 @@
   - uses common/main.css tokens
 ========================= */
 
-/* Dropdown safety inside tables */
+/* Dropdown safety inside tables (scoped) */
 .table-shell .dropdown{position:relative}
 .table-shell .dd-toggle{border-radius:10px}
-.dropdown-menu{
+.hcs-wrap .dropdown-menu{
   border-radius:12px;
   border:1px solid var(--line-strong);
   box-shadow:var(--shadow-2);
   min-width:230px;
-  z-index:5000;
+  z-index:99999; /* ✅ higher to avoid being behind/footer */
 }
-.dropdown-menu.show{display:block !important}
-.dropdown-item{display:flex;align-items:center;gap:.6rem}
-.dropdown-item i{width:16px;text-align:center}
-.dropdown-item.text-danger{color:var(--danger-color) !important}
+.hcs-wrap .dropdown-menu.show{display:block !important}
+.hcs-wrap .dropdown-item{display:flex;align-items:center;gap:.6rem}
+.hcs-wrap .dropdown-item i{width:16px;text-align:center}
+.hcs-wrap .dropdown-item.text-danger{color:var(--danger-color) !important}
 
 /* Tabs */
 .nav.nav-tabs{border-color:var(--line-strong)}
@@ -47,10 +48,7 @@
   background:transparent;
   border-bottom:1px solid var(--line-soft);
 }
-.panel-card .card-title{
-  margin:0;
-  font-weight:800;
-}
+.panel-card .card-title{margin:0;font-weight:800}
 .helper{font-size:12.5px;color:var(--muted-color)}
 .small{font-size:12.5px}
 
@@ -84,12 +82,8 @@
   -webkit-overflow-scrolling:touch;
   position:relative;
 }
-.table-responsive > .table{
-  width:max-content;
-  min-width:1200px;
-}
-.table-responsive th,
-.table-responsive td{white-space:nowrap}
+.table-responsive > .table{width:max-content;min-width:1200px}
+.table-responsive th,.table-responsive td{white-space:nowrap}
 
 /* Chips */
 .chip{
@@ -400,7 +394,7 @@
 
         {{-- Preview / Info --}}
         <div class="col-12 col-xl-5">
-          <div class="card panel-card mb-3">
+          <div class="card panel-card">
             <div class="card-header py-3">
               <div class="card-title"><i class="fa-solid fa-chart-simple me-2"></i>Quick Read</div>
               <div class="helper mt-1">A human-friendly summary of what you’ve configured.</div>
@@ -435,23 +429,7 @@
             </div>
           </div>
 
-          <div class="card panel-card">
-            <div class="card-header py-3">
-              <div class="card-title"><i class="fa-solid fa-code me-2"></i>API Reference</div>
-              <div class="helper mt-1">Endpoints used by this page.</div>
-            </div>
-            <div class="card-body">
-              <div class="small">
-                <div class="mb-2"><span class="badge badge-soft-primary me-2">GET</span><code>/api/hero-carousel-settings/current</code></div>
-                <div class="mb-2"><span class="badge badge-soft-primary me-2">POST</span><code>/api/hero-carousel-settings/upsert-current</code></div>
-                <div class="mb-2"><span class="badge badge-soft-primary me-2">GET</span><code>/api/hero-carousel-settings</code></div>
-                <div class="mb-2"><span class="badge badge-soft-primary me-2">GET</span><code>/api/hero-carousel-settings/trash</code></div>
-              </div>
-              <div class="helper mt-3">
-                Tip: Keep “Delay” reasonably higher than “Transition speed” for best UX.
-              </div>
-            </div>
-          </div>
+          {{-- ✅ API Reference card removed (as requested) --}}
         </div>
       </div>
     </div>
@@ -824,11 +802,18 @@
       canWrite = writeRoles.includes(r);
       canDelete = deleteRoles.includes(r);
 
-      $('writeControls').style.display = canWrite ? 'flex' : 'none';
-      $('currentControls').style.display = canWrite ? 'flex' : 'none';
-      $('currentExtraControls').style.display = canWrite ? 'flex' : 'none';
-      $('btnSaveCurrent').disabled = !canWrite;
-      $('btnSaveAsNew').disabled = !canWrite;
+      const wc = $('writeControls');
+      const cc = $('currentControls');
+      const cec = $('currentExtraControls');
+
+      if (wc) wc.style.display = canWrite ? 'flex' : 'none';
+      if (cc) cc.style.display = canWrite ? 'flex' : 'none';
+      if (cec) cec.style.display = canWrite ? 'flex' : 'none';
+
+      const bsc = $('btnSaveCurrent');
+      const bsn = $('btnSaveAsNew');
+      if (bsc) bsc.disabled = !canWrite;
+      if (bsn) bsn.disabled = !canWrite;
     }
 
     async function fetchMe(){
@@ -929,7 +914,6 @@
     const btnMetaClear = $('btnMetaClear');
     const btnModalMetaPretty = $('btnModalMetaPretty');
     const btnNewVersion = $('btnNewVersion');
-    const btnFilter = $('btnFilter');
 
     // state
     const state = {
@@ -938,7 +922,6 @@
       versions: { page:1, lastPage:1, items:[] },
       trash: { page:1, lastPage:1, items:[] },
       current: null,
-      busy: false,
     };
 
     const DEFAULTS = {
@@ -971,35 +954,47 @@
       const tr = transition.value || DEFAULTS.transition;
       const sp = Number(transitionMs.value || DEFAULTS.transition_ms);
 
-      chipDots.textContent = dt ? 'Dots: On' : 'Dots: Off';
-      chipArrows.textContent = ar ? 'Arrows: On' : 'Arrows: Off';
-      chipAuto.textContent = a ? `Autoplay: On (${humanMs(d)})` : 'Autoplay: Off';
-      chipTransition.textContent = `Transition: ${tr} (${humanMs(sp)})`;
+      if (chipDots) chipDots.textContent = dt ? 'Dots: On' : 'Dots: Off';
+      if (chipArrows) chipArrows.textContent = ar ? 'Arrows: On' : 'Arrows: Off';
+      if (chipAuto) chipAuto.textContent = a ? `Autoplay: On (${humanMs(d)})` : 'Autoplay: Off';
+      if (chipTransition) chipTransition.textContent = `Transition: ${tr} (${humanMs(sp)})`;
 
-      sumAutoplay.className = 'badge ' + (a ? 'badge-soft-success' : 'badge-soft-muted');
-      sumAutoplay.textContent = a ? 'Enabled' : 'Disabled';
+      if (sumAutoplay){
+        sumAutoplay.className = 'badge ' + (a ? 'badge-soft-success' : 'badge-soft-muted');
+        sumAutoplay.textContent = a ? 'Enabled' : 'Disabled';
+      }
 
-      sumDelay.className = 'badge badge-soft-primary';
-      sumDelay.textContent = humanMs(d);
+      if (sumDelay){
+        sumDelay.className = 'badge badge-soft-primary';
+        sumDelay.textContent = humanMs(d);
+      }
 
-      sumLoop.className = 'badge ' + (l ? 'badge-soft-success' : 'badge-soft-muted');
-      sumLoop.textContent = l ? 'Enabled' : 'Disabled';
+      if (sumLoop){
+        sumLoop.className = 'badge ' + (l ? 'badge-soft-success' : 'badge-soft-muted');
+        sumLoop.textContent = l ? 'Enabled' : 'Disabled';
+      }
 
-      sumHover.className = 'badge ' + (h ? 'badge-soft-success' : 'badge-soft-muted');
-      sumHover.textContent = h ? 'Enabled' : 'Disabled';
+      if (sumHover){
+        sumHover.className = 'badge ' + (h ? 'badge-soft-success' : 'badge-soft-muted');
+        sumHover.textContent = h ? 'Enabled' : 'Disabled';
+      }
 
-      sumNav.className = 'badge badge-soft-primary';
-      sumNav.textContent = `${ar ? 'Arrows' : 'No arrows'} • ${dt ? 'Dots' : 'No dots'}`;
+      if (sumNav){
+        sumNav.className = 'badge badge-soft-primary';
+        sumNav.textContent = `${ar ? 'Arrows' : 'No arrows'} • ${dt ? 'Dots' : 'No dots'}`;
+      }
 
-      sumTransition.className = 'badge badge-soft-primary';
-      sumTransition.textContent = `${tr} • ${humanMs(sp)}`;
+      if (sumTransition){
+        sumTransition.className = 'badge badge-soft-primary';
+        sumTransition.textContent = `${tr} • ${humanMs(sp)}`;
+      }
     }
 
     function fillCurrentForm(row){
       const r = row || {};
 
-      currentUuid.value = r.uuid || '';
-      currentId.value = r.id || '';
+      if (currentUuid) currentUuid.value = r.uuid || '';
+      if (currentId) currentId.value = r.id || '';
 
       autoplay.checked = !!Number(r.autoplay ?? DEFAULTS.autoplay);
       autoplayDelay.value = String(r.autoplay_delay_ms ?? DEFAULTS.autoplay_delay_ms);
@@ -1017,15 +1012,13 @@
       if (meta && typeof meta === 'object') {
         metadata.value = JSON.stringify(meta, null, 2);
       } else if (typeof meta === 'string' && meta.trim()) {
-        // sometimes backend may send string
         metadata.value = meta;
       } else {
         metadata.value = '';
       }
 
-      const idText = r.uuid ? `uuid: ${r.uuid}` : '—';
-      currentIdentity.textContent = idText;
-      currentUpdated.textContent = r.updated_at ? `Updated: ${r.updated_at}` : 'Updated: —';
+      if (currentIdentity) currentIdentity.textContent = r.uuid ? `uuid: ${r.uuid}` : '—';
+      if (currentUpdated) currentUpdated.textContent = r.updated_at ? `Updated: ${r.updated_at}` : 'Updated: —';
 
       updateSummaryFromForm();
     }
@@ -1046,7 +1039,6 @@
         metadata: metaParsed.val
       };
 
-      // basic sanity
       if (payload.autoplay_delay_ms < 0 || payload.autoplay_delay_ms > 600000) return { ok:false, error:'Autoplay delay must be between 0 and 600000.' };
       if (payload.transition_ms < 0 || payload.transition_ms > 600000) return { ok:false, error:'Transition speed must be between 0 and 600000.' };
 
@@ -1062,13 +1054,11 @@
       const q = (state.filters.q || '').trim();
       if (q) params.set('q', q);
 
-      // sort
       const s = state.filters.sort || '-updated_at';
       params.set('sort', s.startsWith('-') ? s.slice(1) : s);
       params.set('direction', s.startsWith('-') ? 'desc' : 'asc');
 
-      // transition filter (controller supports q + sort; we also filter client-side if needed)
-      if (state.filters.transition) params.set('q', state.filters.transition); // lightweight server search
+      if (state.filters.transition) params.set('q', state.filters.transition);
 
       if (kind === 'trash') params.set('only_trashed', '1');
 
@@ -1130,10 +1120,9 @@
             <td>${esc(by)}</td>
             <td class="text-end">
               <div class="dropdown">
+                <!-- ✅ FIX: remove data-bs-toggle, control manually like ContactInfo -->
                 <button type="button"
                   class="btn btn-light btn-sm dd-toggle"
-                  data-bs-toggle="dropdown"
-                  data-bs-auto-close="true"
                   aria-expanded="false" title="Actions">
                   <i class="fa fa-ellipsis-vertical"></i>
                 </button>
@@ -1174,10 +1163,9 @@
             <td>${esc(by)}</td>
             <td class="text-end">
               <div class="dropdown">
+                <!-- ✅ same dropdown fix in trash -->
                 <button type="button"
                   class="btn btn-light btn-sm dd-toggle"
-                  data-bs-toggle="dropdown"
-                  data-bs-auto-close="true"
                   aria-expanded="false" title="Actions">
                   <i class="fa fa-ellipsis-vertical"></i>
                 </button>
@@ -1205,7 +1193,6 @@
         state.current = item;
         fillCurrentForm(item || DEFAULTS);
       }catch(e){
-        // fallback to defaults on error
         fillCurrentForm(DEFAULTS);
         err(e?.name === 'AbortError' ? 'Request timed out' : (e.message || 'Failed'));
       }
@@ -1226,7 +1213,6 @@
         const items = Array.isArray(js.data) ? js.data : [];
         const p = js.pagination || {};
 
-        // if transition filter set, additionally filter client-side (exact)
         let out = items;
         if (state.filters.transition){
           const t = state.filters.transition.toLowerCase();
@@ -1363,13 +1349,13 @@
     });
 
     filterModalEl?.addEventListener('show.bs.modal', () => {
-      modalTransition.value = state.filters.transition || '';
-      modalSort.value = state.filters.sort || '-updated_at';
+      if (modalTransition) modalTransition.value = state.filters.transition || '';
+      if (modalSort) modalSort.value = state.filters.sort || '-updated_at';
     });
 
     btnApplyFilters?.addEventListener('click', () => {
-      state.filters.transition = modalTransition.value || '';
-      state.filters.sort = modalSort.value || '-updated_at';
+      state.filters.transition = (modalTransition?.value || '');
+      state.filters.sort = (modalSort?.value || '-updated_at');
       state.versions.page = 1;
       filterModal && filterModal.hide();
       loadList('versions');
@@ -1378,14 +1364,14 @@
     // new version button -> open modal prefilled with current
     btnNewVersion?.addEventListener('click', () => {
       if (!canWrite) return;
-      // open modal in "create" mode with current values
+
       itemForm.dataset.mode = 'create';
-      itemModalTitle.textContent = 'New Version (Create)';
+      if (itemModalTitle) itemModalTitle.textContent = 'New Version (Create)';
       itemUuid.value = '';
       itemId.value = '';
-      itemIdentity.textContent = '—';
-      itemUpdated.textContent = '—';
-      itemBy.textContent = '—';
+      if (itemIdentity) itemIdentity.textContent = '—';
+      if (itemUpdated) itemUpdated.textContent = '—';
+      if (itemBy) itemBy.textContent = '—';
 
       mAutoplay.checked = autoplay.checked;
       mAutoplayDelay.value = autoplayDelay.value || DEFAULTS.autoplay_delay_ms;
@@ -1397,9 +1383,8 @@
       mTransitionMs.value = transitionMs.value || DEFAULTS.transition_ms;
       mMetadata.value = (metadata.value || '').trim();
 
-      // enable fields
       itemForm.querySelectorAll('input,select,textarea').forEach(el => el.disabled = false);
-      saveBtn.style.display = '';
+      if (saveBtn) saveBtn.style.display = '';
       itemModal && itemModal.show();
     });
 
@@ -1426,9 +1411,9 @@
       itemUuid.value = row.uuid || '';
       itemId.value = row.id || '';
 
-      itemIdentity.textContent = row.uuid ? `uuid: ${row.uuid}` : '—';
-      itemUpdated.textContent = row.updated_at ? `Updated: ${row.updated_at}` : 'Updated: —';
-      itemBy.textContent = (row.created_by_name || row.created_by_email || '—');
+      if (itemIdentity) itemIdentity.textContent = row.uuid ? `uuid: ${row.uuid}` : '—';
+      if (itemUpdated) itemUpdated.textContent = row.updated_at ? `Updated: ${row.updated_at}` : 'Updated: —';
+      if (itemBy) itemBy.textContent = (row.created_by_name || row.created_by_email || '—');
 
       mAutoplay.checked = !!Number(row.autoplay ?? 0);
       mAutoplayDelay.value = String(row.autoplay_delay_ms ?? DEFAULTS.autoplay_delay_ms);
@@ -1449,10 +1434,48 @@
         if (el.id === 'itemUuid' || el.id === 'itemId') return;
         el.disabled = disable;
       });
-      saveBtn.style.display = (!disable && !viewOnly) ? '' : 'none';
+      if (saveBtn) saveBtn.style.display = (!disable && !viewOnly) ? '' : 'none';
 
       itemForm.dataset.mode = viewOnly ? 'view' : 'edit';
     }
+
+    // ---------- ✅ ACTION DROPDOWN FIX (same approach as Contact Info) ----------
+    function closeAllDropdownsExcept(exceptToggle){
+      document.querySelectorAll('.dd-toggle').forEach(t => {
+        if (t === exceptToggle) return;
+        try{ bootstrap.Dropdown.getInstance(t)?.hide(); }catch(_){}
+      });
+    }
+
+    document.addEventListener('click', (e) => {
+      const toggle = e.target.closest('.dd-toggle');
+      if (!toggle) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      closeAllDropdownsExcept(toggle);
+
+      try{
+        const inst = bootstrap.Dropdown.getOrCreateInstance(toggle, {
+          autoClose: true,
+          popperConfig: (def) => {
+            const base = def || {};
+            const mods = Array.isArray(base.modifiers) ? base.modifiers.slice() : [];
+            mods.push({ name:'preventOverflow', options:{ boundary:'viewport', padding:8 } });
+            mods.push({ name:'flip', options:{ boundary:'viewport', padding:8 } });
+            return { ...base, strategy:'fixed', modifiers: mods };
+          }
+        });
+        inst.toggle();
+      }catch(_){}
+    });
+
+    // close dropdowns when clicking elsewhere
+    document.addEventListener('click', () => {
+      closeAllDropdownsExcept(null);
+    }, { capture: true });
+    // ------------------------------------------------------------------------
 
     // row actions (versions + trash)
     document.addEventListener('click', async (e) => {
@@ -1464,13 +1487,13 @@
       const action = btn.dataset.action;
       if (!uuid) return;
 
-      // close dropdown
+      // close dropdown (do NOT create new instance)
       const toggle = btn.closest('.dropdown')?.querySelector('.dd-toggle');
-      if (toggle) { try { bootstrap.Dropdown.getOrCreateInstance(toggle).hide(); } catch (_) {} }
+      if (toggle) { try { bootstrap.Dropdown.getInstance(toggle)?.hide(); } catch (_) {} }
 
       if (action === 'view' || action === 'edit'){
         const row = findRow('versions', uuid) || findRow('trash', uuid);
-        itemModalTitle.textContent = (action === 'view') ? 'View Version' : 'Edit Version';
+        if (itemModalTitle) itemModalTitle.textContent = (action === 'view') ? 'View Version' : 'Edit Version';
         fillModalFromRow(row || {}, action === 'view');
         itemModal && itemModal.show();
         return;
@@ -1604,7 +1627,7 @@
       showLoading(true);
 
       try{
-        let res, js;
+        let res;
 
         if (mode === 'create'){
           res = await fetchWithTimeout('/api/hero-carousel-settings', {
@@ -1621,7 +1644,7 @@
           }, 20000);
         }
 
-        js = await res.json().catch(()=> ({}));
+        const js = await res.json().catch(()=> ({}));
         if (!res.ok || js.success === false){
           let msg = js?.message || 'Save failed';
           if (js?.errors){
@@ -1662,8 +1685,8 @@
         showLoading(false);
       }
     })();
-
   });
 })();
 </script>
 @endpush
+```

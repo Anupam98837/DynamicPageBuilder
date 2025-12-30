@@ -81,6 +81,18 @@ Route::get('/department/gallery', function () {
     return view('pages.users.pages.departments.manageGallery');
 });
 
+Route::get('/department/placed-students', function () {
+    return view('pages.users.pages.departments.managePlacedStudents');
+});
+
+Route::get('/department/placement-notices', function () {
+    return view('pages.users.pages.departments.managePlacementNotices');
+});
+
+Route::get('/department/successful-entrepreneurs', function () {
+    return view('pages.users.pages.departments.manageSuccessfulEntrepreneurs');
+});
+
 Route::get('/course/manage', function () {
     return view('pages.users.pages.course.manageCourses');
 });

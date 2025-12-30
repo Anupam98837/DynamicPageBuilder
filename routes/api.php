@@ -35,6 +35,8 @@ use App\Http\Controllers\API\HeroCarouselSettingsController;
 use App\Http\Controllers\API\RecruiterController;
 use App\Http\Controllers\API\SuccessStoryController;
 use App\Http\Controllers\API\EventController;
+use App\Http\Controllers\API\PlacedStudentController;
+use App\Http\Controllers\API\SuccessfulEntrepreneurController;
 
 /*
 |--------------------------------------------------------------------------
@@ -1111,4 +1113,109 @@ Route::prefix('public/events')->group(function () {
     Route::get('/', [EventController::class, 'publicIndex']);
     Route::get('/department/{department}', [EventController::class, 'publicIndexByDepartment']);
     Route::get('/{identifier}', [EventController::class, 'publicShow']);
+});
+
+
+
+Route::prefix('placed-students')->group(function () {
+    Route::get('/', [PlacedStudentController::class, 'index']);
+    Route::get('/trash', [PlacedStudentController::class, 'trash']);
+
+    Route::get('/department/{department}', [PlacedStudentController::class, 'indexByDepartment']);
+    Route::post('/department/{department}', [PlacedStudentController::class, 'storeForDepartment']);
+    Route::get('/department/{department}/{identifier}', [PlacedStudentController::class, 'showByDepartment']);
+
+    Route::get('/{identifier}', [PlacedStudentController::class, 'show']);
+    Route::post('/', [PlacedStudentController::class, 'store']);
+
+    Route::put('/{identifier}', [PlacedStudentController::class, 'update']); // ✅ PUT (not PATCH)
+    Route::put('/{identifier}/toggle-featured', [PlacedStudentController::class, 'toggleFeatured']);
+
+    Route::delete('/{identifier}', [PlacedStudentController::class, 'destroy']);
+    Route::put('/{identifier}/restore', [PlacedStudentController::class, 'restore']);
+    Route::delete('/{identifier}/force', [PlacedStudentController::class, 'forceDelete']);
+});
+
+
+use App\Http\Controllers\API\PlacementNoticeController;
+
+/*
+|--------------------------------------------------------------------------
+| Placement Notices (Admin)
+| Tip: Wrap these in your auth middleware group if needed
+|--------------------------------------------------------------------------
+*/
+Route::get('placement-notices', [PlacementNoticeController::class, 'index']);
+Route::get('placement-notices/trash', [PlacementNoticeController::class, 'trash']);
+Route::get('placement-notices/department/{department}', [PlacementNoticeController::class, 'indexByDepartment']);
+
+Route::get('placement-notices/{identifier}', [PlacementNoticeController::class, 'show']);
+Route::get('placement-notices/department/{department}/{identifier}', [PlacementNoticeController::class, 'showByDepartment']);
+
+Route::post('placement-notices', [PlacementNoticeController::class, 'store']);
+Route::post('placement-notices/department/{department}', [PlacementNoticeController::class, 'storeForDepartment']);
+
+Route::put('placement-notices/{identifier}', [PlacementNoticeController::class, 'update']);
+
+Route::patch('placement-notices/{identifier}/toggle-featured', [PlacementNoticeController::class, 'toggleFeatured']);
+
+Route::delete('placement-notices/{identifier}', [PlacementNoticeController::class, 'destroy']);
+Route::patch('placement-notices/{identifier}/restore', [PlacementNoticeController::class, 'restore']);
+Route::delete('placement-notices/{identifier}/force', [PlacementNoticeController::class, 'forceDelete']);
+
+/*
+|--------------------------------------------------------------------------
+| Placement Notices (Public)
+|--------------------------------------------------------------------------
+*/
+Route::get('public/placement-notices', [PlacementNoticeController::class, 'publicIndex']);
+Route::get('public/placement-notices/department/{department}', [PlacementNoticeController::class, 'publicIndexByDepartment']);
+Route::get('public/placement-notices/{identifier}', [PlacementNoticeController::class, 'publicShow']);
+
+
+/*
+|--------------------------------------------------------------------------
+| Successful Entrepreneurs (Admin)
+|--------------------------------------------------------------------------
+| Put inside your auth middleware group if needed.
+*/
+
+// Route::middleware(['auth:sanctum'])->group(function () {
+
+Route::prefix('successful-entrepreneurs')->group(function () {
+    Route::get('/',                [SuccessfulEntrepreneurController::class, 'index']);
+    Route::get('/trash',           [SuccessfulEntrepreneurController::class, 'trash']);
+
+    Route::get('/{identifier}',    [SuccessfulEntrepreneurController::class, 'show']);
+
+    Route::post('/',               [SuccessfulEntrepreneurController::class, 'store']);
+
+    // ✅ Use PUT (not PATCH) to avoid 405 issue
+    Route::put('/{identifier}',    [SuccessfulEntrepreneurController::class, 'update']);
+
+    Route::post('/{identifier}/toggle-featured', [SuccessfulEntrepreneurController::class, 'toggleFeatured']);
+
+    Route::delete('/{identifier}',           [SuccessfulEntrepreneurController::class, 'destroy']);
+    Route::post('/{identifier}/restore',     [SuccessfulEntrepreneurController::class, 'restore']);
+    Route::delete('/{identifier}/force',     [SuccessfulEntrepreneurController::class, 'forceDelete']);
+});
+
+// Department scoped
+Route::prefix('departments/{department}')->group(function () {
+    Route::get('/successful-entrepreneurs',                [SuccessfulEntrepreneurController::class, 'indexByDepartment']);
+    Route::post('/successful-entrepreneurs',               [SuccessfulEntrepreneurController::class, 'storeForDepartment']);
+    Route::get('/successful-entrepreneurs/{identifier}',   [SuccessfulEntrepreneurController::class, 'showByDepartment']);
+});
+
+// });
+
+/*
+|--------------------------------------------------------------------------
+| Successful Entrepreneurs (Public - No Auth)
+|--------------------------------------------------------------------------
+*/
+Route::prefix('public')->group(function () {
+    Route::get('/successful-entrepreneurs',                       [SuccessfulEntrepreneurController::class, 'publicIndex']);
+    Route::get('/departments/{department}/successful-entrepreneurs',[SuccessfulEntrepreneurController::class, 'publicIndexByDepartment']);
+    Route::get('/successful-entrepreneurs/{identifier}',          [SuccessfulEntrepreneurController::class, 'publicShow']);
 });
