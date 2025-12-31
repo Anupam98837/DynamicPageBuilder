@@ -1,8 +1,8 @@
 @extends('pages.users.layout.structure')
 
-@section('title', 'Manage Successful Entrepreneurs')
+@section('title', 'Manage Achievements')
 
-@include('modules.departments.manageSuccessfulEntrepreneurs')
+@include('modules.achievements.manageAchievements')
 
 @section('scripts')
 <script>

@@ -135,10 +135,10 @@
 <body>
 
 {{-- Main Header --}}
-@include('landing.components.mainHeader')
+@include('landing.components.header')
 
 {{-- Header --}}
-@include('landing.components.header')
+@include('landing.components.headerMenu')
 
 <main class="page-content">
     <div class="container">

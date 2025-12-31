@@ -34,14 +34,18 @@ class PlacementNoticeController extends Controller
     protected function resolveDepartment($identifier, bool $includeDeleted = false)
     {
         $q = DB::table('departments');
-        if (! $includeDeleted) $q->whereNull('deleted_at');
+        if (Schema::hasColumn('departments', 'deleted_at') && ! $includeDeleted) $q->whereNull('deleted_at');
 
         if (ctype_digit((string) $identifier)) {
             $q->where('id', (int) $identifier);
-        } elseif (Str::isUuid((string) $identifier)) {
+        } elseif (Str::isUuid((string) $identifier) && Schema::hasColumn('departments', 'uuid')) {
             $q->where('uuid', (string) $identifier);
-        } else {
+        } elseif (Schema::hasColumn('departments', 'slug')) {
             $q->where('slug', (string) $identifier);
+        } else {
+            // fallback: try title/name
+            if (Schema::hasColumn('departments', 'title')) $q->where('title', (string) $identifier);
+            elseif (Schema::hasColumn('departments', 'name')) $q->where('name', (string) $identifier);
         }
 
         return $q->first();
@@ -63,7 +67,6 @@ class PlacementNoticeController extends Controller
         } elseif (Schema::hasColumn('recruiters', 'slug')) {
             $q->where('slug', (string) $identifier);
         } else {
-            // fallback: try name if available
             if (Schema::hasColumn('recruiters', 'name')) $q->where('name', (string) $identifier);
             else return null;
         }
@@ -73,7 +76,6 @@ class PlacementNoticeController extends Controller
 
     protected function recruiterSelect(): array
     {
-        // Pick safe columns only if they exist
         if (!Schema::hasTable('recruiters')) return [];
 
         $cols = ['id'];
@@ -81,18 +83,104 @@ class PlacementNoticeController extends Controller
             if (Schema::hasColumn('recruiters', $c)) $cols[] = $c;
         }
 
-        // always alias to avoid collisions
         $out = [];
-        foreach ($cols as $c) {
-            $out[] = "r.$c as recruiter_$c";
-        }
+        foreach ($cols as $c) $out[] = "r.$c as recruiter_$c";
         return $out;
+    }
+
+    /**
+     * Normalize department_ids input:
+     * - Accepts array, JSON string, comma-separated string, single numeric
+     * - Returns unique int[] or null
+     */
+    protected function normalizeDepartmentIds($input): ?array
+    {
+        if ($input === null || $input === '') return null;
+
+        // If it's already an array
+        if (is_array($input)) {
+            $arr = $input;
+        } elseif (is_string($input)) {
+            $s = trim($input);
+
+            // JSON?
+            $decoded = json_decode($s, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $arr = $decoded;
+            } else {
+                // comma-separated
+                $arr = array_map('trim', explode(',', $s));
+            }
+        } else {
+            // single value
+            $arr = [$input];
+        }
+
+        $ids = [];
+        foreach ($arr as $v) {
+            if ($v === null || $v === '') continue;
+            if (is_numeric($v)) $ids[] = (int) $v;
+        }
+
+        $ids = array_values(array_unique(array_filter($ids, fn($x) => $x > 0)));
+        return empty($ids) ? null : $ids;
+    }
+
+    /**
+     * Departments list for frontend selection (id + title + optional slug/uuid)
+     */
+    protected function departmentsList(bool $includeDeleted = false): array
+    {
+        if (!Schema::hasTable('departments')) return [];
+
+        $q = DB::table('departments');
+
+        if (Schema::hasColumn('departments', 'deleted_at') && ! $includeDeleted) {
+            $q->whereNull('deleted_at');
+        }
+
+        $select = ['id'];
+
+        if (Schema::hasColumn('departments', 'title')) {
+            $select[] = 'title';
+        } elseif (Schema::hasColumn('departments', 'name')) {
+            $select[] = DB::raw('name as title');
+        } else {
+            $select[] = DB::raw("CONCAT('Department ', id) as title");
+        }
+
+        if (Schema::hasColumn('departments', 'slug')) $select[] = 'slug';
+        if (Schema::hasColumn('departments', 'uuid')) $select[] = 'uuid';
+
+        $rows = $q->select($select)->orderBy('title')->get();
+
+        $out = [];
+        foreach ($rows as $r) {
+            $out[] = [
+                'id'    => (int) $r->id,
+                'title' => (string) ($r->title ?? ''),
+                'slug'  => isset($r->slug) ? (string) $r->slug : null,
+                'uuid'  => isset($r->uuid) ? (string) $r->uuid : null,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Build a map: id => department info
+     */
+    protected function departmentsMap(bool $includeDeleted = false): array
+    {
+        $list = $this->departmentsList($includeDeleted);
+        $map = [];
+        foreach ($list as $d) $map[(int)$d['id']] = $d;
+        return $map;
     }
 
     protected function baseQuery(Request $request, bool $includeDeleted = false)
     {
-        $q = DB::table('placement_notices as p')
-            ->leftJoin('departments as d', 'd.id', '=', 'p.department_id');
+        $q = DB::table('placement_notices as p');
 
         // recruiter join only if exists
         if (Schema::hasTable('recruiters')) {
@@ -101,9 +189,6 @@ class PlacementNoticeController extends Controller
 
         $select = array_merge([
             'p.*',
-            'd.title as department_title',
-            'd.slug  as department_slug',
-            'd.uuid  as department_uuid',
         ], $this->recruiterSelect());
 
         $q->select($select);
@@ -137,10 +222,10 @@ class PlacementNoticeController extends Controller
             }
         }
 
-        // ?department=id|uuid|slug
+        // ✅ ?department=id|uuid|slug  (filters by JSON department_ids)
         if ($request->filled('department')) {
             $dept = $this->resolveDepartment($request->query('department'), true);
-            if ($dept) $q->where('p.department_id', (int) $dept->id);
+            if ($dept) $q->whereJsonContains('p.department_ids', (int) $dept->id);
             else $q->whereRaw('1=0');
         }
 
@@ -183,8 +268,9 @@ class PlacementNoticeController extends Controller
         $q = DB::table('placement_notices as p');
         if (! $includeDeleted) $q->whereNull('p.deleted_at');
 
+        // ✅ only notices that contain this department id in JSON
         if ($departmentId !== null) {
-            $q->where('p.department_id', (int) $departmentId);
+            $q->whereJsonContains('p.department_ids', (int) $departmentId);
         }
 
         if (ctype_digit((string) $identifier)) {
@@ -197,18 +283,6 @@ class PlacementNoticeController extends Controller
 
         $row = $q->first();
         if (! $row) return null;
-
-        // attach department details
-        if (!empty($row->department_id)) {
-            $dept = DB::table('departments')->where('id', (int) $row->department_id)->first();
-            $row->department_title = $dept->title ?? null;
-            $row->department_slug  = $dept->slug ?? null;
-            $row->department_uuid  = $dept->uuid ?? null;
-        } else {
-            $row->department_title = null;
-            $row->department_slug  = null;
-            $row->department_uuid  = null;
-        }
 
         // attach recruiter (best-effort)
         if (!empty($row->recruiter_id) && Schema::hasTable('recruiters')) {
@@ -231,7 +305,7 @@ class PlacementNoticeController extends Controller
         return url('/' . ltrim($path, '/'));
     }
 
-    protected function normalizeRow($row): array
+    protected function normalizeRow($row, ?array $deptMap = null): array
     {
         $arr = (array) $row;
 
@@ -241,6 +315,31 @@ class PlacementNoticeController extends Controller
             $decoded = json_decode($meta, true);
             $arr['metadata'] = (json_last_error() === JSON_ERROR_NONE) ? $decoded : null;
         }
+
+        // decode department_ids (json column)
+        $deptIds = $arr['department_ids'] ?? null;
+        if (is_string($deptIds)) {
+            $decoded = json_decode($deptIds, true);
+            $deptIds = (json_last_error() === JSON_ERROR_NONE) ? $decoded : null;
+        }
+        if (is_array($deptIds)) {
+            $deptIds = array_values(array_unique(array_map('intval', $deptIds)));
+            $deptIds = array_values(array_filter($deptIds, fn($x) => $x > 0));
+        } else {
+            $deptIds = null;
+        }
+        $arr['department_ids'] = $deptIds;
+
+        // attach selected departments details for UI
+        $deptMap = $deptMap ?? $this->departmentsMap(false);
+        $selected = [];
+        if (is_array($deptIds)) {
+            foreach ($deptIds as $id) {
+                if (isset($deptMap[$id])) $selected[] = $deptMap[$id];
+                else $selected[] = ['id' => (int)$id, 'title' => null, 'slug' => null, 'uuid' => null];
+            }
+        }
+        $arr['departments'] = $selected;
 
         // banner url normalize
         $arr['banner_image_full_url'] = $this->toUrl($arr['banner_image_url'] ?? null);
@@ -324,15 +423,21 @@ class PlacementNoticeController extends Controller
         $includeDeleted = filter_var($request->query('with_trashed', false), FILTER_VALIDATE_BOOLEAN);
         $onlyDeleted    = filter_var($request->query('only_trashed', false), FILTER_VALIDATE_BOOLEAN);
 
-        $query = $this->baseQuery($request, $includeDeleted || $onlyDeleted);
+        $deptMap  = $this->departmentsMap(false);
+        $deptList = array_values($deptMap);
 
+        $query = $this->baseQuery($request, $includeDeleted || $onlyDeleted);
         if ($onlyDeleted) $query->whereNotNull('p.deleted_at');
 
         $paginator = $query->paginate($perPage);
-        $items = array_map(fn($r) => $this->normalizeRow($r), $paginator->items());
+        $items = array_map(fn($r) => $this->normalizeRow($r, $deptMap), $paginator->items());
 
         return response()->json([
             'data' => $items,
+            // ✅ for frontend dropdown selection
+            'lookups' => [
+                'departments' => $deptList,
+            ],
             'pagination' => [
                 'page'      => $paginator->currentPage(),
                 'per_page'  => $paginator->perPage(),
@@ -361,6 +466,9 @@ class PlacementNoticeController extends Controller
     {
         $includeDeleted = filter_var($request->query('with_trashed', false), FILTER_VALIDATE_BOOLEAN);
 
+        $deptMap  = $this->departmentsMap(false);
+        $deptList = array_values($deptMap);
+
         $row = $this->resolvePlacementNotice($request, $identifier, $includeDeleted);
         if (! $row) return response()->json(['message' => 'Placement notice not found'], 404);
 
@@ -372,7 +480,11 @@ class PlacementNoticeController extends Controller
 
         return response()->json([
             'success' => true,
-            'item'    => $this->normalizeRow($row),
+            'item'    => $this->normalizeRow($row, $deptMap),
+            // ✅ for frontend dropdown selection
+            'lookups' => [
+                'departments' => $deptList,
+            ],
         ]);
     }
 
@@ -383,12 +495,18 @@ class PlacementNoticeController extends Controller
 
         $includeDeleted = filter_var($request->query('with_trashed', false), FILTER_VALIDATE_BOOLEAN);
 
+        $deptMap  = $this->departmentsMap(false);
+        $deptList = array_values($deptMap);
+
         $row = $this->resolvePlacementNotice($request, $identifier, $includeDeleted, $dept->id);
         if (! $row) return response()->json(['message' => 'Placement notice not found'], 404);
 
         return response()->json([
             'success' => true,
-            'item'    => $this->normalizeRow($row),
+            'item'    => $this->normalizeRow($row, $deptMap),
+            'lookups' => [
+                'departments' => $deptList,
+            ],
         ]);
     }
 
@@ -396,8 +514,14 @@ class PlacementNoticeController extends Controller
     {
         $actor = $this->actor($request);
 
+        // ✅ normalize department_ids so validation works even if frontend sends JSON string
+        $normalizedDeptIds = $this->normalizeDepartmentIds($request->input('department_ids', null));
+        if ($normalizedDeptIds !== null) $request->merge(['department_ids' => $normalizedDeptIds]);
+
         $validated = $request->validate([
-            'department_id'       => ['nullable', 'integer', 'exists:departments,id'],
+            'department_ids'      => ['nullable', 'array'],
+            'department_ids.*'    => ['integer', 'exists:departments,id'],
+
             'recruiter_id'        => ['nullable', 'integer', 'exists:recruiters,id'],
 
             'title'               => ['required', 'string', 'max:255'],
@@ -418,7 +542,7 @@ class PlacementNoticeController extends Controller
             'metadata'            => ['nullable'],
 
             'banner_image'        => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,gif', 'max:5120'],
-            'banner_image_url'    => ['nullable', 'string', 'max:255'], // if you want to set manually without upload
+            'banner_image_url'    => ['nullable', 'string', 'max:255'],
         ]);
 
         $slug = $this->normSlug($validated['slug'] ?? '');
@@ -439,7 +563,11 @@ class PlacementNoticeController extends Controller
         $bannerPath = null;
 
         if ($request->hasFile('banner_image')) {
-            $deptKey = !empty($validated['department_id']) ? (string) ((int) $validated['department_id']) : 'global';
+            // ✅ folder key: first department id OR global
+            $deptKey = (!empty($validated['department_ids']) && is_array($validated['department_ids']))
+                ? (string) ((int) $validated['department_ids'][0])
+                : 'global';
+
             $dirRel  = 'depy_uploads/placement_notices/' . $deptKey;
 
             $f = $request->file('banner_image');
@@ -453,9 +581,12 @@ class PlacementNoticeController extends Controller
             $bannerPath = (string) $validated['banner_image_url'];
         }
 
+        $deptIds = $validated['department_ids'] ?? null;
+        $deptIds = $this->normalizeDepartmentIds($deptIds);
+
         $id = DB::table('placement_notices')->insertGetId([
             'uuid'              => $uuid,
-            'department_id'     => $validated['department_id'] ?? null,
+            'department_ids'    => $deptIds !== null ? json_encode($deptIds) : null,
             'recruiter_id'      => $validated['recruiter_id'] ?? null,
             'slug'              => $slug,
             'title'             => $validated['title'],
@@ -485,11 +616,17 @@ class PlacementNoticeController extends Controller
             'metadata'          => $metadata !== null ? json_encode($metadata) : null,
         ]);
 
-        $row = DB::table('placement_notices')->where('id', $id)->first();
+        $fresh = DB::table('placement_notices')->where('id', $id)->first();
+
+        $deptMap = $this->departmentsMap(false);
 
         return response()->json([
             'success' => true,
-            'data'    => $row ? $this->normalizeRow($row) : null,
+            'data'    => $fresh ? $this->normalizeRow($fresh, $deptMap) : null,
+            // ✅ for frontend dropdown selection
+            'lookups' => [
+                'departments' => array_values($deptMap),
+            ],
         ]);
     }
 
@@ -498,7 +635,8 @@ class PlacementNoticeController extends Controller
         $dept = $this->resolveDepartment($department, false);
         if (! $dept) return response()->json(['message' => 'Department not found'], 404);
 
-        $request->merge(['department_id' => (int) $dept->id]);
+        // ✅ now store as department_ids JSON array
+        $request->merge(['department_ids' => [(int) $dept->id]]);
         return $this->store($request);
     }
 
@@ -507,8 +645,14 @@ class PlacementNoticeController extends Controller
         $row = $this->resolvePlacementNotice($request, $identifier, true);
         if (! $row) return response()->json(['message' => 'Placement notice not found'], 404);
 
+        // ✅ normalize department_ids so validation works even if frontend sends JSON string
+        $normalizedDeptIds = $this->normalizeDepartmentIds($request->input('department_ids', null));
+        if ($normalizedDeptIds !== null) $request->merge(['department_ids' => $normalizedDeptIds]);
+
         $validated = $request->validate([
-            'department_id'        => ['nullable', 'integer', 'exists:departments,id'],
+            'department_ids'      => ['nullable', 'array'],
+            'department_ids.*'    => ['integer', 'exists:departments,id'],
+
             'recruiter_id'         => ['nullable', 'integer', 'exists:recruiters,id'],
 
             'title'                => ['nullable', 'string', 'max:255'],
@@ -531,7 +675,7 @@ class PlacementNoticeController extends Controller
             'banner_image'         => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,gif', 'max:5120'],
             'banner_image_remove'  => ['nullable', 'in:0,1', 'boolean'],
 
-            'banner_image_url'     => ['nullable', 'string', 'max:255'], // manual override
+            'banner_image_url'     => ['nullable', 'string', 'max:255'],
         ]);
 
         $update = [
@@ -539,21 +683,11 @@ class PlacementNoticeController extends Controller
             'updated_at_ip' => $request->ip(),
         ];
 
-        // dept key for directory
-        $newDeptId = array_key_exists('department_id', $validated)
-            ? ($validated['department_id'] !== null ? (int) $validated['department_id'] : null)
-            : ($row->department_id !== null ? (int) $row->department_id : null);
-
         // normal fields
-        foreach ([
-            'title','description','role_title','eligibility','apply_url','status'
-        ] as $k) {
+        foreach (['title','description','role_title','eligibility','apply_url','status'] as $k) {
             if (array_key_exists($k, $validated)) $update[$k] = $validated[$k];
         }
 
-        if (array_key_exists('department_id', $validated)) {
-            $update['department_id'] = $validated['department_id'] !== null ? (int) $validated['department_id'] : null;
-        }
         if (array_key_exists('recruiter_id', $validated)) {
             $update['recruiter_id'] = $validated['recruiter_id'] !== null ? (int) $validated['recruiter_id'] : null;
         }
@@ -576,6 +710,12 @@ class PlacementNoticeController extends Controller
         }
         if (array_key_exists('expire_at', $validated)) {
             $update['expire_at'] = !empty($validated['expire_at']) ? Carbon::parse($validated['expire_at']) : null;
+        }
+
+        // ✅ department_ids update
+        if (array_key_exists('department_ids', $validated)) {
+            $deptIds = $this->normalizeDepartmentIds($validated['department_ids'] ?? null);
+            $update['department_ids'] = $deptIds !== null ? json_encode($deptIds) : null;
         }
 
         // slug unique
@@ -609,7 +749,16 @@ class PlacementNoticeController extends Controller
 
         // banner replace via upload
         if ($request->hasFile('banner_image')) {
-            $deptKey = $newDeptId ? (string) $newDeptId : 'global';
+            $existingDeptIds = $this->normalizeDepartmentIds($request->input('department_ids', null));
+            if ($existingDeptIds === null) {
+                // fallback: try from row
+                $existingDeptIds = $this->normalizeDepartmentIds($row->department_ids ?? null);
+            }
+
+            $deptKey = (!empty($existingDeptIds) && is_array($existingDeptIds))
+                ? (string) ((int) $existingDeptIds[0])
+                : 'global';
+
             $dirRel  = 'depy_uploads/placement_notices/' . $deptKey;
 
             $f = $request->file('banner_image');
@@ -628,9 +777,15 @@ class PlacementNoticeController extends Controller
 
         $fresh = DB::table('placement_notices')->where('id', (int) $row->id)->first();
 
+        $deptMap = $this->departmentsMap(false);
+
         return response()->json([
             'success' => true,
-            'data'    => $fresh ? $this->normalizeRow($fresh) : null,
+            'data'    => $fresh ? $this->normalizeRow($fresh, $deptMap) : null,
+            // ✅ for frontend dropdown selection
+            'lookups' => [
+                'departments' => array_values($deptMap),
+            ],
         ]);
     }
 
@@ -649,9 +804,11 @@ class PlacementNoticeController extends Controller
 
         $fresh = DB::table('placement_notices')->where('id', (int) $row->id)->first();
 
+        $deptMap = $this->departmentsMap(false);
+
         return response()->json([
             'success' => true,
-            'data'    => $fresh ? $this->normalizeRow($fresh) : null,
+            'data'    => $fresh ? $this->normalizeRow($fresh, $deptMap) : null,
         ]);
     }
 
@@ -684,9 +841,11 @@ class PlacementNoticeController extends Controller
 
         $fresh = DB::table('placement_notices')->where('id', (int) $row->id)->first();
 
+        $deptMap = $this->departmentsMap(false);
+
         return response()->json([
             'success' => true,
-            'data'    => $fresh ? $this->normalizeRow($fresh) : null,
+            'data'    => $fresh ? $this->normalizeRow($fresh, $deptMap) : null,
         ]);
     }
 
@@ -695,7 +854,6 @@ class PlacementNoticeController extends Controller
         $row = $this->resolvePlacementNotice($request, $identifier, true);
         if (! $row) return response()->json(['message' => 'Placement notice not found'], 404);
 
-        // delete banner file (if it is a local path)
         $this->deletePublicPath($row->banner_image_url ?? null);
 
         DB::table('placement_notices')->where('id', (int) $row->id)->delete();
@@ -711,18 +869,24 @@ class PlacementNoticeController extends Controller
     {
         $perPage = max(1, min(200, (int) $request->query('per_page', 10)));
 
+        $deptMap  = $this->departmentsMap(false);
+        $deptList = array_values($deptMap);
+
         $q = $this->baseQuery($request, true);
         $this->applyVisibleWindow($q);
 
-        // public default sort
         $q->orderByRaw('COALESCE(p.publish_at, p.created_at) desc');
 
         $paginator = $q->paginate($perPage);
-        $items = array_map(fn($r) => $this->normalizeRow($r), $paginator->items());
+        $items = array_map(fn($r) => $this->normalizeRow($r, $deptMap), $paginator->items());
 
         return response()->json([
             'success' => true,
             'data'    => $items,
+            // ✅ optional for public UI too (safe)
+            'lookups' => [
+                'departments' => $deptList,
+            ],
             'pagination' => [
                 'page'      => $paginator->currentPage(),
                 'per_page'  => $paginator->perPage(),
@@ -756,7 +920,6 @@ class PlacementNoticeController extends Controller
             return response()->json(['message' => 'Placement notice not available'], 404);
         }
 
-        // default public view increment (can disable with ?inc_view=0)
         $inc = $request->has('inc_view')
             ? filter_var($request->query('inc_view'), FILTER_VALIDATE_BOOLEAN)
             : true;
@@ -766,9 +929,15 @@ class PlacementNoticeController extends Controller
             $row->views_count = ((int) ($row->views_count ?? 0)) + 1;
         }
 
+        $deptMap  = $this->departmentsMap(false);
+        $deptList = array_values($deptMap);
+
         return response()->json([
             'success' => true,
-            'item'    => $this->normalizeRow($row),
+            'item'    => $this->normalizeRow($row, $deptMap),
+            'lookups' => [
+                'departments' => $deptList,
+            ],
         ]);
     }
 }

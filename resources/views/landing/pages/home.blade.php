@@ -277,10 +277,10 @@
 
 <body>
 {{-- Main Header --}}
-@include('landing.components.mainHeader')
+@include('landing.components.header')
 
 {{-- Header (your existing) --}}
-@include('landing.components.header')
+@include('landing.components.headerMenu')
 
 <main class="pb-4">
 

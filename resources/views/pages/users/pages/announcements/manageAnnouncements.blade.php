@@ -1,8 +1,8 @@
 @extends('pages.users.layout.structure')
 
-@section('title', 'Manage Placed Students')
+@section('title', 'Manage Announcements')
 
-@include('modules.departments.managePlacedStudents')
+@include('modules.announcements.manageAnnouncements')
 
 @section('scripts')
 <script>

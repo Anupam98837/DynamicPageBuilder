@@ -1,8 +1,8 @@
 @extends('pages.users.layout.structure')
 
-@section('title', 'Manage Student Activities')
+@section('title', 'View Gallery')
 
-@include('modules.departments.manageStudentActivities')
+@include('modules.gallery.viewGallery')
 
 @section('scripts')
 <script>

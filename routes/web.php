@@ -53,45 +53,94 @@ Route::get('/user/personal-information/manage', function () {
     return view('pages.users.pages.users.profile.personalInformation');
 });
 
+
+// Department Manage Pages
+
 Route::get('/department/manage', function () {
     return view('pages.users.pages.departments.manageDepartment');
 });
 
 Route::get('/department/curriculum-syllabus', function () {
-    return view('pages.users.pages.departments.manageCurriculumSyllabuses');
+    return view('pages.users.pages.curriculumSyllabuses.manageCurriculumSyllabuses');
 });
 
 Route::get('/department/announcements', function () {
-    return view('pages.users.pages.departments.manageAnnouncements');
+    return view('pages.users.pages.announcements.manageAnnouncements');
 });
 
 Route::get('/department/achievements', function () {
-    return view('pages.users.pages.departments.manageAchievements');
+    return view('pages.users.pages.achievements.manageAchievements');
 });
 
 Route::get('/department/notices', function () {
-    return view('pages.users.pages.departments.manageNotices');
+    return view('pages.users.pages.notices.manageNotices');
 });
 
 Route::get('/department/student-activities', function () {
-    return view('pages.users.pages.departments.manageStudentActivities');
+    return view('pages.users.pages.studentActivities.manageStudentActivities');
 });
 
 Route::get('/department/gallery', function () {
-    return view('pages.users.pages.departments.manageGallery');
+    return view('pages.users.pages.gallery.manageGallery');
 });
 
 Route::get('/department/placed-students', function () {
-    return view('pages.users.pages.departments.managePlacedStudents');
+    return view('pages.users.pages.placedStudents.managePlacedStudents');
 });
 
 Route::get('/department/placement-notices', function () {
-    return view('pages.users.pages.departments.managePlacementNotices');
+    return view('pages.users.pages.placementNotices.managePlacementNotices');
 });
 
 Route::get('/department/successful-entrepreneurs', function () {
-    return view('pages.users.pages.departments.manageSuccessfulEntrepreneurs');
+    return view('pages.users.pages.successfulEntrepreneurs.manageSuccessfulEntrepreneurs');
 });
+
+
+// Department View Pages
+
+Route::get('/department/view/{uuid}', function () {
+    return view('modules.departments.viewDepartment');
+});
+
+Route::get('/curriculum-syllabus/view/{uuid}', function () {
+    return view('modules.curriculumSyllabuses.viewCurriculumSyllabuses');
+});
+
+Route::get('/announcements/view/{uuid}', function () {
+    return view('modules.announcements.viewAnnouncements');
+});
+
+Route::get('/achievements/view/{uuid}', function () {
+    return view('modules.achievements.viewAchievements');
+});
+
+Route::get('/notices/view/{uuid}', function () {
+    return view('modules.notices.viewNotices');
+});
+
+Route::get('/student-activities/view/{uuid}', function () {
+    return view('modules.studentActivities.viewStudentActivities');
+});
+
+Route::get('/gallery/view/{uuid}', function () {
+    return view('modules.gallery.viewGallery');
+});
+
+Route::get('/placed-students/view/{uuid}', function () {
+    return view('modules.placedStudents.viewPlacedStudents');
+});
+
+Route::get('/placement-notices/view/{uuid}', function () {
+    return view('modules.placementNotices.viewPlacementNotices');
+});
+
+Route::get('/successful-entrepreneurs/view/{uuid}', function () {
+    return view('modules.successfulEntrepreneurs.viewSuccessfulEntrepreneurs');
+});
+
+
+// Course Manage
 
 Route::get('/course/manage', function () {
     return view('pages.users.pages.course.manageCourses');

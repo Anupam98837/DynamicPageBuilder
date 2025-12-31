@@ -1,8 +1,8 @@
 @extends('pages.users.layout.structure')
 
-@section('title', 'Manage Gallery')
+@section('title', 'View Curriculum & Syllabuses')
 
-@include('modules.departments.manageGallery')
+@include('modules.curriculumSyllabuses.viewCurriculumSyllabuses')
 
 @section('scripts')
 <script>

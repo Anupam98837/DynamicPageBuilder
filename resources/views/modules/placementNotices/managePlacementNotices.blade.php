@@ -66,6 +66,17 @@ td.pn-col-slug code{
   vertical-align:bottom;
 }
 
+/* Department column (ellipsis) */
+th.pn-col-dept, td.pn-col-dept{width:170px;max-width:170px}
+td.pn-col-dept .pn-dept-text{
+  display:inline-block;
+  max-width:162px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  vertical-align:bottom;
+}
+
 /* Dropdown safety */
 .pn-card .dropdown{position:relative}
 .pn-card .dd-toggle{border-radius:10px}
@@ -288,6 +299,96 @@ td.pn-col-slug code{
   border:1px solid var(--line-soft);
   background:#fff;
 }
+
+/* =========================
+ * Department picker (NEW)
+ * ========================= */
+.pn-dept-box{
+  border:1px solid var(--line-strong);
+  border-radius:14px;
+  padding:10px 12px;
+  background:color-mix(in oklab, var(--surface) 92%, transparent);
+}
+.pn-dept-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+}
+.pn-dept-chips{
+  margin-top:10px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+.pn-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  border:1px solid var(--line-soft);
+  background:color-mix(in oklab, var(--primary-color) 10%, transparent);
+  color:var(--ink);
+  padding:6px 10px;
+  border-radius:999px;
+  font-size:12.5px;
+}
+.pn-chip .x{
+  width:22px;height:22px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:999px;
+  border:1px solid var(--line-soft);
+  background:transparent;
+  color:var(--muted-color);
+  cursor:pointer;
+}
+.pn-chip .x:hover{
+  background:color-mix(in oklab, var(--danger-color) 12%, transparent);
+  color:var(--danger-color);
+  border-color:color-mix(in oklab, var(--danger-color) 28%, var(--line-soft));
+}
+.pn-dept-empty{
+  margin-top:10px;
+  padding:10px 12px;
+  border:1px dashed var(--line-soft);
+  border-radius:12px;
+  color:var(--muted-color);
+  font-size:13px;
+}
+.pn-dept-list{
+  border:1px solid var(--line-strong);
+  border-radius:14px;
+  overflow:hidden;
+}
+.pn-dept-list .top{
+  padding:10px 12px;
+  border-bottom:1px solid var(--line-soft);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.pn-dept-list .body{
+  max-height:360px;
+  overflow:auto;
+  padding:8px 10px;
+}
+.pn-dept-row{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:9px 10px;
+  border-radius:12px;
+}
+.pn-dept-row:hover{background:var(--page-hover)}
+.pn-dept-row .title{
+  font-weight:600;
+  color:var(--ink);
+}
+
+/* =========================
+ * ✅ FIX: Stacked modals (Dept picker above Item modal)
+ * ========================= */
+#pnItemModal{z-index:1055}
+#pnDeptPickerModal{z-index:1070}   /* higher than pnItemModal */
 </style>
 @endpush
 
@@ -326,7 +427,7 @@ td.pn-col-slug code{
     {{-- ACTIVE --}}
     <div class="tab-pane fade show active" id="pn-tab-active" role="tabpanel">
 
-      {{-- Toolbar (single toolbar like reference, affects current tab) --}}
+      {{-- Toolbar --}}
       <div class="row align-items-center g-2 mb-3 pn-toolbar panel">
         <div class="col-12 col-lg d-flex align-items-center flex-wrap gap-2">
 
@@ -372,7 +473,7 @@ td.pn-col-slug code{
                 <tr>
                   <th>Title</th>
                   <th class="pn-col-slug">Slug</th>
-                  <th style="width:170px;">Department</th>
+                  <th class="pn-col-dept">Departments</th>
                   <th style="width:190px;">Recruiter</th>
                   <th style="width:120px;">Status</th>
                   <th style="width:120px;">Featured</th>
@@ -412,7 +513,7 @@ td.pn-col-slug code{
                 <tr>
                   <th>Title</th>
                   <th class="pn-col-slug">Slug</th>
-                  <th style="width:170px;">Department</th>
+                  <th class="pn-col-dept">Departments</th>
                   <th style="width:190px;">Recruiter</th>
                   <th style="width:120px;">Status</th>
                   <th style="width:120px;">Featured</th>
@@ -452,7 +553,7 @@ td.pn-col-slug code{
                 <tr>
                   <th>Title</th>
                   <th class="pn-col-slug">Slug</th>
-                  <th style="width:170px;">Department</th>
+                  <th class="pn-col-dept">Departments</th>
                   <th style="width:190px;">Recruiter</th>
                   <th style="width:150px;">Deleted</th>
                   <th style="width:110px;">Sort</th>
@@ -498,7 +599,7 @@ td.pn-col-slug code{
             <select id="pnFilterDept" class="form-select">
               <option value="">All</option>
             </select>
-            <div class="form-text">If departments don’t load, you can still manage items normally.</div>
+            <div class="form-text">Filters notices that include the selected department.</div>
           </div>
 
           <div class="col-12">
@@ -550,6 +651,43 @@ td.pn-col-slug code{
   </div>
 </div>
 
+{{-- Select Departments Modal (NEW) --}}
+<div class="modal fade" id="pnDeptPickerModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-building-columns me-2"></i>Select Departments</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="pn-dept-list">
+          <div class="top">
+            <div class="position-relative" style="flex:1;min-width:240px;">
+              <input id="pnDeptSearch" type="search" class="form-control ps-5" placeholder="Search departments...">
+              <i class="fa fa-search position-absolute" style="left:12px;top:50%;transform:translateY(-50%);opacity:.6;"></i>
+            </div>
+            <div class="small text-muted" id="pnDeptCount">—</div>
+          </div>
+          <div class="body" id="pnDeptList">
+            <div class="text-muted small p-3">Loading…</div>
+          </div>
+        </div>
+        <div class="form-text mt-2">Selected departments will be stored in <code>department_ids[]</code>. Leave empty for “Global”.</div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="pnDeptApply">
+          <i class="fa fa-check me-1"></i>Apply Selection
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
 {{-- Add/Edit/View Modal --}}
 <div class="modal fade" id="pnItemModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-centered">
@@ -563,30 +701,50 @@ td.pn-col-slug code{
         <input type="hidden" id="pnUuid">
         <input type="hidden" id="pnId">
 
+        {{-- NEW: department ids holder --}}
+        <input type="hidden" id="pnDepartmentIds" value="">
+
         <div class="row g-3">
+
+          {{-- ✅ Title at top --}}
+          <div class="col-12">
+            <label class="form-label">Title <span class="text-danger">*</span></label>
+            <input class="form-control" id="pnTitleInput" required maxlength="255" placeholder="e.g., TCS Off-campus Drive 2026">
+          </div>
+
+          {{-- ✅ Select Departments button at top (after title) --}}
+          <div class="col-12">
+            <div class="pn-dept-box">
+              <div class="pn-dept-head">
+                <div>
+                  <div class="fw-semibold"><i class="fa fa-building-columns me-2"></i>Departments</div>
+                  <div class="small text-muted">Select one or more departments (optional). Leave empty for Global.</div>
+                </div>
+
+                <button type="button" class="btn btn-outline-primary" id="pnPickDepts">
+                  <i class="fa fa-square-check me-1"></i> Select Departments
+                </button>
+              </div>
+
+              <div id="pnDeptChips" class="pn-dept-chips" style="display:none;"></div>
+              <div id="pnDeptEmpty" class="pn-dept-empty">No departments selected (Global).</div>
+            </div>
+          </div>
+
           {{-- Left --}}
           <div class="col-lg-6">
             <div class="row g-3">
 
+              {{-- ✅ Recruiter dropdown (instead of recruiter_id input) --}}
               <div class="col-md-6">
-                <label class="form-label">Department</label>
-                <select class="form-select" id="pnDepartment">
-                  <option value="">Global</option>
+                <label class="form-label">Recruiter</label>
+                <select class="form-select" id="pnRecruiter">
+                  <option value="">Select recruiter (optional)</option>
                 </select>
+                <div class="form-text">Shows recruiter names only.</div>
               </div>
 
               <div class="col-md-6">
-                <label class="form-label">Recruiter ID</label>
-                <input type="number" class="form-control" id="pnRecruiterId" min="1" placeholder="e.g., 12">
-                <div class="form-text">If you maintain recruiters in another module, paste the recruiter ID here.</div>
-              </div>
-
-              <div class="col-12">
-                <label class="form-label">Title <span class="text-danger">*</span></label>
-                <input class="form-control" id="pnTitleInput" required maxlength="255" placeholder="e.g., TCS Off-campus Drive 2026">
-              </div>
-
-              <div class="col-md-8">
                 <label class="form-label">Slug (optional)</label>
                 <input class="form-control" id="pnSlugInput" maxlength="160" placeholder="tcs-off-campus-drive-2026">
                 <div class="form-text">Auto-generated from title until you edit manually.</div>
@@ -597,7 +755,7 @@ td.pn-col-slug code{
                 <input type="number" class="form-control" id="pnSortOrder" min="0" value="0">
               </div>
 
-              <div class="col-md-6">
+              <div class="col-md-8">
                 <label class="form-label">Role / Position</label>
                 <input class="form-control" id="pnRoleTitle" maxlength="255" placeholder="Software Engineer / Intern">
               </div>
@@ -835,6 +993,36 @@ td.pn-col-slug code{
       'Accept': 'application/json'
     });
 
+    /* =========================
+     * ✅ FIX: Proper stacked modals (z-index + backdrops)
+     * Makes pnDeptPickerModal render ABOVE pnItemModal.
+     * ========================= */
+    document.addEventListener('show.bs.modal', (ev) => {
+      const modalEl = ev.target;
+      // number of already-open modals
+      const openCount = document.querySelectorAll('.modal.show').length;
+      const zIndex = 1055 + (openCount * 20);
+      modalEl.style.zIndex = zIndex;
+
+      // once backdrop is in DOM, bump the latest one too
+      setTimeout(() => {
+        const backdrops = document.querySelectorAll('.modal-backdrop:not(.pn-stack)');
+        const bd = backdrops[backdrops.length - 1];
+        if (bd) {
+          bd.style.zIndex = zIndex - 5;
+          bd.classList.add('pn-stack');
+        }
+      }, 0);
+    });
+
+    document.addEventListener('hidden.bs.modal', () => {
+      // if any modal still open, keep body locked like Bootstrap expects
+      if (document.querySelectorAll('.modal.show').length) {
+        document.body.classList.add('modal-open');
+      }
+    });
+    /* ========================= */
+
     // permissions
     const ACTOR = { role: '' };
     let canCreate=false, canEdit=false, canDelete=false;
@@ -895,6 +1083,9 @@ td.pn-col-slug code{
     const itemModalEl = $('pnItemModal');
     const itemModal = itemModalEl ? new bootstrap.Modal(itemModalEl) : null;
 
+    const deptPickerEl = $('pnDeptPickerModal');
+    const deptPickerModal = deptPickerEl ? new bootstrap.Modal(deptPickerEl) : null;
+
     const itemTitle = $('pnItemTitle');
     const itemForm = $('pnItemForm');
     const saveBtn = $('pnSaveBtn');
@@ -902,8 +1093,18 @@ td.pn-col-slug code{
     const pnUuid = $('pnUuid');
     const pnId = $('pnId');
 
-    const departmentSel = $('pnDepartment');
-    const recruiterIdInput = $('pnRecruiterId');
+    // form fields
+    const deptIdsHidden = $('pnDepartmentIds');
+    const deptBtn = $('pnPickDepts');
+    const deptChips = $('pnDeptChips');
+    const deptEmpty = $('pnDeptEmpty');
+
+    const deptSearch = $('pnDeptSearch');
+    const deptList = $('pnDeptList');
+    const deptCount = $('pnDeptCount');
+    const deptApply = $('pnDeptApply');
+
+    const recruiterSel = $('pnRecruiter');
     const titleInput = $('pnTitleInput');
     const slugInput = $('pnSlugInput');
     const sortOrderInput = $('pnSortOrder');
@@ -933,7 +1134,16 @@ td.pn-col-slug code{
         active:   { page:1, lastPage:1, items:[] },
         inactive: { page:1, lastPage:1, items:[] },
         trash:    { page:1, lastPage:1, items:[] }
-      }
+      },
+
+      // lookups
+      departments: [],   // [{id,title,slug,uuid}]
+      deptMap: {},       // id -> {id,title,...}
+      recruiters: [],    // [{id,name}]
+      recruiterMap: {},  // id -> {id,name}
+
+      // form selection
+      selectedDeptIds: []
     };
 
     const getTabKey = () => {
@@ -944,32 +1154,54 @@ td.pn-col-slug code{
       return 'active';
     };
 
-    // ---------- departments (best-effort) ----------
+    // ---------- lookups ----------
+    function buildDeptMap(list){
+      const map = {};
+      (list || []).forEach(d => { if (d && d.id != null) map[String(d.id)] = d; });
+      state.deptMap = map;
+    }
+
+    function buildRecruiterMap(list){
+      const map = {};
+      (list || []).forEach(r => { if (r && r.id != null) map[String(r.id)] = r; });
+      state.recruiterMap = map;
+    }
+
     async function loadDepartments(){
+      // prefer controller lookups (returns departments list)
       const endpoints = [
+        '/api/placement-notices?per_page=1',
         '/api/departments?per_page=300',
         '/api/departments'
       ];
 
       for (const url of endpoints){
         try{
-          const res = await fetchWithTimeout(url, { headers: authHeaders() }, 12000);
+          const res = await fetchWithTimeout(url, { headers: authHeaders() }, 15000);
           if (!res.ok) continue;
           const js = await safeJson(res);
 
-          const arr =
-            (Array.isArray(js?.data) ? js.data :
-             Array.isArray(js?.departments) ? js.departments :
-             Array.isArray(js) ? js : []);
+          let arr = [];
+          if (url.startsWith('/api/placement-notices')) {
+            arr = Array.isArray(js?.lookups?.departments) ? js.lookups.departments : [];
+          } else {
+            arr =
+              (Array.isArray(js?.data) ? js.data :
+               Array.isArray(js?.departments) ? js.departments :
+               Array.isArray(js) ? js : []);
+          }
 
           if (!arr.length) continue;
 
           const opts = arr.map(d => {
             const id = d.id ?? d.department_id;
-            const title = d.title ?? d.name ?? d.department_title ?? ('Department #' + id);
+            const title = d.title ?? d.name ?? d.department_title ?? (id ? ('Department #' + id) : '');
             if (!id) return null;
-            return { id: String(id), title: String(title) };
+            return { id: String(id), title: String(title), slug: d.slug ?? null, uuid: d.uuid ?? null };
           }).filter(Boolean);
+
+          state.departments = opts;
+          buildDeptMap(opts);
 
           // filter select
           if (filterDept){
@@ -978,16 +1210,160 @@ td.pn-col-slug code{
             ).join('');
           }
 
-          // form select
-          if (departmentSel){
-            departmentSel.innerHTML = `<option value="">Global</option>` + opts.map(o =>
-              `<option value="${esc(o.id)}">${esc(o.title)}</option>`
-            ).join('');
+          // dept picker list
+          renderDeptPickerList();
+          return;
+        }catch(_){}
+      }
+
+      // if nothing loaded, keep empty state
+      state.departments = [];
+      buildDeptMap([]);
+      renderDeptPickerList();
+    }
+
+    async function loadRecruiters(){
+      const endpoints = [
+        '/api/recruiters?per_page=500',
+        '/api/recruiters'
+      ];
+
+      for (const url of endpoints){
+        try{
+          const res = await fetchWithTimeout(url, { headers: authHeaders() }, 15000);
+          if (!res.ok) continue;
+          const js = await safeJson(res);
+
+          const arr =
+            (Array.isArray(js?.data) ? js.data :
+             Array.isArray(js?.recruiters) ? js.recruiters :
+             Array.isArray(js) ? js : []);
+
+          if (!arr.length) continue;
+
+          const list = arr.map(r => {
+            const id = r.id ?? r.recruiter_id;
+            const name = r.name ?? r.recruiter_name ?? r.title ?? r.company_name ?? '';
+            if (!id) return null;
+            return { id: String(id), name: String(name || ('Recruiter #' + id)) };
+          }).filter(Boolean);
+
+          state.recruiters = list;
+          buildRecruiterMap(list);
+
+          if (recruiterSel){
+            recruiterSel.innerHTML =
+              `<option value="">Select recruiter (optional)</option>` +
+              list.map(x => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');
           }
           return;
         }catch(_){}
       }
+
+      state.recruiters = [];
+      buildRecruiterMap([]);
+      if (recruiterSel){
+        recruiterSel.innerHTML = `<option value="">Select recruiter (optional)</option>`;
+      }
     }
+
+    // ---------- departments picker UI ----------
+    function setSelectedDeptIds(ids){
+      const clean = (ids || [])
+        .map(x => parseInt(x, 10))
+        .filter(x => Number.isFinite(x) && x > 0);
+
+      // unique
+      const uniq = Array.from(new Set(clean));
+      state.selectedDeptIds = uniq;
+      if (deptIdsHidden) deptIdsHidden.value = uniq.length ? JSON.stringify(uniq) : '';
+      renderDeptChips();
+    }
+
+    function renderDeptChips(){
+      const ids = state.selectedDeptIds || [];
+      if (!deptChips || !deptEmpty) return;
+
+      if (!ids.length){
+        deptChips.style.display = 'none';
+        deptChips.innerHTML = '';
+        deptEmpty.style.display = '';
+        return;
+      }
+
+      deptEmpty.style.display = 'none';
+      deptChips.style.display = 'flex';
+
+      deptChips.innerHTML = ids.map(id => {
+        const d = state.deptMap[String(id)];
+        const title = d?.title ? d.title : `#${id}`;
+        return `
+          <span class="pn-chip" data-id="${esc(String(id))}">
+            <span class="t">${esc(title)}</span>
+            <button type="button" class="x" title="Remove" aria-label="Remove department">
+              <i class="fa fa-xmark"></i>
+            </button>
+          </span>
+        `;
+      }).join('');
+    }
+
+    deptChips?.addEventListener('click', (e) => {
+      const x = e.target.closest('.pn-chip .x');
+      if (!x) return;
+      const chip = e.target.closest('.pn-chip');
+      const id = parseInt(chip?.dataset?.id || '', 10);
+      if (!id) return;
+      setSelectedDeptIds((state.selectedDeptIds || []).filter(v => v !== id));
+      renderDeptPickerList(deptSearch?.value || '');
+    });
+
+    function renderDeptPickerList(query=''){
+      if (!deptList) return;
+
+      const q = (query || '').trim().toLowerCase();
+      const all = state.departments || [];
+
+      const filtered = !q ? all : all.filter(d => (d.title || '').toLowerCase().includes(q));
+      const selected = new Set((state.selectedDeptIds || []).map(String));
+
+      if (!filtered.length){
+        deptList.innerHTML = `<div class="text-muted small p-3">No departments found.</div>`;
+        if (deptCount) deptCount.textContent = `0 / ${all.length}`;
+        return;
+      }
+
+      deptList.innerHTML = filtered.map(d => {
+        const checked = selected.has(String(d.id)) ? 'checked' : '';
+        const inputId = `pnDeptCk_${String(d.id).replace(/[^a-z0-9_]/gi,'_')}`;
+        return `
+          <label class="pn-dept-row" for="${esc(inputId)}">
+            <input class="form-check-input m-0" type="checkbox" id="${esc(inputId)}" data-id="${esc(d.id)}" ${checked}>
+            <span class="title">${esc(d.title)}</span>
+          </label>
+        `;
+      }).join('');
+
+      if (deptCount) deptCount.textContent = `${filtered.length} / ${all.length}`;
+    }
+
+    deptSearch?.addEventListener('input', debounce(() => {
+      renderDeptPickerList(deptSearch.value || '');
+    }, 120));
+
+    deptBtn?.addEventListener('click', () => {
+      if (!deptPickerModal) return;
+      if (deptSearch) deptSearch.value = '';
+      renderDeptPickerList('');
+      deptPickerModal.show();
+    });
+
+    deptApply?.addEventListener('click', () => {
+      const checks = Array.from(deptList?.querySelectorAll('input[type="checkbox"][data-id]') || []);
+      const picked = checks.filter(c => c.checked).map(c => parseInt(c.dataset.id, 10)).filter(Boolean);
+      setSelectedDeptIds(picked);
+      bootstrap.Modal.getInstance(deptPickerEl)?.hide();
+    });
 
     // ---------- query ----------
     function getSortParts(){
@@ -1038,11 +1414,20 @@ td.pn-col-slug code{
     function badgeFeatured(v){
       return v ? `<span class="badge pn-badge-primary">Yes</span>` : `<span class="badge pn-badge-muted">No</span>`;
     }
+
     function deptText(r){
-      return r?.department_title || r?.department_name || '—';
+      const deps = Array.isArray(r?.departments) ? r.departments : [];
+      if (deps.length){
+        const names = deps.map(d => d?.title).filter(Boolean);
+        if (names.length) return names.join(', ');
+      }
+      const ids = Array.isArray(r?.department_ids) ? r.department_ids : [];
+      if (ids.length) return ids.join(', ');
+      return 'Global';
     }
+
     function recruiterText(r){
-      const name = r?.recruiter_name || r?.recruiter_title || r?.recruiter_company_name || '';
+      const name = r?.recruiter_name || '';
       if (name) return name;
       if (r?.recruiter_id) return `#${r.recruiter_id}`;
       return '—';
@@ -1097,7 +1482,6 @@ td.pn-col-slug code{
           const deleted = r.deleted_at || '—';
           const sortOrder = (r.sort_order ?? 0);
 
-          // ✅ FIX: toggle rendered WITHOUT data-bs-toggle and controlled manually (like reference page)
           const actions = `
             <div class="dropdown text-end">
               <button type="button" class="btn btn-light btn-sm dd-toggle pn-dd-toggle"
@@ -1116,7 +1500,7 @@ td.pn-col-slug code{
             <tr data-uuid="${esc(uuid)}">
               <td class="fw-semibold">${esc(title)}</td>
               <td class="pn-col-slug"><code>${esc(slug)}</code></td>
-              <td>${esc(deptText(r))}</td>
+              <td class="pn-col-dept"><span class="pn-dept-text" title="${esc(deptText(r))}">${esc(deptText(r))}</span></td>
               <td>${esc(recruiterText(r))}</td>
               <td>${esc(String(deleted))}</td>
               <td>${esc(String(sortOrder))}</td>
@@ -1139,7 +1523,6 @@ td.pn-col-slug code{
         const updated = r.updated_at || '—';
         const sortOrder = (r.sort_order ?? 0);
 
-        // ✅ FIX: toggle rendered WITHOUT data-bs-toggle and controlled manually (like reference page)
         const actions = `
           <div class="dropdown text-end">
             <button type="button" class="btn btn-light btn-sm dd-toggle pn-dd-toggle"
@@ -1160,7 +1543,7 @@ td.pn-col-slug code{
           <tr data-uuid="${esc(uuid)}">
             <td class="fw-semibold">${esc(title)}</td>
             <td class="pn-col-slug"><code>${esc(slug)}</code></td>
-            <td>${esc(deptText(r))}</td>
+            <td class="pn-col-dept"><span class="pn-dept-text" title="${esc(deptText(r))}">${esc(deptText(r))}</span></td>
             <td>${esc(recruiterText(r))}</td>
             <td>${badgeStatus(status)}</td>
             <td>${badgeFeatured(featured)}</td>
@@ -1189,6 +1572,27 @@ td.pn-col-slug code{
 
         const js = await safeJson(res);
         if (!res.ok) throw new Error(js?.message || 'Failed to load');
+
+        // ✅ auto-refresh departments lookup from API if provided
+        if (Array.isArray(js?.lookups?.departments) && js.lookups.departments.length) {
+          const opts = js.lookups.departments.map(d => ({
+            id: String(d.id),
+            title: String(d.title || d.name || ('Department #' + d.id)),
+            slug: d.slug ?? null,
+            uuid: d.uuid ?? null
+          }));
+          state.departments = opts;
+          buildDeptMap(opts);
+          if (filterDept){
+            const cur = filterDept.value || '';
+            filterDept.innerHTML = `<option value="">All</option>` + opts.map(o =>
+              `<option value="${esc(o.id)}">${esc(o.title)}</option>`
+            ).join('');
+            filterDept.value = cur;
+          }
+          renderDeptPickerList(deptSearch?.value || '');
+          renderDeptChips();
+        }
 
         const items = Array.isArray(js.data) ? js.data : [];
         const p = js.pagination || js.meta || {};
@@ -1274,8 +1678,7 @@ td.pn-col-slug code{
     document.querySelector('a[href="#pn-tab-inactive"]')?.addEventListener('shown.bs.tab', () => loadTab('inactive'));
     document.querySelector('a[href="#pn-tab-trash"]')?.addEventListener('shown.bs.tab', () => loadTab('trash'));
 
-    // ---------- ✅ ACTION DROPDOWN FIX (same approach as Contact Info reference) ----------
-    // We manually toggle Bootstrap Dropdown using Popper "fixed" strategy so it doesn't get clipped by overflow containers.
+    // ---------- ✅ ACTION DROPDOWN FIX ----------
     function closeAllPnDropdownsExcept(exceptToggle){
       document.querySelectorAll('.pn-dd-toggle').forEach(t => {
         if (exceptToggle && t === exceptToggle) return;
@@ -1283,9 +1686,8 @@ td.pn-col-slug code{
       });
     }
 
-    // close when clicking outside any dropdown (keeps normal toggle-close behavior on the button)
     document.addEventListener('click', (e) => {
-      if (e.target.closest('.pn-card .dropdown')) return; // inside dropdown => don't auto-close here
+      if (e.target.closest('.pn-card .dropdown')) return;
       closeAllPnDropdownsExcept(null);
     }, { capture:true });
 
@@ -1296,7 +1698,6 @@ td.pn-col-slug code{
       e.preventDefault();
       e.stopPropagation();
 
-      // close other open dropdowns
       closeAllPnDropdownsExcept(toggle);
 
       try{
@@ -1311,12 +1712,10 @@ td.pn-col-slug code{
           }
         });
         inst.toggle();
-      }catch(_){
-        // fallback: nothing
-      }
+      }catch(_){}
     });
 
-    // ---------- mini editor (no cursor jumping) ----------
+    // ---------- mini editor ----------
     const rte = {
       wrap: $('pnDescWrap'),
       bar: $('pnDescWrap')?.querySelector('.pn-rtebar'),
@@ -1542,6 +1941,9 @@ td.pn-col-slug code{
       slugDirty = false;
       settingSlug = false;
 
+      // departments selection reset
+      setSelectedDeptIds([]);
+
       rte.editor.innerHTML = '';
       rte.code.value = '';
       rte.hidden.value = '';
@@ -1550,10 +1952,12 @@ td.pn-col-slug code{
 
       clearBannerPreview(true);
 
-      itemForm.querySelectorAll('input,select,textarea').forEach(el => {
-        if (el.id === 'pnUuid' || el.id === 'pnId') return;
+      itemForm.querySelectorAll('input,select,textarea,button').forEach(el => {
+        if (!el || !el.id) return;
+        if (el.id === 'pnUuid' || el.id === 'pnId' || el.id === 'pnDepartmentIds') return;
         if (el.type === 'file') el.disabled = false;
         else if (el.tagName === 'SELECT') el.disabled = false;
+        else if (el.tagName === 'BUTTON') el.disabled = false;
         else el.readOnly = false;
       });
 
@@ -1580,8 +1984,14 @@ td.pn-col-slug code{
       pnUuid.value = r.uuid || '';
       pnId.value = r.id || '';
 
-      departmentSel.value = r.department_id ? String(r.department_id) : '';
-      recruiterIdInput.value = r.recruiter_id ? String(r.recruiter_id) : '';
+      // departments array
+      const ids = Array.isArray(r.department_ids) ? r.department_ids : (
+        Array.isArray(r.departments) ? r.departments.map(d => d?.id).filter(Boolean) : []
+      );
+      setSelectedDeptIds(ids);
+
+      // recruiter dropdown
+      recruiterSel.value = r.recruiter_id ? String(r.recruiter_id) : '';
 
       titleInput.value = r.title || '';
       slugInput.value = r.slug || '';
@@ -1617,12 +2027,17 @@ td.pn-col-slug code{
       slugDirty = true;
 
       if (viewOnly){
-        itemForm.querySelectorAll('input,select,textarea').forEach(el => {
-          if (el.id === 'pnUuid' || el.id === 'pnId') return;
+        itemForm.querySelectorAll('input,select,textarea,button').forEach(el => {
+          if (!el || !el.id) return;
+          if (el.id === 'pnUuid' || el.id === 'pnId' || el.id === 'pnOpenBanner') return;
           if (el.type === 'file') el.disabled = true;
           else if (el.tagName === 'SELECT') el.disabled = true;
+          else if (el.tagName === 'BUTTON') el.disabled = true;
           else el.readOnly = true;
         });
+        // keep close button active (bootstrap)
+        itemModalEl.querySelectorAll('.btn-close').forEach(b => b.disabled = false);
+
         setRteEnabled(false);
         saveBtn.style.display = 'none';
         itemForm.dataset.mode = 'view';
@@ -1832,8 +2247,13 @@ td.pn-col-slug code{
         rte.hidden.value = descClean;
 
         const fd = new FormData();
-        if (departmentSel.value) fd.append('department_id', departmentSel.value);
-        if (recruiterIdInput.value) fd.append('recruiter_id', recruiterIdInput.value);
+
+        // ✅ departments array
+        const deptIds = (state.selectedDeptIds || []).map(x => parseInt(x, 10)).filter(Boolean);
+        deptIds.forEach(id => fd.append('department_ids[]', String(id)));
+
+        // ✅ recruiter dropdown
+        if (recruiterSel.value) fd.append('recruiter_id', recruiterSel.value);
 
         fd.append('title', title);
         if ((slugInput.value || '').trim()) fd.append('slug', slugInput.value.trim());
@@ -1906,7 +2326,8 @@ td.pn-col-slug code{
       showLoading(true);
       try{
         await fetchMe();
-        await loadDepartments(); // best-effort
+        await Promise.all([loadDepartments(), loadRecruiters()]);
+        renderDeptChips();
         await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
       }catch(ex){
         err(ex?.message || 'Initialization failed');

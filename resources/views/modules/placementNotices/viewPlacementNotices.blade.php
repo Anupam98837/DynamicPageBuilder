@@ -1,8 +1,6 @@
 @extends('pages.users.layout.structure')
 
-@section('title', 'Manage Curriculum & Syllabuses')
-
-@include('modules.departments.manageCurriculumSyllabuses')
+@include('modules.placementNotices.viewPlacementNotices')
 
 @section('scripts')
 <script>

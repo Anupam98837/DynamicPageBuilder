@@ -249,13 +249,6 @@
   <div id="sm-departments" class="w3-submenu" role="group" aria-label="Departments submenu">
     <a href="/department/manage" class="w3-link">Manage Departments</a>
     <a href="/department/curriculum-syllabus" class="w3-link">Curriculum & Syllabus</a>
-    <a href="/department/announcements" class="w3-link">Announcements</a>
-    <a href="/department/achievements" class="w3-link">Achievements</a>
-    <a href="/department/notices" class="w3-link">Notices</a>
-    <a href="/department/student-activities" class="w3-link">Student Activities</a>
-    <a href="/department/placed-students" class="w3-link">Placed Students</a>
-    <a href="/department/placement-notices" class="w3-link">Placement Notices</a>
-    <a href="/department/successful-entrepreneurs" class="w3-link">Successful Entrepreneurs</a>
     <a href="/department/gallery" class="w3-link">Gallery</a>
   </div>
 </div>
@@ -348,6 +341,32 @@
   <i class="fa-solid fa-calendar-days"></i><span>Events</span>
 </a>
 
+<!-- Placement -->
+<div class="w3-group">
+  <a href="#" class="w3-link w3-toggle" data-target="sm-placement" aria-expanded="false">
+    <i class="fa-solid fa-briefcase"></i><span>Placement</span>
+    <i class="fa fa-chevron-down w3-chev"></i>
+  </a>
+  <div id="sm-placement" class="w3-submenu" role="group" aria-label="Placement submenu">
+    <a href="/department/placement-notices" class="w3-link">Placement Notices</a>
+    <a href="/department/placed-students" class="w3-link">Placed Students</a>
+    <a href="/department/successful-entrepreneurs" class="w3-link">Successful Entrepreneurs</a>
+  </div>
+</div>
+
+<!-- Notifications -->
+<div class="w3-group">
+  <a href="#" class="w3-link w3-toggle" data-target="sm-notifications" aria-expanded="false">
+    <i class="fa-solid fa-bell"></i><span>Notifications</span>
+    <i class="fa fa-chevron-down w3-chev"></i>
+  </a>
+  <div id="sm-notifications" class="w3-submenu" role="group" aria-label="Notifications submenu">
+    <a href="/department/announcements" class="w3-link">Announcements</a>
+    <a href="/department/achievements" class="w3-link">Achievements</a>
+    <a href="/department/notices" class="w3-link">Notices</a>
+    <a href="/department/student-activities" class="w3-link">Student Activities</a>
+  </div>
+</div>
       </nav>
 
       <!-- privileges (admin static) -->

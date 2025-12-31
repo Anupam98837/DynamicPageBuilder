@@ -1,24 +1,26 @@
-{{-- resources/views/modules/announcement/manageAnnouncements.blade.php --}}
-@section('title','Announcements')
+{{-- resources/views/modules/notice/manageNotices.blade.php --}}
+@section('title','Notices')
 
 @push('styles')
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
 <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}">
 
 <style>
-/* Dropdowns inside table */
-.table-wrap .dropdown{position:relative}
-.dropdown .dd-toggle{border-radius:10px} /* ✅ was: .dropdown [data-bs-toggle="dropdown"] */
+/* =========================
+ * Notices UI (same structure reference, rewritten)
+ * ========================= */
+
+/* Dropdown safety inside table */
+.table-responsive .dropdown{position:relative}
+.nt-dd-toggle{border-radius:10px}
 .dropdown-menu{
   border-radius:12px;
   border:1px solid var(--line-strong);
   box-shadow:var(--shadow-2);
   min-width:230px;
-  z-index:5000
+  z-index:99999;
 }
-/* ✅ safety: if any global css forces dropdown-menu hidden, ensure .show wins */
 .dropdown-menu.show{display:block !important}
-
 .dropdown-item{display:flex;align-items:center;gap:.6rem}
 .dropdown-item i{width:16px;text-align:center}
 .dropdown-item.text-danger{color:var(--danger-color) !important}
@@ -32,7 +34,7 @@
 }
 .tab-content,.tab-pane{overflow:visible}
 
-/* Table Card */
+/* Table card */
 .table-wrap.card{
   position:relative;
   border:1px solid var(--line-strong);
@@ -48,15 +50,14 @@
   color:var(--muted-color);
   font-size:13px;
   border-bottom:1px solid var(--line-strong);
-  background:var(--surface)
+  background:var(--surface);
 }
 .table thead.sticky-top{z-index:3}
 .table tbody tr{border-top:1px solid var(--line-soft)}
 .table tbody tr:hover{background:var(--page-hover)}
-td .fw-semibold{color:var(--ink)}
 .small{font-size:12.5px}
 
-/* ✅ Slug column smaller + ellipsis */
+/* Slug column */
 th.col-slug, td.col-slug{width:190px;max-width:190px}
 td.col-slug{overflow:hidden}
 td.col-slug code{
@@ -69,54 +70,43 @@ td.col-slug code{
 }
 
 /* Badges */
-.badge-soft-primary{
-  background:color-mix(in oklab, var(--primary-color) 12%, transparent);
-  color:var(--primary-color)
-}
 .badge-soft-success{
   background:color-mix(in oklab, var(--success-color) 12%, transparent);
   color:var(--success-color)
-}
-.badge-soft-muted{
-  background:color-mix(in oklab, var(--muted-color) 10%, transparent);
-  color:var(--muted-color)
 }
 .badge-soft-warning{
   background:color-mix(in oklab, var(--warning-color, #f59e0b) 14%, transparent);
   color:var(--warning-color, #f59e0b)
 }
+.badge-soft-muted{
+  background:color-mix(in oklab, var(--muted-color) 10%, transparent);
+  color:var(--muted-color)
+}
 
-/* Loading overlay */
+/* Global loading overlay */
 .loading-overlay{
-  position:fixed;
-  top:0;left:0;width:100%;height:100%;
-  background:rgba(0,0,0,0.45);
-  display:flex;
-  justify-content:center;
-  align-items:center;
+  position:fixed; inset:0;
+  background:rgba(0,0,0,.45);
+  display:flex; align-items:center; justify-content:center;
   z-index:9999;
-  backdrop-filter:blur(2px)
+  backdrop-filter:blur(2px);
 }
 .loading-spinner{
   background:var(--surface);
   padding:20px 22px;
   border-radius:14px;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  gap:10px;
-  box-shadow:0 10px 26px rgba(0,0,0,0.3)
+  display:flex;flex-direction:column;align-items:center;gap:10px;
+  box-shadow:0 10px 26px rgba(0,0,0,.3)
 }
 .spinner{
-  width:40px;height:40px;
-  border-radius:50%;
+  width:40px;height:40px;border-radius:50%;
   border:4px solid rgba(148,163,184,0.3);
   border-top:4px solid var(--primary-color);
   animation:spin 1s linear infinite
 }
-@keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+@keyframes spin{to{transform:rotate(360deg)}}
 
-/* Button loading state */
+/* Button spinner */
 .btn-loading{position:relative;color:transparent !important}
 .btn-loading::after{
   content:'';
@@ -130,49 +120,41 @@ td.col-slug code{
   animation:spin 1s linear infinite
 }
 
-/* Responsive toolbar */
-@media (max-width: 768px){
-  .an-toolbar .d-flex{flex-direction:column;gap:12px !important}
-  .an-toolbar .position-relative{min-width:100% !important}
-  .toolbar-buttons{
-    display:flex;
-    gap:8px;
-    flex-wrap:wrap
-  }
-  .toolbar-buttons .btn{
-    flex:1;
-    min-width:120px
-  }
+/* Toolbar responsive */
+@media (max-width:768px){
+  .nt-toolbar .d-flex{flex-direction:column;gap:12px !important}
+  .nt-toolbar .position-relative{min-width:100% !important}
+  .toolbar-buttons{display:flex;gap:8px;flex-wrap:wrap}
+  .toolbar-buttons .btn{flex:1;min-width:120px}
 }
 
-/* ✅ Horizontal scroll */
+/* Horizontal scroll */
 .table-responsive{
-  display:block;
-  width:100%;
-  max-width:100%;
+  display:block;width:100%;
   overflow-x:auto !important;
   overflow-y:visible !important;
   -webkit-overflow-scrolling:touch;
   position:relative;
 }
-.table-responsive > .table{
-  width:max-content;
-  min-width:1180px;
+.table-responsive > .table{width:max-content;min-width:1120px}
+.table-responsive th,.table-responsive td{white-space:nowrap}
+
+/* Cover thumbnail in table */
+.thumb{
+  width:46px;height:34px;border-radius:10px;
+  border:1px solid var(--line-soft);
+  background:color-mix(in oklab, var(--muted-color) 10%, transparent);
+  overflow:hidden;
+  display:flex;align-items:center;justify-content:center;
 }
-.table-responsive th,
-.table-responsive td{
-  white-space:nowrap;
-}
-@media (max-width: 576px){
-  .table-responsive > .table{ min-width:1120px; }
-}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb i{opacity:.55}
 
 /* =========================
- * ✅ RTE
- * (fix: no innerHTML rewrites on every click => cursor won't jump to start)
+ * RTE (single toolbar, stable caret)
  * ========================= */
 .rte-help{font-size:12px;color:var(--muted-color);margin-top:6px}
-.rte-row{margin-bottom:14px;}
+.rte-row{margin-bottom:14px}
 .rte-wrap{
   border:1px solid var(--line-strong);
   border-radius:14px;
@@ -180,10 +162,7 @@ td.col-slug code{
   background:var(--surface);
 }
 .rte-toolbar{
-  display:flex;
-  align-items:center;
-  gap:6px;
-  flex-wrap:wrap;
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap;
   padding:8px;
   border-bottom:1px solid var(--line-strong);
   background:color-mix(in oklab, var(--surface) 92%, transparent);
@@ -196,10 +175,7 @@ td.col-slug code{
   border-radius:10px;
   line-height:1;
   cursor:pointer;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  gap:6px;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
   user-select:none;
 }
 .rte-btn:hover{background:var(--page-hover)}
@@ -209,7 +185,6 @@ td.col-slug code{
 }
 .rte-sep{width:1px;height:24px;background:var(--line-soft);margin:0 4px}
 
-/* Text/Code tabs */
 .rte-tabs{
   margin-left:auto;
   display:flex;
@@ -218,8 +193,7 @@ td.col-slug code{
   overflow:hidden;
 }
 .rte-tabs .tab{
-  border:0;
-  border-right:1px solid var(--line-soft);
+  border:0;border-right:1px solid var(--line-soft);
   border-radius:0;
   padding:7px 12px;
   font-size:12px;
@@ -241,18 +215,17 @@ td.col-slug code{
   padding:12px 12px;
   outline:none;
 }
-.rte-editor:empty:before{content:attr(data-placeholder);color:var(--muted-color);}
+.rte-editor:empty:before{content:attr(data-placeholder);color:var(--muted-color)}
 
-.rte-editor b, .rte-editor strong{font-weight:800}
-.rte-editor i, .rte-editor em{font-style:italic}
+.rte-editor b,.rte-editor strong{font-weight:800}
+.rte-editor i,.rte-editor em{font-style:italic}
 .rte-editor u{text-decoration:underline}
 .rte-editor h1{font-size:20px;margin:8px 0}
 .rte-editor h2{font-size:18px;margin:8px 0}
 .rte-editor h3{font-size:16px;margin:8px 0}
-.rte-editor ul, .rte-editor ol{padding-left:22px}
+.rte-editor ul,.rte-editor ol{padding-left:22px}
 .rte-editor p{margin:0 0 10px}
 .rte-editor a{color:var(--primary-color);text-decoration:underline}
-
 .rte-editor code{
   padding:2px 6px;
   border-radius:0;
@@ -269,9 +242,7 @@ td.col-slug code{
   overflow:auto;
   margin:8px 0;
 }
-.rte-editor pre code{
-  border:0;background:transparent;padding:0;display:block;white-space:pre;
-}
+.rte-editor pre code{border:0;background:transparent;padding:0;display:block;white-space:pre}
 
 .rte-code{
   display:none;
@@ -287,10 +258,10 @@ td.col-slug code{
   font-size:12.5px;
   line-height:1.45;
 }
-.rte-wrap.mode-code .rte-editor{display:none;}
-.rte-wrap.mode-code .rte-code{display:block;}
+.rte-wrap.mode-code .rte-editor{display:none}
+.rte-wrap.mode-code .rte-code{display:block}
 
-/* Cover preview box */
+/* Cover preview */
 .cover-box{
   border:1px solid var(--line-strong);
   border-radius:14px;
@@ -303,7 +274,7 @@ td.col-slug code{
   padding:10px 12px;
   border-bottom:1px solid var(--line-soft);
 }
-.cover-box .cover-body{padding:12px;}
+.cover-box .cover-body{padding:12px}
 .cover-box img{
   width:100%;
   max-height:260px;
@@ -313,6 +284,23 @@ td.col-slug code{
   background:#fff;
 }
 .cover-meta{font-size:12.5px;color:var(--muted-color);margin-top:10px}
+
+/* Small helper row (department load state) */
+.dept-hint{
+  font-size:12px;
+  color:var(--muted-color);
+  margin-top:6px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.dept-dot{
+  width:8px;height:8px;border-radius:99px;
+  background:var(--muted-color);
+  opacity:.6;
+}
+.dept-dot.ok{background:var(--success-color);opacity:.9}
+.dept-dot.bad{background:var(--danger-color);opacity:.9}
 </style>
 @endpush
 
@@ -328,14 +316,17 @@ td.col-slug code{
   <ul class="nav nav-tabs mb-3" role="tablist">
     <li class="nav-item">
       <a class="nav-link active" data-bs-toggle="tab" href="#tab-active" role="tab" aria-selected="true">
-        <i class="fa-solid fa-bullhorn me-2"></i>Active
+        <i class="fa-solid fa-circle-check me-2"></i>Active
       </a>
     </li>
+
+    {{-- ✅ CHANGED: Inactive -> Draft --}}
     <li class="nav-item">
-      <a class="nav-link" data-bs-toggle="tab" href="#tab-inactive" role="tab" aria-selected="false">
-        <i class="fa-solid fa-circle-pause me-2"></i>Inactive
+      <a class="nav-link" data-bs-toggle="tab" href="#tab-draft" role="tab" aria-selected="false">
+        <i class="fa-solid fa-pen-to-square me-2"></i>Draft
       </a>
     </li>
+
     <li class="nav-item">
       <a class="nav-link" data-bs-toggle="tab" href="#tab-trash" role="tab" aria-selected="false">
         <i class="fa-solid fa-trash-can me-2"></i>Trash
@@ -349,7 +340,7 @@ td.col-slug code{
     <div class="tab-pane fade show active" id="tab-active" role="tabpanel">
 
       {{-- Toolbar --}}
-      <div class="row align-items-center g-2 mb-3 an-toolbar panel">
+      <div class="row align-items-center g-2 mb-3 nt-toolbar panel">
         <div class="col-12 col-lg d-flex align-items-center flex-wrap gap-2">
           <div class="d-flex align-items-center gap-2">
             <label class="text-muted small mb-0">Per Page</label>
@@ -366,19 +357,20 @@ td.col-slug code{
             <i class="fa fa-search position-absolute" style="left:12px;top:50%;transform:translateY(-50%);opacity:.6;"></i>
           </div>
 
-          <button id="btnFilter" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#filterModal">
-            <i class="fa fa-sliders me-1"></i>Filter
-          </button>
-
-          <button id="btnReset" class="btn btn-light">
-            <i class="fa fa-rotate-left me-1"></i>Reset
-          </button>
+          <div class="toolbar-buttons">
+            <button id="btnFilter" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#filterModal">
+              <i class="fa fa-sliders me-1"></i>Filter
+            </button>
+            <button id="btnReset" class="btn btn-light">
+              <i class="fa fa-rotate-left me-1"></i>Reset
+            </button>
+          </div>
         </div>
 
         <div class="col-12 col-lg-auto ms-lg-auto d-flex justify-content-lg-end">
           <div id="writeControls" style="display:none;">
             <button type="button" class="btn btn-primary" id="btnAddItem">
-              <i class="fa fa-plus me-1"></i> Add Announcement
+              <i class="fa fa-plus me-1"></i> Add Notice
             </button>
           </div>
         </div>
@@ -391,10 +383,10 @@ td.col-slug code{
             <table class="table table-hover table-borderless align-middle mb-0">
               <thead class="sticky-top">
                 <tr>
+                  <th style="width:70px;">Cover</th>
                   <th>Title</th>
                   <th class="col-slug">Slug</th>
                   <th style="width:120px;">Status</th>
-                  <th style="width:120px;">Featured</th>
                   <th style="width:150px;">Publish At</th>
                   <th style="width:110px;">Sort</th>
                   <th style="width:170px;">Updated</th>
@@ -408,8 +400,8 @@ td.col-slug code{
           </div>
 
           <div id="empty-active" class="empty p-4 text-center" style="display:none;">
-            <i class="fa fa-bullhorn mb-2" style="font-size:32px;opacity:.6;"></i>
-            <div>No active announcements found.</div>
+            <i class="fa fa-circle-info mb-2" style="font-size:32px;opacity:.6;"></i>
+            <div>No active notices found.</div>
           </div>
 
           <div class="d-flex flex-wrap align-items-center justify-content-between p-3 gap-2">
@@ -420,38 +412,38 @@ td.col-slug code{
       </div>
     </div>
 
-    {{-- INACTIVE TAB --}}
-    <div class="tab-pane fade" id="tab-inactive" role="tabpanel">
+    {{-- ✅ DRAFT TAB (was INACTIVE) --}}
+    <div class="tab-pane fade" id="tab-draft" role="tabpanel">
       <div class="card table-wrap">
         <div class="card-body p-0">
           <div class="table-responsive">
             <table class="table table-hover table-borderless align-middle mb-0">
               <thead class="sticky-top">
                 <tr>
+                  <th style="width:70px;">Cover</th>
                   <th>Title</th>
                   <th class="col-slug">Slug</th>
                   <th style="width:120px;">Status</th>
-                  <th style="width:120px;">Featured</th>
                   <th style="width:150px;">Publish At</th>
                   <th style="width:110px;">Sort</th>
                   <th style="width:170px;">Updated</th>
                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
               </thead>
-              <tbody id="tbody-inactive">
+              <tbody id="tbody-draft">
                 <tr><td colspan="8" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
 
-          <div id="empty-inactive" class="empty p-4 text-center" style="display:none;">
-            <i class="fa fa-circle-pause mb-2" style="font-size:32px;opacity:.6;"></i>
-            <div>No inactive announcements found.</div>
+          <div id="empty-draft" class="empty p-4 text-center" style="display:none;">
+            <i class="fa-solid fa-pen-to-square mb-2" style="font-size:32px;opacity:.6;"></i>
+            <div>No draft notices found.</div>
           </div>
 
           <div class="d-flex flex-wrap align-items-center justify-content-between p-3 gap-2">
-            <div class="text-muted small" id="resultsInfo-inactive">—</div>
-            <nav><ul id="pager-inactive" class="pagination mb-0"></ul></nav>
+            <div class="text-muted small" id="resultsInfo-draft">—</div>
+            <nav><ul id="pager-draft" class="pagination mb-0"></ul></nav>
           </div>
         </div>
       </div>
@@ -465,6 +457,7 @@ td.col-slug code{
             <table class="table table-hover table-borderless align-middle mb-0">
               <thead class="sticky-top">
                 <tr>
+                  <th style="width:70px;">Cover</th>
                   <th>Title</th>
                   <th class="col-slug">Slug</th>
                   <th style="width:150px;">Deleted</th>
@@ -473,7 +466,7 @@ td.col-slug code{
                 </tr>
               </thead>
               <tbody id="tbody-trash">
-                <tr><td colspan="5" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+                <tr><td colspan="6" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -528,15 +521,6 @@ td.col-slug code{
               <option value="publish_at">Publish At (Asc)</option>
             </select>
           </div>
-
-          <div class="col-12">
-            <label class="form-label">Featured</label>
-            <select id="modal_featured" class="form-select">
-              <option value="">Any</option>
-              <option value="1">Featured only</option>
-              <option value="0">Not featured</option>
-            </select>
-          </div>
         </div>
       </div>
       <div class="modal-footer">
@@ -554,7 +538,7 @@ td.col-slug code{
   <div class="modal-dialog modal-xl modal-dialog-centered">
     <form class="modal-content" id="itemForm" autocomplete="off">
       <div class="modal-header">
-        <h5 class="modal-title" id="itemModalTitle">Add Announcement</h5>
+        <h5 class="modal-title" id="itemModalTitle">Add Notice</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
 
@@ -565,6 +549,19 @@ td.col-slug code{
         <div class="row g-3">
           <div class="col-lg-6">
             <div class="row g-3">
+
+              {{-- Department dropdown --}}
+              <div class="col-12">
+                <label class="form-label">Department</label>
+                <select class="form-select" id="department_id">
+                  <option value="">General (No Department)</option>
+                </select>
+                <div class="dept-hint">
+                  <span id="deptDot" class="dept-dot"></span>
+                  <span id="deptHintText">Loading departments…</span>
+                </div>
+              </div>
+
               <div class="col-12">
                 <label class="form-label">Title <span class="text-danger">*</span></label>
                 <input class="form-control" id="title" required maxlength="255" placeholder="e.g., Semester Exam Notice">
@@ -581,30 +578,12 @@ td.col-slug code{
                 <input type="number" class="form-control" id="sort_order" min="0" max="1000000" value="0">
               </div>
 
-              {{-- ✅ Department dropdown (create/edit/view) --}}
-              <div class="col-12">
-                <label class="form-label">Department (optional)</label>
-                <select class="form-select" id="department_id">
-                  <option value="">General (All Departments)</option>
-                  <option value="" disabled>Loading departments…</option>
-                </select>
-                <div class="form-text">Choose a department to make this announcement department-specific (or keep General).</div>
-              </div>
-
               <div class="col-md-6">
                 <label class="form-label">Status</label>
                 <select class="form-select" id="status">
                   <option value="draft">Draft</option>
                   <option value="published">Published</option>
                   <option value="archived">Archived</option>
-                </select>
-              </div>
-
-              <div class="col-md-6">
-                <label class="form-label">Featured on Home</label>
-                <select class="form-select" id="is_featured_home">
-                  <option value="0">No</option>
-                  <option value="1">Yes</option>
                 </select>
               </div>
 
@@ -637,7 +616,7 @@ td.col-slug code{
           </div>
 
           <div class="col-lg-6">
-            {{-- ✅ RTE for Body (HTML allowed) --}}
+            {{-- RTE for Body (HTML allowed) --}}
             <div class="rte-row">
               <label class="form-label">Body (HTML allowed) <span class="text-danger">*</span></label>
 
@@ -674,7 +653,7 @@ td.col-slug code{
                 </div>
 
                 <div class="rte-area">
-                  <div id="bodyEditor" class="rte-editor" contenteditable="true" data-placeholder="Write announcement content…"></div>
+                  <div id="bodyEditor" class="rte-editor" contenteditable="true" data-placeholder="Write notice content…"></div>
                   <textarea id="bodyCode" class="rte-code" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"
                     placeholder="HTML code…"></textarea>
                 </div>
@@ -704,8 +683,8 @@ td.col-slug code{
                 <div class="cover-meta" id="coverMeta" style="display:none;">—</div>
               </div>
             </div>
-          </div>
 
+          </div>
         </div>
       </div>
 
@@ -742,8 +721,8 @@ td.col-slug code{
 
 <script>
 (() => {
-  if (window.__ANNOUNCEMENTS_MODULE_INIT__) return;
-  window.__ANNOUNCEMENTS_MODULE_INIT__ = true;
+  if (window.__NOTICES_MODULE_INIT__) return;
+  window.__NOTICES_MODULE_INIT__ = true;
 
   const $ = (id) => document.getElementById(id);
   const debounce = (fn, ms=300) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
@@ -785,11 +764,8 @@ td.col-slug code{
   async function fetchWithTimeout(url, opts={}, ms=15000){
     const ctrl = new AbortController();
     const t = setTimeout(()=>ctrl.abort(), ms);
-    try{
-      return await fetch(url, { ...opts, signal: ctrl.signal });
-    } finally {
-      clearTimeout(t);
-    }
+    try{ return await fetch(url, { ...opts, signal: ctrl.signal }); }
+    finally{ clearTimeout(t); }
   }
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -803,6 +779,7 @@ td.col-slug code{
     const toastErrEl = $('toastError');
     const toastOk = toastOkEl ? new bootstrap.Toast(toastOkEl) : null;
     const toastErr = toastErrEl ? new bootstrap.Toast(toastErrEl) : null;
+
     const ok = (m) => { const el=$('toastSuccessText'); if(el) el.textContent=m||'Done'; toastOk && toastOk.show(); };
     const err = (m) => { const el=$('toastErrorText'); if(el) el.textContent=m||'Something went wrong'; toastErr && toastErr.show(); };
 
@@ -811,6 +788,7 @@ td.col-slug code{
       'Accept': 'application/json'
     });
 
+    // Elements
     const perPageSel = $('perPage');
     const searchInput = $('searchInput');
     const btnReset = $('btnReset');
@@ -819,26 +797,25 @@ td.col-slug code{
     const btnAddItem = $('btnAddItem');
 
     const tbodyActive = $('tbody-active');
-    const tbodyInactive = $('tbody-inactive');
+    const tbodyDraft = $('tbody-draft');  // ✅ changed
     const tbodyTrash = $('tbody-trash');
 
     const emptyActive = $('empty-active');
-    const emptyInactive = $('empty-inactive');
+    const emptyDraft = $('empty-draft');  // ✅ changed
     const emptyTrash = $('empty-trash');
 
     const pagerActive = $('pager-active');
-    const pagerInactive = $('pager-inactive');
+    const pagerDraft = $('pager-draft');  // ✅ changed
     const pagerTrash = $('pager-trash');
 
     const infoActive = $('resultsInfo-active');
-    const infoInactive = $('resultsInfo-inactive');
+    const infoDraft = $('resultsInfo-draft'); // ✅ changed
     const infoTrash = $('resultsInfo-trash');
 
     const filterModalEl = $('filterModal');
     const filterModal = filterModalEl ? new bootstrap.Modal(filterModalEl) : null;
     const modalStatus = $('modal_status');
     const modalSort = $('modal_sort');
-    const modalFeatured = $('modal_featured');
 
     const itemModalEl = $('itemModal');
     const itemModal = itemModalEl ? new bootstrap.Modal(itemModalEl) : null;
@@ -851,13 +828,16 @@ td.col-slug code{
     const titleInput = $('title');
     const slugInput = $('slug');
     const sortOrderInput = $('sort_order');
-    const departmentSel = $('department_id'); // ✅ NEW
     const statusSel = $('status');
-    const featuredSel = $('is_featured_home');
     const publishAtInput = $('publish_at');
     const expireAtInput = $('expire_at');
     const coverInput = $('cover_image');
     const attachmentsInput = $('attachments');
+
+    // Department dropdown refs
+    const departmentSel = $('department_id');
+    const deptDot = $('deptDot');
+    const deptHintText = $('deptHintText');
 
     const currentAttachmentsInfo = $('currentAttachmentsInfo');
     const currentAttachmentsText = $('currentAttachmentsText');
@@ -867,9 +847,10 @@ td.col-slug code{
     const coverMeta = $('coverMeta');
     const btnOpenCover = $('btnOpenCover');
 
-    // ---------- permissions ----------
+    // Permissions
     const ACTOR = { role: '' };
     let canCreate=false, canEdit=false, canDelete=false;
+
     function computePermissions(){
       const r = (ACTOR.role || '').toLowerCase();
       const createDeleteRoles = ['admin','super_admin','director','principal'];
@@ -879,6 +860,7 @@ td.col-slug code{
       canEdit   = writeRoles.includes(r);
       if (writeControls) writeControls.style.display = canCreate ? 'flex' : 'none';
     }
+
     async function fetchMe(){
       try{
         const res = await fetchWithTimeout('/api/users/me', { headers: authHeaders() }, 8000);
@@ -894,154 +876,27 @@ td.col-slug code{
       computePermissions();
     }
 
-    // ---------- state ----------
+    // State
     const state = {
-      filters: { q:'', status:'', featured:'', sort:'-created_at' },
+      filters: { q:'', status:'', sort:'-created_at' },
       perPage: parseInt(perPageSel?.value || '20', 10) || 20,
+      departments: [],
       tabs: {
-        active:   { page:1, lastPage:1, items:[] },
-        inactive: { page:1, lastPage:1, items:[] },
-        trash:    { page:1, lastPage:1, items:[] }
-      },
-      departments: [],           // ✅ NEW
-      departmentsLoaded: false   // ✅ NEW
+        active: { page:1, lastPage:1, items:[] },
+        draft:  { page:1, lastPage:1, items:[] }, // ✅ changed
+        trash:  { page:1, lastPage:1, items:[] }
+      }
     };
-
-    // ---------- departments (for department_id dropdown) ----------
-    function pickDeptLabel(d){
-      return (d?.title || d?.name || d?.department_title || d?.department_name || d?.label || '').toString().trim();
-    }
-    function pickDeptId(d){
-      const id = d?.id ?? d?.department_id ?? d?.dept_id ?? null;
-      return (id === null || id === undefined) ? '' : String(id);
-    }
-
-    function renderDepartmentsOptions(selectedValue=''){
-      if (!departmentSel) return;
-
-      const opts = [];
-      opts.push(`<option value="">General (All Departments)</option>`);
-
-      if (!state.departmentsLoaded){
-        opts.push(`<option value="" disabled>Loading departments…</option>`);
-        departmentSel.innerHTML = opts.join('');
-        departmentSel.value = selectedValue || '';
-        return;
-      }
-
-      if (!state.departments.length){
-        opts.push(`<option value="" disabled>No departments found</option>`);
-        departmentSel.innerHTML = opts.join('');
-        departmentSel.value = selectedValue || '';
-        return;
-      }
-
-      for (const d of state.departments){
-        const id = pickDeptId(d);
-        const label = pickDeptLabel(d) || ('Department #' + id);
-        opts.push(`<option value="${esc(id)}">${esc(label)}</option>`);
-      }
-      departmentSel.innerHTML = opts.join('');
-      departmentSel.value = (selectedValue ?? '').toString();
-    }
-
-    function ensureDeptOptionExists(deptId, deptName){
-      if (!departmentSel) return;
-      const id = (deptId ?? '').toString();
-      if (!id) return;
-
-      const exists = Array.from(departmentSel.options || []).some(o => (o.value || '') === id);
-      if (exists) return;
-
-      const label = (deptName || '').toString().trim() || ('Department #' + id);
-      const opt = document.createElement('option');
-      opt.value = id;
-      opt.textContent = label;
-
-      // insert after "General" option (index 0)
-      const insertAt = Math.min(1, departmentSel.options.length);
-      departmentSel.add(opt, departmentSel.options[insertAt] || null);
-    }
-
-    async function fetchDepartments(){
-      // ✅ tries multiple endpoints (won't break if your exact endpoint differs)
-      const urls = [
-        '/api/departments?per_page=500&active=1',
-        '/api/departments?per_page=500',
-        '/api/departments?all=1',
-        '/api/departments'
-      ];
-
-      for (const url of urls){
-        try{
-          const res = await fetchWithTimeout(url, { headers: authHeaders() }, 12000);
-          if (res.status === 401 || res.status === 403) { window.location.href = '/'; return []; }
-          if (!res.ok) continue;
-
-          const js = await res.json().catch(()=> ({}));
-
-          // common shapes:
-          // - {data:[...]}
-          // - {data:{data:[...]}} (paginator)
-          // - {departments:[...]}
-          // - [...]
-          let rows = [];
-          if (Array.isArray(js?.data)) rows = js.data;
-          else if (Array.isArray(js?.data?.data)) rows = js.data.data;
-          else if (Array.isArray(js?.departments)) rows = js.departments;
-          else if (Array.isArray(js)) rows = js;
-
-          rows = (rows || []).filter(Boolean).map(d => ({
-            raw: d,
-            id: pickDeptId(d),
-            label: pickDeptLabel(d)
-          })).filter(x => x.id);
-
-          // de-dupe by id
-          const seen = new Set();
-          const out = [];
-          for (const x of rows){
-            if (seen.has(x.id)) continue;
-            seen.add(x.id);
-            out.push(x.raw);
-          }
-
-          return out;
-        }catch(_){
-          // try next
-        }
-      }
-      return [];
-    }
-
-    async function ensureDepartmentsLoaded(selectedValue=''){
-      if (!departmentSel) return;
-
-      // show temp loading state (but keep current selection)
-      if (!state.departmentsLoaded){
-        renderDepartmentsOptions(selectedValue || departmentSel.value || '');
-      }
-
-      if (state.departmentsLoaded) {
-        // already loaded, just ensure selected stays
-        if (selectedValue !== undefined) departmentSel.value = (selectedValue ?? '').toString();
-        return;
-      }
-
-      const rows = await fetchDepartments();
-      state.departments = rows;
-      state.departmentsLoaded = true;
-      renderDepartmentsOptions(selectedValue || departmentSel.value || '');
-    }
 
     const getTabKey = () => {
       const a = document.querySelector('.nav-tabs .nav-link.active');
       const href = a?.getAttribute('href') || '#tab-active';
-      if (href === '#tab-inactive') return 'inactive';
+      if (href === '#tab-draft') return 'draft'; // ✅ changed
       if (href === '#tab-trash') return 'trash';
       return 'active';
     };
 
+    // ✅ CHANGED: draft tab is driven by status=draft (so switching status to draft moves it here)
     function buildUrl(tabKey){
       const params = new URLSearchParams();
       params.set('per_page', String(state.perPage));
@@ -1054,18 +909,25 @@ td.col-slug code{
       params.set('sort', s.startsWith('-') ? s.slice(1) : s);
       params.set('direction', s.startsWith('-') ? 'desc' : 'asc');
 
-      if (state.filters.status) params.set('status', state.filters.status);
-      if (state.filters.featured !== '') params.set('featured', state.filters.featured);
+      // keep global status filter for Active/Trash;
+      // but Draft tab must always be drafts.
+      if (tabKey === 'draft') {
+        params.set('status', 'draft');
+      } else if (state.filters.status) {
+        params.set('status', state.filters.status);
+      }
 
       if (tabKey === 'active') params.set('active', '1');
-      if (tabKey === 'inactive') params.set('active', '0');
-      if (tabKey === 'trash') params.set('only_trashed', '1');
+      if (tabKey === 'draft')  params.set('active', '0'); // optional but helps if API supports
+      if (tabKey === 'trash')  params.set('only_trashed', '1');
 
-      return `/api/announcements?${params.toString()}`;
+      return `/api/notices?${params.toString()}`;
     }
 
     function setEmpty(tabKey, show){
-      const el = tabKey==='active' ? emptyActive : (tabKey==='inactive' ? emptyInactive : emptyTrash);
+      const el =
+        tabKey==='active' ? emptyActive :
+        (tabKey==='draft' ? emptyDraft : emptyTrash);
       if (el) el.style.display = show ? '' : 'none';
     }
 
@@ -1076,12 +938,17 @@ td.col-slug code{
       if (s === 'archived') return `<span class="badge badge-soft-muted">Archived</span>`;
       return `<span class="badge badge-soft-muted">${esc(s || '—')}</span>`;
     }
-    function featuredBadge(v){
-      return v ? `<span class="badge badge-soft-primary">Yes</span>` : `<span class="badge badge-soft-muted">No</span>`;
+
+    function coverThumb(url){
+      const u = normalizeUrl(url);
+      if (!u) return `<div class="thumb" title="No cover"><i class="fa-regular fa-image"></i></div>`;
+      return `<div class="thumb" title="Cover"><img src="${esc(u)}" alt="cover"></div>`;
     }
 
     function renderPager(tabKey){
-      const pagerEl = tabKey === 'active' ? pagerActive : (tabKey === 'inactive' ? pagerInactive : pagerTrash);
+      const pagerEl =
+        tabKey === 'active' ? pagerActive :
+        (tabKey === 'draft' ? pagerDraft : pagerTrash);
       if (!pagerEl) return;
 
       const st = state.tabs[tabKey];
@@ -1104,7 +971,10 @@ td.col-slug code{
     }
 
     function renderTable(tabKey){
-      const tbody = tabKey==='active' ? tbodyActive : (tabKey==='inactive' ? tbodyInactive : tbodyTrash);
+      const tbody =
+        tabKey==='active' ? tbodyActive :
+        (tabKey==='draft' ? tbodyDraft : tbodyTrash);
+
       const rows = state.tabs[tabKey].items || [];
       if (!tbody) return;
 
@@ -1120,19 +990,17 @@ td.col-slug code{
         const uuid = r.uuid || '';
         const title = r.title || '—';
         const slug = r.slug || '—';
-        const status = r.status || (r.active ? 'published' : 'draft');
-        const featured = !!(r.is_featured_home ?? r.featured ?? 0);
+        const status = (r.status || (r.active ? 'published' : 'draft') || '').toString().toLowerCase();
         const publishAt = r.publish_at || '—';
         const updated = r.updated_at || '—';
         const deleted = r.deleted_at || '—';
         const sortOrder = (r.sort_order ?? 0);
+        const coverUrl = r.cover_image_url || r.cover_url || r.cover_image || '';
 
         let actions = `
           <div class="dropdown text-end">
             <button type="button"
-              class="btn btn-light btn-sm dd-toggle"
-              data-bs-toggle="dropdown"
-              data-bs-auto-close="true"
+              class="btn btn-light btn-sm nt-dd-toggle"
               aria-expanded="false" title="Actions">
               <i class="fa fa-ellipsis-vertical"></i>
             </button>
@@ -1141,6 +1009,15 @@ td.col-slug code{
 
         if (canEdit && tabKey !== 'trash'){
           actions += `<li><button type="button" class="dropdown-item" data-action="edit"><i class="fa fa-pen-to-square"></i> Edit</button></li>`;
+        }
+
+        // ✅ NEW: Draft tab gets "Activate/Publish" section
+        if (tabKey === 'draft') {
+          actions += `
+            <li><hr class="dropdown-divider"></li>
+            <li><button type="button" class="dropdown-item" data-action="activate"><i class="fa fa-bolt"></i> Activate</button></li>
+            <li><button type="button" class="dropdown-item" data-action="publish"><i class="fa fa-circle-check"></i> Publish</button></li>
+          `;
         }
 
         if (tabKey !== 'trash'){
@@ -1161,6 +1038,7 @@ td.col-slug code{
         if (tabKey === 'trash'){
           return `
             <tr data-uuid="${esc(uuid)}">
+              <td>${coverThumb(coverUrl)}</td>
               <td class="fw-semibold">${esc(title)}</td>
               <td class="col-slug"><code>${esc(slug)}</code></td>
               <td>${esc(deleted)}</td>
@@ -1171,10 +1049,10 @@ td.col-slug code{
 
         return `
           <tr data-uuid="${esc(uuid)}">
+            <td>${coverThumb(coverUrl)}</td>
             <td class="fw-semibold">${esc(title)}</td>
             <td class="col-slug"><code>${esc(slug)}</code></td>
             <td>${statusBadge(status)}</td>
-            <td>${featuredBadge(featured)}</td>
             <td>${esc(String(publishAt))}</td>
             <td>${esc(String(sortOrder))}</td>
             <td>${esc(String(updated))}</td>
@@ -1186,11 +1064,15 @@ td.col-slug code{
     }
 
     async function loadTab(tabKey){
-      const tbody = tabKey==='active' ? tbodyActive : (tabKey==='inactive' ? tbodyInactive : tbodyTrash);
+      const tbody =
+        tabKey==='active' ? tbodyActive :
+        (tabKey==='draft' ? tbodyDraft : tbodyTrash);
+
       if (tbody){
-        const cols = (tabKey==='trash') ? 5 : 8;
+        const cols = (tabKey==='trash') ? 6 : 8;
         tbody.innerHTML = `<tr><td colspan="${cols}" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>`;
       }
+
       try{
         const res = await fetchWithTimeout(buildUrl(tabKey), { headers: authHeaders() }, 15000);
         if (res.status === 401 || res.status === 403) { window.location.href = '/'; return; }
@@ -1203,9 +1085,10 @@ td.col-slug code{
         state.tabs[tabKey].items = items;
         state.tabs[tabKey].lastPage = parseInt(p.last_page || p.total_pages || 1, 10) || 1;
 
-        if (tabKey === 'active' && infoActive) infoActive.textContent = (p.total ? `${p.total} result(s)` : '—');
-        if (tabKey === 'inactive' && infoInactive) infoInactive.textContent = (p.total ? `${p.total} result(s)` : '—');
-        if (tabKey === 'trash' && infoTrash) infoTrash.textContent = (p.total ? `${p.total} result(s)` : '—');
+        const totalText = (p.total ? `${p.total} result(s)` : '—');
+        if (tabKey === 'active' && infoActive) infoActive.textContent = totalText;
+        if (tabKey === 'draft' && infoDraft) infoDraft.textContent = totalText;
+        if (tabKey === 'trash' && infoTrash) infoTrash.textContent = totalText;
 
         renderTable(tabKey);
       }catch(e){
@@ -1218,7 +1101,86 @@ td.col-slug code{
 
     function reloadCurrent(){ loadTab(getTabKey()); }
 
-    // ---------- pager ----------
+    // Departments
+    function deptLabel(d){
+      return (d?.title || d?.name || d?.department_title || d?.department_name || d?.label || '').toString().trim()
+        || `Department #${d?.id ?? ''}`;
+    }
+
+    function setDeptHint(stateKey, text){
+      if (deptHintText) deptHintText.textContent = text || '';
+      if (deptDot){
+        deptDot.classList.remove('ok','bad');
+        if (stateKey === 'ok') deptDot.classList.add('ok');
+        else if (stateKey === 'bad') deptDot.classList.add('bad');
+      }
+    }
+
+    function hydrateDeptSelect(selectedValue=''){
+      if (!departmentSel) return;
+      const keepGeneral = departmentSel.querySelector('option[value=""]') ? true : false;
+
+      const options = [];
+      if (keepGeneral){
+        options.push(`<option value="">General (No Department)</option>`);
+      } else {
+        options.push(`<option value="">Select Department</option>`);
+      }
+
+      (state.departments || []).forEach(d => {
+        const id = (d?.id ?? d?.department_id ?? '').toString();
+        if (!id) return;
+        const name = deptLabel(d);
+        options.push(`<option value="${esc(id)}">${esc(name)}</option>`);
+      });
+
+      departmentSel.innerHTML = options.join('');
+      departmentSel.value = (selectedValue ?? '').toString();
+    }
+
+    async function loadDepartments(){
+      if (!departmentSel) return;
+      setDeptHint('', 'Loading departments…');
+      departmentSel.disabled = true;
+
+      const candidates = [
+        '/api/departments?per_page=500&active=1',
+        '/api/departments?per_page=500',
+        '/api/departments'
+      ];
+
+      for (const url of candidates){
+        try{
+          const res = await fetchWithTimeout(url, { headers: authHeaders() }, 12000);
+          if (res.status === 401 || res.status === 403) { window.location.href = '/'; return; }
+          const js = await res.json().catch(()=> ({}));
+          if (!res.ok) continue;
+
+          const items = Array.isArray(js.data) ? js.data : (Array.isArray(js?.departments) ? js.departments : []);
+          if (!Array.isArray(items)) continue;
+
+          state.departments = items
+            .filter(d => (d?.id ?? d?.department_id))
+            .map(d => ({
+              id: d.id ?? d.department_id,
+              title: d.title ?? d.name ?? d.department_title ?? d.department_name ?? d.label ?? ''
+            }))
+            .sort((a,b) => (a.title || '').localeCompare((b.title || ''), undefined, { sensitivity:'base' }));
+
+          hydrateDeptSelect('');
+          departmentSel.disabled = false;
+          setDeptHint('ok', state.departments.length ? `${state.departments.length} department(s) loaded` : 'No departments found');
+          return;
+        }catch(_){}
+      }
+
+      state.departments = [];
+      hydrateDeptSelect('');
+      departmentSel.disabled = false;
+      setDeptHint('bad', 'Could not load departments (still can save as General).');
+    }
+
+    // Pager click
     document.addEventListener('click', (e) => {
       const a = e.target.closest('a.page-link[data-page]');
       if (!a) return;
@@ -1232,59 +1194,93 @@ td.col-slug code{
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
 
-    // ---------- filters ----------
+    // Filters
     searchInput?.addEventListener('input', debounce(() => {
       state.filters.q = (searchInput.value || '').trim();
-      state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
+      state.tabs.active.page = state.tabs.draft.page = state.tabs.trash.page = 1;
       reloadCurrent();
     }, 320));
 
     perPageSel?.addEventListener('change', () => {
       state.perPage = parseInt(perPageSel.value, 10) || 20;
-      state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
+      state.tabs.active.page = state.tabs.draft.page = state.tabs.trash.page = 1;
       reloadCurrent();
     });
 
     filterModalEl?.addEventListener('show.bs.modal', () => {
-      if (!modalStatus || !modalSort || !modalFeatured) return;
+      if (!modalStatus || !modalSort) return;
       modalStatus.value = state.filters.status || '';
       modalSort.value = state.filters.sort || '-created_at';
-      modalFeatured.value = (state.filters.featured ?? '');
     });
 
     btnApplyFilters?.addEventListener('click', () => {
       state.filters.status = modalStatus?.value || '';
       state.filters.sort = modalSort?.value || '-created_at';
-      state.filters.featured = (modalFeatured?.value ?? '');
-      state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
+      state.tabs.active.page = state.tabs.draft.page = state.tabs.trash.page = 1;
       filterModal && filterModal.hide();
       reloadCurrent();
     });
 
     btnReset?.addEventListener('click', () => {
-      state.filters = { q:'', status:'', featured:'', sort:'-created_at' };
+      state.filters = { q:'', status:'', sort:'-created_at' };
       state.perPage = 20;
+
       if (searchInput) searchInput.value = '';
       if (perPageSel) perPageSel.value = '20';
       if (modalStatus) modalStatus.value = '';
-      if (modalFeatured) modalFeatured.value = '';
       if (modalSort) modalSort.value = '-created_at';
-      state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
+
+      state.tabs.active.page = state.tabs.draft.page = state.tabs.trash.page = 1;
       reloadCurrent();
     });
 
     document.querySelector('a[href="#tab-active"]')?.addEventListener('shown.bs.tab', () => loadTab('active'));
-    document.querySelector('a[href="#tab-inactive"]')?.addEventListener('shown.bs.tab', () => loadTab('inactive'));
+    document.querySelector('a[href="#tab-draft"]')?.addEventListener('shown.bs.tab', () => loadTab('draft')); // ✅ changed
     document.querySelector('a[href="#tab-trash"]')?.addEventListener('shown.bs.tab', () => loadTab('trash'));
 
-    /**
-     * ✅ DROPDOWN FIX
-     * Removed the custom document click toggler that was causing a double-toggle
-     * (Bootstrap data-api toggled it once, then our handler toggled again => looks like “not opening”).
-     * Now Bootstrap handles opening/closing normally via data-bs-toggle="dropdown".
-     */
+    // ---------- ACTION DROPDOWN FIX ----------
+    function closeAllDropdownsExcept(exceptToggle){
+      document.querySelectorAll('.nt-dd-toggle').forEach(t => {
+        if (t === exceptToggle) return;
+        try{
+          const inst = bootstrap.Dropdown.getInstance(t);
+          inst && inst.hide();
+        }catch(_){}
+      });
+    }
 
-    // ---------- RTE (fix: cursor jump + bold/italic off) ----------
+    document.addEventListener('click', (e) => {
+      const toggle = e.target.closest('.nt-dd-toggle');
+      if (!toggle) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      closeAllDropdownsExcept(toggle);
+
+      try{
+        const inst = bootstrap.Dropdown.getOrCreateInstance(toggle, {
+          autoClose: true,
+          popperConfig: (def) => {
+            const base = def || {};
+            const mods = Array.isArray(base.modifiers) ? base.modifiers.slice() : [];
+            mods.push({ name:'preventOverflow', options:{ boundary:'viewport', padding:8 } });
+            mods.push({ name:'flip', options:{ boundary:'viewport', padding:8 } });
+            return { ...base, strategy:'fixed', modifiers: mods };
+          }
+        });
+        inst.toggle();
+      }catch(_){}
+    });
+
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('.nt-dd-toggle')) return;
+      if (e.target.closest('.dropdown-menu')) return;
+      closeAllDropdownsExcept(null);
+    }, { capture:true });
+    // ----------------------------------------
+
+    // -------- RTE --------
     const rte = {
       wrap: $('bodyWrap'),
       toolbar: document.querySelector('#bodyWrap .rte-toolbar'),
@@ -1442,7 +1438,7 @@ td.col-slug code{
       });
     }
 
-    // ---------- cover preview (fix: do NOT revoke new blob url immediately) ----------
+    // -------- cover preview --------
     let coverObjectUrl = null;
 
     function clearCoverPreview(revoke=true){
@@ -1502,7 +1498,7 @@ td.col-slug code{
       if (currentAttachmentsText) currentAttachmentsText.textContent = `${files.length} selected`;
     });
 
-    // ---------- modal helpers ----------
+    // -------- modal helpers --------
     let saving = false;
     let slugDirty = false;
     let settingSlug = false;
@@ -1527,19 +1523,16 @@ td.col-slug code{
       slugDirty = false;
       settingSlug = false;
 
+      if (departmentSel){
+        departmentSel.value = '';
+        if (state.departments?.length) hydrateDeptSelect('');
+      }
+
       if (rte.editor) rte.editor.innerHTML = '';
       if (rte.code) rte.code.value = '';
       if (rte.hidden) rte.hidden.value = '';
       setRteMode('text');
       setRteEnabled(true);
-
-      // ✅ reset department
-      if (departmentSel){
-        // keep options, just clear selection
-        if (state.departmentsLoaded) renderDepartmentsOptions('');
-        else renderDepartmentsOptions('');
-        departmentSel.value = '';
-      }
 
       if (currentAttachmentsInfo) currentAttachmentsInfo.style.display = 'none';
       if (currentAttachmentsText) currentAttachmentsText.textContent = '—';
@@ -1570,22 +1563,17 @@ td.col-slug code{
       itemUuid.value = r.uuid || '';
       itemId.value = r.id || '';
 
+      const deptId = (r.department_id ?? r?.department?.id ?? r?.department?.department_id ?? '').toString();
+      if (departmentSel){
+        if (state.departments?.length) hydrateDeptSelect(deptId);
+        departmentSel.value = deptId;
+      }
+
       titleInput.value = r.title || '';
       slugInput.value = r.slug || '';
       sortOrderInput.value = String(r.sort_order ?? 0);
 
-      // ✅ department id
-      const deptId = r.department_id ?? r?.department?.id ?? r?.department?.department_id ?? '';
-      const deptName = r?.department?.title || r?.department?.name || '';
-      if (departmentSel){
-        const v = (deptId === null || deptId === undefined) ? '' : String(deptId);
-        if (v) ensureDeptOptionExists(v, deptName);
-        departmentSel.value = v || '';
-      }
-
       statusSel.value = (r.status || (r.active ? 'published' : 'draft') || 'draft');
-      featuredSel.value = String((r.is_featured_home ?? r.featured ?? 0) ? 1 : 0);
-
       publishAtInput.value = toLocal(r.publish_at);
       expireAtInput.value = toLocal(r.expire_at);
 
@@ -1636,7 +1624,7 @@ td.col-slug code{
     function findRowByUuid(uuid){
       const all = [
         ...(state.tabs.active.items || []),
-        ...(state.tabs.inactive.items || []),
+        ...(state.tabs.draft.items || []), // ✅ changed
         ...(state.tabs.trash.items || []),
       ];
       return all.find(x => x?.uuid === uuid) || null;
@@ -1658,15 +1646,11 @@ td.col-slug code{
       slugDirty = !!(slugInput.value || '').trim();
     });
 
-    btnAddItem?.addEventListener('click', async () => {
+    btnAddItem?.addEventListener('click', () => {
       if (!canCreate) return;
       resetForm();
-      if (itemModalTitle) itemModalTitle.textContent = 'Add Announcement';
+      if (itemModalTitle) itemModalTitle.textContent = 'Add Notice';
       itemForm.dataset.intent = 'create';
-
-      // ✅ load departments before showing modal
-      await ensureDepartmentsLoaded('');
-
       itemModal && itemModal.show();
     });
 
@@ -1674,7 +1658,34 @@ td.col-slug code{
       if (coverObjectUrl){ try{ URL.revokeObjectURL(coverObjectUrl); }catch(_){ } coverObjectUrl=null; }
     });
 
-    // ---------- row actions ----------
+    // ✅ helper: publish/activate from draft -> published (moves to Active tab)
+    async function setNoticeStatus(uuid, nextStatus){
+      showLoading(true);
+      try{
+        const fd = new FormData();
+        fd.append('_method', 'PATCH');
+        fd.append('status', nextStatus);
+
+        const res = await fetchWithTimeout(`/api/notices/${encodeURIComponent(uuid)}`, {
+          method: 'POST',
+          headers: authHeaders(),
+          body: fd
+        }, 20000);
+
+        const js = await res.json().catch(()=> ({}));
+        if (!res.ok || js.success === false) throw new Error(js?.message || 'Update failed');
+
+        ok(nextStatus === 'published' ? 'Published' : 'Updated');
+        state.tabs.active.page = state.tabs.draft.page = state.tabs.trash.page = 1;
+        await Promise.all([loadTab('active'), loadTab('draft'), loadTab('trash')]);
+      }catch(ex){
+        err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
+      }finally{
+        showLoading(false);
+      }
+    }
+
+    // Row actions
     document.addEventListener('click', async (e) => {
       const btn = e.target.closest('button[data-action]');
       if (!btn) return;
@@ -1686,29 +1697,39 @@ td.col-slug code{
 
       const row = findRowByUuid(uuid);
 
-      // close dropdown
-      const toggle = btn.closest('.dropdown')?.querySelector('.dd-toggle');
-      if (toggle) { try { bootstrap.Dropdown.getOrCreateInstance(toggle).hide(); } catch (_) {} }
+      // close dropdown (manual toggle)
+      const toggle = btn.closest('.dropdown')?.querySelector('.nt-dd-toggle');
+      if (toggle) { try { bootstrap.Dropdown.getInstance(toggle)?.hide(); } catch (_) {} }
 
       if (act === 'view' || act === 'edit'){
         if (act === 'edit' && !canEdit) return;
-
         resetForm();
-
-        // ✅ ensure departments loaded, then fill so selection is accurate
-        const deptId = row?.department_id ?? row?.department?.id ?? '';
-        await ensureDepartmentsLoaded((deptId === null || deptId === undefined) ? '' : String(deptId));
-
-        if (itemModalTitle) itemModalTitle.textContent = act === 'view' ? 'View Announcement' : 'Edit Announcement';
+        if (itemModalTitle) itemModalTitle.textContent = act === 'view' ? 'View Notice' : 'Edit Notice';
         fillFormFromRow(row || {}, act === 'view');
         itemModal && itemModal.show();
+        return;
+      }
+
+      // ✅ NEW: Draft -> Active via Activate/Publish with confirmation
+      if (act === 'activate' || act === 'publish'){
+        const conf = await Swal.fire({
+          title: (act === 'publish') ? 'Publish this notice?' : 'Activate this notice?',
+          text: 'This will move the notice to Active.',
+          icon: 'question',
+          showCancelButton: true,
+          confirmButtonText: 'OK',
+        });
+        if (!conf.isConfirmed) return;
+
+        // both actions publish to active
+        await setNoticeStatus(uuid, 'published');
         return;
       }
 
       if (act === 'delete'){
         if (!canDelete) return;
         const conf = await Swal.fire({
-          title: 'Delete this announcement?',
+          title: 'Delete this notice?',
           text: 'This will move the item to Trash.',
           icon: 'warning',
           showCancelButton: true,
@@ -1719,7 +1740,7 @@ td.col-slug code{
 
         showLoading(true);
         try{
-          const res = await fetchWithTimeout(`/api/announcements/${encodeURIComponent(uuid)}`, {
+          const res = await fetchWithTimeout(`/api/notices/${encodeURIComponent(uuid)}`, {
             method: 'DELETE',
             headers: authHeaders()
           }, 15000);
@@ -1727,7 +1748,7 @@ td.col-slug code{
           if (!res.ok || js.success === false) throw new Error(js?.message || 'Delete failed');
 
           ok('Moved to trash');
-          await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
+          await Promise.all([loadTab('active'), loadTab('draft'), loadTab('trash')]); // ✅ changed
         }catch(ex){
           err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
         }finally{
@@ -1747,7 +1768,7 @@ td.col-slug code{
 
         showLoading(true);
         try{
-          const res = await fetchWithTimeout(`/api/announcements/${encodeURIComponent(uuid)}/restore`, {
+          const res = await fetchWithTimeout(`/api/notices/${encodeURIComponent(uuid)}/restore`, {
             method: 'POST',
             headers: authHeaders()
           }, 15000);
@@ -1755,7 +1776,7 @@ td.col-slug code{
           if (!res.ok || js.success === false) throw new Error(js?.message || 'Restore failed');
 
           ok('Restored');
-          await Promise.all([loadTab('trash'), loadTab('active'), loadTab('inactive')]);
+          await Promise.all([loadTab('trash'), loadTab('active'), loadTab('draft')]); // ✅ changed
         }catch(ex){
           err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
         }finally{
@@ -1779,7 +1800,7 @@ td.col-slug code{
 
         showLoading(true);
         try{
-          const res = await fetchWithTimeout(`/api/announcements/${encodeURIComponent(uuid)}/force`, {
+          const res = await fetchWithTimeout(`/api/notices/${encodeURIComponent(uuid)}/force`, {
             method: 'DELETE',
             headers: authHeaders()
           }, 15000);
@@ -1797,7 +1818,7 @@ td.col-slug code{
       }
     });
 
-    // ---------- submit (create/edit) ----------
+    // Submit create/edit (unchanged, but after save it reloads tabs so Draft moves correctly)
     itemForm?.addEventListener('submit', async (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -1816,7 +1837,6 @@ td.col-slug code{
         const title = (titleInput.value || '').trim();
         const slug = (slugInput.value || '').trim();
         const status = (statusSel.value || 'draft').trim();
-        const featured = (featuredSel.value || '0').trim();
         const sortOrder = String(parseInt(sortOrderInput.value || '0', 10) || 0);
 
         const rawBody = (rte.mode === 'code') ? (rte.code.value || '') : (rte.editor.innerHTML || '');
@@ -1827,14 +1847,13 @@ td.col-slug code{
         if (!cleanBody){ err('Body is required'); rteFocus(); return; }
 
         const fd = new FormData();
+
+        const deptId = (departmentSel?.value || '').toString().trim();
+        if (deptId) fd.append('department_id', deptId);
+
         fd.append('title', title);
         if (slug) fd.append('slug', slug);
-
-        // ✅ department_id (always append; Laravel converts "" -> null via ConvertEmptyStringsToNull)
-        if (departmentSel) fd.append('department_id', (departmentSel.value ?? '').toString());
-
         fd.append('status', status);
-        fd.append('is_featured_home', featured === '1' ? '1' : '0');
         fd.append('sort_order', sortOrder);
         if ((publishAtInput.value || '').trim()) fd.append('publish_at', publishAtInput.value);
         if ((expireAtInput.value || '').trim()) fd.append('expire_at', expireAtInput.value);
@@ -1842,12 +1861,11 @@ td.col-slug code{
 
         const cover = coverInput.files?.[0] || null;
         if (cover) fd.append('cover_image', cover);
-
         Array.from(attachmentsInput.files || []).forEach(f => fd.append('attachments[]', f));
 
         const url = isEdit
-          ? `/api/announcements/${encodeURIComponent(itemUuid.value)}`
-          : `/api/announcements`;
+          ? `/api/notices/${encodeURIComponent(itemUuid.value)}`
+          : `/api/notices`;
 
         if (isEdit) fd.append('_method', 'PATCH');
 
@@ -1873,8 +1891,8 @@ td.col-slug code{
         ok(isEdit ? 'Updated' : 'Created');
         itemModal && itemModal.hide();
 
-        state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
-        await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
+        state.tabs.active.page = state.tabs.draft.page = state.tabs.trash.page = 1;
+        await Promise.all([loadTab('active'), loadTab('draft'), loadTab('trash')]); // ✅ changed
       }catch(ex){
         err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
       }finally{
@@ -1884,16 +1902,13 @@ td.col-slug code{
       }
     });
 
-    // ---------- init ----------
+    // Init
     (async () => {
       showLoading(true);
       try{
         await fetchMe();
-
-        // ✅ pre-load departments quietly (won't block if endpoint missing)
-        ensureDepartmentsLoaded('').catch(()=>{});
-
-        await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
+        await loadDepartments();
+        await Promise.all([loadTab('active'), loadTab('draft'), loadTab('trash')]); // ✅ changed
       }catch(ex){
         err(ex?.message || 'Initialization failed');
       }finally{

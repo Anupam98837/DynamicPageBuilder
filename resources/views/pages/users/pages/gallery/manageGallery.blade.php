@@ -1,8 +1,8 @@
 @extends('pages.users.layout.structure')
 
-@section('title', 'Manage Achievements')
+@section('title', 'Manage Gallery')
 
-@include('modules.departments.manageAchievements')
+@include('modules.gallery.manageGallery')
 
 @section('scripts')
 <script>

@@ -1,8 +1,6 @@
 @extends('pages.users.layout.structure')
 
-@section('title', 'Manage Notices')
-
-@include('modules.departments.manageNotices')
+@include('modules.placementNotices.managePlacementNotices')
 
 @section('scripts')
 <script>

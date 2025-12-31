@@ -1,1103 +1,571 @@
-<!-- views/modules/header/header.blade.php -->
+{{-- resources/views/landing/components/mainHeader.blade.php --}}
 
-<!-- Bootstrap 5 CSS -->
+<!-- Bootstrap 5 CSS (same pattern as your working header.blade.php) -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 
 <style>
-    /* =========================================================
-       Dynamic Header Menu (Public) - Mega Column Flyout
-       - L1 dropdown opens under parent
-       - Child menus render as NEW BLOCK/COLUMN beside parent column
-       - Hovering an item updates the next column content (top-aligned)
-       - Supports deep levels via more columns
-       - Overflow fallback: hamburger -> offcanvas sidebar
-       ========================================================= */
+  /* =========================================================
+     Main Header (Public) - Flex layout (4 sections)
+     Sections in .mh-inner:
+       1) Primary logo
+       2) Title + rotating text + affiliation marquee
+       3) Secondary logo
+       4) Partner marquee + admission badge
+     ========================================================= */
 
-    /* Reset & Base (kept) */
-    * { margin:0; padding:0; box-sizing:border-box; }
+  :root{
+    --mh-red: var(--primary-color, #9E363A);
+    --mh-red-dark: var(--secondary-color, #6B2528);
+    --mh-ink: #111827;
+    --mh-muted:#6B7280;
+    --mh-line:#E5E7EB;
+    --mh-bg:#FFFFFF;
+  }
 
-    /* Navbar Container */
-    .dynamic-navbar{
-        background: var(--primary-color, #9E363A);
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        position: sticky;
-        top: 0;
-        z-index: 1000;
-        width: 100%;
-        overflow: visible;
-    }
+  .mh-bar, .mh-bar *{ box-sizing:border-box; }
 
-    .navbar-container{
-        display:flex;
-        align-items:stretch;
-        justify-content:center;
-        width:100%;
-        position:relative;
-        overflow: visible;
-    }
+  .mh-bar{
+    width:100%;
+    background:var(--mh-bg);
+    overflow:visible;
+  }
 
-    .menu-row{
-        flex: 0 0 auto;
-        display:flex;
-        justify-content:center;
-        align-items:stretch;
-        overflow: visible;
-        min-width: 0;
-    }
+  /* ✅ 4-section FLEX container */
+  .mh-inner{
+    max-width:1400px;
+    margin:0 auto;
+    padding:0px 0px;
+    display:flex;
+    align-items:stretch;
+    gap:18px;
+  }
 
-    /* Hamburger (mobile + overflow) */
-    .menu-toggle{
-        display:none;
-        align-items:center;
-        justify-content:center;
-        gap:.5rem;
-        padding: .65rem .9rem;
-        background: transparent;
-        border: 0;
-        color:#fff;
-        cursor:pointer;
-        user-select:none;
-        transition: transform .25s ease, opacity .25s ease;
-    }
-    .menu-toggle:hover{ transform: translateY(-1px); opacity:.95; }
-    .menu-toggle:focus{
-        outline:none;
-        box-shadow: 0 0 0 3px rgba(201,75,80,.35);
-        border-radius: 12px;
-    }
-    .burger{
-        width: 22px;
-        height: 16px;
-        position: relative;
-        display: inline-block;
-    }
-    .burger::before, .burger::after, .burger span{
-        content:"";
-        position:absolute;
-        left:0; right:0;
-        height:2px;
-        background:#fff;
-        border-radius:2px;
-        opacity:.95;
-        transition: transform .25s ease, opacity .25s ease;
-    }
-    .burger::before{ top:0; }
-    .burger span{ top:7px; }
-    .burger::after{ bottom:0; }
+  /* ===== SECTION 1: Primary logo ===== */
+  .mh-sec1{
+    flex:0 0 110px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .mh-primary-logo{
+    width:92px;
+    height:92px;
+    object-fit:contain;
+    display:block;
+  }
 
-    /* Menu List - single row */
-    .navbar-nav{
-        display:flex;
-        flex-direction:row;
-        flex-wrap:nowrap;
-        list-style:none;
-        margin:0;
-        padding:0;
-        align-items:stretch;
-        justify-content:center;
-        width:auto;
-        min-width:0;
-    }
+  /* ===== SECTION 2: Center block ===== */
+  .mh-sec2{
+    flex:1 1 auto;
+    min-width:0;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    gap:6px;
+  }
 
-    .nav-item{
-        position: relative; /* anchor dropdown under this item */
-        margin:0;
-        display:flex;
-        flex: 0 0 auto;
-        min-width: 0;
-    }
+  .mh-title{
+    display:inline-block;
+    color:var(--mh-red);
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.8px;
+    line-height:1.06;
+    font-size:38px;
+    padding-bottom:7px;
+    border-bottom:3px solid var(--mh-red);
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
 
-    /* Top Level Links */
-    .nav-link{
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        color:#fff !important;
-        font-weight:400 !important;
-        font-size: 0.95rem !important;
-        padding: 0.75rem 1.2rem;
-        text-decoration:none;
-        white-space: nowrap;
-        border: none;
-        background: transparent;
-        cursor:pointer;
-        width:100%;
-        text-align:center;
+  .mh-subrow{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:16px;
+    min-width:0;
+  }
 
-        /* nicer hover */
-        transition: background-color .25s ease, color .25s ease, transform .25s ease;
-    }
+  .mh-rotate{
+    flex:1 1 auto;
+    min-width:0;
+    color:var(--mh-red);
+    font-size:1.1rem;
+    font-weight:400;
+    line-height:1.2;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    transition:opacity .18s ease, transform .18s ease;
+  }
+  .mh-rotate.is-fading{ opacity:0; transform:translateY(-2px); }
 
-    /* Dynamic sizing classes */
-    .navbar-nav.compact .nav-link{ font-size:.85rem; padding:.75rem .8rem; }
-    .navbar-nav.very-compact .nav-link{ font-size:.8rem; padding:.75rem .55rem; }
-    .navbar-nav.ultra-compact .nav-link{ font-size:.75rem; padding:.75rem .45rem; }
+    /* Smooth hover color (with slight delay) */
+.mh-rotate{
+  transition: opacity .18s ease, transform .10s ease, color .15s ease .10s;
+}
 
-    .nav-link:hover,
-    .nav-link.active{
-        background-color: var(--secondary-color, #6B2528);
-        color:#fff !important;
-    }
+.mh-rotate:hover{
+  color:#0D29AC; /* same blue as screenshot */
+  cursor: pointer;
+}
 
-    /* =========================================================
-       MEGA DROPDOWN (Column blocks like your screenshot)
-       FIX: background width should be only based on columns count
-       ========================================================= */
 
-    /* Dropdown container under top-level item */
-    .dynamic-navbar .dropdown-menu{
-        /* IMPORTANT: keep it "block" always (absolute), animate via opacity/visibility */
-        display:block;
-        position:absolute;
-        top: 100%;
-        left: 0;
+  /* Affiliation marquee (inside section 2) */
+  .mh-affil-wrap{ flex:0 0 380px; max-width:380px; }
+  .mh-affil-marquee{ height:36px; }
 
-        background: transparent; /* columns carry background */
-        padding: 0;
-        margin: 0;
+  /* ✅ FIX: Make ALL marquee logos same size + framed */
+  .mh-affil-logo,
+  .mh-partner-logo{
+width: 35px;
+height: 35px;
+object-fit: contain;
+display: block;
+padding: 1px 1px;
+border: 1px solid var(--mh-line);
+border-radius: 5px;
+background: var(--mh-bg);
+  }
 
-        z-index: 9999;
-        overflow: visible;
+  /* ===== SECTION 3: Secondary logo (ONLY) ===== */
+  .mh-sec3{
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+  }
+  .mh-secondary-logo{
+    max-height:92px;
+    width:auto;
+    object-fit:contain;
+    display:block;
+  }
 
-        /* FIX: shrink-wrap to content instead of full row width */
-        width: max-content;
-        min-width: 0;
-        max-width: calc(100vw - 20px);
+  /* ===== SECTION 4: Partner marquee + admission badge ===== */
+  .mh-sec4{
+    flex:0 0 270px;
+    min-width:200px;
+    display:flex;
+    flex-direction:column;
+    align-items:stretch;
+    justify-content:center;
+    gap:10px;
+  }
 
-        /* animation */
-        opacity: 0;
-        visibility: hidden;
-        transform: translateY(8px);
-        pointer-events: none;
-        transition: opacity .25s ease, transform .25s ease, visibility .25s ease;
-    }
+  /* partner marquee row */
+  .mh-partner-marquee{ height:40px; }
 
-    /* open state (desktop hover OR .show) */
-    .dynamic-navbar .dropdown-menu.show{
-        opacity:1;
-        visibility:visible;
-        transform: translateY(0);
-        pointer-events:auto;
-    }
+  /* admission row */
+  .mh-admission-row{
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+  }
 
-    @media (min-width: 992px){
-        .nav-item.has-dropdown:hover > .dropdown-menu{
-            opacity:1;
-            visibility:visible;
-            transform: translateY(0);
-            pointer-events:auto;
-        }
-    }
+  .mh-admission{
+    flex:0 0 auto;
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    text-decoration:none;
+  }
+  .mh-badge{
+    height:56px;
+    width:auto;
+    object-fit:contain;
+    display:block;
+    transition:transform .12s ease, filter .12s ease;
+  }
+  .mh-admission:hover .mh-badge{
+    transform:translateY(-1px);
+    filter:drop-shadow(0 6px 14px rgba(0,0,0,.12));
+  }
 
-    /* The mega panel */
-    .dynamic-navbar .mega-panel{
-        /* FIX: inline-flex so width becomes only columns width */
-        display:inline-flex;
-        align-items:stretch;
-        gap: 0; /* NO GAP between columns */
-        background: var(--secondary-color, #6B2528);
-        border: 1px solid rgba(255,255,255,0.12);
-        border-top: 0;
-        border-radius: 0 0 10px 10px;
-        box-shadow: 0 12px 30px rgba(0,0,0,0.22);
+  /* ===== Marquee base ===== */
+  .mh-marquee{
+    position:relative;
+    overflow:hidden;
+    border-radius:10px;
+    background:transparent;
+    width:100%;
+  }
+  .mh-marquee::before,
+  .mh-marquee::after{
+    content:"";
+    position:absolute;
+    top:0; bottom:0;
+    width:22px;
+    pointer-events:none;
+    z-index:2;
+  }
+  .mh-marquee::before{
+    left:0;
+    background:linear-gradient(to right, var(--mh-bg), rgba(255,255,255,0));
+  }
+  .mh-marquee::after{
+    right:0;
+    background:linear-gradient(to left, var(--mh-bg), rgba(255,255,255,0));
+  }
 
-        /* if too wide, cap + allow horizontal scroll */
-        max-width: calc(100vw - 20px);
-        overflow-x: auto;
-        overflow-y: hidden;
+  .mh-track{
+    --mh-shift: 0px;
+    --mh-duration: 18s;
+    display:flex;
+    align-items:center;
+    width:max-content;
+    gap:14px;
+    will-change:transform;
+  }
+  .mh-track.is-animated{ animation: mh-scroll var(--mh-duration) linear infinite; }
+  .mh-track:hover{ animation-play-state:paused; }
 
-        position: relative; /* needed for staggered columns calc */
-        will-change: transform;
-        transition: box-shadow .25s ease;
-    }
+  @keyframes mh-scroll{
+    from{ transform:translateX(0); }
+    to{ transform:translateX(calc(-1 * var(--mh-shift))); }
+  }
 
-    /* Each column block */
-    .dynamic-navbar .mega-col{
-        width: 270px;
-        min-width: 270px;
-        display:flex;
-        flex-direction:column;
-        padding: 8px;
-        position: relative;
+  .mh-set{ display:flex; align-items:center; gap:14px; }
 
-        /* child columns will be staggered by inline margin-top */
-        margin-top: 0;
-        align-self: flex-start;
-    }
+  /* ===== Skeleton ===== */
+  .mh-skel{
+    background:linear-gradient(90deg, #f3f4f6, #e5e7eb, #f3f4f6);
+    background-size:200% 100%;
+    animation: mh-skel 1.1s ease-in-out infinite;
+    border-radius:10px;
+  }
+  @keyframes mh-skel{
+    0%{ background-position: 200% 0; }
+    100%{ background-position: -200% 0; }
+  }
+  .mh-title.mh-skel{ height:46px; width:92%; border-bottom:none; }
+  .mh-rotate.mh-skel{ height:22px; width:55%; }
+  .mh-affil-marquee.mh-skel{ height:36px; width:380px; }
+  .mh-partner-marquee.mh-skel{ height:40px; width:100%; }
+  .mh-secondary-logo.mh-skel{ height:86px; width:170px; }
+  .mh-badge.mh-skel{ height:56px; width:230px; }
 
-    /* divider line between columns (stagger-aware) */
-    .dynamic-navbar .mega-col:not([data-col="0"])::before{
-        content:"";
-        position:absolute;
-        left:0;
-        top:0;
-        bottom:0;
-        width:1px;
-        background: rgba(255,255,255,0.14);
-    }
+  /* Responsive */
+  @media (max-width: 1100px){
+    .mh-title{ font-size:34px; }
+    .mh-affil-wrap{ flex-basis:320px; max-width:320px; }
+    .mh-sec4{ flex-basis:300px; min-width:270px; }
+  }
 
-    /* scroll list inside column */
-    .dynamic-navbar .mega-list{
-        list-style:none;
-        margin:0;
-        padding: 4px;
-        max-height: calc(100vh - 180px);
-        overflow:auto;
-    }
+  @media (max-width: 920px){
+    .mh-inner{ flex-wrap:wrap; }
+    .mh-sec1{ flex:0 0 92px; }
+    .mh-sec2{ flex:1 1 calc(100% - 110px); }
+    .mh-sec3, .mh-sec4{ flex:1 1 100%; min-width:0; justify-content:flex-start; }
+    .mh-title{ white-space:normal; }
+    .mh-subrow{ flex-wrap:wrap; }
+    .mh-affil-wrap{ flex:1 1 100%; max-width:100%; }
+  }
 
-    /* Scrollbar subtle */
-    .dynamic-navbar .mega-list::-webkit-scrollbar{ width: 8px; height: 8px; }
-    .dynamic-navbar .mega-list::-webkit-scrollbar-thumb{
-        background: rgba(255,255,255,.20);
-        border-radius: 10px;
-    }
-    .dynamic-navbar .mega-list::-webkit-scrollbar-track{
-        background: rgba(0,0,0,.10);
-        border-radius: 10px;
-    }
+  @media (prefers-reduced-motion: reduce){
+    .mh-track.is-animated{ animation:none !important; }
+    .mh-skel{ animation:none !important; }
+  }
 
-    /* Items */
-    .dynamic-navbar .dropdown-item{
-        display:flex;
-        align-items:center;
-        justify-content:space-between;
-        gap: 10px;
+  /* Hide marquees + Section 3 & 4 at 992px and below */
+@media (max-width: 992px){
+  /* Hide 3rd + 4th sections */
+  .mh-sec3,
+  .mh-sec4{
+    display:none !important;
+  }
 
-        padding: .62rem .95rem;
-        color:#fff !important;
-        font-weight: 400;
-        font-size: .93rem;
-        text-decoration:none;
-        white-space: nowrap;
+  /* Hide both marquees (affiliation + partner) */
+  .mh-affil-wrap,
+  #mhAffilMarquee,
+  #mhPartnerMarquee{
+    display:none !important;
+  }
 
-        border: 0;
-        background: transparent;
-        cursor:pointer;
-        width:100%;
-        text-align:left;
-        border-radius: 10px;
+  /* Optional: since affil is gone, don't push space to the right */
+  .mh-subrow{
+    justify-content:flex-start;
+  }
+  .mh-title{font-size:2rem;}
+  .mh-sec2{flex:none;}
+}
 
-        outline: 1px solid rgba(255,255,255,0.00);
+/* Hide header title + rotating text at 782px and below */
+@media (max-width: 782px){
+  #mhHeaderText,
+  #mhRotateText{
+    display:none !important;
+  }
+}
 
-        /* nicer hover */
-        transition: background-color .25s ease, transform .25s ease, outline-color .25s ease;
-        will-change: transform;
-    }
 
-    .dynamic-navbar .dropdown-item:hover{
-        background: rgba(255,255,255,0.10);
-        outline-color: rgba(255,255,255,0.10);
-        transform: translateX(2px);
-    }
-
-    /* Active/selected within a column */
-    .dynamic-navbar .dropdown-item.is-active{
-        background: rgba(255,255,255,0.13);
-        outline: 1px solid rgba(255,255,255,0.16);
-        position: relative;
-    }
-
-    /* small yellow indicator like reference site */
-    .dynamic-navbar .dropdown-item.is-active::before{
-        content:"";
-        position:absolute;
-        left: 8px;
-        top: 50%;
-        transform: translateY(-50%);
-        width: 3px;
-        height: 18px;
-        border-radius: 3px;
-        background: #f1c40f;
-        opacity: .95;
-    }
-
-    /* Arrow indicator for items with children */
-    .dynamic-navbar .dropdown-item.has-children::after{
-        content:'›';
-        font-size: 1.2rem;
-        font-weight: 700;
-        line-height: 1;
-        color: rgba(255,255,255,0.9);
-        margin-left: 10px;
-        flex: 0 0 auto;
-        transition: transform .25s ease, opacity .25s ease;
-    }
-
-    .dynamic-navbar .dropdown-item.has-children:hover::after{
-        transform: translateX(2px);
-        opacity: .95;
-    }
-
-    /* =========================================================
-       OVERFLOW MODE -> OFFCANVAS
-       ========================================================= */
-    .dynamic-navbar.use-offcanvas .menu-row{ display:none; }
-    .dynamic-navbar.use-offcanvas .menu-toggle{ display:flex; }
-
-    @media (max-width: 991.98px){
-        .menu-row{ display:none; }
-        .menu-toggle{ display:flex; }
-    }
-
-    /* Offcanvas styling */
-    .dynamic-offcanvas{
-        --bs-offcanvas-width: 340px;
-        background: var(--secondary-color, #6B2528);
-        color:#fff;
-    }
-    .dynamic-offcanvas .offcanvas-header{
-        border-bottom: 1px solid rgba(255,255,255,.15);
-        padding: 14px 16px;
-    }
-    .dynamic-offcanvas .offcanvas-title{
-        font-weight:700;
-        letter-spacing:.2px;
-        color:#fff;
-        margin:0;
-    }
-    .dynamic-offcanvas .offcanvas-body{
-        padding: 12px 10px 18px;
-    }
-    .offcanvas-menu{ list-style:none; margin:0; padding:0; }
-
-    .oc-row{
-        display:flex;
-        align-items:center;
-        gap: 8px;
-        border-radius: 12px;
-        padding: 8px 10px;
-        transition: background .25s ease, transform .25s ease;
-        will-change: transform;
-    }
-    .oc-row:hover{ background: rgba(255,255,255,.08); transform: translateX(1px); }
-
-    .oc-link{
-        flex: 1 1 auto;
-        color: #fff !important;
-        text-decoration:none;
-        font-size: .95rem;
-        line-height: 1.2;
-        padding: 6px 8px;
-        border-radius: 10px;
-        white-space: normal;
-        word-break: break-word;
-        transition: background .25s ease, opacity .25s ease;
-    }
-    .oc-link.active{
-        background: rgba(255,255,255,.14);
-        box-shadow: inset 0 0 0 1px rgba(255,255,255,.18);
-    }
-
-    .oc-toggle{
-        flex: 0 0 auto;
-        width: 34px;
-        height: 34px;
-        border-radius: 10px;
-        border: 1px solid rgba(255,255,255,.18);
-        background: rgba(255,255,255,.08);
-        color:#fff;
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        cursor:pointer;
-        transition: transform .25s ease, background .25s ease, border-color .25s ease;
-    }
-    .oc-toggle:hover{ transform: translateY(-1px); background: rgba(255,255,255,.10); }
-    .oc-toggle:focus{
-        outline:none;
-        box-shadow: 0 0 0 3px rgba(201,75,80,.35);
-    }
-    .oc-caret{
-        width:0; height:0;
-        border-left: 6px solid #fff;
-        border-top: 5px solid transparent;
-        border-bottom: 5px solid transparent;
-        opacity: .9;
-        transform: rotate(0deg);
-        transition: transform .25s ease, opacity .25s ease;
-    }
-    .oc-toggle[aria-expanded="true"] .oc-caret{ transform: rotate(90deg); }
-    .oc-sub{
-        list-style:none;
-        margin: 4px 0 6px;
-        padding: 0 0 0 14px;
-        border-left: 1px dashed rgba(255,255,255,.25);
-    }
-
-    /* =========================================================
-       LOADING OVERLAY (NEW)
-       ========================================================= */
-    .menu-loading-overlay{
-        position: fixed;
-        inset: 0;
-        background: rgba(10, 10, 10, 0.35);
-        backdrop-filter: blur(2px);
-        display: none;
-        align-items: center;
-        justify-content: center;
-        z-index: 20000;
-        padding: 18px;
-    }
-    .menu-loading-overlay.show{ display: flex; }
-
-    .menu-loading-card{
-        background: var(--secondary-color, #6B2528);
-        border: 1px solid rgba(255,255,255,.16);
-        border-radius: 16px;
-        box-shadow: 0 18px 50px rgba(0,0,0,.35);
-        color: #fff;
-        padding: 16px 18px;
-        min-width: 260px;
-        max-width: 92vw;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-    .menu-loading-text{
-        display:flex;
-        flex-direction:column;
-        gap: 2px;
-        line-height: 1.2;
-    }
-    .menu-loading-text strong{ font-size: 1rem; }
-    .menu-loading-text small{ opacity: .85; font-size: .85rem; }
 </style>
 
-<!-- LOADING OVERLAY (NEW) -->
-<div id="menuLoadingOverlay" class="menu-loading-overlay" aria-hidden="true">
-    @include('partials.overlay')
-</div>
+<header class="mh-bar" id="mhBar" data-endpoint="{{ url('/api/header-components') }}">
+  <div class="mh-inner">
 
-<!-- Navbar HTML -->
-<nav class="dynamic-navbar" id="dynamicNavbar">
-    <div class="navbar-container">
-        <div class="menu-row" id="menuRow">
-            <ul class="navbar-nav" id="mainMenuContainer">
-                <!-- Menu items will be loaded here -->
-            </ul>
+    {{-- SECTION 1: Primary logo --}}
+    <div class="mh-sec1">
+      <img id="mhPrimaryLogo" class="mh-primary-logo mh-skel" alt="Primary logo" />
+    </div>
+
+    {{-- SECTION 2: Title + rotate + affiliation marquee --}}
+    <div class="mh-sec2">
+      <div id="mhHeaderText" class="mh-title mh-skel" aria-label="Institute name"></div>
+
+      <div class="mh-subrow">
+        <div id="mhRotateText" class="mh-rotate mh-skel" aria-label="Rotating text"></div>
+
+        <div class="mh-affil-wrap">
+          <div id="mhAffilMarquee" class="mh-marquee mh-affil-marquee mh-skel" aria-label="Affiliation logos marquee">
+            <div id="mhAffilTrack" class="mh-track"></div>
+          </div>
         </div>
-
-        <!-- Hamburger (mobile + overflow fallback) -->
-        <button class="menu-toggle" type="button"
-                data-bs-toggle="offcanvas" data-bs-target="#menuOffcanvas"
-                aria-controls="menuOffcanvas" aria-label="Open menu">
-            <span class="burger"><span></span></span>
-        </button>
+      </div>
     </div>
-</nav>
 
-<!-- Offcanvas Sidebar -->
-<div class="offcanvas offcanvas-start dynamic-offcanvas" tabindex="-1" id="menuOffcanvas" aria-labelledby="menuOffcanvasLabel">
-    <div class="offcanvas-header">
-        <h5 class="offcanvas-title" id="menuOffcanvasLabel">Menu</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    {{-- SECTION 3: Secondary logo --}}
+    <div class="mh-sec3">
+      <img id="mhSecondaryLogo" class="mh-secondary-logo mh-skel" alt="Secondary logo" />
     </div>
-    <div class="offcanvas-body">
-        <ul class="offcanvas-menu" id="offcanvasMenuList">
-            <!-- Sidebar menu will be rendered here -->
-        </ul>
-    </div>
-</div>
 
-<!-- JavaScript -->
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {{-- SECTION 4: Partner marquee + Admission badge --}}
+    <div class="mh-sec4">
+      <div id="mhPartnerMarquee" class="mh-marquee mh-partner-marquee mh-skel" aria-label="Partner logos marquee">
+        <div id="mhPartnerTrack" class="mh-track"></div>
+      </div>
+
+      <div class="mh-admission-row">
+        <a id="mhAdmissionLink" class="mh-admission" href="javascript:void(0)" aria-label="Admission link">
+          <img id="mhAdmissionBadge" class="mh-badge mh-skel" alt="Admission badge" />
+        </a>
+      </div>
+    </div>
+
+  </div>
+</header>
 
 <script>
-    class DynamicMenu {
-        constructor() {
-            this.apiBase = '{{ url("/api/public/header-menus") }}';
-            this.menuData = null;
-
-            // maps for mega columns
-            this.nodeById = new Map();        // id -> node
-            this.childrenById = new Map();    // id -> children[]
-
-            this.currentSlug = this.getCurrentSlug();
-            this.activePathIds = [];
-            this.activePathNodes = [];
-
-            // loading overlay
-            this.loadingEl = document.getElementById('menuLoadingOverlay');
-
-            this.init();
-        }
-
-        init() {
-            this.loadMenu();
-            this.setupResizeListener();
-
-            window.addEventListener('resize', () => {
-                if (window.innerWidth >= 992) this.forceCloseOffcanvas();
-            });
-        }
-
-        /* -------------------- Loading overlay (NEW) -------------------- */
-        showLoading(message = 'Loading menu…') {
-            if (!this.loadingEl) return;
-            const strong = this.loadingEl.querySelector('.menu-loading-text strong');
-            if (strong) strong.textContent = message;
-            this.loadingEl.classList.add('show');
-            this.loadingEl.setAttribute('aria-hidden', 'false');
-        }
-
-        hideLoading() {
-            if (!this.loadingEl) return;
-            this.loadingEl.classList.remove('show');
-            this.loadingEl.setAttribute('aria-hidden', 'true');
-        }
-
-        setupResizeListener() {
-            let resizeTimer;
-            window.addEventListener('resize', () => {
-                clearTimeout(resizeTimer);
-                resizeTimer = setTimeout(() => {
-                    this.adjustMenuSizing();
-                    this.toggleOverflowMode();
-                    this.bindMegaGuards();
-                }, 150);
-            });
-        }
-
-        getCurrentSlug() {
-            const path = window.location.pathname || '';
-            if (path === '/' || path === '') return '__HOME__'; // ✅ special home marker
-            if (path.startsWith('/page/')) return path.replace('/page/', '').replace(/^\/+/, '');
-            return '';
-        }
-
-        async loadMenu() {
-            this.showLoading('Loading menu…');
-
-            try {
-                const response = await fetch(`${this.apiBase}/tree`, { headers: { 'Accept': 'application/json' } });
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
-                const data = await response.json();
-
-                if (data.success && data.data) {
-                    this.menuData = data.data;
-
-                    this.buildNodeMaps(this.menuData);
-
-                    // Active path (for offcanvas expand + mega prefill)
-                    this.activePathNodes = (this.currentSlug && this.currentSlug !== '__HOME__')
-                        ? this.getActivePathNodes(this.menuData, this.currentSlug)
-                        : [];
-                    this.activePathIds = this.activePathNodes.map(n => n.id);
-
-                    this.renderMenu();
-                    this.renderOffcanvasMenu();
-
-                    setTimeout(() => {
-                        this.adjustMenuSizing();
-                        this.toggleOverflowMode();
-                        this.bindMegaGuards();
-                        this.highlightActiveMenu();
-                    }, 50);
-                } else {
-                    this.showError();
-                }
-            } catch (error) {
-                console.error('Error loading menu:', error);
-                this.showError();
-            } finally {
-                this.hideLoading();
-            }
-        }
-
-        /* -------------------- Maps -------------------- */
-        buildNodeMaps(items) {
-            this.nodeById.clear();
-            this.childrenById.clear();
-
-            const walk = (nodes) => {
-                for (const n of nodes || []) {
-                    this.nodeById.set(n.id, n);
-                    this.childrenById.set(n.id, (n.children && n.children.length) ? n.children : []);
-                    if (n.children && n.children.length) walk(n.children);
-                }
-            };
-            walk(items || []);
-        }
-
-        getActivePathNodes(items, slug) {
-            if (!slug || !items) return [];
-
-            const dfs = (nodes, target) => {
-                for (const n of nodes) {
-                    const nodeSlug = (n.slug || n.page_slug || '');
-                    if (nodeSlug === target) return [n];
-
-                    if (n.children && n.children.length) {
-                        const res = dfs(n.children, target);
-                        if (res.length) return [n, ...res];
-                    }
-                }
-                return [];
-            };
-            return dfs(items, slug);
-        }
-
-        /* -------------------- Desktop sizing -------------------- */
-        adjustMenuSizing() {
-            if (window.innerWidth < 992) return;
-
-            const container = document.getElementById('mainMenuContainer');
-            const row = document.getElementById('menuRow');
-            if (!container || !row) return;
-
-            const navItems = container.querySelectorAll(':scope > .nav-item');
-            const itemCount = navItems.length;
-            if (!itemCount) return;
-
-            container.classList.remove('compact', 'very-compact', 'ultra-compact');
-
-            const rowWidth = row.offsetWidth || row.clientWidth || 0;
-            const estimatedItemWidth = rowWidth / itemCount;
-
-            if (estimatedItemWidth < 90) container.classList.add('ultra-compact');
-            else if (estimatedItemWidth < 110) container.classList.add('very-compact');
-            else if (estimatedItemWidth < 140) container.classList.add('compact');
-        }
-
-        /* -------------------- Overflow -> offcanvas fallback -------------------- */
-        toggleOverflowMode() {
-            const nav = document.getElementById('dynamicNavbar');
-            const row = document.getElementById('menuRow');
-            const menu = document.getElementById('mainMenuContainer');
-            if (!nav || !row || !menu) return;
-
-            const isMobile = window.innerWidth < 992;
-            let shouldOffcanvas = isMobile;
-
-            if (!isMobile) {
-                nav.classList.remove('use-offcanvas');
-                const available = row.clientWidth || 0;
-                const needed = menu.scrollWidth || 0;
-                shouldOffcanvas = needed > (available + 6);
-            }
-
-            nav.classList.toggle('use-offcanvas', shouldOffcanvas);
-
-            if (!shouldOffcanvas) {
-                this.forceCloseOffcanvas();
-            }
-        }
-
-        forceCloseOffcanvas() {
-            const ocEl = document.getElementById('menuOffcanvas');
-            if (!ocEl) return;
-
-            const inst = bootstrap.Offcanvas.getInstance(ocEl) || new bootstrap.Offcanvas(ocEl);
-            try { inst.hide(); } catch(e){}
-
-            document.querySelectorAll('.offcanvas-backdrop').forEach(b => b.remove());
-            document.body.style.removeProperty('overflow');
-            document.body.style.removeProperty('padding-right');
-            ocEl.classList.remove('show');
-            ocEl.removeAttribute('style');
-            ocEl.setAttribute('aria-hidden', 'true');
-        }
-
-        /* ===========================================================
-           ✅ STATIC HOME ITEM (NEW)
-           - Always first menu item in desktop + offcanvas
-           - Route: /
-           =========================================================== */
-        buildHomeNavItem() {
-            const li = document.createElement('li');
-            li.className = 'nav-item';
-            li.dataset.id = 'home_static';
-            li.dataset.slug = '__HOME__';
-
-            const a = document.createElement('a');
-            a.className = 'nav-link';
-            a.href = '{{ url("/") }}';
-            a.innerHTML = `Home`;
-
-            // active state on home
-            if (this.currentSlug === '__HOME__') a.classList.add('active');
-
-            li.appendChild(a);
-            return li;
-        }
-
-        buildHomeOffcanvasItem() {
-            const li = document.createElement('li');
-
-            const row = document.createElement('div');
-            row.className = 'oc-row';
-
-            const link = document.createElement('a');
-            link.className = 'oc-link';
-            link.href = '{{ url("/") }}';
-            link.innerHTML = `<i class="fa-solid fa-house me-2"></i>Home`;
-
-            if (this.currentSlug === '__HOME__') link.classList.add('active');
-
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.forceCloseOffcanvas();
-                setTimeout(() => { window.location.href = link.href; }, 120);
-            });
-
-            row.appendChild(link);
-            li.appendChild(row);
-
-            return li;
-        }
-
-        /* -------------------- Render top row -------------------- */
-        renderMenu() {
-            const container = document.getElementById('mainMenuContainer');
-            container.innerHTML = '';
-
-            // ✅ add Home first
-            container.appendChild(this.buildHomeNavItem());
-
-            if (!this.menuData || !this.menuData.length) return;
-
-            const sortedItems = [...this.menuData].sort((a,b) => (a.position||0) - (b.position||0));
-
-            sortedItems.forEach(item => {
-                const li = document.createElement('li');
-                const hasChildren = item.children && item.children.length > 0;
-                li.className = `nav-item ${hasChildren ? 'has-dropdown' : ''}`;
-                li.dataset.id = item.id;
-                li.dataset.slug = item.slug;
-
-                const a = document.createElement('a');
-                a.className = 'nav-link';
-                a.href = this.getMenuItemUrl(item);
-                a.textContent = item.title;
-
-                if (item.page_url && item.page_url.startsWith('http')) {
-                    a.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        window.open(item.page_url, '_blank');
-                    });
-                }
-
-                li.appendChild(a);
-
-                if (hasChildren) {
-                    const activeSlice = (this.activePathNodes.length && this.activePathNodes[0].id === item.id)
-                        ? this.activePathNodes.slice(1)
-                        : [];
-                    this.addMegaMenu(li, item.children, activeSlice);
-                }
-
-                container.appendChild(li);
-            });
-        }
-
-        /* -------------------- Mega dropdown builder -------------------- */
-        getAnchorTop(panel, anchorEl) {
-            if (!panel || !anchorEl) return 0;
-
-            const panelRect = panel.getBoundingClientRect();
-            const aRect = anchorEl.getBoundingClientRect();
-
-            let top = (aRect.top - panelRect.top);
-            top = Math.max(0, top - 4);
-
-            const minVisible = 140;
-            const availableBelow = window.innerHeight - panelRect.top - 20;
-            const maxTop = Math.max(0, availableBelow - minVisible);
-            top = Math.min(top, maxTop);
-
-            return top;
-        }
-
-        addMegaMenu(parentLi, children, activeNodesFromHere = []) {
-            const dropdown = document.createElement('div');
-            dropdown.className = 'dropdown-menu';
-
-            const panel = document.createElement('div');
-            panel.className = 'mega-panel';
-            dropdown.appendChild(panel);
-
-            this.renderMegaColumn(panel, 0, children, 0);
-
-            if (activeNodesFromHere && activeNodesFromHere.length) {
-                this.prefillMega(panel, children, activeNodesFromHere);
-            }
-
-            parentLi.appendChild(dropdown);
-
-            dropdown.addEventListener('mousemove', (e) => {
-                if (window.innerWidth < 992) return;
-                const link = e.target.closest('a.dropdown-item[data-mid]');
-                if (!link) return;
-
-                const col = parseInt(link.dataset.col || '0', 10);
-                const id = parseInt(link.dataset.mid || '0', 10);
-                if (!id) return;
-
-                this.setActiveInColumn(panel, col, id);
-
-                const kids = this.childrenById.get(id) || [];
-                if (kids.length) {
-                    const offsetTop = this.getAnchorTop(panel, link);
-                    this.renderMegaColumn(panel, col + 1, kids, offsetTop);
-                } else {
-                    this.clearMegaColumns(panel, col + 1);
-                }
-            });
-        }
-
-        renderMegaColumn(panel, colIndex, items, alignTopPx = 0) {
-            let col = panel.querySelector(`.mega-col[data-col="${colIndex}"]`);
-            if (!col) {
-                col = document.createElement('div');
-                col.className = 'mega-col';
-                col.dataset.col = String(colIndex);
-
-                const ul = document.createElement('ul');
-                ul.className = 'mega-list';
-                col.appendChild(ul);
-
-                panel.appendChild(col);
-            }
-
-            col.style.marginTop = (colIndex > 0 && alignTopPx > 0) ? `${alignTopPx}px` : '0px';
-            this.clearMegaColumns(panel, colIndex + 1);
-
-            const ul = col.querySelector('.mega-list');
-            ul.innerHTML = '';
-
-            const sorted = [...items].sort((a,b) => (a.position||0) - (b.position||0));
-
-            sorted.forEach(item => {
-                const li = document.createElement('li');
-                li.dataset.id = item.id;
-                li.dataset.slug = item.slug;
-
-                const a = document.createElement('a');
-                a.className = 'dropdown-item';
-                a.href = this.getMenuItemUrl(item);
-                a.textContent = item.title;
-
-                a.dataset.mid = String(item.id);
-                a.dataset.col = String(colIndex);
-
-                const hasChildren = item.children && item.children.length > 0;
-                if (hasChildren) a.classList.add('has-children');
-
-                if (item.page_url && item.page_url.startsWith('http')) {
-                    a.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        window.open(item.page_url, '_blank');
-                    });
-                }
-
-                li.appendChild(a);
-                ul.appendChild(li);
-            });
-        }
-
-        clearMegaColumns(panel, startIndex) {
-            const cols = Array.from(panel.querySelectorAll('.mega-col'));
-            cols.forEach(c => {
-                const idx = parseInt(c.dataset.col || '0', 10);
-                if (idx >= startIndex) c.remove();
-            });
-        }
-
-        setActiveInColumn(panel, colIndex, id) {
-            const col = panel.querySelector(`.mega-col[data-col="${colIndex}"]`);
-            if (!col) return;
-
-            col.querySelectorAll('a.dropdown-item.is-active').forEach(a => a.classList.remove('is-active'));
-
-            const a = col.querySelector(`a.dropdown-item[data-mid="${id}"]`);
-            if (a) a.classList.add('is-active');
-        }
-
-        prefillMega(panel, rootChildren, activeNodesFromHere) {
-            let currentCol = 0;
-
-            for (let i = 0; i < activeNodesFromHere.length; i++) {
-                const node = activeNodesFromHere[i];
-                if (!node || !node.id) break;
-
-                this.setActiveInColumn(panel, currentCol, node.id);
-
-                const kids = this.childrenById.get(node.id) || [];
-                if (!kids.length) break;
-
-                const anchorEl = panel.querySelector(`.mega-col[data-col="${currentCol}"] a.dropdown-item[data-mid="${node.id}"]`);
-                const offsetTop = this.getAnchorTop(panel, anchorEl);
-
-                currentCol += 1;
-                this.renderMegaColumn(panel, currentCol, kids, offsetTop);
-            }
-        }
-
-        bindMegaGuards() {
-            if (window.innerWidth < 992) return;
-
-            const root = document.getElementById('mainMenuContainer');
-            if (!root) return;
-
-            root.querySelectorAll(':scope > .nav-item.has-dropdown').forEach(li => {
-                li.addEventListener('mouseenter', () => {
-                    requestAnimationFrame(() => this.guardMega(li));
-                });
-            });
-        }
-
-        guardMega(li) {
-            const menu = li.querySelector(':scope > .dropdown-menu');
-            if (!menu) return;
-
-            menu.style.left = '0';
-            menu.style.right = 'auto';
-
-            const pad = 10;
-            const rect = menu.getBoundingClientRect();
-
-            if (rect.right > (window.innerWidth - pad)) {
-                menu.style.left = 'auto';
-                menu.style.right = '0';
-            }
-        }
-
-        getMenuItemUrl(item) {
-            if (item.page_url && item.page_url.trim() !== '') {
-                return item.page_url.startsWith('http') ? item.page_url : `{{ url('') }}${item.page_url}`;
-            } else if (item.page_slug && item.page_slug.trim() !== '') {
-                return `{{ url('/page') }}/${item.page_slug}`;
-            } else if (item.slug) {
-                return `{{ url('/page') }}/${item.slug}`;
-            }
-            return '#';
-        }
-
-        highlightActiveMenu() {
-            document.querySelectorAll('.nav-link.active, .dropdown-item.active').forEach(link => link.classList.remove('active'));
-
-            // ✅ Home highlight
-            if (this.currentSlug === '__HOME__') {
-                const homeLink = document.querySelector(`.nav-item[data-slug="__HOME__"] > a.nav-link`);
-                if (homeLink) homeLink.classList.add('active');
-                return;
-            }
-
-            if (this.activePathNodes && this.activePathNodes.length) {
-                const top = this.activePathNodes[0];
-                if (top) {
-                    const topLink = document.querySelector(`[data-id="${top.id}"] > a.nav-link`);
-                    if (topLink) topLink.classList.add('active');
-                }
-            }
-        }
-
-        showError() {
-            const container = document.getElementById('mainMenuContainer');
-            if (container) container.innerHTML = '';
-            const off = document.getElementById('offcanvasMenuList');
-            if (off) off.innerHTML = '';
-        }
-
-        refresh() {
-            this.loadMenu();
-        }
-
-        /* -------------------- Offcanvas rendering -------------------- */
-        renderOffcanvasMenu() {
-            const root = document.getElementById('offcanvasMenuList');
-            if (!root) return;
-
-            root.innerHTML = '';
-
-            // ✅ add Home first in sidebar
-            root.appendChild(this.buildHomeOffcanvasItem());
-
-            if (!this.menuData || this.menuData.length === 0) return;
-
-            const sortedItems = [...this.menuData].sort((a,b) => (a.position||0) - (b.position||0));
-            sortedItems.forEach(item => root.appendChild(this.createOffcanvasItem(item, 0)));
-        }
-
-        createOffcanvasItem(item, level) {
-            const li = document.createElement('li');
-            const hasChildren = item.children && item.children.length > 0;
-
-            const row = document.createElement('div');
-            row.className = 'oc-row';
-            row.style.paddingLeft = `${Math.min(level, 7) * 12 + 10}px`;
-
-            const link = document.createElement('a');
-            link.className = 'oc-link';
-            link.href = this.getMenuItemUrl(item);
-            link.textContent = item.title;
-
-            const slug = (item.slug || item.page_slug || '');
-            if (this.currentSlug && slug && (slug === this.currentSlug)) link.classList.add('active');
-
-            const href = link.getAttribute('href') || '#';
-
-            if (item.page_url && item.page_url.startsWith('http')) {
-                link.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    window.open(item.page_url, '_blank');
-                    this.forceCloseOffcanvas();
-                });
-            } else {
-                link.addEventListener('click', (e) => {
-                    if (href && href !== '#') {
-                        e.preventDefault();
-                        this.forceCloseOffcanvas();
-                        setTimeout(() => { window.location.href = href; }, 120);
-                    }
-                });
-            }
-
-            row.appendChild(link);
-
-            if (!hasChildren) {
-                li.appendChild(row);
-                return li;
-            }
-
-            const collapseId = `oc_collapse_${item.id}`;
-            const shouldExpand = this.activePathIds.includes(item.id);
-
-            const toggle = document.createElement('button');
-            toggle.type = 'button';
-            toggle.className = 'oc-toggle';
-            toggle.setAttribute('data-bs-toggle', 'collapse');
-            toggle.setAttribute('data-bs-target', `#${collapseId}`);
-            toggle.setAttribute('aria-controls', collapseId);
-            toggle.setAttribute('aria-expanded', shouldExpand ? 'true' : 'false');
-
-            const caret = document.createElement('span');
-            caret.className = 'oc-caret';
-            toggle.appendChild(caret);
-
-            row.appendChild(toggle);
-            li.appendChild(row);
-
-            const collapse = document.createElement('div');
-            collapse.className = `collapse ${shouldExpand ? 'show' : ''}`;
-            collapse.id = collapseId;
-
-            const ul = document.createElement('ul');
-            ul.className = 'oc-sub';
-
-            const sortedKids = [...item.children].sort((a,b) => (a.position||0) - (b.position||0));
-            sortedKids.forEach(child => ul.appendChild(this.createOffcanvasItem(child, level + 1)));
-
-            collapse.appendChild(ul);
-            li.appendChild(collapse);
-
-            return li;
-        }
+(() => {
+  if (window.__MAIN_HEADER_SINGLETON__) return;
+  window.__MAIN_HEADER_SINGLETON__ = true;
+
+  const $ = (id) => document.getElementById(id);
+
+  const els = {
+    bar: $('mhBar'),
+    primary: $('mhPrimaryLogo'),
+    title: $('mhHeaderText'),
+    rotate: $('mhRotateText'),
+    affilMarquee: $('mhAffilMarquee'),
+    affilTrack: $('mhAffilTrack'),
+    partnerMarquee: $('mhPartnerMarquee'),
+    partnerTrack: $('mhPartnerTrack'),
+    secondary: $('mhSecondaryLogo'),
+    badge: $('mhAdmissionBadge'),
+    admissionLink: $('mhAdmissionLink'),
+  };
+
+  const PLACEHOLDER_SVG = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="260" height="160" viewBox="0 0 260 160">
+      <rect width="260" height="160" fill="#f3f4f6"/>
+      <rect x="16" y="16" width="228" height="128" rx="16" fill="#ffffff" stroke="#e5e7eb"/>
+      <path d="M80 112h100v10H80z" fill="#9ca3af"/>
+      <path d="M92 88h76v8H92z" fill="#9ca3af"/>
+      <path d="M118 44h24c10 0 18 8 18 18v12h-60V62c0-10 8-18 18-18z" fill="#cbd5e1"/>
+      <text x="130" y="140" text-anchor="middle" font-family="Arial" font-size="12" fill="#6b7280">No Image</text>
+    </svg>
+  `);
+
+  function normalizeUrl(u){
+    const s = (u || '').toString().trim();
+    if (!s) return '';
+    if (/^(data:|blob:|https?:\/\/)/i.test(s)) return s;
+    if (s.startsWith('/')) return window.location.origin + s;
+    return window.location.origin + '/' + s;
+  }
+
+  function setImg(imgEl, src){
+    if (!imgEl) return;
+    const u = normalizeUrl(src);
+    imgEl.src = u || PLACEHOLDER_SVG;
+    imgEl.classList.remove('mh-skel');
+  }
+
+  function removeSkel(el){
+    if (!el) return;
+    el.classList.remove('mh-skel');
+  }
+
+  /* ===== Rotating text ===== */
+  let rotateTimer = null;
+  function startRotate(lines){
+    if (rotateTimer) { clearInterval(rotateTimer); rotateTimer = null; }
+
+    const el = els.rotate;
+    removeSkel(el);
+
+    const arr = Array.isArray(lines) ? lines.map(x => (x ?? '').toString().trim()).filter(Boolean) : [];
+    if (!arr.length){
+      el.textContent = '';
+      return;
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-        window.dynamicMenu = new DynamicMenu();
+    let idx = 0;
+    el.textContent = arr[0];
+
+    if (arr.length === 1) return;
+
+    rotateTimer = setInterval(() => {
+      idx = (idx + 1) % arr.length;
+      el.classList.add('is-fading');
+      setTimeout(() => {
+        el.textContent = arr[idx];
+        el.classList.remove('is-fading');
+      }, 180);
+    }, 2600);
+  }
+
+  /* ===== Marquee builder ===== */
+  function buildMarquee(trackEl, items, getSrc, getAlt, speedFactor = 35){
+    if (!trackEl) return;
+
+    trackEl.innerHTML = '';
+    trackEl.classList.remove('is-animated');
+    trackEl.style.removeProperty('--mh-shift');
+    trackEl.style.removeProperty('--mh-duration');
+
+    const list = Array.isArray(items) ? items : [];
+    const clean = list
+      .map((it) => {
+        const src = (getSrc(it) || '').toString().trim();
+        if (!src) return null;
+        return { src, alt: (getAlt(it) || '').toString().trim() };
+      })
+      .filter(Boolean);
+
+    if (!clean.length) return;
+
+    const set1 = document.createElement('div');
+    set1.className = 'mh-set';
+
+    clean.forEach(({src, alt}) => {
+      const img = document.createElement('img');
+      img.loading = 'lazy';
+      img.alt = alt || 'logo';
+      img.src = normalizeUrl(src) || PLACEHOLDER_SVG;
+      img.className = trackEl.id === 'mhAffilTrack' ? 'mh-affil-logo' : 'mh-partner-logo';
+      set1.appendChild(img);
     });
+
+    trackEl.appendChild(set1);
+
+    if (clean.length <= 2) return;
+
+    const set2 = set1.cloneNode(true);
+    trackEl.appendChild(set2);
+
+    requestAnimationFrame(() => {
+      const w = set1.getBoundingClientRect().width;
+      if (!w || w < 10) return;
+
+      trackEl.style.setProperty('--mh-shift', w + 'px');
+
+      const duration = Math.max(10, Math.min(30, w / speedFactor));
+      trackEl.style.setProperty('--mh-duration', duration.toFixed(2) + 's');
+
+      trackEl.classList.add('is-animated');
+    });
+  }
+
+  function pickLatestItem(js){
+    const arr = Array.isArray(js?.data) ? js.data : [];
+    return arr[0] || null;
+  }
+
+  async function loadHeader(){
+    const endpointBase = els.bar?.getAttribute('data-endpoint') || '/api/header-components';
+    const qs = new URLSearchParams({
+      per_page: '1',
+      page: '1',
+      sort: 'updated_at',
+      direction: 'desc'
+    });
+
+    const token = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+    const headers = { 'Accept': 'application/json' };
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+
+    const res = await fetch(endpointBase.replace(/\/+$/,'') + '?' + qs.toString(), { headers });
+    const js = await res.json().catch(() => ({}));
+    const item = pickLatestItem(js);
+
+    if (!res.ok || !item){
+      removeSkel(els.title); els.title.textContent = '';
+      removeSkel(els.rotate); els.rotate.textContent = '';
+      setImg(els.primary, '');
+      setImg(els.secondary, '');
+      setImg(els.badge, '');
+      removeSkel(els.affilMarquee);
+      removeSkel(els.partnerMarquee);
+      return;
+    }
+
+    setImg(els.primary, item.primary_logo_full_url || item.primary_logo_url || '');
+
+    removeSkel(els.title);
+    els.title.textContent = (item.header_text || '').toString().trim();
+
+    startRotate(item.rotating_text_json || []);
+
+    removeSkel(els.affilMarquee);
+    const aff = Array.isArray(item.affiliation_logos) ? item.affiliation_logos : [];
+    buildMarquee(
+      els.affilTrack,
+      aff,
+      (x) => x?.url_full || x?.url || x?.path || '',
+      (x) => x?.caption || 'Affiliation logo',
+      35
+    );
+
+    removeSkel(els.partnerMarquee);
+    const partners = Array.isArray(item.partner_recruiters) ? item.partner_recruiters : [];
+    buildMarquee(
+      els.partnerTrack,
+      partners,
+      (x) => x?.logo_full_url || x?.logo_url || '',
+      (x) => x?.title || 'Partner logo',
+      35
+    );
+
+    setImg(els.secondary, item.secondary_logo_full_url || item.secondary_logo_url || '');
+
+    setImg(els.badge, item.admission_badge_full_url || item.admission_badge_url || '');
+    const link = (item.admission_badge_link || item.admission_link_full_url || item.admission_link_url || '').toString().trim();
+
+    if (link){
+      els.admissionLink.href = normalizeUrl(link);
+      els.admissionLink.target = '_blank';
+      els.admissionLink.rel = 'noopener';
+      els.admissionLink.style.pointerEvents = '';
+      els.admissionLink.style.opacity = '';
+    } else {
+      els.admissionLink.href = 'javascript:void(0)';
+      els.admissionLink.removeAttribute('target');
+      els.admissionLink.removeAttribute('rel');
+      els.admissionLink.style.pointerEvents = 'none';
+      els.admissionLink.style.opacity = '.85';
+    }
+  }
+
+  let resizeT = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeT);
+    resizeT = setTimeout(() => { loadHeader().catch(()=>{}); }, 250);
+  });
+
+  document.addEventListener('DOMContentLoaded', () => {
+    loadHeader().catch(() => {});
+  });
+})();
 </script>

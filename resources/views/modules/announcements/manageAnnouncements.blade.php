@@ -1,23 +1,27 @@
-{{-- resources/views/modules/studentActivity/manageStudentActivities.blade.php --}}
-@section('title','Student Activities')
+{{-- resources/views/modules/announcement/manageAnnouncements.blade.php --}}
+@section('title','Announcements')
 
 @push('styles')
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
 <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}">
 
 <style>
-/* =====================
-  Page shell
-===================== */
-.sa-wrap{max-width:1140px;margin:16px auto 40px;overflow:visible}
-.sa-panel{
-  background:var(--surface);
+/* Dropdowns inside table */
+.table-wrap .dropdown{position:relative}
+.dropdown .dd-toggle{border-radius:10px} /* ✅ was: .dropdown [data-bs-toggle="dropdown"] */
+.dropdown-menu{
+  border-radius:12px;
   border:1px solid var(--line-strong);
-  border-radius:16px;
   box-shadow:var(--shadow-2);
-  padding:14px;
-  overflow:visible;
+  min-width:230px;
+  z-index:99999; /* ✅ MATCH reference page (avoid behind/clip issues) */
 }
+/* ✅ safety: if any global css forces dropdown-menu hidden, ensure .show wins */
+.dropdown-menu.show{display:block !important}
+
+.dropdown-item{display:flex;align-items:center;gap:.6rem}
+.dropdown-item i{width:16px;text-align:center}
+.dropdown-item.text-danger{color:var(--danger-color) !important}
 
 /* Tabs */
 .nav.nav-tabs{border-color:var(--line-strong)}
@@ -28,8 +32,8 @@
 }
 .tab-content,.tab-pane{overflow:visible}
 
-/* Table card */
-.sa-table.card{
+/* Table Card */
+.table-wrap.card{
   position:relative;
   border:1px solid var(--line-strong);
   border-radius:16px;
@@ -37,7 +41,7 @@
   box-shadow:var(--shadow-2);
   overflow:visible;
 }
-.sa-table .card-body{overflow:visible}
+.table-wrap .card-body{overflow:visible}
 .table{--bs-table-bg:transparent}
 .table thead th{
   font-weight:600;
@@ -49,9 +53,10 @@
 .table thead.sticky-top{z-index:3}
 .table tbody tr{border-top:1px solid var(--line-soft)}
 .table tbody tr:hover{background:var(--page-hover)}
+td .fw-semibold{color:var(--ink)}
 .small{font-size:12.5px}
 
-/* Slug column */
+/* ✅ Slug column smaller + ellipsis */
 th.col-slug, td.col-slug{width:190px;max-width:190px}
 td.col-slug{overflow:hidden}
 td.col-slug code{
@@ -63,81 +68,36 @@ td.col-slug code{
   vertical-align:bottom;
 }
 
-/* Toolbar */
-.sa-toolbar .form-control,
-.sa-toolbar .form-select{
-  height:40px;
-  border-radius:12px;
-  border:1px solid var(--line-strong);
-  background:var(--surface);
-}
-.sa-toolbar .btn{border-radius:12px}
-
-/* Dropdown in table */
-.sa-table .dropdown{position:relative}
-.sa-table .dd-toggle{border-radius:10px}
-.sa-table .dropdown-menu{
-  border-radius:12px;
-  border:1px solid var(--line-strong);
-  box-shadow:var(--shadow-2);
-  min-width:240px;
-  z-index:5000;
-}
-.sa-table .dropdown-menu.show{display:block !important}
-.sa-table .dropdown-item{display:flex;align-items:center;gap:.6rem}
-.sa-table .dropdown-item i{width:16px;text-align:center}
-.sa-table .dropdown-item.text-danger{color:var(--danger-color) !important}
-
 /* Badges */
+.badge-soft-primary{
+  background:color-mix(in oklab, var(--primary-color) 12%, transparent);
+  color:var(--primary-color)
+}
 .badge-soft-success{
   background:color-mix(in oklab, var(--success-color) 12%, transparent);
   color:var(--success-color)
-}
-.badge-soft-warning{
-  background:color-mix(in oklab, var(--warning-color, #f59e0b) 14%, transparent);
-  color:var(--warning-color, #f59e0b)
 }
 .badge-soft-muted{
   background:color-mix(in oklab, var(--muted-color) 10%, transparent);
   color:var(--muted-color)
 }
-.badge-soft-primary{
-  background:color-mix(in oklab, var(--primary-color) 12%, transparent);
-  color:var(--primary-color)
-}
-
-/* Responsive + horizontal scroll */
-.table-responsive{
-  display:block;
-  width:100%;
-  max-width:100%;
-  overflow-x:auto !important;
-  overflow-y:visible !important;
-  -webkit-overflow-scrolling:touch;
-  position:relative;
-}
-.table-responsive > .table{width:max-content;min-width:1180px;}
-.table-responsive th,.table-responsive td{white-space:nowrap;}
-@media (max-width: 576px){ .table-responsive > .table{min-width:1120px;} }
-
-@media (max-width: 768px){
-  .sa-toolbar .d-flex{flex-direction:column;gap:12px !important}
-  .sa-toolbar .position-relative{min-width:100% !important}
-  .sa-toolbar .toolbar-actions{display:flex;gap:8px;flex-wrap:wrap}
-  .sa-toolbar .toolbar-actions .btn{flex:1;min-width:130px}
+.badge-soft-warning{
+  background:color-mix(in oklab, var(--warning-color, #f59e0b) 14%, transparent);
+  color:var(--warning-color, #f59e0b)
 }
 
 /* Loading overlay */
-.sa-loading{
-  position:fixed;inset:0;
-  background:rgba(0,0,0,.45);
-  display:none;
-  align-items:center;
+.loading-overlay{
+  position:fixed;
+  top:0;left:0;width:100%;height:100%;
+  background:rgba(0,0,0,0.45);
+  display:flex;
   justify-content:center;
+  align-items:center;
   z-index:9999;
-  backdrop-filter:blur(2px);
+  backdrop-filter:blur(2px)
 }
-.sa-loading .box{
+.loading-spinner{
   background:var(--surface);
   padding:20px 22px;
   border-radius:14px;
@@ -147,15 +107,16 @@ td.col-slug code{
   gap:10px;
   box-shadow:0 10px 26px rgba(0,0,0,0.3)
 }
-.sa-loading .spin{
-  width:40px;height:40px;border-radius:50%;
+.spinner{
+  width:40px;height:40px;
+  border-radius:50%;
   border:4px solid rgba(148,163,184,0.3);
   border-top:4px solid var(--primary-color);
-  animation:saSpin 1s linear infinite
+  animation:spin 1s linear infinite
 }
-@keyframes saSpin{to{transform:rotate(360deg)}}
+@keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
 
-/* Button loading */
+/* Button loading state */
 .btn-loading{position:relative;color:transparent !important}
 .btn-loading::after{
   content:'';
@@ -166,21 +127,62 @@ td.col-slug code{
   border:2px solid transparent;
   border-top:2px solid currentColor;
   border-radius:50%;
-  animation:saSpin 1s linear infinite;
+  animation:spin 1s linear infinite
+}
+
+/* Responsive toolbar */
+@media (max-width: 768px){
+  .an-toolbar .d-flex{flex-direction:column;gap:12px !important}
+  .an-toolbar .position-relative{min-width:100% !important}
+  .toolbar-buttons{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap
+  }
+  .toolbar-buttons .btn{
+    flex:1;
+    min-width:120px
+  }
+}
+
+/* ✅ Horizontal scroll */
+.table-responsive{
+  display:block;
+  width:100%;
+  max-width:100%;
+  overflow-x:auto !important;
+  overflow-y:visible !important;
+  -webkit-overflow-scrolling:touch;
+  position:relative;
+}
+.table-responsive > .table{
+  width:max-content;
+  min-width:1180px;
+}
+.table-responsive th,
+.table-responsive td{
+  white-space:nowrap;
+}
+@media (max-width: 576px){
+  .table-responsive > .table{ min-width:1120px; }
 }
 
 /* =========================
-  Mini RTE (stable caret)
-========================= */
+ * ✅ RTE
+ * ========================= */
 .rte-help{font-size:12px;color:var(--muted-color);margin-top:6px}
-.rte-box{
+.rte-row{margin-bottom:14px;}
+.rte-wrap{
   border:1px solid var(--line-strong);
   border-radius:14px;
   overflow:hidden;
   background:var(--surface);
 }
-.rte-bar{
-  display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+.rte-toolbar{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
   padding:8px;
   border-bottom:1px solid var(--line-strong);
   background:color-mix(in oklab, var(--surface) 92%, transparent);
@@ -205,15 +207,18 @@ td.col-slug code{
   border-color:color-mix(in oklab, var(--primary-color) 35%, var(--line-soft));
 }
 .rte-sep{width:1px;height:24px;background:var(--line-soft);margin:0 4px}
-.rte-modes{
+
+/* Text/Code tabs */
+.rte-tabs{
   margin-left:auto;
   display:flex;
   border:1px solid var(--line-soft);
   border-radius:0;
   overflow:hidden;
 }
-.rte-modes button{
-  border:0;border-right:1px solid var(--line-soft);
+.rte-tabs .tab{
+  border:0;
+  border-right:1px solid var(--line-soft);
   border-radius:0;
   padding:7px 12px;
   font-size:12px;
@@ -221,49 +226,83 @@ td.col-slug code{
   background:transparent;
   color:var(--ink);
   line-height:1;
+  user-select:none;
 }
-.rte-modes button:last-child{border-right:0}
-.rte-modes button.active{
+.rte-tabs .tab:last-child{border-right:0}
+.rte-tabs .tab.active{
   background:color-mix(in oklab, var(--primary-color) 12%, transparent);
-  font-weight:800;
+  font-weight:700;
 }
+
 .rte-area{position:relative}
 .rte-editor{
   min-height:220px;
-  padding:12px;
+  padding:12px 12px;
   outline:none;
 }
-.rte-editor:empty:before{content:attr(data-placeholder);color:var(--muted-color)}
+.rte-editor:empty:before{content:attr(data-placeholder);color:var(--muted-color);}
+
+.rte-editor b, .rte-editor strong{font-weight:800}
+.rte-editor i, .rte-editor em{font-style:italic}
+.rte-editor u{text-decoration:underline}
+.rte-editor h1{font-size:20px;margin:8px 0}
+.rte-editor h2{font-size:18px;margin:8px 0}
+.rte-editor h3{font-size:16px;margin:8px 0}
+.rte-editor ul, .rte-editor ol{padding-left:22px}
+.rte-editor p{margin:0 0 10px}
+.rte-editor a{color:var(--primary-color);text-decoration:underline}
+
+.rte-editor code{
+  padding:2px 6px;
+  border-radius:0;
+  background:color-mix(in oklab, var(--muted-color) 14%, transparent);
+  border:1px solid var(--line-soft);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size:12.5px;
+}
+.rte-editor pre{
+  padding:10px 12px;
+  border-radius:0;
+  background:color-mix(in oklab, var(--muted-color) 10%, transparent);
+  border:1px solid var(--line-soft);
+  overflow:auto;
+  margin:8px 0;
+}
+.rte-editor pre code{
+  border:0;background:transparent;padding:0;display:block;white-space:pre;
+}
+
 .rte-code{
   display:none;
   width:100%;
   min-height:220px;
-  padding:12px;
+  padding:12px 12px;
   border:0;
   outline:none;
   resize:vertical;
   background:transparent;
   color:var(--ink);
-  font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   font-size:12.5px;
   line-height:1.45;
 }
-.rte-box.mode-code .rte-editor{display:none}
-.rte-box.mode-code .rte-code{display:block}
+.rte-wrap.mode-code .rte-editor{display:none;}
+.rte-wrap.mode-code .rte-code{display:block;}
 
-/* Cover preview */
+/* Cover preview box */
 .cover-box{
   border:1px solid var(--line-strong);
   border-radius:14px;
   overflow:hidden;
-  background:color-mix(in oklab, var(--surface) 88%, var(--bg-body));
+  background:var(--bg-soft, color-mix(in oklab, var(--surface) 88%, var(--bg-body)));
 }
-.cover-box .top{
-  display:flex;align-items:center;justify-content:space-between;gap:10px;
+.cover-box .cover-top{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:10px;
   padding:10px 12px;
   border-bottom:1px solid var(--line-soft);
 }
-.cover-box .body{padding:12px}
+.cover-box .cover-body{padding:12px;}
 .cover-box img{
   width:100%;
   max-height:260px;
@@ -272,84 +311,80 @@ td.col-slug code{
   border:1px solid var(--line-soft);
   background:#fff;
 }
-.cover-empty{
-  padding:12px;
-  border:1px dashed var(--line-soft);
-  border-radius:12px;
-  color:var(--muted-color);
-  font-size:12.5px;
-}
+.cover-meta{font-size:12.5px;color:var(--muted-color);margin-top:10px}
 </style>
 @endpush
 
 @section('content')
-<div class="sa-wrap">
+<div class="crs-wrap">
 
-  {{-- Global loading --}}
-  <div id="saLoading" class="sa-loading">
+  {{-- Loading Overlay --}}
+  <div id="globalLoading" class="loading-overlay" style="display:none;">
     @include('partials.overlay')
   </div>
 
   {{-- Tabs --}}
   <ul class="nav nav-tabs mb-3" role="tablist">
     <li class="nav-item">
-      <a class="nav-link active" data-bs-toggle="tab" href="#sa-tab-active" role="tab" aria-selected="true">
-        <i class="fa-solid fa-bolt me-2"></i>Active
+      <a class="nav-link active" data-bs-toggle="tab" href="#tab-active" role="tab" aria-selected="true">
+        <i class="fa-solid fa-bullhorn me-2"></i>Active
       </a>
     </li>
     <li class="nav-item">
-      <a class="nav-link" data-bs-toggle="tab" href="#sa-tab-inactive" role="tab" aria-selected="false">
+      <a class="nav-link" data-bs-toggle="tab" href="#tab-inactive" role="tab" aria-selected="false">
         <i class="fa-solid fa-circle-pause me-2"></i>Inactive
       </a>
     </li>
     <li class="nav-item">
-      <a class="nav-link" data-bs-toggle="tab" href="#sa-tab-trash" role="tab" aria-selected="false">
+      <a class="nav-link" data-bs-toggle="tab" href="#tab-trash" role="tab" aria-selected="false">
         <i class="fa-solid fa-trash-can me-2"></i>Trash
       </a>
     </li>
   </ul>
 
-  {{-- Toolbar (shared) --}}
-  <div class="row align-items-center g-2 mb-3 sa-toolbar sa-panel">
-    <div class="col-12 col-lg d-flex align-items-center flex-wrap gap-2">
-      <div class="d-flex align-items-center gap-2">
-        <label class="text-muted small mb-0">Per Page</label>
-        <select id="saPerPage" class="form-select" style="width:96px;">
-          <option>10</option>
-          <option selected>20</option>
-          <option>50</option>
-          <option>100</option>
-        </select>
-      </div>
-
-      <div class="position-relative" style="min-width:280px;">
-        <input id="saSearch" type="search" class="form-control ps-5" placeholder="Search by title or slug…">
-        <i class="fa fa-search position-absolute" style="left:12px;top:50%;transform:translateY(-50%);opacity:.6;"></i>
-      </div>
-
-      <button id="saBtnFilter" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#saFilterModal">
-        <i class="fa fa-sliders me-1"></i>Filter
-      </button>
-
-      <button id="saBtnReset" class="btn btn-light">
-        <i class="fa fa-rotate-left me-1"></i>Reset
-      </button>
-    </div>
-
-    <div class="col-12 col-lg-auto ms-lg-auto d-flex justify-content-lg-end">
-      <div class="toolbar-actions" id="saWriteControls" style="display:none;">
-        <button type="button" class="btn btn-primary" id="saBtnAdd">
-          <i class="fa fa-plus me-1"></i>Add Student Activity
-        </button>
-      </div>
-    </div>
-  </div>
-
   <div class="tab-content mb-3">
 
-    {{-- ACTIVE --}}
-    <div class="tab-pane fade show active" id="sa-tab-active" role="tabpanel">
-      <div class="card sa-table">
+    {{-- ACTIVE TAB --}}
+    <div class="tab-pane fade show active" id="tab-active" role="tabpanel">
+
+      {{-- Toolbar --}}
+      <div class="row align-items-center g-2 mb-3 an-toolbar panel">
+        <div class="col-12 col-lg d-flex align-items-center flex-wrap gap-2">
+          <div class="d-flex align-items-center gap-2">
+            <label class="text-muted small mb-0">Per Page</label>
+            <select id="perPage" class="form-select" style="width:96px;">
+              <option>10</option>
+              <option selected>20</option>
+              <option>50</option>
+              <option>100</option>
+            </select>
+          </div>
+
+          <div class="position-relative" style="min-width:280px;">
+            <input id="searchInput" type="search" class="form-control ps-5" placeholder="Search by title or slug…">
+            <i class="fa fa-search position-absolute" style="left:12px;top:50%;transform:translateY(-50%);opacity:.6;"></i>
+          </div>
+
+          <button id="btnFilter" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#filterModal">
+            <i class="fa fa-sliders me-1"></i>Filter
+          </button>
+
+          <button id="btnReset" class="btn btn-light">
+            <i class="fa fa-rotate-left me-1"></i>Reset
+          </button>
+        </div>
+
+        <div class="col-12 col-lg-auto ms-lg-auto d-flex justify-content-lg-end">
+          <div id="writeControls" style="display:none;">
+            <button type="button" class="btn btn-primary" id="btnAddItem">
+              <i class="fa fa-plus me-1"></i> Add Announcement
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {{-- Table --}}
+      <div class="card table-wrap">
         <div class="card-body p-0">
           <div class="table-responsive">
             <table class="table table-hover table-borderless align-middle mb-0">
@@ -357,37 +392,36 @@ td.col-slug code{
                 <tr>
                   <th>Title</th>
                   <th class="col-slug">Slug</th>
-                  <th style="width:190px;">Department</th>
                   <th style="width:120px;">Status</th>
                   <th style="width:120px;">Featured</th>
-                  <th style="width:160px;">Publish At</th>
-                  <th style="width:110px;">Views</th>
+                  <th style="width:150px;">Publish At</th>
+                  <th style="width:110px;">Sort</th>
                   <th style="width:170px;">Updated</th>
-                  <th style="width:110px;" class="text-end">Actions</th>
+                  <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
               </thead>
-              <tbody id="saTbodyActive">
-                <tr><td colspan="9" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+              <tbody id="tbody-active">
+                <tr><td colspan="8" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
 
-          <div id="saEmptyActive" class="p-4 text-center" style="display:none;">
-            <i class="fa-solid fa-bolt mb-2" style="font-size:32px;opacity:.6;"></i>
-            <div>No active student activities found.</div>
+          <div id="empty-active" class="empty p-4 text-center" style="display:none;">
+            <i class="fa fa-bullhorn mb-2" style="font-size:32px;opacity:.6;"></i>
+            <div>No active announcements found.</div>
           </div>
 
           <div class="d-flex flex-wrap align-items-center justify-content-between p-3 gap-2">
-            <div class="text-muted small" id="saInfoActive">—</div>
-            <nav><ul id="saPagerActive" class="pagination mb-0"></ul></nav>
+            <div class="text-muted small" id="resultsInfo-active">—</div>
+            <nav><ul id="pager-active" class="pagination mb-0"></ul></nav>
           </div>
         </div>
       </div>
     </div>
 
-    {{-- INACTIVE --}}
-    <div class="tab-pane fade" id="sa-tab-inactive" role="tabpanel">
-      <div class="card sa-table">
+    {{-- INACTIVE TAB --}}
+    <div class="tab-pane fade" id="tab-inactive" role="tabpanel">
+      <div class="card table-wrap">
         <div class="card-body p-0">
           <div class="table-responsive">
             <table class="table table-hover table-borderless align-middle mb-0">
@@ -395,37 +429,36 @@ td.col-slug code{
                 <tr>
                   <th>Title</th>
                   <th class="col-slug">Slug</th>
-                  <th style="width:190px;">Department</th>
                   <th style="width:120px;">Status</th>
                   <th style="width:120px;">Featured</th>
-                  <th style="width:160px;">Publish At</th>
-                  <th style="width:110px;">Views</th>
+                  <th style="width:150px;">Publish At</th>
+                  <th style="width:110px;">Sort</th>
                   <th style="width:170px;">Updated</th>
-                  <th style="width:110px;" class="text-end">Actions</th>
+                  <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
               </thead>
-              <tbody id="saTbodyInactive">
-                <tr><td colspan="9" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+              <tbody id="tbody-inactive">
+                <tr><td colspan="8" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
 
-          <div id="saEmptyInactive" class="p-4 text-center" style="display:none;">
-            <i class="fa-solid fa-circle-pause mb-2" style="font-size:32px;opacity:.6;"></i>
-            <div>No inactive student activities found.</div>
+          <div id="empty-inactive" class="empty p-4 text-center" style="display:none;">
+            <i class="fa fa-circle-pause mb-2" style="font-size:32px;opacity:.6;"></i>
+            <div>No inactive announcements found.</div>
           </div>
 
           <div class="d-flex flex-wrap align-items-center justify-content-between p-3 gap-2">
-            <div class="text-muted small" id="saInfoInactive">—</div>
-            <nav><ul id="saPagerInactive" class="pagination mb-0"></ul></nav>
+            <div class="text-muted small" id="resultsInfo-inactive">—</div>
+            <nav><ul id="pager-inactive" class="pagination mb-0"></ul></nav>
           </div>
         </div>
       </div>
     </div>
 
-    {{-- TRASH --}}
-    <div class="tab-pane fade" id="sa-tab-trash" role="tabpanel">
-      <div class="card sa-table">
+    {{-- TRASH TAB --}}
+    <div class="tab-pane fade" id="tab-trash" role="tabpanel">
+      <div class="card table-wrap">
         <div class="card-body p-0">
           <div class="table-responsive">
             <table class="table table-hover table-borderless align-middle mb-0">
@@ -433,25 +466,25 @@ td.col-slug code{
                 <tr>
                   <th>Title</th>
                   <th class="col-slug">Slug</th>
-                  <th style="width:220px;">Department</th>
-                  <th style="width:180px;">Deleted</th>
-                  <th style="width:110px;" class="text-end">Actions</th>
+                  <th style="width:150px;">Deleted</th>
+                  <th style="width:110px;">Sort</th>
+                  <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
               </thead>
-              <tbody id="saTbodyTrash">
+              <tbody id="tbody-trash">
                 <tr><td colspan="5" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
 
-          <div id="saEmptyTrash" class="p-4 text-center" style="display:none;">
-            <i class="fa-solid fa-trash-can mb-2" style="font-size:32px;opacity:.6;"></i>
+          <div id="empty-trash" class="empty p-4 text-center" style="display:none;">
+            <i class="fa fa-trash-can mb-2" style="font-size:32px;opacity:.6;"></i>
             <div>Trash is empty.</div>
           </div>
 
           <div class="d-flex flex-wrap align-items-center justify-content-between p-3 gap-2">
-            <div class="text-muted small" id="saInfoTrash">—</div>
-            <nav><ul id="saPagerTrash" class="pagination mb-0"></ul></nav>
+            <div class="text-muted small" id="resultsInfo-trash">—</div>
+            <nav><ul id="pager-trash" class="pagination mb-0"></ul></nav>
           </div>
         </div>
       </div>
@@ -461,48 +494,43 @@ td.col-slug code{
 </div>
 
 {{-- Filter Modal --}}
-<div class="modal fade" id="saFilterModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="filterModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-md">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title"><i class="fa fa-sliders me-2"></i>Filter</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-
       <div class="modal-body">
         <div class="row g-3">
           <div class="col-12">
             <label class="form-label">Status</label>
-            <select id="saModalStatus" class="form-select">
-              <option value="">(Tab default)</option>
+            <select id="modal_status" class="form-select">
+              <option value="">All</option>
               <option value="published">Published</option>
               <option value="draft">Draft</option>
               <option value="archived">Archived</option>
             </select>
-            <div class="form-text">If you leave this as “Tab default”, Active = Published and Inactive = Draft.</div>
           </div>
 
           <div class="col-12">
             <label class="form-label">Sort By</label>
-            <select id="saModalSort" class="form-select">
+            <select id="modal_sort" class="form-select">
               <option value="-created_at">Newest First</option>
               <option value="created_at">Oldest First</option>
+              <option value="-updated_at">Recently Updated</option>
               <option value="title">Title A-Z</option>
               <option value="-title">Title Z-A</option>
+              <option value="sort_order">Sort Order ↑</option>
+              <option value="-sort_order">Sort Order ↓</option>
               <option value="-publish_at">Publish At (Desc)</option>
               <option value="publish_at">Publish At (Asc)</option>
-              <option value="-expire_at">Expire At (Desc)</option>
-              <option value="expire_at">Expire At (Asc)</option>
-              <option value="-views_count">Most Viewed</option>
-              <option value="views_count">Least Viewed</option>
-              <option value="-id">ID (Desc)</option>
-              <option value="id">ID (Asc)</option>
             </select>
           </div>
 
           <div class="col-12">
             <label class="form-label">Featured</label>
-            <select id="saModalFeatured" class="form-select">
+            <select id="modal_featured" class="form-select">
               <option value="">Any</option>
               <option value="1">Featured only</option>
               <option value="0">Not featured</option>
@@ -510,11 +538,10 @@ td.col-slug code{
           </div>
         </div>
       </div>
-
       <div class="modal-footer">
         <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" id="saBtnApplyFilters" class="btn btn-primary">
-          <i class="fa fa-check me-1"></i>Apply
+        <button type="button" id="btnApplyFilters" class="btn btn-primary">
+          <i class="fa fa-check me-1"></i>Apply Filters
         </button>
       </div>
     </div>
@@ -522,45 +549,50 @@ td.col-slug code{
 </div>
 
 {{-- Add/Edit/View Modal --}}
-<div class="modal fade" id="saItemModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="itemModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-centered">
-    <form class="modal-content" id="saItemForm" autocomplete="off">
+    <form class="modal-content" id="itemForm" autocomplete="off">
       <div class="modal-header">
-        <h5 class="modal-title" id="saItemModalTitle">Add Student Activity</h5>
+        <h5 class="modal-title" id="itemModalTitle">Add Announcement</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
 
       <div class="modal-body">
-        <input type="hidden" id="saUuid">
-        <input type="hidden" id="saId">
-        <input type="hidden" id="saCoverRemove" value="0">
+        <input type="hidden" id="itemUuid">
+        <input type="hidden" id="itemId">
 
         <div class="row g-3">
           <div class="col-lg-6">
             <div class="row g-3">
               <div class="col-12">
                 <label class="form-label">Title <span class="text-danger">*</span></label>
-                <input class="form-control" id="saTitle" required maxlength="255" placeholder="e.g., Tech Fest 2025 Highlights">
+                <input class="form-control" id="title" required maxlength="255" placeholder="e.g., Semester Exam Notice">
               </div>
 
-              <div class="col-12">
+              <div class="col-md-8">
                 <label class="form-label">Slug (optional)</label>
-                <input class="form-control" id="saSlug" maxlength="160" placeholder="tech-fest-2025-highlights">
+                <input class="form-control" id="slug" maxlength="160" placeholder="semester-exam-notice">
                 <div class="form-text">Auto-generated from title until you edit this field manually.</div>
               </div>
 
-              {{-- ✅ Department (added) --}}
+              <div class="col-md-4">
+                <label class="form-label">Sort Order</label>
+                <input type="number" class="form-control" id="sort_order" min="0" max="1000000" value="0">
+              </div>
+
+              {{-- ✅ Department dropdown (create/edit/view) --}}
               <div class="col-12">
-                <label class="form-label">Department <span class="text-danger">*</span></label>
-                <select class="form-select" id="saDepartmentId" required>
-                  <option value="">Loading departments…</option>
+                <label class="form-label">Department (optional)</label>
+                <select class="form-select" id="department_id">
+                  <option value="">General (All Departments)</option>
+                  <option value="" disabled>Loading departments…</option>
                 </select>
-                <div class="form-text">Select the department (dropdown shows only the department name).</div>
+                <div class="form-text">Choose a department to make this announcement department-specific (or keep General).</div>
               </div>
 
               <div class="col-md-6">
                 <label class="form-label">Status</label>
-                <select class="form-select" id="saStatus">
+                <select class="form-select" id="status">
                   <option value="draft">Draft</option>
                   <option value="published">Published</option>
                   <option value="archived">Archived</option>
@@ -569,7 +601,7 @@ td.col-slug code{
 
               <div class="col-md-6">
                 <label class="form-label">Featured on Home</label>
-                <select class="form-select" id="saFeatured">
+                <select class="form-select" id="is_featured_home">
                   <option value="0">No</option>
                   <option value="1">Yes</option>
                 </select>
@@ -577,38 +609,39 @@ td.col-slug code{
 
               <div class="col-md-6">
                 <label class="form-label">Publish At</label>
-                <input type="datetime-local" class="form-control" id="saPublishAt">
+                <input type="datetime-local" class="form-control" id="publish_at">
               </div>
 
               <div class="col-md-6">
                 <label class="form-label">Expire At</label>
-                <input type="datetime-local" class="form-control" id="saExpireAt">
+                <input type="datetime-local" class="form-control" id="expire_at">
               </div>
 
               <div class="col-12">
                 <label class="form-label">Cover Image (optional)</label>
-                <input type="file" class="form-control" id="saCover" accept="image/*">
+                <input type="file" class="form-control" id="cover_image" accept="image/*">
                 <div class="form-text">Upload an image (optional).</div>
               </div>
 
               <div class="col-12">
                 <label class="form-label">Attachments (optional)</label>
-                <input type="file" class="form-control" id="saAttachments" multiple>
+                <input type="file" class="form-control" id="attachments" multiple>
                 <div class="form-text">Optional multiple attachments.</div>
-                <div class="small text-muted mt-2" id="saCurrentAttachmentsInfo" style="display:none;">
-                  <i class="fa fa-paperclip me-1"></i><span id="saCurrentAttachmentsText">—</span>
+                <div class="small text-muted mt-2" id="currentAttachmentsInfo" style="display:none;">
+                  <i class="fa fa-paperclip me-1"></i>
+                  <span id="currentAttachmentsText">—</span>
                 </div>
               </div>
             </div>
           </div>
 
           <div class="col-lg-6">
-            {{-- RTE --}}
-            <div class="mb-2">
+            {{-- ✅ RTE for Body (HTML allowed) --}}
+            <div class="rte-row">
               <label class="form-label">Body (HTML allowed) <span class="text-danger">*</span></label>
 
-              <div class="rte-box" id="saRteBox">
-                <div class="rte-bar">
+              <div class="rte-wrap" id="bodyWrap">
+                <div class="rte-toolbar" data-for="body">
                   <button type="button" class="rte-btn" data-cmd="bold" title="Bold"><i class="fa fa-bold"></i></button>
                   <button type="button" class="rte-btn" data-cmd="italic" title="Italic"><i class="fa fa-italic"></i></button>
                   <button type="button" class="rte-btn" data-cmd="underline" title="Underline"><i class="fa fa-underline"></i></button>
@@ -620,8 +653,9 @@ td.col-slug code{
 
                   <span class="rte-sep"></span>
 
-                  <button type="button" class="rte-btn" data-block="h2" title="Heading">H2</button>
-                  <button type="button" class="rte-btn" data-block="h3" title="Subheading">H3</button>
+                  <button type="button" class="rte-btn" data-block="h1" title="Heading 1">H1</button>
+                  <button type="button" class="rte-btn" data-block="h2" title="Heading 2">H2</button>
+                  <button type="button" class="rte-btn" data-block="h3" title="Heading 3">H3</button>
 
                   <span class="rte-sep"></span>
 
@@ -632,50 +666,52 @@ td.col-slug code{
 
                   <button type="button" class="rte-btn" data-cmd="removeFormat" title="Clear"><i class="fa fa-eraser"></i></button>
 
-                  <div class="rte-modes">
-                    <button type="button" class="active" data-mode="text">Text</button>
-                    <button type="button" data-mode="code">Code</button>
+                  <div class="rte-tabs">
+                    <button type="button" class="tab active" data-mode="text">Text</button>
+                    <button type="button" class="tab" data-mode="code">Code</button>
                   </div>
                 </div>
 
                 <div class="rte-area">
-                  <div id="saBodyEditor" class="rte-editor" contenteditable="true" data-placeholder="Write student activity content…"></div>
-                  <textarea id="saBodyCode" class="rte-code" spellcheck="false" placeholder="HTML code…"></textarea>
+                  <div id="bodyEditor" class="rte-editor" contenteditable="true" data-placeholder="Write announcement content…"></div>
+                  <textarea id="bodyCode" class="rte-code" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"
+                    placeholder="HTML code…"></textarea>
                 </div>
               </div>
 
-              <div class="rte-help">Use <b>Text</b> for rich editing or <b>Code</b> to paste HTML.</div>
-              <input type="hidden" id="saBody">
+              <div class="rte-help">Use <b>Text</b> for rich editing or switch to <b>Code</b> to paste HTML.</div>
+              <input type="hidden" id="body" name="body">
             </div>
 
             {{-- Cover preview --}}
             <div class="cover-box mt-3">
-              <div class="top">
-                <div class="fw-semibold"><i class="fa fa-image me-2"></i>Cover Preview</div>
+              <div class="cover-top">
+                <div class="fw-semibold">
+                  <i class="fa fa-image me-2"></i>Cover Preview
+                </div>
                 <div class="d-flex align-items-center gap-2">
-                  <button type="button" class="btn btn-light btn-sm" id="saBtnOpenCover" style="display:none;">
+                  <button type="button" class="btn btn-light btn-sm" id="btnOpenCover" style="display:none;">
                     <i class="fa fa-up-right-from-square me-1"></i>Open
-                  </button>
-                  <button type="button" class="btn btn-outline-danger btn-sm" id="saBtnRemoveCover" style="display:none;">
-                    <i class="fa fa-trash me-1"></i>Remove
                   </button>
                 </div>
               </div>
-              <div class="body">
-                <img id="saCoverPreview" src="" alt="Cover preview" style="display:none;">
-                <div id="saCoverEmpty" class="cover-empty">No cover selected.</div>
-                <div class="text-muted small mt-2" id="saCoverMeta" style="display:none;">—</div>
+              <div class="cover-body">
+                <img id="coverPreview" src="" alt="Cover preview" style="display:none;">
+                <div id="coverEmpty" class="text-muted small" style="padding:12px;border:1px dashed var(--line-soft);border-radius:12px;">
+                  No cover selected.
+                </div>
+                <div class="cover-meta" id="coverMeta" style="display:none;">—</div>
               </div>
             </div>
-
           </div>
+
         </div>
       </div>
 
       <div class="modal-footer">
         <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-        <button type="submit" class="btn btn-primary" id="saSaveBtn">
-          <i class="fa fa-floppy-disk me-1"></i>Save
+        <button type="submit" class="btn btn-primary" id="saveBtn">
+          <i class="fa fa-floppy-disk me-1"></i> Save
         </button>
       </div>
     </form>
@@ -684,15 +720,15 @@ td.col-slug code{
 
 {{-- Toasts --}}
 <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index:2000">
-  <div id="saToastOk" class="toast align-items-center text-bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+  <div id="toastSuccess" class="toast align-items-center text-bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
     <div class="d-flex">
-      <div class="toast-body" id="saToastOkText">Done</div>
+      <div class="toast-body" id="toastSuccessText">Done</div>
       <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
     </div>
   </div>
-  <div id="saToastErr" class="toast align-items-center text-bg-danger border-0 mt-2" role="alert" aria-live="assertive" aria-atomic="true">
+  <div id="toastError" class="toast align-items-center text-bg-danger border-0 mt-2" role="alert" aria-live="assertive" aria-atomic="true">
     <div class="d-flex">
-      <div class="toast-body" id="saToastErrText">Something went wrong</div>
+      <div class="toast-body" id="toastErrorText">Something went wrong</div>
       <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
     </div>
   </div>
@@ -705,8 +741,8 @@ td.col-slug code{
 
 <script>
 (() => {
-  if (window.__STUDENT_ACTIVITIES_MODULE_INIT__) return;
-  window.__STUDENT_ACTIVITIES_MODULE_INIT__ = true;
+  if (window.__ANNOUNCEMENTS_MODULE_INIT__) return;
+  window.__ANNOUNCEMENTS_MODULE_INIT__ = true;
 
   const $ = (id) => document.getElementById(id);
   const debounce = (fn, ms=300) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
@@ -748,146 +784,100 @@ td.col-slug code{
   async function fetchWithTimeout(url, opts={}, ms=15000){
     const ctrl = new AbortController();
     const t = setTimeout(()=>ctrl.abort(), ms);
-    try{ return await fetch(url, { ...opts, signal: ctrl.signal }); }
-    finally{ clearTimeout(t); }
-  }
-
-  function statusBadge(status){
-    const s = (status || '').toString().toLowerCase();
-    if (s === 'published') return `<span class="badge badge-soft-success">Published</span>`;
-    if (s === 'draft') return `<span class="badge badge-soft-warning">Draft</span>`;
-    if (s === 'archived') return `<span class="badge badge-soft-muted">Archived</span>`;
-    return `<span class="badge badge-soft-muted">${esc(s || '—')}</span>`;
-  }
-
-  function featuredBadge(v){
-    return v ? `<span class="badge badge-soft-primary">Yes</span>` : `<span class="badge badge-soft-muted">No</span>`;
-  }
-
-  function toLocal(s){
-    if (!s) return '';
-    const t = String(s).replace(' ', 'T');
-    return t.length >= 16 ? t.slice(0,16) : t;
-  }
-
-  function ensurePreHasCode(html){
-    return (html || '').replace(/<pre>([\s\S]*?)<\/pre>/gi, (m, inner) => {
-      if (/<code[\s>]/i.test(inner)) return `<pre>${inner}</pre>`;
-      return `<pre><code>${inner}</code></pre>`;
-    });
+    try{
+      return await fetch(url, { ...opts, signal: ctrl.signal });
+    } finally {
+      clearTimeout(t);
+    }
   }
 
   document.addEventListener('DOMContentLoaded', () => {
     const token = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
     if (!token) { window.location.href = '/'; return; }
 
-    const loadingEl = $('saLoading');
-    const showLoading = (v) => { if (loadingEl) loadingEl.style.display = v ? 'flex' : 'none'; };
+    const globalLoading = $('globalLoading');
+    const showLoading = (v) => { if (globalLoading) globalLoading.style.display = v ? 'flex' : 'none'; };
 
-    const toastOkEl = $('saToastOk');
-    const toastErrEl = $('saToastErr');
+    const toastOkEl = $('toastSuccess');
+    const toastErrEl = $('toastError');
     const toastOk = toastOkEl ? new bootstrap.Toast(toastOkEl) : null;
     const toastErr = toastErrEl ? new bootstrap.Toast(toastErrEl) : null;
-    const ok = (m) => { const el=$('saToastOkText'); if(el) el.textContent=m||'Done'; toastOk && toastOk.show(); };
-    const err = (m) => { const el=$('saToastErrText'); if(el) el.textContent=m||'Something went wrong'; toastErr && toastErr.show(); };
+    const ok = (m) => { const el=$('toastSuccessText'); if(el) el.textContent=m||'Done'; toastOk && toastOk.show(); };
+    const err = (m) => { const el=$('toastErrorText'); if(el) el.textContent=m||'Something went wrong'; toastErr && toastErr.show(); };
 
     const authHeaders = () => ({
       'Authorization': 'Bearer ' + token,
       'Accept': 'application/json'
     });
 
-    // Toolbar controls
-    const perPageSel = $('saPerPage');
-    const searchInput = $('saSearch');
-    const btnReset = $('saBtnReset');
-    const btnApplyFilters = $('saBtnApplyFilters');
-    const writeControls = $('saWriteControls');
-    const btnAdd = $('saBtnAdd');
+    const perPageSel = $('perPage');
+    const searchInput = $('searchInput');
+    const btnReset = $('btnReset');
+    const btnApplyFilters = $('btnApplyFilters');
+    const writeControls = $('writeControls');
+    const btnAddItem = $('btnAddItem');
 
-    // Filter modal
-    const filterModalEl = $('saFilterModal');
+    const tbodyActive = $('tbody-active');
+    const tbodyInactive = $('tbody-inactive');
+    const tbodyTrash = $('tbody-trash');
+
+    const emptyActive = $('empty-active');
+    const emptyInactive = $('empty-inactive');
+    const emptyTrash = $('empty-trash');
+
+    const pagerActive = $('pager-active');
+    const pagerInactive = $('pager-inactive');
+    const pagerTrash = $('pager-trash');
+
+    const infoActive = $('resultsInfo-active');
+    const infoInactive = $('resultsInfo-inactive');
+    const infoTrash = $('resultsInfo-trash');
+
+    const filterModalEl = $('filterModal');
     const filterModal = filterModalEl ? new bootstrap.Modal(filterModalEl) : null;
-    const modalStatus = $('saModalStatus');
-    const modalSort = $('saModalSort');
-    const modalFeatured = $('saModalFeatured');
+    const modalStatus = $('modal_status');
+    const modalSort = $('modal_sort');
+    const modalFeatured = $('modal_featured');
 
-    // Tables
-    const tbodyActive = $('saTbodyActive');
-    const tbodyInactive = $('saTbodyInactive');
-    const tbodyTrash = $('saTbodyTrash');
-
-    const emptyActive = $('saEmptyActive');
-    const emptyInactive = $('saEmptyInactive');
-    const emptyTrash = $('saEmptyTrash');
-
-    const pagerActive = $('saPagerActive');
-    const pagerInactive = $('saPagerInactive');
-    const pagerTrash = $('saPagerTrash');
-
-    const infoActive = $('saInfoActive');
-    const infoInactive = $('saInfoInactive');
-    const infoTrash = $('saInfoTrash');
-
-    // Item modal
-    const itemModalEl = $('saItemModal');
+    const itemModalEl = $('itemModal');
     const itemModal = itemModalEl ? new bootstrap.Modal(itemModalEl) : null;
-    const itemModalTitle = $('saItemModalTitle');
-    const itemForm = $('saItemForm');
-    const saveBtn = $('saSaveBtn');
+    const itemModalTitle = $('itemModalTitle');
+    const itemForm = $('itemForm');
+    const saveBtn = $('saveBtn');
 
-    const fUuid = $('saUuid');
-    const fId = $('saId');
-    const fCoverRemove = $('saCoverRemove');
+    const itemUuid = $('itemUuid');
+    const itemId = $('itemId');
+    const titleInput = $('title');
+    const slugInput = $('slug');
+    const sortOrderInput = $('sort_order');
+    const departmentSel = $('department_id');
+    const statusSel = $('status');
+    const featuredSel = $('is_featured_home');
+    const publishAtInput = $('publish_at');
+    const expireAtInput = $('expire_at');
+    const coverInput = $('cover_image');
+    const attachmentsInput = $('attachments');
 
-    const fTitle = $('saTitle');
-    const fSlug = $('saSlug');
+    const currentAttachmentsInfo = $('currentAttachmentsInfo');
+    const currentAttachmentsText = $('currentAttachmentsText');
 
-    // ✅ Department dropdown (added)
-    const fDepartmentId = $('saDepartmentId');
+    const coverPreview = $('coverPreview');
+    const coverEmpty = $('coverEmpty');
+    const coverMeta = $('coverMeta');
+    const btnOpenCover = $('btnOpenCover');
 
-    const fStatus = $('saStatus');
-    const fFeatured = $('saFeatured');
-    const fPublishAt = $('saPublishAt');
-    const fExpireAt = $('saExpireAt');
-    const fCover = $('saCover');
-    const fAttachments = $('saAttachments');
-
-    const currentAttachmentsInfo = $('saCurrentAttachmentsInfo');
-    const currentAttachmentsText = $('saCurrentAttachmentsText');
-
-    const btnOpenCover = $('saBtnOpenCover');
-    const btnRemoveCover = $('saBtnRemoveCover');
-    const coverPreview = $('saCoverPreview');
-    const coverEmpty = $('saCoverEmpty');
-    const coverMeta = $('saCoverMeta');
-
-    // RTE
-    const rte = {
-      box: $('saRteBox'),
-      bar: document.querySelector('#saRteBox .rte-bar'),
-      editor: $('saBodyEditor'),
-      code: $('saBodyCode'),
-      hidden: $('saBody'),
-      mode: 'text',
-      enabled: true
-    };
-
-    // Permissions
+    // ---------- permissions ----------
     const ACTOR = { role: '' };
     let canCreate=false, canEdit=false, canDelete=false;
-
     function computePermissions(){
       const r = (ACTOR.role || '').toLowerCase();
       const createDeleteRoles = ['admin','super_admin','director','principal'];
       const writeRoles = ['admin','super_admin','director','principal','hod','faculty','technical_assistant','it_person'];
-
       canCreate = createDeleteRoles.includes(r);
       canDelete = createDeleteRoles.includes(r);
       canEdit   = writeRoles.includes(r);
-
       if (writeControls) writeControls.style.display = canCreate ? 'flex' : 'none';
     }
-
     async function fetchMe(){
       try{
         const res = await fetchWithTimeout('/api/users/me', { headers: authHeaders() }, 8000);
@@ -903,125 +893,7 @@ td.col-slug code{
       computePermissions();
     }
 
-    // =========================
-    // ✅ Departments (added)
-    // =========================
-    let departmentsLoaded = false;
-    let departments = []; // [{id, name}]
-    let pendingDeptId = '';
-
-    function pickDeptName(d){
-      return (d?.name ?? d?.title ?? d?.department_name ?? d?.department_title ?? d?.label ?? '').toString().trim();
-    }
-    function pickDeptId(d){
-      const v = (d?.id ?? d?.department_id ?? d?.dept_id ?? d?.value);
-      return (v === 0 || v === '0' || v) ? String(v) : '';
-    }
-
-    function setDeptSelectOptions(list){
-      if (!fDepartmentId) return;
-
-      const selected = (fDepartmentId.value || '').toString();
-      const hasList = Array.isArray(list) && list.length;
-
-      const opts = [];
-      opts.push(`<option value="">Select department…</option>`);
-      if (hasList){
-        for (const d of list){
-          const id = String(d.id);
-          const name = (d.name || '').toString();
-          if (!id || !name) continue;
-          opts.push(`<option value="${esc(id)}">${esc(name)}</option>`);
-        }
-      } else {
-        opts.push(`<option value="" disabled>(Unable to load departments)</option>`);
-      }
-
-      fDepartmentId.innerHTML = opts.join('');
-
-      // re-apply selection if any
-      if (pendingDeptId){
-        fDepartmentId.value = String(pendingDeptId);
-        pendingDeptId = '';
-      } else if (selected){
-        fDepartmentId.value = selected;
-      }
-    }
-
-    function extractDepartmentsFromResponse(js){
-      // supports shapes: {data:[]}, {data:{data:[]}}, {departments:[]}, [] etc.
-      let arr = [];
-      if (Array.isArray(js)) arr = js;
-      else if (Array.isArray(js?.data)) arr = js.data;
-      else if (Array.isArray(js?.data?.data)) arr = js.data.data;
-      else if (Array.isArray(js?.departments)) arr = js.departments;
-      else if (Array.isArray(js?.items)) arr = js.items;
-      else arr = [];
-
-      const out = [];
-      const seen = new Set();
-      for (const d of arr){
-        const id = pickDeptId(d);
-        const name = pickDeptName(d);
-        if (!id || !name) continue;
-        if (seen.has(id)) continue;
-        seen.add(id);
-        out.push({ id, name });
-      }
-      return out;
-    }
-
-    async function loadDepartments(){
-      if (departmentsLoaded) return;
-      if (!fDepartmentId) { departmentsLoaded = true; return; }
-
-      // keep UI stable
-      fDepartmentId.innerHTML = `<option value="">Loading departments…</option>`;
-      fDepartmentId.disabled = true;
-
-      const urls = [
-        '/api/departments?per_page=500&page=1',
-        '/api/departments',
-      ];
-
-      for (const url of urls){
-        try{
-          const res = await fetchWithTimeout(url, { headers: authHeaders() }, 12000);
-          if (res.status === 401 || res.status === 403) { window.location.href = '/'; return; }
-          if (!res.ok) continue;
-
-          const js = await res.json().catch(()=> ({}));
-          const list = extractDepartmentsFromResponse(js);
-          if (list.length){
-            departments = list;
-            departmentsLoaded = true;
-            setDeptSelectOptions(departments);
-            fDepartmentId.disabled = false;
-            return;
-          }
-        }catch(_){
-          // try next url
-        }
-      }
-
-      // failed
-      departmentsLoaded = true;
-      departments = [];
-      setDeptSelectOptions([]);
-      fDepartmentId.disabled = false; // keep selectable (shows fallback option)
-    }
-
-    function setDepartmentValue(id){
-      if (!fDepartmentId) return;
-      const v = (id === 0 || id === '0' || id) ? String(id) : '';
-      if (departmentsLoaded){
-        fDepartmentId.value = v;
-      } else {
-        pendingDeptId = v;
-      }
-    }
-
-    // State
+    // ---------- state ----------
     const state = {
       filters: { q:'', status:'', featured:'', sort:'-created_at' },
       perPage: parseInt(perPageSel?.value || '20', 10) || 20,
@@ -1029,22 +901,133 @@ td.col-slug code{
         active:   { page:1, lastPage:1, items:[] },
         inactive: { page:1, lastPage:1, items:[] },
         trash:    { page:1, lastPage:1, items:[] }
-      }
+      },
+      departments: [],
+      departmentsLoaded: false
     };
 
-    function getTabKey(){
-      const a = document.querySelector('.nav-tabs .nav-link.active');
-      const href = a?.getAttribute('href') || '#sa-tab-active';
-      if (href === '#sa-tab-inactive') return 'inactive';
-      if (href === '#sa-tab-trash') return 'trash';
-      return 'active';
+    // ---------- departments ----------
+    function pickDeptLabel(d){
+      return (d?.title || d?.name || d?.department_title || d?.department_name || d?.label || '').toString().trim();
+    }
+    function pickDeptId(d){
+      const id = d?.id ?? d?.department_id ?? d?.dept_id ?? null;
+      return (id === null || id === undefined) ? '' : String(id);
     }
 
-    function defaultStatusForTab(tabKey){
-      if (tabKey === 'active') return 'published';
-      if (tabKey === 'inactive') return 'draft';
-      return '';
+    function renderDepartmentsOptions(selectedValue=''){
+      if (!departmentSel) return;
+
+      const opts = [];
+      opts.push(`<option value="">General (All Departments)</option>`);
+
+      if (!state.departmentsLoaded){
+        opts.push(`<option value="" disabled>Loading departments…</option>`);
+        departmentSel.innerHTML = opts.join('');
+        departmentSel.value = selectedValue || '';
+        return;
+      }
+
+      if (!state.departments.length){
+        opts.push(`<option value="" disabled>No departments found</option>`);
+        departmentSel.innerHTML = opts.join('');
+        departmentSel.value = selectedValue || '';
+        return;
+      }
+
+      for (const d of state.departments){
+        const id = pickDeptId(d);
+        const label = pickDeptLabel(d) || ('Department #' + id);
+        opts.push(`<option value="${esc(id)}">${esc(label)}</option>`);
+      }
+      departmentSel.innerHTML = opts.join('');
+      departmentSel.value = (selectedValue ?? '').toString();
     }
+
+    function ensureDeptOptionExists(deptId, deptName){
+      if (!departmentSel) return;
+      const id = (deptId ?? '').toString();
+      if (!id) return;
+
+      const exists = Array.from(departmentSel.options || []).some(o => (o.value || '') === id);
+      if (exists) return;
+
+      const label = (deptName || '').toString().trim() || ('Department #' + id);
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = label;
+
+      const insertAt = Math.min(1, departmentSel.options.length);
+      departmentSel.add(opt, departmentSel.options[insertAt] || null);
+    }
+
+    async function fetchDepartments(){
+      const urls = [
+        '/api/departments?per_page=500&active=1',
+        '/api/departments?per_page=500',
+        '/api/departments?all=1',
+        '/api/departments'
+      ];
+
+      for (const url of urls){
+        try{
+          const res = await fetchWithTimeout(url, { headers: authHeaders() }, 12000);
+          if (res.status === 401 || res.status === 403) { window.location.href = '/'; return []; }
+          if (!res.ok) continue;
+
+          const js = await res.json().catch(()=> ({}));
+
+          let rows = [];
+          if (Array.isArray(js?.data)) rows = js.data;
+          else if (Array.isArray(js?.data?.data)) rows = js.data.data;
+          else if (Array.isArray(js?.departments)) rows = js.departments;
+          else if (Array.isArray(js)) rows = js;
+
+          rows = (rows || []).filter(Boolean).map(d => ({
+            raw: d,
+            id: pickDeptId(d),
+            label: pickDeptLabel(d)
+          })).filter(x => x.id);
+
+          const seen = new Set();
+          const out = [];
+          for (const x of rows){
+            if (seen.has(x.id)) continue;
+            seen.add(x.id);
+            out.push(x.raw);
+          }
+
+          return out;
+        }catch(_){}
+      }
+      return [];
+    }
+
+    async function ensureDepartmentsLoaded(selectedValue=''){
+      if (!departmentSel) return;
+
+      if (!state.departmentsLoaded){
+        renderDepartmentsOptions(selectedValue || departmentSel.value || '');
+      }
+
+      if (state.departmentsLoaded) {
+        if (selectedValue !== undefined) departmentSel.value = (selectedValue ?? '').toString();
+        return;
+      }
+
+      const rows = await fetchDepartments();
+      state.departments = rows;
+      state.departmentsLoaded = true;
+      renderDepartmentsOptions(selectedValue || departmentSel.value || '');
+    }
+
+    const getTabKey = () => {
+      const a = document.querySelector('.nav-tabs .nav-link.active');
+      const href = a?.getAttribute('href') || '#tab-active';
+      if (href === '#tab-inactive') return 'inactive';
+      if (href === '#tab-trash') return 'trash';
+      return 'active';
+    };
 
     function buildUrl(tabKey){
       const params = new URLSearchParams();
@@ -1054,26 +1037,34 @@ td.col-slug code{
       const q = (state.filters.q || '').trim();
       if (q) params.set('q', q);
 
-      // sort + direction
       const s = state.filters.sort || '-created_at';
       params.set('sort', s.startsWith('-') ? s.slice(1) : s);
       params.set('direction', s.startsWith('-') ? 'desc' : 'asc');
 
-      if (tabKey === 'trash'){
-        params.set('only_trashed', '1');
-      } else {
-        const st = (state.filters.status || '').trim() || defaultStatusForTab(tabKey);
-        if (st) params.set('status', st);
-      }
-
+      if (state.filters.status) params.set('status', state.filters.status);
       if (state.filters.featured !== '') params.set('featured', state.filters.featured);
 
-      return `/api/student-activities?${params.toString()}`;
+      if (tabKey === 'active') params.set('active', '1');
+      if (tabKey === 'inactive') params.set('active', '0');
+      if (tabKey === 'trash') params.set('only_trashed', '1');
+
+      return `/api/announcements?${params.toString()}`;
     }
 
     function setEmpty(tabKey, show){
       const el = tabKey==='active' ? emptyActive : (tabKey==='inactive' ? emptyInactive : emptyTrash);
       if (el) el.style.display = show ? '' : 'none';
+    }
+
+    function statusBadge(status){
+      const s = (status || '').toString().toLowerCase();
+      if (s === 'published') return `<span class="badge badge-soft-success">Published</span>`;
+      if (s === 'draft') return `<span class="badge badge-soft-warning">Draft</span>`;
+      if (s === 'archived') return `<span class="badge badge-soft-muted">Archived</span>`;
+      return `<span class="badge badge-soft-muted">${esc(s || '—')}</span>`;
+    }
+    function featuredBadge(v){
+      return v ? `<span class="badge badge-soft-primary">Yes</span>` : `<span class="badge badge-soft-muted">No</span>`;
     }
 
     function renderPager(tabKey){
@@ -1099,15 +1090,6 @@ td.col-slug code{
       pagerEl.innerHTML = html;
     }
 
-    function findRowByUuid(uuid){
-      const all = [
-        ...(state.tabs.active.items || []),
-        ...(state.tabs.inactive.items || []),
-        ...(state.tabs.trash.items || []),
-      ];
-      return all.find(x => x?.uuid === uuid) || null;
-    }
-
     function renderTable(tabKey){
       const tbody = tabKey==='active' ? tbodyActive : (tabKey==='inactive' ? tbodyInactive : tbodyTrash);
       const rows = state.tabs[tabKey].items || [];
@@ -1125,63 +1107,50 @@ td.col-slug code{
         const uuid = r.uuid || '';
         const title = r.title || '—';
         const slug = r.slug || '—';
-        const dept = r.department_title || '—';
-        const status = (r.status || '').toString();
-        const featured = !!(r.is_featured_home ?? 0);
+        const status = r.status || (r.active ? 'published' : 'draft');
+        const featured = !!(r.is_featured_home ?? r.featured ?? 0);
         const publishAt = r.publish_at || '—';
         const updated = r.updated_at || '—';
-        const views = (r.views_count ?? 0);
-
         const deleted = r.deleted_at || '—';
+        const sortOrder = (r.sort_order ?? 0);
 
-        // actions
-        let menu = `
+        let actions = `
           <div class="dropdown text-end">
             <button type="button"
               class="btn btn-light btn-sm dd-toggle"
-              data-bs-toggle="dropdown"
-              data-bs-auto-close="true"
               aria-expanded="false" title="Actions">
               <i class="fa fa-ellipsis-vertical"></i>
             </button>
             <ul class="dropdown-menu dropdown-menu-end">
               <li><button type="button" class="dropdown-item" data-action="view"><i class="fa fa-eye"></i> View</button></li>`;
 
-        if (tabKey !== 'trash' && canEdit){
-          menu += `<li><button type="button" class="dropdown-item" data-action="edit"><i class="fa fa-pen-to-square"></i> Edit</button></li>`;
-          menu += `<li><button type="button" class="dropdown-item" data-action="toggleFeatured"><i class="fa fa-star"></i> Toggle Featured</button></li>`;
-
-          // quick status switch
-          if ((status || '').toLowerCase() !== 'published'){
-            menu += `<li><button type="button" class="dropdown-item" data-action="markPublished"><i class="fa fa-circle-check"></i> Mark Published</button></li>`;
-          } else {
-            menu += `<li><button type="button" class="dropdown-item" data-action="markDraft"><i class="fa fa-circle-pause"></i> Mark Draft</button></li>`;
-          }
+        if (canEdit && tabKey !== 'trash'){
+          actions += `<li><button type="button" class="dropdown-item" data-action="edit"><i class="fa fa-pen-to-square"></i> Edit</button></li>`;
         }
 
         if (tabKey !== 'trash'){
           if (canDelete){
-            menu += `<li><hr class="dropdown-divider"></li>
+            actions += `<li><hr class="dropdown-divider"></li>
               <li><button type="button" class="dropdown-item text-danger" data-action="delete"><i class="fa fa-trash"></i> Delete</button></li>`;
           }
         } else {
-          menu += `<li><hr class="dropdown-divider"></li>
+          actions += `<li><hr class="dropdown-divider"></li>
             <li><button type="button" class="dropdown-item" data-action="restore"><i class="fa fa-rotate-left"></i> Restore</button></li>`;
           if (canDelete){
-            menu += `<li><button type="button" class="dropdown-item text-danger" data-action="force"><i class="fa fa-skull-crossbones"></i> Delete Permanently</button></li>`;
+            actions += `<li><button type="button" class="dropdown-item text-danger" data-action="force"><i class="fa fa-skull-crossbones"></i> Delete Permanently</button></li>`;
           }
         }
 
-        menu += `</ul></div>`;
+        actions += `</ul></div>`;
 
         if (tabKey === 'trash'){
           return `
             <tr data-uuid="${esc(uuid)}">
               <td class="fw-semibold">${esc(title)}</td>
               <td class="col-slug"><code>${esc(slug)}</code></td>
-              <td>${esc(dept)}</td>
-              <td>${esc(String(deleted))}</td>
-              <td class="text-end">${menu}</td>
+              <td>${esc(deleted)}</td>
+              <td>${esc(String(sortOrder))}</td>
+              <td class="text-end">${actions}</td>
             </tr>`;
         }
 
@@ -1189,13 +1158,12 @@ td.col-slug code{
           <tr data-uuid="${esc(uuid)}">
             <td class="fw-semibold">${esc(title)}</td>
             <td class="col-slug"><code>${esc(slug)}</code></td>
-            <td>${esc(dept)}</td>
             <td>${statusBadge(status)}</td>
             <td>${featuredBadge(featured)}</td>
             <td>${esc(String(publishAt))}</td>
-            <td>${esc(String(views))}</td>
+            <td>${esc(String(sortOrder))}</td>
             <td>${esc(String(updated))}</td>
-            <td class="text-end">${menu}</td>
+            <td class="text-end">${actions}</td>
           </tr>`;
       }).join('');
 
@@ -1205,10 +1173,9 @@ td.col-slug code{
     async function loadTab(tabKey){
       const tbody = tabKey==='active' ? tbodyActive : (tabKey==='inactive' ? tbodyInactive : tbodyTrash);
       if (tbody){
-        const cols = (tabKey==='trash') ? 5 : 9;
+        const cols = (tabKey==='trash') ? 5 : 8;
         tbody.innerHTML = `<tr><td colspan="${cols}" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>`;
       }
-
       try{
         const res = await fetchWithTimeout(buildUrl(tabKey), { headers: authHeaders() }, 15000);
         if (res.status === 401 || res.status === 403) { window.location.href = '/'; return; }
@@ -1218,14 +1185,12 @@ td.col-slug code{
 
         const items = Array.isArray(js.data) ? js.data : [];
         const p = js.pagination || js.meta || {};
-
         state.tabs[tabKey].items = items;
         state.tabs[tabKey].lastPage = parseInt(p.last_page || p.total_pages || 1, 10) || 1;
 
-        const label = (p.total ? `${p.total} result(s)` : '—');
-        if (tabKey === 'active' && infoActive) infoActive.textContent = label;
-        if (tabKey === 'inactive' && infoInactive) infoInactive.textContent = label;
-        if (tabKey === 'trash' && infoTrash) infoTrash.textContent = label;
+        if (tabKey === 'active' && infoActive) infoActive.textContent = (p.total ? `${p.total} result(s)` : '—');
+        if (tabKey === 'inactive' && infoInactive) infoInactive.textContent = (p.total ? `${p.total} result(s)` : '—');
+        if (tabKey === 'trash' && infoTrash) infoTrash.textContent = (p.total ? `${p.total} result(s)` : '—');
 
         renderTable(tabKey);
       }catch(e){
@@ -1238,7 +1203,7 @@ td.col-slug code{
 
     function reloadCurrent(){ loadTab(getTabKey()); }
 
-    // Pager click
+    // ---------- pager ----------
     document.addEventListener('click', (e) => {
       const a = e.target.closest('a.page-link[data-page]');
       if (!a) return;
@@ -1252,7 +1217,7 @@ td.col-slug code{
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
 
-    // Filters
+    // ---------- filters ----------
     searchInput?.addEventListener('input', debounce(() => {
       state.filters.q = (searchInput.value || '').trim();
       state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
@@ -1293,37 +1258,112 @@ td.col-slug code{
       reloadCurrent();
     });
 
-    // Tab switched
-    document.querySelector('a[href="#sa-tab-active"]')?.addEventListener('shown.bs.tab', () => loadTab('active'));
-    document.querySelector('a[href="#sa-tab-inactive"]')?.addEventListener('shown.bs.tab', () => loadTab('inactive'));
-    document.querySelector('a[href="#sa-tab-trash"]')?.addEventListener('shown.bs.tab', () => loadTab('trash'));
+    document.querySelector('a[href="#tab-active"]')?.addEventListener('shown.bs.tab', () => loadTab('active'));
+    document.querySelector('a[href="#tab-inactive"]')?.addEventListener('shown.bs.tab', () => loadTab('inactive'));
+    document.querySelector('a[href="#tab-trash"]')?.addEventListener('shown.bs.tab', () => loadTab('trash'));
 
-    // =========================
-    // RTE
-    // =========================
+    // ---------- ✅ ACTION DROPDOWN FIX (SAME AS reference page) ----------
+    // Manual dropdown toggle with Popper strategy "fixed" => works inside overflow/scroll containers.
+    function closeAllDropdownsExcept(exceptToggle){
+      document.querySelectorAll('.dd-toggle').forEach(t => {
+        if (t === exceptToggle) return;
+        try{
+          const inst = bootstrap.Dropdown.getInstance(t);
+          inst && inst.hide();
+        }catch(_){}
+      });
+    }
+
+    document.addEventListener('click', (e) => {
+      const toggle = e.target.closest('.dd-toggle');
+      if (!toggle) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      closeAllDropdownsExcept(toggle);
+
+      try{
+        const inst = bootstrap.Dropdown.getOrCreateInstance(toggle, {
+          autoClose: true,
+          popperConfig: (def) => {
+            const base = def || {};
+            const mods = Array.isArray(base.modifiers) ? base.modifiers.slice() : [];
+            mods.push({ name:'preventOverflow', options:{ boundary:'viewport', padding:8 } });
+            mods.push({ name:'flip', options:{ boundary:'viewport', padding:8 } });
+            return { ...base, strategy:'fixed', modifiers: mods };
+          }
+        });
+        inst.toggle();
+      }catch(_){}
+    });
+
+    // close when clicking outside any dropdown
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('.dropdown')) return;
+      closeAllDropdownsExcept(null);
+    }, { capture: true });
+
+    // ---------- RTE ----------
+    const rte = {
+      wrap: $('bodyWrap'),
+      toolbar: document.querySelector('#bodyWrap .rte-toolbar'),
+      editor: $('bodyEditor'),
+      code: $('bodyCode'),
+      hidden: $('body'),
+      mode: 'text',
+      enabled: true
+    };
+
+    function ensurePreHasCode(html){
+      return (html || '').replace(/<pre>([\s\S]*?)<\/pre>/gi, (m, inner) => {
+        if (/<code[\s>]/i.test(inner)) return `<pre>${inner}</pre>`;
+        return `<pre><code>${inner}</code></pre>`;
+      });
+    }
+
     function rteFocus(){
       try { rte.editor?.focus({ preventScroll:true }); }
       catch(_) { try { rte.editor?.focus(); } catch(__){} }
     }
 
-    function syncEditorToCode(){
+    function placeCaretAtMarker(marker){
+      const sel = window.getSelection();
+      if (!sel || !marker) return;
+      const range = document.createRange();
+      range.setStartAfter(marker);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      marker.remove();
+    }
+
+    function insertHtmlWithCaret(html){
+      rteFocus();
+      const markerId = 'rte_caret_' + Math.random().toString(16).slice(2);
+      document.execCommand('insertHTML', false, html + `<span id="${markerId}">\u200b</span>`);
+      const marker = document.getElementById(markerId);
+      if (marker) placeCaretAtMarker(marker);
+    }
+
+    function syncRteToCode(){
       if (!rte.editor || !rte.code) return;
       if (rte.mode === 'text') rte.code.value = ensurePreHasCode(rte.editor.innerHTML || '');
     }
 
     function setRteMode(mode){
       rte.mode = (mode === 'code') ? 'code' : 'text';
-      rte.box?.classList.toggle('mode-code', rte.mode === 'code');
+      rte.wrap?.classList.toggle('mode-code', rte.mode === 'code');
 
-      rte.box?.querySelectorAll('.rte-modes button').forEach(b => {
-        b.classList.toggle('active', b.dataset.mode === rte.mode);
+      rte.wrap?.querySelectorAll('.rte-tabs .tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.mode === rte.mode);
       });
 
-      const disableBtns = (rte.mode === 'code') || !rte.enabled;
-      rte.box?.querySelectorAll('.rte-btn').forEach(b => {
-        b.disabled = disableBtns;
-        b.style.opacity = disableBtns ? '0.55' : '';
-        b.style.pointerEvents = disableBtns ? 'none' : '';
+      const disable = (rte.mode === 'code') || !rte.enabled;
+      rte.wrap?.querySelectorAll('.rte-toolbar .rte-btn').forEach(b => {
+        b.disabled = disable;
+        b.style.opacity = disable ? '0.55' : '';
+        b.style.pointerEvents = disable ? 'none' : '';
       });
 
       if (rte.mode === 'code'){
@@ -1335,10 +1375,10 @@ td.col-slug code{
       }
     }
 
-    function updateActiveBtns(){
-      if (!rte.bar || rte.mode !== 'text') return;
+    function updateToolbarActive(){
+      if (!rte.toolbar || rte.mode !== 'text') return;
       const set = (cmd, on) => {
-        const b = rte.bar.querySelector(`.rte-btn[data-cmd="${cmd}"]`);
+        const b = rte.toolbar.querySelector(`.rte-btn[data-cmd="${cmd}"]`);
         if (b) b.classList.toggle('active', !!on);
       };
       try{
@@ -1348,19 +1388,19 @@ td.col-slug code{
       }catch(_){}
     }
 
-    rte.bar?.addEventListener('pointerdown', (e) => { e.preventDefault(); });
+    rte.toolbar?.addEventListener('pointerdown', (e) => { e.preventDefault(); });
 
-    rte.editor?.addEventListener('input', () => { syncEditorToCode(); updateActiveBtns(); });
-    ['mouseup','keyup','click'].forEach(ev => rte.editor?.addEventListener(ev, updateActiveBtns));
+    rte.editor?.addEventListener('input', () => { syncRteToCode(); updateToolbarActive(); });
+    ['mouseup','keyup','click'].forEach(ev => rte.editor?.addEventListener(ev, updateToolbarActive));
     document.addEventListener('selectionchange', () => {
-      if (document.activeElement === rte.editor) updateActiveBtns();
+      if (document.activeElement === rte.editor) updateToolbarActive();
     });
 
     document.addEventListener('click', (e) => {
-      const modeBtn = e.target.closest('#saRteBox .rte-modes button');
-      if (modeBtn){ setRteMode(modeBtn.dataset.mode); return; }
+      const tab = e.target.closest('#bodyWrap .rte-tabs .tab');
+      if (tab){ setRteMode(tab.dataset.mode); return; }
 
-      const btn = e.target.closest('#saRteBox .rte-btn');
+      const btn = e.target.closest('#bodyWrap .rte-toolbar .rte-btn');
       if (!btn || rte.mode !== 'text' || !rte.enabled) return;
 
       rteFocus();
@@ -1371,37 +1411,37 @@ td.col-slug code{
 
       if (block){
         try{ document.execCommand('formatBlock', false, `<${block}>`); }catch(_){}
-        syncEditorToCode(); updateActiveBtns();
+        syncRteToCode(); updateToolbarActive();
         return;
       }
 
       if (insert === 'code'){
         const sel = window.getSelection();
-        const txt = sel && !sel.isCollapsed ? sel.toString() : '';
-        if (txt.trim()){
-          document.execCommand('insertHTML', false, `<code>${esc(txt)}</code>`);
+        const hasSel = sel && sel.rangeCount && !sel.isCollapsed && sel.toString().trim();
+        if (hasSel){
+          document.execCommand('insertHTML', false, `<code>${esc(sel.toString())}</code>`);
         } else {
-          document.execCommand('insertHTML', false, `<code>\u200b</code>`);
+          insertHtmlWithCaret('<code></code>');
         }
-        syncEditorToCode(); updateActiveBtns();
+        syncRteToCode(); updateToolbarActive();
         return;
       }
 
       if (insert === 'pre'){
         const sel = window.getSelection();
-        const txt = sel && !sel.isCollapsed ? sel.toString() : '';
-        if (txt.trim()){
-          document.execCommand('insertHTML', false, `<pre><code>${esc(txt)}</code></pre>`);
+        const hasSel = sel && sel.rangeCount && !sel.isCollapsed && sel.toString().trim();
+        if (hasSel){
+          document.execCommand('insertHTML', false, `<pre><code>${esc(sel.toString())}</code></pre>`);
         } else {
-          document.execCommand('insertHTML', false, `<pre><code>\u200b</code></pre>`);
+          insertHtmlWithCaret('<pre><code></code></pre>');
         }
-        syncEditorToCode(); updateActiveBtns();
+        syncRteToCode(); updateToolbarActive();
         return;
       }
 
       if (cmd){
         try{ document.execCommand(cmd, false, null); }catch(_){}
-        syncEditorToCode(); updateActiveBtns();
+        syncRteToCode(); updateToolbarActive();
       }
     });
 
@@ -1410,21 +1450,19 @@ td.col-slug code{
       if (rte.editor) rte.editor.setAttribute('contenteditable', on ? 'true' : 'false');
       if (rte.code) rte.code.disabled = !on;
 
-      const disableBtns = (rte.mode === 'code') || !rte.enabled;
-      rte.box?.querySelectorAll('.rte-btn').forEach(b => {
-        b.disabled = disableBtns;
-        b.style.opacity = disableBtns ? '0.55' : '';
-        b.style.pointerEvents = disableBtns ? 'none' : '';
+      const disable = (rte.mode === 'code') || !rte.enabled;
+      rte.wrap?.querySelectorAll('.rte-toolbar .rte-btn').forEach(b => {
+        b.disabled = disable;
+        b.style.opacity = disable ? '0.55' : '';
+        b.style.pointerEvents = disable ? 'none' : '';
       });
-      rte.box?.querySelectorAll('.rte-modes button').forEach(b => {
-        b.style.pointerEvents = on ? '' : 'none';
-        b.style.opacity = on ? '' : '0.7';
+      rte.wrap?.querySelectorAll('.rte-tabs .tab').forEach(t => {
+        t.style.pointerEvents = on ? '' : 'none';
+        t.style.opacity = on ? '' : '0.7';
       });
     }
 
-    // =========================
-    // Cover preview
-    // =========================
+    // ---------- cover preview ----------
     let coverObjectUrl = null;
 
     function clearCoverPreview(revoke=true){
@@ -1440,7 +1478,6 @@ td.col-slug code{
       if (coverEmpty) coverEmpty.style.display = '';
       if (coverMeta){ coverMeta.style.display = 'none'; coverMeta.textContent = '—'; }
       if (btnOpenCover){ btnOpenCover.style.display = 'none'; btnOpenCover.onclick = null; }
-      if (btnRemoveCover){ btnRemoveCover.style.display = 'none'; btnRemoveCover.onclick = null; }
     }
 
     function setCoverPreview(url, metaText=''){
@@ -1461,36 +1498,21 @@ td.col-slug code{
         btnOpenCover.style.display = '';
         btnOpenCover.onclick = () => window.open(u, '_blank', 'noopener');
       }
-      if (btnRemoveCover){
-        btnRemoveCover.style.display = '';
-      }
     }
 
-    fCover?.addEventListener('change', () => {
-      const f = fCover.files?.[0];
+    coverInput?.addEventListener('change', () => {
+      const f = coverInput.files?.[0];
       if (!f) { clearCoverPreview(true); return; }
-
-      // selecting a new cover implies NOT removing existing
-      if (fCoverRemove) fCoverRemove.value = '0';
 
       if (coverObjectUrl){
         try{ URL.revokeObjectURL(coverObjectUrl); }catch(_){}
       }
       coverObjectUrl = URL.createObjectURL(f);
       setCoverPreview(coverObjectUrl, `${f.name || 'cover'} • ${bytes(f.size)}`);
-      if (btnRemoveCover) btnRemoveCover.style.display = '';
     });
 
-    btnRemoveCover?.addEventListener('click', () => {
-      // mark remove + clear preview
-      if (fCoverRemove) fCoverRemove.value = '1';
-      if (fCover) fCover.value = '';
-      clearCoverPreview(true);
-      ok('Cover will be removed on save');
-    });
-
-    fAttachments?.addEventListener('change', () => {
-      const files = Array.from(fAttachments.files || []);
+    attachmentsInput?.addEventListener('change', () => {
+      const files = Array.from(attachmentsInput.files || []);
       if (!files.length){
         if (currentAttachmentsInfo) currentAttachmentsInfo.style.display = 'none';
         if (currentAttachmentsText) currentAttachmentsText.textContent = '—';
@@ -1500,9 +1522,7 @@ td.col-slug code{
       if (currentAttachmentsText) currentAttachmentsText.textContent = `${files.length} selected`;
     });
 
-    // =========================
-    // Modal helpers
-    // =========================
+    // ---------- modal helpers ----------
     let saving = false;
     let slugDirty = false;
     let settingSlug = false;
@@ -1513,22 +1533,16 @@ td.col-slug code{
       btn.classList.toggle('btn-loading', !!loading);
     }
 
+    function normalizeAttachments(r){
+      let a = r?.attachments || r?.attachments_json || r?.attachments_list || null;
+      if (typeof a === 'string') { try{ a = JSON.parse(a); }catch(_){ a=null; } }
+      return Array.isArray(a) ? a : [];
+    }
+
     function resetForm(){
       itemForm?.reset();
-      fUuid.value = '';
-      fId.value = '';
-      if (fCoverRemove) fCoverRemove.value = '0';
-
-      // ✅ reset department (added)
-      if (fDepartmentId){
-        if (!departmentsLoaded){
-          pendingDeptId = '';
-          fDepartmentId.innerHTML = `<option value="">Loading departments…</option>`;
-        } else {
-          setDeptSelectOptions(departments);
-        }
-        fDepartmentId.value = '';
-      }
+      itemUuid.value = '';
+      itemId.value = '';
 
       slugDirty = false;
       settingSlug = false;
@@ -1539,57 +1553,68 @@ td.col-slug code{
       setRteMode('text');
       setRteEnabled(true);
 
+      if (departmentSel){
+        renderDepartmentsOptions('');
+        departmentSel.value = '';
+      }
+
       if (currentAttachmentsInfo) currentAttachmentsInfo.style.display = 'none';
       if (currentAttachmentsText) currentAttachmentsText.textContent = '—';
 
       clearCoverPreview(true);
 
       itemForm?.querySelectorAll('input,select,textarea').forEach(el => {
-        if (el.id === 'saUuid' || el.id === 'saId' || el.id === 'saCoverRemove') return;
+        if (el.id === 'itemUuid' || el.id === 'itemId') return;
         if (el.type === 'file') el.disabled = false;
         else if (el.tagName === 'SELECT') el.disabled = false;
         else el.readOnly = false;
       });
 
       if (saveBtn) saveBtn.style.display = '';
-      itemForm.dataset.mode = 'edit';
-      itemForm.dataset.intent = 'create';
+      if (itemForm){
+        itemForm.dataset.mode = 'edit';
+        itemForm.dataset.intent = 'create';
+      }
     }
 
-    function normalizeAttachments(r){
-      let a = r?.attachments || r?.attachments_json || null;
-      if (typeof a === 'string') { try{ a = JSON.parse(a); }catch(_){ a=null; } }
-      return Array.isArray(a) ? a : [];
+    function toLocal(s){
+      if (!s) return '';
+      const t = String(s).replace(' ', 'T');
+      return t.length >= 16 ? t.slice(0,16) : t;
     }
 
     function fillFormFromRow(r, viewOnly=false){
-      fUuid.value = r.uuid || '';
-      fId.value = r.id || '';
-      if (fCoverRemove) fCoverRemove.value = '0';
+      itemUuid.value = r.uuid || '';
+      itemId.value = r.id || '';
 
-      fTitle.value = r.title || '';
-      fSlug.value = r.slug || '';
+      titleInput.value = r.title || '';
+      slugInput.value = r.slug || '';
+      sortOrderInput.value = String(r.sort_order ?? 0);
 
-      // ✅ set department (added)
-      const deptId = r.department_id || r?.department?.id || r?.departmentId || '';
-      setDepartmentValue(deptId);
+      const deptId = r.department_id ?? r?.department?.id ?? r?.department?.department_id ?? '';
+      const deptName = r?.department?.title || r?.department?.name || '';
+      if (departmentSel){
+        const v = (deptId === null || deptId === undefined) ? '' : String(deptId);
+        if (v) ensureDeptOptionExists(v, deptName);
+        departmentSel.value = v || '';
+      }
 
-      fStatus.value = (r.status || 'draft');
-      fFeatured.value = String((r.is_featured_home ?? 0) ? 1 : 0);
+      statusSel.value = (r.status || (r.active ? 'published' : 'draft') || 'draft');
+      featuredSel.value = String((r.is_featured_home ?? r.featured ?? 0) ? 1 : 0);
 
-      fPublishAt.value = toLocal(r.publish_at);
-      fExpireAt.value = toLocal(r.expire_at);
+      publishAtInput.value = toLocal(r.publish_at);
+      expireAtInput.value = toLocal(r.expire_at);
 
-      const bodyHtml = (r.body ?? '') || '';
+      const bodyHtml = (r.body ?? r.body_html ?? r.body_content ?? '') || '';
       if (rte.editor) rte.editor.innerHTML = ensurePreHasCode(bodyHtml);
-      syncEditorToCode();
+      syncRteToCode();
       setRteMode('text');
 
-      const coverUrl = r.cover_image_url || r.cover_image || '';
+      const coverUrl = r.cover_image_url || r.cover_url || r.cover_image || '';
       if (coverUrl){
+        const meta = r.cover_original_name ? `${r.cover_original_name}${r.cover_file_size ? ' • ' + bytes(r.cover_file_size) : ''}` : '';
         clearCoverPreview(true);
-        setCoverPreview(coverUrl, '');
-        if (btnRemoveCover) btnRemoveCover.style.display = viewOnly ? 'none' : '';
+        setCoverPreview(coverUrl, meta);
       } else {
         clearCoverPreview(true);
       }
@@ -1607,14 +1632,13 @@ td.col-slug code{
 
       if (viewOnly){
         itemForm?.querySelectorAll('input,select,textarea').forEach(el => {
-          if (el.id === 'saUuid' || el.id === 'saId' || el.id === 'saCoverRemove') return;
+          if (el.id === 'itemUuid' || el.id === 'itemId') return;
           if (el.type === 'file') el.disabled = true;
           else if (el.tagName === 'SELECT') el.disabled = true;
           else el.readOnly = true;
         });
         setRteEnabled(false);
         if (saveBtn) saveBtn.style.display = 'none';
-        if (btnRemoveCover) btnRemoveCover.style.display = 'none';
         itemForm.dataset.mode = 'view';
         itemForm.dataset.intent = 'view';
       } else {
@@ -1625,31 +1649,39 @@ td.col-slug code{
       }
     }
 
-    fTitle?.addEventListener('input', debounce(() => {
+    function findRowByUuid(uuid){
+      const all = [
+        ...(state.tabs.active.items || []),
+        ...(state.tabs.inactive.items || []),
+        ...(state.tabs.trash.items || []),
+      ];
+      return all.find(x => x?.uuid === uuid) || null;
+    }
+
+    titleInput?.addEventListener('input', debounce(() => {
       if (itemForm?.dataset.mode === 'view') return;
-      if (fUuid.value) return;
+      if (itemUuid.value) return;
       if (slugDirty) return;
-      const next = slugify(fTitle.value);
+      const next = slugify(titleInput.value);
       settingSlug = true;
-      fSlug.value = next;
+      slugInput.value = next;
       settingSlug = false;
     }, 120));
 
-    fSlug?.addEventListener('input', () => {
-      if (fUuid.value) return;
+    slugInput?.addEventListener('input', () => {
+      if (itemUuid.value) return;
       if (settingSlug) return;
-      slugDirty = !!(fSlug.value || '').trim();
+      slugDirty = !!(slugInput.value || '').trim();
     });
 
-    btnAdd?.addEventListener('click', async () => {
+    btnAddItem?.addEventListener('click', async () => {
       if (!canCreate) return;
       resetForm();
-
-      // ✅ ensure departments are loaded before opening (added)
-      await loadDepartments();
-
-      if (itemModalTitle) itemModalTitle.textContent = 'Add Student Activity';
+      if (itemModalTitle) itemModalTitle.textContent = 'Add Announcement';
       itemForm.dataset.intent = 'create';
+
+      await ensureDepartmentsLoaded('');
+
       itemModal && itemModal.show();
     });
 
@@ -1657,34 +1689,7 @@ td.col-slug code{
       if (coverObjectUrl){ try{ URL.revokeObjectURL(coverObjectUrl); }catch(_){ } coverObjectUrl=null; }
     });
 
-    // =========================
-    // Row actions
-    // =========================
-    async function updateStatus(uuid, status){
-      showLoading(true);
-      try{
-        const fd = new FormData();
-        fd.append('_method', 'PUT');
-        fd.append('status', status);
-
-        const res = await fetchWithTimeout(`/api/student-activities/${encodeURIComponent(uuid)}`, {
-          method: 'POST',
-          headers: authHeaders(),
-          body: fd
-        }, 15000);
-
-        const js = await res.json().catch(()=> ({}));
-        if (!res.ok || js.success === false) throw new Error(js?.message || 'Update failed');
-
-        ok('Status updated');
-        await Promise.all([loadTab('active'), loadTab('inactive')]);
-      }catch(ex){
-        err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
-      }finally{
-        showLoading(false);
-      }
-    }
-
+    // ---------- row actions ----------
     document.addEventListener('click', async (e) => {
       const btn = e.target.closest('button[data-action]');
       if (!btn) return;
@@ -1694,54 +1699,30 @@ td.col-slug code{
       const act = btn.dataset.action;
       if (!uuid) return;
 
-      // close dropdown (bootstrap)
+      const row = findRowByUuid(uuid);
+
+      // close dropdown
       const toggle = btn.closest('.dropdown')?.querySelector('.dd-toggle');
       if (toggle) { try { bootstrap.Dropdown.getOrCreateInstance(toggle).hide(); } catch (_) {} }
-
-      const row = findRowByUuid(uuid) || {};
 
       if (act === 'view' || act === 'edit'){
         if (act === 'edit' && !canEdit) return;
 
-        // ✅ ensure departments are loaded before filling (added)
-        await loadDepartments();
-
         resetForm();
-        if (itemModalTitle) itemModalTitle.textContent = (act === 'view') ? 'View Student Activity' : 'Edit Student Activity';
-        fillFormFromRow(row, act === 'view');
+
+        const deptId = row?.department_id ?? row?.department?.id ?? '';
+        await ensureDepartmentsLoaded((deptId === null || deptId === undefined) ? '' : String(deptId));
+
+        if (itemModalTitle) itemModalTitle.textContent = act === 'view' ? 'View Announcement' : 'Edit Announcement';
+        fillFormFromRow(row || {}, act === 'view');
         itemModal && itemModal.show();
         return;
       }
 
-      if (act === 'toggleFeatured'){
-        if (!canEdit) return;
-        showLoading(true);
-        try{
-          const res = await fetchWithTimeout(`/api/student-activities/${encodeURIComponent(uuid)}/toggle-featured`, {
-            method: 'POST',
-            headers: authHeaders()
-          }, 15000);
-
-          const js = await res.json().catch(()=> ({}));
-          if (!res.ok || js.success === false) throw new Error(js?.message || 'Toggle failed');
-
-          ok('Featured updated');
-          await Promise.all([loadTab('active'), loadTab('inactive')]);
-        }catch(ex){
-          err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
-        }finally{
-          showLoading(false);
-        }
-        return;
-      }
-
-      if (act === 'markPublished'){ if (!canEdit) return; await updateStatus(uuid, 'published'); return; }
-      if (act === 'markDraft'){ if (!canEdit) return; await updateStatus(uuid, 'draft'); return; }
-
       if (act === 'delete'){
         if (!canDelete) return;
         const conf = await Swal.fire({
-          title: 'Delete this student activity?',
+          title: 'Delete this announcement?',
           text: 'This will move the item to Trash.',
           icon: 'warning',
           showCancelButton: true,
@@ -1752,11 +1733,10 @@ td.col-slug code{
 
         showLoading(true);
         try{
-          const res = await fetchWithTimeout(`/api/student-activities/${encodeURIComponent(uuid)}`, {
+          const res = await fetchWithTimeout(`/api/announcements/${encodeURIComponent(uuid)}`, {
             method: 'DELETE',
             headers: authHeaders()
           }, 15000);
-
           const js = await res.json().catch(()=> ({}));
           if (!res.ok || js.success === false) throw new Error(js?.message || 'Delete failed');
 
@@ -1781,11 +1761,10 @@ td.col-slug code{
 
         showLoading(true);
         try{
-          const res = await fetchWithTimeout(`/api/student-activities/${encodeURIComponent(uuid)}/restore`, {
+          const res = await fetchWithTimeout(`/api/announcements/${encodeURIComponent(uuid)}/restore`, {
             method: 'POST',
             headers: authHeaders()
           }, 15000);
-
           const js = await res.json().catch(()=> ({}));
           if (!res.ok || js.success === false) throw new Error(js?.message || 'Restore failed');
 
@@ -1801,6 +1780,7 @@ td.col-slug code{
 
       if (act === 'force'){
         if (!canDelete) return;
+
         const conf = await Swal.fire({
           title: 'Delete permanently?',
           text: 'This cannot be undone (files will be removed).',
@@ -1813,11 +1793,10 @@ td.col-slug code{
 
         showLoading(true);
         try{
-          const res = await fetchWithTimeout(`/api/student-activities/${encodeURIComponent(uuid)}/force`, {
+          const res = await fetchWithTimeout(`/api/announcements/${encodeURIComponent(uuid)}/force`, {
             method: 'DELETE',
             headers: authHeaders()
           }, 15000);
-
           const js = await res.json().catch(()=> ({}));
           if (!res.ok || js.success === false) throw new Error(js?.message || 'Force delete failed');
 
@@ -1832,9 +1811,7 @@ td.col-slug code{
       }
     });
 
-    // =========================
-    // Submit (create/edit)
-    // =========================
+    // ---------- submit (create/edit) ----------
     itemForm?.addEventListener('submit', async (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -1845,56 +1822,47 @@ td.col-slug code{
         if (itemForm.dataset.mode === 'view') return;
 
         const intent = itemForm.dataset.intent || 'create';
-        const isEdit = intent === 'edit' && !!fUuid.value;
+        const isEdit = intent === 'edit' && !!itemUuid.value;
 
         if (isEdit && !canEdit) return;
         if (!isEdit && !canCreate) return;
 
-        const title = (fTitle.value || '').trim();
-        const slug = (fSlug.value || '').trim();
-
-        // ✅ department id (added)
-        const deptId = (fDepartmentId?.value || '').toString().trim();
-
-        const status = (fStatus.value || 'draft').trim();
-        const featured = (fFeatured.value || '0').trim();
+        const title = (titleInput.value || '').trim();
+        const slug = (slugInput.value || '').trim();
+        const status = (statusSel.value || 'draft').trim();
+        const featured = (featuredSel.value || '0').trim();
+        const sortOrder = String(parseInt(sortOrderInput.value || '0', 10) || 0);
 
         const rawBody = (rte.mode === 'code') ? (rte.code.value || '') : (rte.editor.innerHTML || '');
         const cleanBody = ensurePreHasCode(rawBody).trim();
         if (rte.hidden) rte.hidden.value = cleanBody;
 
-        if (!title){ err('Title is required'); fTitle.focus(); return; }
-        if (!deptId){ err('Department is required'); fDepartmentId?.focus(); return; }
+        if (!title){ err('Title is required'); titleInput.focus(); return; }
         if (!cleanBody){ err('Body is required'); rteFocus(); return; }
 
         const fd = new FormData();
         fd.append('title', title);
         if (slug) fd.append('slug', slug);
 
-        // ✅ send department_id (added)
-        fd.append('department_id', deptId);
+        if (departmentSel) fd.append('department_id', (departmentSel.value ?? '').toString());
 
         fd.append('status', status);
         fd.append('is_featured_home', featured === '1' ? '1' : '0');
-        if ((fPublishAt.value || '').trim()) fd.append('publish_at', fPublishAt.value);
-        if ((fExpireAt.value || '').trim()) fd.append('expire_at', fExpireAt.value);
+        fd.append('sort_order', sortOrder);
+        if ((publishAtInput.value || '').trim()) fd.append('publish_at', publishAtInput.value);
+        if ((expireAtInput.value || '').trim()) fd.append('expire_at', expireAtInput.value);
         fd.append('body', cleanBody);
 
-        // cover remove
-        if (isEdit && (fCoverRemove?.value === '1')) fd.append('cover_image_remove', '1');
-
-        // cover upload
-        const cover = fCover.files?.[0] || null;
+        const cover = coverInput.files?.[0] || null;
         if (cover) fd.append('cover_image', cover);
 
-        // attachments upload
-        Array.from(fAttachments.files || []).forEach(f => fd.append('attachments[]', f));
+        Array.from(attachmentsInput.files || []).forEach(f => fd.append('attachments[]', f));
 
-        let url = '/api/student-activities';
-        if (isEdit){
-          url = `/api/student-activities/${encodeURIComponent(fUuid.value)}`;
-          fd.append('_method', 'PUT');
-        }
+        const url = isEdit
+          ? `/api/announcements/${encodeURIComponent(itemUuid.value)}`
+          : `/api/announcements`;
+
+        if (isEdit) fd.append('_method', 'PATCH');
 
         setBtnLoading(saveBtn, true);
         showLoading(true);
@@ -1929,15 +1897,12 @@ td.col-slug code{
       }
     });
 
-    // Init
+    // ---------- init ----------
     (async () => {
       showLoading(true);
       try{
         await fetchMe();
-
-        // ✅ preload departments once (added)
-        await loadDepartments();
-
+        ensureDepartmentsLoaded('').catch(()=>{});
         await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
       }catch(ex){
         err(ex?.message || 'Initialization failed');

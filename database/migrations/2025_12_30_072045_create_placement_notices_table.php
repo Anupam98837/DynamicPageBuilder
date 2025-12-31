@@ -16,12 +16,11 @@ return new class extends Migration
             $table->char('uuid', 36)->unique();          // UNIQUE, not null
             $table->string('slug', 160)->unique();       // UNIQUE, not null
 
-            // Relations
-            $table->foreignId('department_id')
-                ->nullable()
-                ->constrained('departments')
-                ->nullOnDelete();                        // FK -> departments.id (optional)
+            // ✅ Departments (JSON array of IDs selected from frontend)
+            // Example stored value: [1, 3, 7]
+            $table->json('department_ids')->nullable();
 
+            // Relations
             $table->foreignId('recruiter_id')
                 ->nullable()
                 ->constrained('recruiters')

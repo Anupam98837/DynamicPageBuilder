@@ -408,6 +408,8 @@ html.theme-dark .kv-divider{
 
     @include('landing.components.header')
 
+    @include('landing.components.headerMenu')
+
 <div class="profile-layout">
 
 <!-- ================= SIDEBAR ================= -->
