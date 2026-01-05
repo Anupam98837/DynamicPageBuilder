@@ -1,3 +1,4 @@
+{{-- resources/views/landing/viewAchievements.blade.php --}}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -11,13 +12,9 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 
   <style>
+    html, body { height: 100%; margin: 0; }
 
-    html, body {
-      height: 100%;
-      margin: 0;
-    }
-
-    body {
+    body{
       background: var(--bg-body);
       color: var(--ink);
       font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
@@ -25,14 +22,14 @@
     }
 
     /* Achievement Container */
-    .achievement-container {
+    .achievement-container{
       max-width: 1280px;
       margin: 0 auto;
       padding: clamp(24px, 4vw, 48px) clamp(16px, 3vw, 24px);
     }
 
     /* Header Section */
-    .achievement-header {
+    .achievement-header{
       background: var(--surface);
       border-radius: var(--radius-xl);
       padding: clamp(24px, 4vw, 40px);
@@ -42,19 +39,29 @@
       border-radius: 10px;
     }
 
-    .achievement-title {
-      margin: 0 0 16px 0;
+    /* Title row with date pill at top-right */
+    .achievement-headbar{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    .achievement-title{
+      margin: 0;
       font-weight: 900;
       letter-spacing: -0.03em;
       line-height: 1.1;
       font-size: clamp(28px, 5vw, 48px);
       color: var(--ink);
+      flex: 1 1 520px;
+      min-width: 260px;
     }
 
-
-
     /* Meta Information */
-    .achievement-meta {
+    .achievement-meta{
       display: flex;
       flex-wrap: wrap;
       gap: 12px;
@@ -62,7 +69,7 @@
       margin-bottom: 24px;
     }
 
-    .meta-pill {
+    .meta-pill{
       display: inline-flex;
       align-items: center;
       gap: 8px;
@@ -76,13 +83,19 @@
       white-space: nowrap;
     }
 
-    .meta-pill i {
+    .meta-pill i{
       color: var(--primary-color);
       opacity: 0.8;
     }
 
+    /* Date pill (same style, placed in headbar) */
+    .meta-pill-date{
+      margin-left: auto;
+      flex: 0 0 auto;
+    }
+
     /* Action Buttons */
-    .achievement-actions {
+    .achievement-actions{
       display: flex;
       flex-wrap: wrap;
       gap: 12px;
@@ -90,7 +103,7 @@
       border-top: 2px solid var(--line-light);
     }
 
-    .action-btn {
+    .action-btn{
       display: inline-flex;
       align-items: center;
       gap: 8px;
@@ -106,7 +119,7 @@
       cursor: pointer;
     }
 
-    .action-btn:hover {
+    .action-btn:hover{
       background: var(--primary-color);
       color: white;
       border-color: var(--primary-color);
@@ -114,12 +127,10 @@
       box-shadow: var(--shadow-2);
     }
 
-    .action-btn i {
-      font-size: 16px;
-    }
+    .action-btn i{ font-size: 16px; }
 
     /* Cover Image */
-    .achievement-cover {
+    .achievement-cover{
       margin-bottom: 32px;
       border-radius: var(--radius-xl);
       overflow: hidden;
@@ -128,7 +139,7 @@
       box-shadow: var(--shadow-2);
     }
 
-    .achievement-cover img {
+    .achievement-cover img{
       width: 100%;
       height: auto;
       display: block;
@@ -137,7 +148,7 @@
     }
 
     /* Content Body */
-    .achievement-body {
+    .achievement-body{
       background: var(--surface);
       border-radius: var(--radius-xl);
       padding: clamp(24px, 4vw, 40px);
@@ -146,7 +157,7 @@
       margin-bottom: 32px;
     }
 
-    .achievement-content {
+    .achievement-content{
       color: var(--ink);
       font-size: 16px;
       line-height: 1.85;
@@ -154,14 +165,12 @@
       margin-bottom: 24px;
     }
 
-    .achievement-content p {
-      margin: 0 0 16px;
-    }
+    .achievement-content p{ margin: 0 0 16px; }
 
     .achievement-content h1,
     .achievement-content h2,
     .achievement-content h3,
-    .achievement-content h4 {
+    .achievement-content h4{
       margin: 24px 0 12px;
       line-height: 1.3;
       letter-spacing: -0.02em;
@@ -169,12 +178,12 @@
       color: var(--ink);
     }
 
-    .achievement-content h1 { font-size: 2rem; }
-    .achievement-content h2 { font-size: 1.75rem; }
-    .achievement-content h3 { font-size: 1.5rem; }
-    .achievement-content h4 { font-size: 1.25rem; }
+    .achievement-content h1{ font-size: 2rem; }
+    .achievement-content h2{ font-size: 1.75rem; }
+    .achievement-content h3{ font-size: 1.5rem; }
+    .achievement-content h4{ font-size: 1.25rem; }
 
-    .achievement-content img {
+    .achievement-content img{
       max-width: 100%;
       height: auto;
       border-radius: var(--radius-lg);
@@ -182,18 +191,16 @@
       box-shadow: var(--shadow-1);
     }
 
-    .achievement-content a {
+    .achievement-content a{
       color: var(--primary-color);
       text-decoration: underline;
       text-underline-offset: 3px;
       transition: color 0.2s ease;
     }
 
-    .achievement-content a:hover {
-      color: var(--accent-color);
-    }
+    .achievement-content a:hover{ color: var(--accent-color); }
 
-    .achievement-content blockquote {
+    .achievement-content blockquote{
       margin: 20px 0;
       padding: 16px 20px;
       border-left: 5px solid var(--primary-color);
@@ -202,7 +209,7 @@
       font-style: italic;
     }
 
-    .achievement-content pre {
+    .achievement-content pre{
       padding: 16px;
       border-radius: var(--radius-md);
       border: 1px solid var(--line-strong);
@@ -213,17 +220,15 @@
     }
 
     .achievement-content ul,
-    .achievement-content ol {
+    .achievement-content ol{
       padding-left: 24px;
       margin: 16px 0;
     }
 
-    .achievement-content li {
-      margin-bottom: 8px;
-    }
+    .achievement-content li{ margin-bottom: 8px; }
 
     /* Attachments Section */
-    .achievement-attachments {
+    .achievement-attachments{
       background: var(--surface);
       border-radius: var(--radius-xl);
       padding: clamp(24px, 4vw, 40px);
@@ -231,7 +236,7 @@
       border: 1px solid var(--line-strong);
     }
 
-    .attachments-title {
+    .attachments-title{
       display: flex;
       align-items: center;
       gap: 12px;
@@ -242,7 +247,7 @@
       color: var(--ink);
     }
 
-    .attachments-title i {
+    .attachments-title i{
       background: var(--primary-light);
       color: var(--primary-color);
       width: 40px;
@@ -253,12 +258,9 @@
       justify-content: center;
     }
 
-    .attachments-list {
-      display: grid;
-      gap: 12px;
-    }
+    .attachments-list{ display: grid; gap: 12px; }
 
-    .attachment-item {
+    .attachment-item{
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -272,14 +274,14 @@
       transition: all 0.3s ease;
     }
 
-    .attachment-item:hover {
+    .attachment-item:hover{
       border-color: var(--primary-color);
       background: var(--surface);
       transform: translateY(-2px);
       box-shadow: var(--shadow-2);
     }
 
-    .attachment-left {
+    .attachment-left{
       display: flex;
       align-items: center;
       gap: 16px;
@@ -287,7 +289,7 @@
       flex: 1;
     }
 
-    .attachment-icon {
+    .attachment-icon{
       width: 48px;
       height: 48px;
       border-radius: var(--radius-md);
@@ -300,12 +302,9 @@
       flex-shrink: 0;
     }
 
-    .attachment-info {
-      min-width: 0;
-      flex: 1;
-    }
+    .attachment-info{ min-width: 0; flex: 1; }
 
-    .attachment-name {
+    .attachment-name{
       font-weight: 600;
       white-space: nowrap;
       overflow: hidden;
@@ -313,12 +312,12 @@
       margin-bottom: 4px;
     }
 
-    .attachment-meta {
+    .attachment-meta{
       font-size: 13px;
       color: var(--muted-color);
     }
 
-    .attachment-number {
+    .attachment-number{
       font-size: 13px;
       color: var(--muted-color);
       white-space: nowrap;
@@ -326,14 +325,14 @@
     }
 
     /* Loading State */
-    .loading-container {
+    .loading-container{
       display: grid;
       gap: 16px;
       max-width: 100%;
       padding: 40px 0;
     }
 
-    .loading-bar {
+    .loading-bar{
       height: 16px;
       border-radius: 999px;
       background: var(--surface-alt);
@@ -341,7 +340,7 @@
       position: relative;
     }
 
-    .loading-bar::after {
+    .loading-bar::after{
       content: "";
       position: absolute;
       inset: 0;
@@ -350,12 +349,10 @@
       animation: shimmer 1.5s infinite;
     }
 
-    @keyframes shimmer {
-      to { transform: translateX(100%); }
-    }
+    @keyframes shimmer{ to { transform: translateX(100%); } }
 
     /* Error State */
-    .error-container {
+    .error-container{
       background: #fee;
       border: 1px solid #fcc;
       border-radius: var(--radius-lg);
@@ -365,20 +362,20 @@
       margin: 40px 0;
     }
 
-    .error-container i {
+    .error-container i{
       font-size: 24px;
       margin-bottom: 12px;
       display: block;
     }
 
     /* Empty State */
-    .empty-state {
+    .empty-state{
       text-align: center;
       padding: 60px 20px;
       color: var(--muted-color);
     }
 
-    .empty-state i {
+    .empty-state i{
       font-size: 48px;
       margin-bottom: 16px;
       display: block;
@@ -386,76 +383,41 @@
     }
 
     /* Responsive */
-    @media (max-width: 768px) {
-      .achievement-meta {
-        gap: 8px;
-      }
-
-      .meta-pill {
-        font-size: 13px;
-        padding: 6px 12px;
-      }
-
-      .action-btn {
-        font-size: 13px;
-        padding: 8px 16px;
-      }
-
-      .attachment-item {
-        padding: 12px 16px;
-      }
-
-      .attachment-icon {
-        width: 40px;
-        height: 40px;
-        font-size: 18px;
-      }
-    }
-
-    /* Print Styles */
-    @media print {
-      .achievement-actions,
-      .action-btn {
-        display: none;
-      }
-
-      .achievement-container {
-        padding: 0;
-      }
-
-      .achievement-header,
-      .achievement-body,
-      .achievement-attachments {
-        box-shadow: none;
-        border: 1px solid #ccc;
-      }
+    @media (max-width: 768px){
+      .achievement-meta{ gap: 8px; }
+      .meta-pill{ font-size: 13px; padding: 6px 12px; }
+      .action-btn{ font-size: 13px; padding: 8px 16px; }
+      .attachment-item{ padding: 12px 16px; }
+      .attachment-icon{ width: 40px; height: 40px; font-size: 18px; }
+      .achievement-headbar{ gap: 10px; }
     }
   </style>
 </head>
 
 <body>
-  <!-- Include your header components here -->
   @include('landing.components.header')
   @include('landing.components.headerMenu')
 
   <main class="achievement-container">
     <!-- Header Section -->
     <header class="achievement-header">
-      <h1 class="achievement-title" id="achievementTitle">Achievement</h1>
+      <div class="achievement-headbar">
+        <h1 class="achievement-title" id="achievementTitle">Achievement</h1>
+
+        <!-- ✅ Date pill moved to top-right -->
+        <span class="meta-pill meta-pill-date" id="metaDate" style="display:none">
+          <i class="fa-regular fa-calendar"></i>
+          <span></span>
+        </span>
+      </div>
 
       <div class="achievement-meta" id="achievementMeta" style="display:none">
         <span class="meta-pill" id="metaDept" style="display:none">
           <i class="fa-solid fa-building-columns"></i>
           <span></span>
         </span>
-        <span class="meta-pill" id="metaDate" style="display:none">
-          <i class="fa-regular fa-calendar"></i>
-          <span></span>
-        </span>
-        <span class="meta-pill" id="metaViews" style="display:none">
-          <i class="fa-regular fa-eye"></i>
-          <span></span>
-        </span>
+
+        <!-- ✅ Views pill removed -->
       </div>
 
       <!-- Achievement Content Inside Header -->
@@ -470,10 +432,7 @@
           <i class="fa-solid fa-share-nodes"></i>
           Share
         </button>
-        <button class="action-btn" id="printBtn">
-          <i class="fa-solid fa-print"></i>
-          Print
-        </button>
+        <!-- ✅ Print button removed -->
       </div>
     </header>
 
@@ -558,39 +517,33 @@
         if (!v) return '';
         const d = new Date(v);
         if (isNaN(d.getTime())) return String(v);
-        return d.toLocaleDateString('en-US', { 
-          year: 'numeric', 
-          month: 'long', 
-          day: 'numeric' 
-        });
+        return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
       }
 
-      // Extract text from HTML
+      // Extract text from HTML (kept; harmless + sometimes useful)
       function textFromHtml(html) {
         const tmp = document.createElement('div');
         tmp.innerHTML = html || '';
         return (tmp.textContent || tmp.innerText || '').replace(/\s+/g, ' ').trim();
       }
 
-      // Show/hide loading
       function setLoading(show) {
         $('loadingSection').style.display = show ? '' : 'none';
       }
 
-      // Show/hide error
       function setError(msg) {
         $('errorSection').style.display = msg ? '' : 'none';
         $('errorMessage').textContent = msg || '';
       }
 
-      // Render attachments
       function renderAttachments(attachments_json) {
         const list = $('attachmentsList');
         list.innerHTML = '';
 
         const parsed = safeJson(attachments_json);
-        const arr = Array.isArray(parsed) ? parsed : 
-                    (parsed && Array.isArray(parsed.files) ? parsed.files : null);
+        const arr = Array.isArray(parsed)
+          ? parsed
+          : (parsed && Array.isArray(parsed.files) ? parsed.files : null);
 
         if (!arr || !arr.length) {
           $('attachmentsSection').style.display = 'none';
@@ -636,78 +589,64 @@
         $('attachmentsSection').style.display = list.children.length ? '' : 'none';
       }
 
-      // Render achievement page
       function renderPage(ach) {
-        // Title
         const title = ach.title || 'Achievement';
         $('achievementTitle').textContent = title;
         document.title = title;
 
-        // Meta information
+        // ✅ Date pill now independent (top-right)
+        const date = formatDate(ach.publish_at || ach.created_at || ach.updated_at);
+        if (date) {
+          $('metaDate').style.display = '';
+          $('metaDate').querySelector('span').textContent = date;
+        } else {
+          $('metaDate').style.display = 'none';
+          $('metaDate').querySelector('span').textContent = '';
+        }
+
+        // ✅ Meta row: department only (views removed)
         let hasMeta = false;
 
-        // Department
-        const dept = (ach.department && (ach.department.name || ach.department.title)) ? 
-                     (ach.department.name || ach.department.title) : 
-                     (ach.department_name || '');
+        const dept =
+          (ach.department && (ach.department.name || ach.department.title))
+            ? (ach.department.name || ach.department.title)
+            : (ach.department_name || '');
 
         if (dept) {
           $('metaDept').style.display = '';
           $('metaDept').querySelector('span').textContent = dept;
           hasMeta = true;
-        }
-
-        // Date
-        const date = formatDate(ach.publish_at || ach.created_at || ach.updated_at);
-        if (date) {
-          $('metaDate').style.display = '';
-          $('metaDate').querySelector('span').textContent = date;
-          hasMeta = true;
-        }
-
-        // Views
-        if (typeof ach.views_count !== 'undefined' && ach.views_count !== null) {
-          $('metaViews').style.display = '';
-          $('metaViews').querySelector('span').textContent = `${ach.views_count} views`;
-          hasMeta = true;
+        } else {
+          $('metaDept').style.display = 'none';
+          $('metaDept').querySelector('span').textContent = '';
         }
 
         $('achievementMeta').style.display = hasMeta ? '' : 'none';
 
-        // Body content (inside header)
         $('achievementContent').innerHTML = ach.body || '';
         $('achievementContent').style.display = '';
 
-        // Cover image
         const cover = resolveUrl(ach.cover_image);
         if (cover) {
           $('coverSection').style.display = '';
           $('coverImage').src = cover;
+        } else {
+          $('coverSection').style.display = 'none';
+          $('coverImage').removeAttribute('src');
         }
 
-        // Attachments
         renderAttachments(ach.attachments_json);
 
-        // Show share button if Web Share API is available
-        if (navigator.share) {
-          $('shareBtn').style.display = '';
-        }
+        if (navigator.share) $('shareBtn').style.display = '';
       }
 
-      // Fetch JSON
       async function fetchJson(url) {
-        const res = await fetch(url, { 
-          method: 'GET', 
-          headers: { 'Accept': 'application/json' } 
-        });
+        const res = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' } });
         let data = null;
-        try { 
-          data = await res.json(); 
-        } catch(e) {}
+        try { data = await res.json(); } catch(e) {}
         return { res, data };
       }
 
-      // Load achievement
       async function load() {
         const uuid = getUuidFromUrl();
         if (!uuid) {
@@ -728,7 +667,7 @@
         for (const url of candidates) {
           try {
             const { res, data } = await fetchJson(url);
-            if (!res.ok) continue;
+            if (!res || !res.ok) continue;
 
             const ach = findAchievementObject(data);
             if (ach && (ach.title || ach.body)) {
@@ -737,7 +676,7 @@
               return;
             }
           } catch(e) {
-            // Try next candidate
+            // try next
           }
         }
 
@@ -761,19 +700,13 @@
       // Share button
       $('shareBtn').addEventListener('click', async () => {
         try {
-          await navigator.share({
-            title: document.title,
-            url: window.location.href
-          });
+          await navigator.share({ title: document.title, url: window.location.href });
         } catch(e) {
           console.log('Share cancelled or failed');
         }
       });
 
-      // Print button
-      $('printBtn').addEventListener('click', () => {
-        window.print();
-      });
+      // ✅ Print code removed
 
       // Initialize
       load();

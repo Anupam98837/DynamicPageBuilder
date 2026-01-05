@@ -39,13 +39,25 @@
       border-radius: 10px;
     }
 
+    /* Title row with date pill at top-right */
+    .sa-headbar{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
     .sa-title{
-      margin: 0 0 16px 0;
+      margin: 0;
       font-weight: 900;
       letter-spacing: -0.03em;
       line-height: 1.1;
       font-size: clamp(28px, 5vw, 48px);
       color: var(--ink);
+      flex: 1 1 520px;
+      min-width: 260px;
     }
 
     /* Meta */
@@ -74,6 +86,12 @@
     .meta-pill i{
       color: var(--primary-color);
       opacity: .8;
+    }
+
+    /* Date pill (kept same style, just placed in headbar) */
+    .meta-pill-date{
+      margin-left: auto;
+      flex: 0 0 auto;
     }
 
     /* Actions */
@@ -347,16 +365,7 @@
       .action-btn{ font-size: 13px; padding: 8px 16px; }
       .attachment-item{ padding: 12px 16px; }
       .attachment-icon{ width: 40px; height: 40px; font-size: 18px; }
-    }
-
-    /* Print */
-    @media print{
-      .sa-actions, .action-btn { display:none; }
-      .sa-container{ padding: 0; }
-      .sa-header, .sa-attachments{
-        box-shadow:none;
-        border: 1px solid #ccc;
-      }
+      .sa-headbar{ gap: 10px; }
     }
   </style>
 </head>
@@ -368,21 +377,24 @@
   <main class="sa-container">
     <!-- Header -->
     <header class="sa-header">
-      <h1 class="sa-title" id="saTitle">Student Activity</h1>
+      <div class="sa-headbar">
+        <h1 class="sa-title" id="saTitle">Student Activity</h1>
+
+        <!-- ✅ Date pill moved to top-right -->
+        <span class="meta-pill meta-pill-date" id="metaDate" style="display:none">
+          <i class="fa-regular fa-calendar"></i>
+          <span></span>
+        </span>
+      </div>
 
       <div class="sa-meta" id="saMeta" style="display:none">
         <span class="meta-pill" id="metaDept" style="display:none">
           <i class="fa-solid fa-building-columns"></i>
           <span></span>
         </span>
-        <span class="meta-pill" id="metaDate" style="display:none">
-          <i class="fa-regular fa-calendar"></i>
-          <span></span>
-        </span>
-        <span class="meta-pill" id="metaViews" style="display:none">
-          <i class="fa-regular fa-eye"></i>
-          <span></span>
-        </span>
+
+        <!-- ✅ Views pill removed -->
+
         <span class="meta-pill" id="metaFeatured" style="display:none">
           <i class="fa-solid fa-star"></i>
           <span>Featured</span>
@@ -397,14 +409,13 @@
           <i class="fa-solid fa-link"></i>
           Copy Link
         </button>
+
         <button class="action-btn" id="shareBtn" style="display:none">
           <i class="fa-solid fa-share-nodes"></i>
           Share
         </button>
-        <button class="action-btn" id="printBtn">
-          <i class="fa-solid fa-print"></i>
-          Print
-        </button>
+
+        <!-- ✅ Print button removed -->
       </div>
     </header>
 
@@ -563,6 +574,17 @@
         $('saTitle').textContent = title;
         document.title = title;
 
+        // ✅ Date pill now independent (top-right)
+        const date = formatDate(a.publish_at || a.created_at || a.updated_at);
+        if (date) {
+          $('metaDate').style.display = '';
+          $('metaDate').querySelector('span').textContent = date;
+        } else {
+          $('metaDate').style.display = 'none';
+          $('metaDate').querySelector('span').textContent = '';
+        }
+
+        // ✅ Meta row (dept + featured only)
         let hasMeta = false;
 
         const dept =
@@ -574,19 +596,9 @@
           $('metaDept').style.display = '';
           $('metaDept').querySelector('span').textContent = dept;
           hasMeta = true;
-        }
-
-        const date = formatDate(a.publish_at || a.created_at || a.updated_at);
-        if (date) {
-          $('metaDate').style.display = '';
-          $('metaDate').querySelector('span').textContent = date;
-          hasMeta = true;
-        }
-
-        if (typeof a.views_count !== 'undefined' && a.views_count !== null) {
-          $('metaViews').style.display = '';
-          $('metaViews').querySelector('span').textContent = `${a.views_count} views`;
-          hasMeta = true;
+        } else {
+          $('metaDept').style.display = 'none';
+          $('metaDept').querySelector('span').textContent = '';
         }
 
         const featured = (a.is_featured_home === 1 || a.is_featured_home === true || String(a.is_featured_home) === '1');
@@ -687,8 +699,7 @@
         }
       });
 
-      // Print
-      $('printBtn').addEventListener('click', () => window.print());
+      // ✅ Print code removed
 
       // Init
       load();

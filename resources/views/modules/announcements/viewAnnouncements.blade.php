@@ -39,13 +39,25 @@
       border-radius: 10px;
     }
 
+    /* Title row with date pill at top-right */
+    .announcement-headbar{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
     .announcement-title{
-      margin: 0 0 16px 0;
+      margin: 0;
       font-weight: 900;
       letter-spacing: -0.03em;
       line-height: 1.1;
       font-size: clamp(28px, 5vw, 48px);
       color: var(--ink);
+      flex: 1 1 520px;
+      min-width: 260px;
     }
 
     /* Meta */
@@ -74,6 +86,12 @@
     .meta-pill i{
       color: var(--primary-color);
       opacity: .8;
+    }
+
+    /* Date pill (same style, just placed in headbar) */
+    .meta-pill-date{
+      margin-left: auto;
+      flex: 0 0 auto;
     }
 
     /* Actions */
@@ -356,16 +374,7 @@
       .action-btn{ font-size:13px; padding:8px 16px; }
       .attachment-item{ padding:12px 16px; }
       .attachment-icon{ width:40px; height:40px; font-size:18px; }
-    }
-
-    /* Print */
-    @media print{
-      .announcement-actions, .action-btn { display:none; }
-      .announcement-container{ padding:0; }
-      .announcement-header, .announcement-body, .announcement-attachments{
-        box-shadow:none;
-        border:1px solid #ccc;
-      }
+      .announcement-headbar{ gap:10px; }
     }
   </style>
 </head>
@@ -378,21 +387,24 @@
   <main class="announcement-container">
     <!-- Header -->
     <header class="announcement-header">
-      <h1 class="announcement-title" id="announcementTitle">Announcement</h1>
+      <div class="announcement-headbar">
+        <h1 class="announcement-title" id="announcementTitle">Announcement</h1>
+
+        <!-- ✅ Date pill moved to top-right -->
+        <span class="meta-pill meta-pill-date" id="metaDate" style="display:none">
+          <i class="fa-regular fa-calendar"></i>
+          <span></span>
+        </span>
+      </div>
 
       <div class="announcement-meta" id="announcementMeta" style="display:none">
         <span class="meta-pill" id="metaDept" style="display:none">
           <i class="fa-solid fa-building-columns"></i>
           <span></span>
         </span>
-        <span class="meta-pill" id="metaDate" style="display:none">
-          <i class="fa-regular fa-calendar"></i>
-          <span></span>
-        </span>
-        <span class="meta-pill" id="metaViews" style="display:none">
-          <i class="fa-regular fa-eye"></i>
-          <span></span>
-        </span>
+
+        <!-- ✅ Views pill removed -->
+
         <span class="meta-pill" id="metaFeatured" style="display:none">
           <i class="fa-solid fa-star"></i>
           <span>Featured</span>
@@ -411,10 +423,7 @@
           <i class="fa-solid fa-share-nodes"></i>
           Share
         </button>
-        <button class="action-btn" id="printBtn">
-          <i class="fa-solid fa-print"></i>
-          Print
-        </button>
+        <!-- ✅ Print button removed -->
       </div>
     </header>
 
@@ -575,10 +584,20 @@
         $('announcementTitle').textContent = title;
         document.title = title;
 
-        // Meta
+        // ✅ Date pill now independent (top-right)
+        const date = formatDate(an.publish_at || an.created_at || an.updated_at);
+        if (date) {
+          $('metaDate').style.display = '';
+          $('metaDate').querySelector('span').textContent = date;
+        } else {
+          $('metaDate').style.display = 'none';
+          $('metaDate').querySelector('span').textContent = '';
+        }
+
+        // ✅ Meta row (dept + featured only)
         let hasMeta = false;
 
-        // Department (supports different shapes)
+        // Department
         const dept =
           (an.department && (an.department.name || an.department.title))
             ? (an.department.name || an.department.title)
@@ -588,21 +607,9 @@
           $('metaDept').style.display = '';
           $('metaDept').querySelector('span').textContent = dept;
           hasMeta = true;
-        }
-
-        // Date (prefer publish_at if present)
-        const date = formatDate(an.publish_at || an.created_at || an.updated_at);
-        if (date) {
-          $('metaDate').style.display = '';
-          $('metaDate').querySelector('span').textContent = date;
-          hasMeta = true;
-        }
-
-        // Views
-        if (typeof an.views_count !== 'undefined' && an.views_count !== null) {
-          $('metaViews').style.display = '';
-          $('metaViews').querySelector('span').textContent = `${an.views_count} views`;
-          hasMeta = true;
+        } else {
+          $('metaDept').style.display = 'none';
+          $('metaDept').querySelector('span').textContent = '';
         }
 
         // Featured
@@ -651,17 +658,14 @@
         setLoading(true);
         setError('');
 
-        // public show endpoints you defined:
-        // GET /api/public/announcements/{identifier}
-        // (fallback candidates included like your achievement page)
+        // public show endpoints:
         const candidates = [
           `/api/public/announcements/${encodeURIComponent(identifier)}`,
           `/public/announcements/${encodeURIComponent(identifier)}`,
           `/api/announcements/${encodeURIComponent(identifier)}`
         ];
 
-        // OPTIONAL: if you ever mount this view under /departments/{dept}/announcements/{identifier}
-        // (your current public routes don't include showByDepartment; this is only a fallback if you add it later)
+        // optional dept-aware candidates
         const dept = getDepartmentFromUrl();
         if (dept) {
           candidates.unshift(`/api/public/departments/${encodeURIComponent(dept)}/announcements/${encodeURIComponent(identifier)}`);
@@ -710,8 +714,7 @@
         }
       });
 
-      // Print
-      $('printBtn').addEventListener('click', () => window.print());
+      // ✅ Print code removed
 
       // Init
       load();

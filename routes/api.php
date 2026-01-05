@@ -38,6 +38,7 @@ use App\Http\Controllers\API\EventController;
 use App\Http\Controllers\API\PlacedStudentController;
 use App\Http\Controllers\API\SuccessfulEntrepreneurController;
 use App\Http\Controllers\API\HeaderComponentController;
+use App\Http\Controllers\API\PlacementNoticeController;
 
 /*
 |--------------------------------------------------------------------------
@@ -1138,7 +1139,6 @@ Route::prefix('placed-students')->group(function () {
 });
 
 
-use App\Http\Controllers\API\PlacementNoticeController;
 
 /*
 |--------------------------------------------------------------------------
