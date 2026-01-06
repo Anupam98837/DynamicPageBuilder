@@ -150,6 +150,18 @@ Route::get('/successful-entrepreneurs/view/{uuid}', function () {
     return view('modules.successfulEntrepreneurs.viewSuccessfulEntrepreneurs');
 });
 
+Route::get('/career-notices/view/{uuid}', function () {
+    return view('modules.careerNotices.viewCareerNotices');
+});
+
+Route::get('/why-us/view/{uuid}', function () {
+    return view('modules.whyUs.viewWhyUs');
+});
+
+Route::get('/scholarships/view/{uuid}', function () {
+    return view('modules.scholarship.viewScholarships');
+});
+
 
 // Course Manage
 
