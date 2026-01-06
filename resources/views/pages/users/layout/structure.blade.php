@@ -365,8 +365,31 @@
     <a href="/department/achievements" class="w3-link">Achievements</a>
     <a href="/department/notices" class="w3-link">Notices</a>
     <a href="/department/student-activities" class="w3-link">Student Activities</a>
+    <a href="/career-notices" class="w3-link">Career Notices</a>
+    <a href="/why-us" class="w3-link">Why Us</a>
+    <a href="/scholarships" class="w3-link">Scholarships</a>
   </div>
 </div>
+
+<!-- Alumni Speak -->
+<a href="/alumni-speak/manage" class="w3-link">
+  <i class="fa-solid fa-microphone"></i><span>Alumni Speak</span>
+</a>
+
+<!-- Center Iframes -->
+<a href="/center-iframes/manage" class="w3-link">
+  <i class="fa-solid fa-window-maximize"></i><span>Center Iframes</span>
+</a>
+
+<!-- Stats Settings -->
+<a href="/stats/settings" class="w3-link">
+  <i class="fa-solid fa-chart-line"></i><span>Stats</span>
+</a>
+
+<!-- Notice Marquee Settings -->
+<a href="/notice-marquee/settings" class="w3-link">
+  <i class="fa-solid fa-scroll"></i><span>Notice Marquee</span>
+</a>
       </nav>
 
       <!-- privileges (admin static) -->

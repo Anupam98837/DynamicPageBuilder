@@ -39,6 +39,15 @@ use App\Http\Controllers\API\PlacedStudentController;
 use App\Http\Controllers\API\SuccessfulEntrepreneurController;
 use App\Http\Controllers\API\HeaderComponentController;
 use App\Http\Controllers\API\PlacementNoticeController;
+use App\Http\Controllers\API\CareerNoticeController;
+use App\Http\Controllers\API\WhyUsController;
+use App\Http\Controllers\API\ScholarshipController;
+use App\Http\Controllers\API\AlumniSpeakController;
+use App\Http\Controllers\API\CenterIframeController;
+use App\Http\Controllers\API\StatsController;
+use App\Http\Controllers\API\NoticeMarqueeController;
+use App\Http\Controllers\API\GrandHomepageController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -1238,3 +1247,254 @@ Route::prefix('header-components')->group(function () {
     Route::put('/{identifier}/restore',     [HeaderComponentController::class, 'restore']);
     Route::delete('/{identifier}/force',    [HeaderComponentController::class, 'forceDelete']);
 });
+
+
+/*
+|--------------------------------------------------------------------------
+| Career Notices Routes
+|--------------------------------------------------------------------------
+*/
+
+// Read-only (authenticated)
+Route::middleware('checkRole')->group(function () {
+    Route::get('/career-notices',              [CareerNoticeController::class, 'index']);
+    Route::get('/career-notices/{identifier}', [CareerNoticeController::class, 'show']);
+});
+
+// Modify (authenticated role-based)
+Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+    Route::post('/career-notices', [CareerNoticeController::class, 'store']);
+
+    Route::get('/career-notices-trash', [CareerNoticeController::class, 'trash']);
+
+    Route::match(['put','patch'], '/career-notices/{identifier}', [CareerNoticeController::class, 'update']);
+    Route::patch('/career-notices/{identifier}/toggle-featured',  [CareerNoticeController::class, 'toggleFeatured']);
+
+    Route::delete('/career-notices/{identifier}',       [CareerNoticeController::class, 'destroy']);
+    Route::post('/career-notices/{identifier}/restore', [CareerNoticeController::class, 'restore']);
+    Route::delete('/career-notices/{identifier}/force', [CareerNoticeController::class, 'forceDelete']);
+});
+
+// Public (no auth)
+Route::prefix('public')->group(function () {
+    Route::get('/career-notices',              [CareerNoticeController::class, 'publicIndex']);
+    Route::get('/career-notices/{identifier}', [CareerNoticeController::class, 'publicShow']);
+});
+
+
+/*
+|--------------------------------------------------------------------------
+| Why Us Routes
+|--------------------------------------------------------------------------
+*/
+
+// Read-only (authenticated)
+Route::middleware('checkRole')->group(function () {
+    Route::get('/why-us',              [WhyUsController::class, 'index']);
+    Route::get('/why-us/{identifier}', [WhyUsController::class, 'show']);
+});
+
+// Modify (authenticated role-based)
+Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+    Route::post('/why-us', [WhyUsController::class, 'store']);
+
+    Route::get('/why-us-trash', [WhyUsController::class, 'trash']);
+
+    Route::match(['put','patch'], '/why-us/{identifier}', [WhyUsController::class, 'update']);
+    Route::patch('/why-us/{identifier}/toggle-featured',  [WhyUsController::class, 'toggleFeatured']);
+
+    Route::delete('/why-us/{identifier}',       [WhyUsController::class, 'destroy']);
+    Route::post('/why-us/{identifier}/restore', [WhyUsController::class, 'restore']);
+    Route::delete('/why-us/{identifier}/force', [WhyUsController::class, 'forceDelete']);
+});
+
+// Public (no auth)
+Route::prefix('public')->group(function () {
+    Route::get('/why-us',              [WhyUsController::class, 'publicIndex']);
+    Route::get('/why-us/{identifier}', [WhyUsController::class, 'publicShow']);
+});
+
+
+/*
+|--------------------------------------------------------------------------
+| Scholarships Routes
+|--------------------------------------------------------------------------
+*/
+
+// Read-only (authenticated)
+Route::middleware('checkRole')->group(function () {
+    Route::get('/scholarships',              [ScholarshipController::class, 'index']);
+    Route::get('/scholarships/{identifier}', [ScholarshipController::class, 'show']);
+
+    Route::get('/departments/{department}/scholarships',              [ScholarshipController::class, 'indexByDepartment']);
+    Route::get('/departments/{department}/scholarships/{identifier}', [ScholarshipController::class, 'showByDepartment']);
+});
+
+// Modify (authenticated role-based)
+Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+    Route::post('/scholarships', [ScholarshipController::class, 'store']);
+    Route::post('/departments/{department}/scholarships', [ScholarshipController::class, 'storeForDepartment']);
+
+    Route::get('/scholarships-trash', [ScholarshipController::class, 'trash']);
+
+    Route::match(['put','patch'], '/scholarships/{identifier}', [ScholarshipController::class, 'update']);
+    Route::patch('/scholarships/{identifier}/toggle-featured',  [ScholarshipController::class, 'toggleFeatured']);
+
+    Route::delete('/scholarships/{identifier}',       [ScholarshipController::class, 'destroy']);
+    Route::post('/scholarships/{identifier}/restore', [ScholarshipController::class, 'restore']);
+    Route::delete('/scholarships/{identifier}/force', [ScholarshipController::class, 'forceDelete']);
+});
+
+// Public (no auth)
+Route::prefix('public')->group(function () {
+    Route::get('/scholarships',              [ScholarshipController::class, 'publicIndex']);
+    Route::get('/scholarships/{identifier}', [ScholarshipController::class, 'publicShow']);
+
+    Route::get('/departments/{department}/scholarships', [ScholarshipController::class, 'publicIndexByDepartment']);
+});
+
+
+/*
+|--------------------------------------------------------------------------
+| Alumni Speak Routes
+|--------------------------------------------------------------------------
+*/
+
+// Read-only (authenticated)
+Route::middleware('checkRole')->group(function () {
+    Route::get('/alumni-speaks',              [AlumniSpeakController::class, 'index']);
+    Route::get('/alumni-speaks/{identifier}', [AlumniSpeakController::class, 'show']);
+
+    Route::get('/departments/{department}/alumni-speaks',              [AlumniSpeakController::class, 'indexByDepartment']);
+    Route::get('/departments/{department}/alumni-speaks/{identifier}', [AlumniSpeakController::class, 'showByDepartment']);
+});
+
+// Modify (authenticated role-based)
+Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+    Route::post('/alumni-speaks', [AlumniSpeakController::class, 'store']);
+    Route::post('/departments/{department}/alumni-speaks', [AlumniSpeakController::class, 'storeForDepartment']);
+
+    Route::get('/alumni-speaks-trash', [AlumniSpeakController::class, 'trash']);
+
+    Route::match(['put','patch'], '/alumni-speaks/{identifier}', [AlumniSpeakController::class, 'update']);
+
+    Route::delete('/alumni-speaks/{identifier}',       [AlumniSpeakController::class, 'destroy']);
+    Route::post('/alumni-speaks/{identifier}/restore', [AlumniSpeakController::class, 'restore']);
+    Route::delete('/alumni-speaks/{identifier}/force', [AlumniSpeakController::class, 'forceDelete']);
+});
+
+// Public (no auth)
+Route::prefix('public')->group(function () {
+    Route::get('/alumni-speaks', [AlumniSpeakController::class, 'publicIndex']);
+    Route::get('/alumni-speaks/{identifier}', [AlumniSpeakController::class, 'publicShow']);
+    Route::get('/departments/{department}/alumni-speaks', [AlumniSpeakController::class, 'publicIndexByDepartment']);
+});
+
+
+/*
+|--------------------------------------------------------------------------
+| Center Iframes Routes
+|--------------------------------------------------------------------------
+*/
+
+// Read-only (authenticated)
+Route::middleware('checkRole')->group(function () {
+    Route::get('/center-iframes',              [CenterIframeController::class, 'index']);
+    Route::get('/center-iframes/{identifier}', [CenterIframeController::class, 'show']);
+});
+
+// Modify (authenticated role-based)
+Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+    Route::post('/center-iframes', [CenterIframeController::class, 'store']);
+
+    Route::get('/center-iframes-trash', [CenterIframeController::class, 'trash']);
+
+    Route::match(['put','patch'], '/center-iframes/{identifier}', [CenterIframeController::class, 'update']);
+
+    Route::delete('/center-iframes/{identifier}',       [CenterIframeController::class, 'destroy']);
+    Route::post('/center-iframes/{identifier}/restore', [CenterIframeController::class, 'restore']);
+    Route::delete('/center-iframes/{identifier}/force', [CenterIframeController::class, 'forceDelete']);
+});
+
+// Public (no auth)
+Route::get('/public/center-iframes',              [CenterIframeController::class, 'publicIndex']);
+Route::get('/public/center-iframes/{identifier}', [CenterIframeController::class, 'publicShow']);
+
+
+/*
+|--------------------------------------------------------------------------
+| Stats Routes
+|--------------------------------------------------------------------------
+*/
+
+// Read-only (authenticated)
+Route::middleware('checkRole')->group(function () {
+    Route::get('/stats',              [StatsController::class, 'index']);
+    Route::get('/stats/current',      [StatsController::class, 'current']);   // ✅ keep before {identifier}
+    Route::get('/stats/{identifier}', [StatsController::class, 'show']);
+});
+
+// Modify (authenticated role-based)
+Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+    Route::post('/stats',                    [StatsController::class, 'store']);
+    Route::post('/stats/upsert-current',     [StatsController::class, 'upsertCurrent']);
+
+    Route::get('/stats-trash',               [StatsController::class, 'trash']);
+
+    Route::match(['put','patch'], '/stats/{identifier}', [StatsController::class, 'update']);
+
+    Route::delete('/stats/{identifier}',     [StatsController::class, 'destroy']);
+    Route::post('/stats/{identifier}/restore',[StatsController::class, 'restore']);
+    Route::delete('/stats/{identifier}/force',[StatsController::class, 'forceDelete']);
+});
+
+// Public (no auth)
+Route::prefix('public')->group(function () {
+    Route::get('/stats',              [StatsController::class, 'publicIndex']);
+    Route::get('/stats/current',      [StatsController::class, 'publicCurrent']); // ✅ keep before {identifier}
+    Route::get('/stats/{identifier}', [StatsController::class, 'publicShow']);
+});
+
+
+/*
+|--------------------------------------------------------------------------
+| Notice Marquee
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('notice-marquee')->group(function () {
+
+    // current visible (frontend-friendly)
+    Route::get('/current', [NoticeMarqueeController::class, 'current']);
+
+    // admin list + trash
+    Route::get('/',      [NoticeMarqueeController::class, 'index']);
+    Route::get('/trash', [NoticeMarqueeController::class, 'trash']);
+
+    // CRUD (id|uuid|slug)
+    Route::get('/{identifier}',    [NoticeMarqueeController::class, 'show']);
+    Route::post('/',              [NoticeMarqueeController::class, 'store']);
+    Route::match(['put','patch'], '/{identifier}', [NoticeMarqueeController::class, 'update']);
+    Route::delete('/{identifier}', [NoticeMarqueeController::class, 'destroy']);
+
+    // restore / force delete
+    Route::post('/{identifier}/restore', [NoticeMarqueeController::class, 'restore']);
+    Route::delete('/{identifier}/force', [NoticeMarqueeController::class, 'forceDelete']);
+
+    // optional analytics
+    Route::post('/{identifier}/views', [NoticeMarqueeController::class, 'incrementViews']);
+});
+
+
+// Public (no auth) - website usage
+Route::prefix('public')->group(function () {
+    Route::get('/notice-marquee/current', [NoticeMarqueeController::class, 'current']);
+});
+
+
+
+
+
+
+
+Route::get('/public/grand-homepage', [GrandHomepageController::class, 'index']);

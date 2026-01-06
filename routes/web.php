@@ -96,6 +96,17 @@ Route::get('/department/successful-entrepreneurs', function () {
     return view('pages.users.pages.successfulEntrepreneurs.manageSuccessfulEntrepreneurs');
 });
 
+Route::get('/career-notices', function () {
+    return view('pages.users.pages.careerNotices.manageCareerNotices');
+});
+
+Route::get('/why-us', function () {
+    return view('pages.users.pages.whyUs.manageWhyUs');
+});
+
+Route::get('/scholarships', function () {
+    return view('pages.users.pages.scholarship.manageScholarships');
+});
 
 // Department View Pages
 
@@ -213,6 +224,22 @@ Route::get('/hero-carousel/settings', function () {
     return view('pages.users.pages.home.settingsHeroCarousel');
 });
 
+Route::get('/alumni-speak/manage', function () {
+    return view('pages.users.pages.home.manageAlumniSpeaks');
+});
+
+Route::get('/center-iframes/manage', function () {
+    return view('pages.users.pages.home.manageCenterIframes');
+});
+
+Route::get('/stats/settings', function () {
+    return view('pages.users.pages.home.settingsStats');
+});
+
+Route::get('/notice-marquee/settings', function () {
+    return view('pages.users.pages.home.settingsNoticeMarquee');
+});
+
 Route::get('/recruiters', function () {
     return view('pages.users.pages.home.recruiters');
 });
@@ -228,3 +255,4 @@ Route::get('/events/manage', function () {
 Route::get('/header-components/manage', function () {
     return view('pages.users.pages.headerComponents.manageHeaderComponents');
 });
+

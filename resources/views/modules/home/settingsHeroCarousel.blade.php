@@ -1,4 +1,3 @@
-```blade
 {{-- resources/views/modules/home/settingsHeroCarousel.blade.php --}}
 @section('title','Hero Carousel Settings')
 
@@ -1689,4 +1688,3 @@
 })();
 </script>
 @endpush
-```

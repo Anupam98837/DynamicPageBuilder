@@ -10,26 +10,35 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet"/>
 
-  {{-- Common UI (your EduPro theme) --}}
+  {{-- Common UI --}}
   <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}">
+
+  @php
+    /**
+     * IMPORTANT:
+     * Set this to the REAL endpoint that returns the JSON you pasted.
+     * Example if your route is: Route::get('/api/home/current', ...) then use url('/api/home/current')
+     */
+    $homeApiUrl = $homeApiUrl ?? url('/api/public/grand-homepage');
+  @endphp
 
   <style>
     :root{
-      --brand: var(--primary-color, #9E363A);
-      --brand2: var(--secondary-color, #6B2528);
-      --accent: var(--accent-color, #C94B50);
-      --line: var(--line-strong, #e6c8ca);
-      --surface: var(--surface, #fff);
-      --ink: var(--ink, #111);
-      --muted: var(--muted-color, #6b7280);
-      --shadow: var(--shadow-2, 0 10px 28px rgba(0,0,0,.10));
+      --brand: #9E363A;
+      --brand2: #6B2528;
+      --accent: #C94B50;
+      --line: #e6c8ca;
+      --surface: #fff;
+      --ink: #111;
+      --muted: #6b7280;
+      --shadow: 0 10px 28px rgba(0,0,0,.10);
       --r-xl: 18px;
     }
 
-    body{ background: var(--bg-body, #f6f7fb); color: var(--ink); }
+    body{ background: #f6f7fb; color: var(--ink); }
 
-    /* ===== hero ===== */
-    .hero-wrap{ position:relative; overflow:hidden; }
+    /* ===== hero carousel ===== */
+    .hero-wrap{ position:relative; overflow:hidden; margin-top: 20px; }
     .hero-card{
       border-radius: var(--r-xl);
       border: 1px solid var(--line);
@@ -38,7 +47,7 @@
       overflow:hidden;
     }
     .hero-slide{
-      min-height: 460px;
+      min-height: 500px;
       background-size: cover;
       background-position: center;
       position: relative;
@@ -46,231 +55,479 @@
     .hero-slide::before{
       content:"";
       position:absolute; inset:0;
-      background: linear-gradient(90deg, rgba(0,0,0,.62), rgba(0,0,0,.18));
+      background: linear-gradient(90deg, rgba(0,0,0,.65), rgba(0,0,0,.20));
     }
     .hero-inner{
       position:relative;
-      padding: 56px 26px;
-      max-width: 860px;
+      padding: 60px 40px;
+      max-width: 980px;
       color:#fff;
     }
     .hero-kicker{
       display:inline-flex; gap:10px; align-items:center;
-      padding: 6px 12px;
+      padding: 8px 16px;
       border-radius: 999px;
-      background: rgba(255,255,255,.14);
-      border: 1px solid rgba(255,255,255,.20);
+      background: rgba(255,255,255,.16);
+      border: 1px solid rgba(255,255,255,.25);
       font-weight: 700;
-      font-size: 12px;
-      letter-spacing:.3px;
+      font-size: 13px;
+      letter-spacing:.4px;
+      margin-bottom: 20px;
     }
     .hero-title{
       font-weight: 900;
-      line-height: 1.08;
-      margin: 14px 0 10px;
-      font-size: clamp(28px, 3.2vw, 44px);
+      line-height: 1.1;
+      margin: 0 0 16px;
+      font-size: clamp(28px, 4vw, 52px);
     }
-    .hero-sub{
-      color: rgba(255,255,255,.92);
-      font-size: 15px;
-      max-width: 60ch;
-    }
-    .hero-actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top: 16px; }
-    .btn-brand{
+    .hero-actions{ display:flex; gap:12px; flex-wrap:wrap; margin-top: 20px; }
+    .btn-hero{
       background: var(--accent);
       border: 0;
       color:#fff;
-      border-radius: 14px;
-      padding: 10px 14px;
+      border-radius: 12px;
+      padding: 12px 24px;
       font-weight: 800;
+      font-size: 15px;
     }
-    .btn-brand:hover{ background: var(--brand); color:#fff; }
-    .btn-ghost{
-      border: 1px solid rgba(255,255,255,.35);
-      background: rgba(255,255,255,.10);
-      color:#fff;
-      border-radius: 14px;
-      padding: 10px 14px;
-      font-weight: 800;
-    }
-    .btn-ghost:hover{ background: rgba(255,255,255,.18); color:#fff; }
+    .btn-hero:hover{ background: var(--brand); color:#fff; }
 
-    /* ===== top strip ===== */
-    .top-strip{
-      margin-top: 18px;
-      border-radius: var(--r-xl);
-      border: 1px solid var(--line);
-      background: var(--surface);
-      box-shadow: var(--shadow);
-      overflow:hidden;
+    /* ===== scrolling announcement ===== */
+    .announcement-strip{
+      background: linear-gradient(135deg, #fef3c7, #fed7aa);
+      padding: 14px 0;
+      border-bottom: 2px solid #f59e0b;
+      margin-top: 20px;
     }
-    .strip-row{ display:flex; align-items:stretch; gap:0; }
-    .strip-badge{
+    .announcement-strip marquee{
+      font-weight: 700;
+      color: #92400e;
+      font-size: 15px;
+    }
+
+    /* ===== three info boxes ===== */
+    .info-boxes{ margin-top: 30px; }
+    .info-box{
       background: var(--brand);
-      color:#fff;
-      padding: 10px 14px;
+      color: #fff;
+      border-radius: 16px;
+      padding: 24px;
+      height: 100%;
+      box-shadow: var(--shadow);
+    }
+    .info-box h5{
       font-weight: 900;
+      margin-bottom: 12px;
+      font-size: 18px;
+    }
+    .info-box ul{
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .info-box ul li{
+      padding: 8px 0;
+      border-bottom: 1px dashed rgba(255,255,255,.3);
+      font-size: 14px;
       display:flex;
-      align-items:center;
+      align-items:flex-start;
       gap:10px;
-      white-space:nowrap;
     }
-    .strip-badge i{ opacity:.95; }
-    .strip-marq{
-      flex:1 1 auto;
-      padding: 10px 14px;
-      color: var(--muted);
-      min-width:0;
-    }
-    .strip-marq marquee{ width:100%; }
-    .strip-links{
-      display:flex; gap:8px; padding: 10px 12px;
-      border-left: 1px solid var(--line);
-      flex:0 0 auto;
-      flex-wrap:wrap;
-      justify-content:flex-end;
-      min-width: 260px;
-    }
-    .strip-link{
-      display:inline-flex; gap:8px; align-items:center;
-      border: 1px solid var(--line);
-      background: #fff;
-      border-radius: 999px;
-      padding: 7px 10px;
-      text-decoration:none;
-      color: var(--brand);
-      font-weight: 800;
-      font-size: 12px;
-      white-space:nowrap;
-    }
-    html.theme-dark .strip-link{ background: rgba(255,255,255,.05); }
-    .strip-link:hover{ background: rgba(158,54,58,.06); }
+    .info-box ul li:last-child{ border-bottom: 0; }
+    .info-box i{ margin-top: 2px; opacity: .92; }
+    .info-box a{ color:#fff; text-decoration:none; font-weight:700; }
+    .info-box a:hover{ text-decoration:underline; }
 
-    /* ===== section ===== */
-    .sec{ padding: 26px 0; }
-    .sec-title{
-      font-weight: 900;
-      margin: 0 0 8px;
-      font-size: clamp(20px, 2.2vw, 28px);
-    }
-    .sec-sub{ color: var(--muted); margin:0 0 16px; }
-
-    /* ===== cards ===== */
-    .x-card{
+    /* ===== video section ===== */
+    .video-section{
+      margin-top: 40px;
+      background: var(--surface);
       border-radius: var(--r-xl);
       border: 1px solid var(--line);
-      background: var(--surface);
+      padding: 40px;
       box-shadow: var(--shadow);
+    }
+    .video-section h2{
+      text-align: center;
+      font-weight: 900;
+      color: var(--brand);
+      margin-bottom: 30px;
+      font-size: clamp(22px, 3vw, 36px);
+    }
+    .video-embed{
+      position: relative;
+      width: 100%;
+      padding-bottom: 56.25%;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 8px 24px rgba(0,0,0,.15);
+      background: #111;
+    }
+    .video-embed iframe{
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* ===== cta buttons ===== */
+    .cta-section{
+      margin-top: 30px;
+      text-align: center;
+    }
+    .cta-btn{
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: #f59e0b;
+      color: #fff;
+      border: 0;
+      border-radius: 999px;
+      padding: 14px 32px;
+      font-weight: 900;
+      font-size: 16px;
+      margin: 0 8px 12px;
+      box-shadow: 0 4px 12px rgba(245,158,11,.3);
+      transition: all .2s;
+      text-decoration:none;
+    }
+    .cta-btn:hover{
+      background: #d97706;
+      transform: translateY(-2px);
+      color: #fff;
+    }
+    .cta-btn.btn-secondary{
+      background: #991b1b;
+      box-shadow: 0 4px 12px rgba(153,27,27,.25);
+    }
+    .cta-btn.btn-secondary:hover{
+      background: #7f1d1d;
+      color:#fff;
+    }
+
+    /* ===== stats counter ===== */
+    .stats-section{
+      margin-top: 40px;
+      background: linear-gradient(135deg, rgba(158,54,58,.08), rgba(201,75,80,.04));
+      border-radius: var(--r-xl);
+      padding: 50px 30px;
+      border: 1px solid rgba(158,54,58,.12);
+      position:relative;
       overflow:hidden;
     }
-    .x-card-pad{ padding: 16px; }
-    .x-mini{
-      border-radius: 16px;
-      border: 1px solid var(--line);
-      background: var(--surface);
-      box-shadow: 0 8px 22px rgba(0,0,0,.06);
-      padding: 14px;
-      height: 100%;
+    .stats-section.has-bg{
+      background-size: cover;
+      background-position: center;
     }
-    .x-mini .ico{
-      width: 44px; height: 44px;
-      border-radius: 14px;
-      display:inline-flex; align-items:center; justify-content:center;
-      background: rgba(158,54,58,.10);
+    .stats-section .stats-head{
+      text-align:center;
+      margin-bottom: 26px;
+    }
+    .stats-section .stats-head h2{
+      margin:0;
+      font-weight: 950;
       color: var(--brand);
-      font-size: 18px;
-      margin-bottom: 10px;
+      font-size: clamp(22px, 3vw, 34px);
     }
-    .x-mini h6{ font-weight: 900; margin:0 0 6px; }
-    .x-mini p{ margin:0; color: var(--muted); font-size: 13px; }
-
-    /* ===== stats ===== */
-    .stat{
-      display:flex; gap:12px; align-items:center;
-      padding: 14px;
-      border-radius: 16px;
-      border: 1px solid var(--line);
-      background: linear-gradient(180deg, rgba(158,54,58,.05), rgba(158,54,58,.02));
-      height: 100%;
-    }
-    .stat .s-ico{
-      width: 46px; height: 46px;
-      border-radius: 16px;
-      background: rgba(201,75,80,.16);
+    .stat-item{ text-align: center; }
+    .stat-num{
+      font-size: clamp(40px, 5vw, 64px);
+      font-weight: 950;
       color: var(--brand);
-      display:inline-flex; align-items:center; justify-content:center;
-      font-size: 18px;
-      flex:0 0 auto;
+      line-height: 1;
+      margin-bottom: 8px;
     }
-    .stat .s-num{ font-weight: 950; font-size: 22px; line-height: 1; }
-    .stat .s-lbl{ color: var(--muted); font-size: 12px; margin-top: 2px; }
-
-    /* ===== courses ===== */
-    .course{
-      border-radius: 18px;
-      border: 1px solid var(--line);
-      background: var(--surface);
-      box-shadow: 0 8px 22px rgba(0,0,0,.06);
-      padding: 14px;
-      height: 100%;
-      transition: transform .18s ease, box-shadow .18s ease;
-    }
-    .course:hover{ transform: translateY(-2px); box-shadow: 0 12px 26px rgba(0,0,0,.10); }
-    .course .tag{
-      display:inline-flex;
-      padding: 4px 10px;
-      border-radius: 999px;
-      font-size: 12px;
+    .stat-label{
+      font-size: 16px;
+      color: var(--muted);
       font-weight: 800;
+    }
+    .stat-icon{
+      display:inline-flex;
+      width: 42px; height: 42px;
+      align-items:center; justify-content:center;
+      border-radius: 999px;
       background: rgba(158,54,58,.10);
       color: var(--brand);
+      margin-bottom: 10px;
       border: 1px solid rgba(158,54,58,.18);
     }
-    .course h6{ font-weight: 950; margin: 10px 0 6px; }
-    .course p{ margin:0; color: var(--muted); font-size: 13px; }
-    .course a{ text-decoration:none; color: var(--brand); font-weight: 900; font-size: 13px; }
 
-    /* ===== lists ===== */
-    .clean-list{ list-style:none; padding:0; margin:0; }
-    .clean-list li{
-      display:flex; gap:10px; align-items:flex-start;
-      padding: 10px 0;
-      border-bottom: 1px dashed rgba(0,0,0,.14);
-    }
-    .clean-list li:last-child{ border-bottom:0; }
-    .clean-list i{ color: var(--brand); margin-top: 2px; }
-
-    /* ===== enquiry form ===== */
-    .enq{
-      background: linear-gradient(135deg, rgba(158,54,58,.10), rgba(201,75,80,.06));
-    }
-    .form-control,.form-select{
-      border-radius: 14px;
-      border: 1px solid var(--line);
-      min-height: 44px;
-    }
-    .form-control:focus,.form-select:focus{
-      border-color: rgba(158,54,58,.55);
-      box-shadow: 0 0 0 .2rem rgba(201,75,80,.18);
-    }
-
-    /* ===== simple recruiter badges ===== */
-    .brand-badge{
-      border: 1px solid var(--line);
+    /* ===== testimonials ===== */
+    .testimonial-section{
+      margin-top: 50px;
       background: var(--surface);
-      border-radius: 999px;
-      padding: 10px 12px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
+      border-radius: var(--r-xl);
+      border: 1px solid var(--line);
+      padding: 40px;
+      box-shadow: var(--shadow);
+    }
+    .testimonial-section h2{
+      text-align: center;
       font-weight: 900;
+      color: var(--brand);
+      margin-bottom: 30px;
+      font-size: clamp(22px, 3vw, 36px);
+    }
+    .testimonial-card{
+      background: linear-gradient(135deg, rgba(158,54,58,.06), rgba(201,75,80,.03));
+      border-radius: 16px;
+      padding: 30px;
+      height: 100%;
+      border: 1px solid var(--line);
+    }
+    .testimonial-avatar{
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 4px solid var(--brand);
+      margin-bottom: 16px;
+      background: #fff;
+    }
+    .testimonial-text{
+      font-style: italic;
+      color: var(--ink);
+      margin-bottom: 16px;
+      line-height: 1.6;
+    }
+    .testimonial-name{
+      font-weight: 900;
+      color: var(--brand);
+      margin-bottom: 4px;
+    }
+    .testimonial-role{
+      font-size: 13px;
       color: var(--muted);
-      height: 46px;
+      font-weight: 700;
     }
 
-    @media (max-width: 992px){
-      .strip-links{ min-width: 0; border-left: 0; border-top: 1px solid var(--line); width: 100%; justify-content:flex-start; }
-      .strip-row{ flex-wrap:wrap; }
+    /* ===== alumni videos ===== */
+    .alumni-section{
+      margin-top: 40px;
+      background: var(--surface);
+      border-radius: var(--r-xl);
+      border: 1px solid var(--line);
+      padding: 40px;
+      box-shadow: var(--shadow);
+    }
+    .alumni-section h2{
+      text-align: center;
+      font-weight: 900;
+      color: var(--brand);
+      margin-bottom: 30px;
+      font-size: clamp(22px, 3vw, 36px);
+    }
+    .alumni-video-card{
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 8px 20px rgba(0,0,0,.1);
+      height: 100%;
+      background:#111;
+    }
+    .alumni-video-card iframe{
+      width: 100%;
+      height: 240px;
+      display:block;
+    }
+
+    /* ===== success stories ===== */
+    .success-section{
+      margin-top: 40px;
+      background: #f9fafb;
+      border-radius: var(--r-xl);
+      padding: 40px;
+      border: 1px solid rgba(17,17,17,.06);
+    }
+    .success-section h2{
+      text-align: center;
+      font-weight: 900;
+      color: var(--brand);
+      margin-bottom: 30px;
+      font-size: clamp(22px, 3vw, 36px);
+    }
+    .success-card{
+      background: var(--surface);
+      border-radius: 16px;
+      padding: 20px;
+      height: 100%;
+      border: 1px solid var(--line);
+      box-shadow: 0 6px 18px rgba(0,0,0,.08);
+      transition: transform .2s;
+    }
+    .success-card:hover{ transform: translateY(-4px); }
+    .success-img{
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+      border-radius: 12px;
+      margin-bottom: 16px;
+      background:#eee;
+    }
+    .success-desc{
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+    .success-name{
+      font-weight: 900;
+      color: var(--brand);
+      font-size: 16px;
+      margin-bottom: 4px;
+    }
+    .success-role{
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    /* ===== courses section ===== */
+    .courses-section{
+      margin-top: 50px;
+      background: var(--surface);
+      border-radius: var(--r-xl);
+      border: 1px solid var(--line);
+      padding: 40px;
+      box-shadow: var(--shadow);
+    }
+    .courses-section h2{
+      text-align: center;
+      font-weight: 900;
+      color: var(--brand);
+      margin-bottom: 30px;
+      font-size: clamp(22px, 3vw, 36px);
+    }
+    .course-card{
+      background: linear-gradient(135deg, rgba(158,54,58,.08), rgba(201,75,80,.04));
+      border-radius: 16px;
+      padding: 24px;
+      height: 100%;
+      border: 1px solid var(--line);
+      transition: all .2s;
+    }
+    .course-card:hover{
+      transform: translateY(-4px);
+      box-shadow: 0 12px 28px rgba(0,0,0,.12);
+    }
+    .course-img{
+      width: 100%;
+      height: 180px;
+      object-fit: cover;
+      border-radius: 12px;
+      margin-bottom: 16px;
+      background:#eee;
+    }
+    .course-title{
+      font-weight: 900;
+      color: var(--brand);
+      font-size: 20px;
+      margin-bottom: 12px;
+    }
+    .course-desc{
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.6;
+      margin-bottom: 16px;
+    }
+    .course-links{
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .course-link{
+      font-size: 12px;
+      padding: 6px 12px;
+      background: rgba(158,54,58,.15);
+      color: var(--brand);
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: 800;
+    }
+    .course-link:hover{
+      background: var(--brand);
+      color: #fff;
+    }
+
+    /* ===== recruiters ===== */
+    .recruiters-section{
+      margin-top: 50px;
+      background: var(--surface);
+      border-radius: var(--r-xl);
+      border: 1px solid var(--line);
+      padding: 40px;
+      box-shadow: var(--shadow);
+    }
+    .recruiters-section h2{
+      text-align: center;
+      font-weight: 900;
+      color: var(--brand);
+      margin-bottom: 30px;
+      font-size: clamp(22px, 3vw, 36px);
+    }
+    .recruiter-grid{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 16px;
+      margin-top: 24px;
+    }
+    .recruiter-logo{
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 80px;
+      transition: all .2s;
+      position:relative;
+      overflow:hidden;
+      text-decoration:none;
+    }
+    .recruiter-logo:hover{
+      box-shadow: 0 8px 20px rgba(0,0,0,.1);
+      transform: translateY(-2px);
+    }
+    .recruiter-logo img{
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      display:block;
+    }
+
+    .muted-note{
+      color: var(--muted);
+      font-weight: 700;
+      text-align:center;
+      margin: 0;
+      padding: 10px 0 0;
+    }
+
+    /* small alert (for API error only) */
+    .home-alert{
+      margin-top: 18px;
+      border-radius: 14px;
+      border: 1px solid rgba(245,158,11,.35);
+      background: linear-gradient(135deg, rgba(254,243,199,.85), rgba(254,215,170,.65));
+      padding: 14px 16px;
+      color: #92400e;
+      font-weight: 800;
+      display:none;
+    }
+    .home-alert code{
+      font-weight: 900;
+      color:#7c2d12;
+      background: rgba(255,255,255,.55);
+      padding: 2px 6px;
+      border-radius: 8px;
+    }
+
+    @media (max-width: 768px){
+      .hero-inner{ padding: 40px 24px; }
+      .info-boxes{ margin-top: 20px; }
+      .stat-num{ font-size: 36px; }
+      .video-section, .testimonial-section, .alumni-section, .courses-section, .recruiters-section{ padding: 26px; }
     }
   </style>
 </head>
@@ -279,645 +536,901 @@
 {{-- Main Header --}}
 @include('landing.components.header')
 
-{{-- Header (your existing) --}}
+{{-- Header Menu --}}
 @include('landing.components.headerMenu')
 
-<main class="pb-4">
+<main class="pb-5">
+  <div class="container">
 
-  {{-- ================= HERO ================= --}}
-  <section class="container mt-3 hero-wrap">
-    <div class="hero-card">
-      <div id="homeHero" class="carousel slide" data-bs-ride="carousel" data-bs-interval="4500">
-        <div class="carousel-indicators">
-          <button type="button" data-bs-target="#homeHero" data-bs-slide-to="0" class="active" aria-current="true" aria-label="Slide 1"></button>
-          <button type="button" data-bs-target="#homeHero" data-bs-slide-to="1" aria-label="Slide 2"></button>
-          <button type="button" data-bs-target="#homeHero" data-bs-slide-to="2" aria-label="Slide 3"></button>
-        </div>
-
-        <div class="carousel-inner">
-          {{-- Slide 1 --}}
-          <div class="carousel-item active">
-            <div class="hero-slide" style="background-image:url('{{ asset('assets/media/images/web/hero-1.jpg') }}');">
-              <div class="hero-inner">
-                <div class="hero-kicker">
-                  <i class="fa-solid fa-graduation-cap"></i>
-                  <span>Approved • Affiliated • Accredited</span>
-                </div>
-                <h1 class="hero-title">Build Your Future With Industry-Ready Education</h1>
-                <p class="hero-sub">
-                  A modern college portal experience — admissions, academics, notices, events, and placements — all in one place.
-                </p>
-                <div class="hero-actions">
-                  <a href="/admissions" class="btn btn-brand">
-                    <i class="fa-solid fa-paper-plane me-1"></i> Apply Now
-                  </a>
-                  <a href="/courses" class="btn btn-ghost">
-                    <i class="fa-solid fa-layer-group me-1"></i> Explore Programs
-                  </a>
-                  <a href="/contact" class="btn btn-ghost">
-                    <i class="fa-solid fa-phone me-1"></i> Contact
-                  </a>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {{-- Slide 2 --}}
-          <div class="carousel-item">
-            <div class="hero-slide" style="background-image:url('{{ asset('assets/media/images/web/hero-2.jpg') }}');">
-              <div class="hero-inner">
-                <div class="hero-kicker">
-                  <i class="fa-solid fa-flask"></i>
-                  <span>Labs • Innovation • Research</span>
-                </div>
-                <h2 class="hero-title">Hands-On Learning With Modern Labs & Mentors</h2>
-                <p class="hero-sub">
-                  Learn with practical projects, mentorship, and skill development that matches real industry needs.
-                </p>
-                <div class="hero-actions">
-                  <a href="/campus-life" class="btn btn-brand">
-                    <i class="fa-solid fa-camera-retro me-1"></i> Campus Life
-                  </a>
-                  <a href="/research" class="btn btn-ghost">
-                    <i class="fa-solid fa-microscope me-1"></i> Research
-                  </a>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {{-- Slide 3 --}}
-          <div class="carousel-item">
-            <div class="hero-slide" style="background-image:url('{{ asset('assets/media/images/web/hero-3.jpg') }}');">
-              <div class="hero-inner">
-                <div class="hero-kicker">
-                  <i class="fa-solid fa-briefcase"></i>
-                  <span>Training • Internships • Placements</span>
-                </div>
-                <h2 class="hero-title">A Strong Path To Internships & Placements</h2>
-                <p class="hero-sub">
-                  Career guidance, aptitude training, mock interviews, and campus drives to help you land your dream role.
-                </p>
-                <div class="hero-actions">
-                  <a href="/placements" class="btn btn-brand">
-                    <i class="fa-solid fa-chart-line me-1"></i> Placement Cell
-                  </a>
-                  <a href="/alumni" class="btn btn-ghost">
-                    <i class="fa-solid fa-users me-1"></i> Alumni
-                  </a>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <button class="carousel-control-prev" type="button" data-bs-target="#homeHero" data-bs-slide="prev" aria-label="Previous slide">
-          <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-        </button>
-        <button class="carousel-control-next" type="button" data-bs-target="#homeHero" data-bs-slide="next" aria-label="Next slide">
-          <span class="carousel-control-next-icon" aria-hidden="true"></span>
-        </button>
-      </div>
+    <div class="home-alert" id="homeApiAlert">
+      Home API not found. Update <code>$homeApiUrl</code> in this view (or pass it from controller).
     </div>
 
-    {{-- ================= TOP STRIP (Notices + Quick Links) ================= --}}
-    <div class="top-strip mt-3">
-      <div class="strip-row">
-        <div class="strip-badge">
-          <i class="fa-solid fa-bullhorn"></i>
-          <span>Announcements</span>
-        </div>
-        <div class="strip-marq">
-          <marquee behavior="scroll" direction="left" scrollamount="5">
-            <strong>Admissions Open 2026</strong> • Scholarship forms available •
-            New semester routine published •
-            Training session for final year students next week •
-            Campus drive schedule updated
-          </marquee>
-        </div>
-        <div class="strip-links">
-          <a class="strip-link" href="/notices"><i class="fa-solid fa-newspaper"></i> Notices</a>
-          <a class="strip-link" href="/events"><i class="fa-solid fa-calendar-days"></i> Events</a>
-          <a class="strip-link" href="/placements"><i class="fa-solid fa-building"></i> Placements</a>
-          <a class="strip-link" href="/admissions"><i class="fa-solid fa-pen-to-square"></i> Admissions</a>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  {{-- ================= HIGHLIGHTS ================= --}}
-  <section class="container sec">
-    <div class="row g-3">
-      <div class="col-lg-3 col-md-6">
-        <div class="x-mini">
-          <div class="ico"><i class="fa-solid fa-award"></i></div>
-          <h6>Accreditation & Quality</h6>
-          <p>Academic excellence with structured outcomes, audits, and continuous improvement.</p>
-        </div>
-      </div>
-      <div class="col-lg-3 col-md-6">
-        <div class="x-mini">
-          <div class="ico"><i class="fa-solid fa-chalkboard-user"></i></div>
-          <h6>Expert Faculty</h6>
-          <p>Experienced mentors with supportive learning, labs, and project-based guidance.</p>
-        </div>
-      </div>
-      <div class="col-lg-3 col-md-6">
-        <div class="x-mini">
-          <div class="ico"><i class="fa-solid fa-laptop-code"></i></div>
-          <h6>Skill-First Learning</h6>
-          <p>Workshops, coding clubs, industry talks, and internship-oriented training.</p>
-        </div>
-      </div>
-      <div class="col-lg-3 col-md-6">
-        <div class="x-mini">
-          <div class="ico"><i class="fa-solid fa-people-group"></i></div>
-          <h6>Clubs & Activities</h6>
-          <p>Sports, cultural events, tech fests, and leadership opportunities on campus.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  {{-- ================= STATS + WHY US ================= --}}
-  <section class="container sec pt-0">
-    <div class="row g-3 align-items-stretch">
-      <div class="col-lg-7">
-        <div class="x-card x-card-pad h-100">
-          <h2 class="sec-title mb-1">Why Choose Our College</h2>
-          <p class="sec-sub mb-3">A portal-style homepage inspired by typical engineering college sites (courses, notices, placements, enquiry).</p>
-
-          <div class="row g-3">
-            <div class="col-md-6">
-              <div class="stat">
-                <div class="s-ico"><i class="fa-solid fa-book-open"></i></div>
-                <div>
-                  <div class="s-num" data-count="12">0</div>
-                  <div class="s-lbl">UG/PG Programs</div>
-                </div>
-              </div>
-            </div>
-            <div class="col-md-6">
-              <div class="stat">
-                <div class="s-ico"><i class="fa-solid fa-user-tie"></i></div>
-                <div>
-                  <div class="s-num" data-count="180">0</div>
-                  <div class="s-lbl">Faculty Members</div>
-                </div>
-              </div>
-            </div>
-            <div class="col-md-6">
-              <div class="stat">
-                <div class="s-ico"><i class="fa-solid fa-building-columns"></i></div>
-                <div>
-                  <div class="s-num" data-count="25">0</div>
-                  <div class="s-lbl">Years of Excellence</div>
-                </div>
-              </div>
-            </div>
-            <div class="col-md-6">
-              <div class="stat">
-                <div class="s-ico"><i class="fa-solid fa-briefcase"></i></div>
-                <div>
-                  <div class="s-num" data-count="90">0</div>
-                  <div class="s-lbl">Placement Partners</div>
-                </div>
-              </div>
-            </div>
+    {{-- ================= HERO CAROUSEL ================= --}}
+    <section class="hero-wrap">
+      <div class="hero-card">
+        <div id="homeHero" class="carousel slide">
+          <div class="carousel-indicators" id="heroIndicators">
+            {{-- Dynamic indicators --}}
           </div>
 
-          <hr class="my-3" style="border-color:var(--line)">
-
-          <div class="row g-3">
-            <div class="col-md-6">
-              <ul class="clean-list">
-                <li><i class="fa-solid fa-circle-check"></i><span><strong>Industry tie-ups</strong> for training & internships.</span></li>
-                <li><i class="fa-solid fa-circle-check"></i><span><strong>Modern labs</strong> for core departments.</span></li>
-                <li><i class="fa-solid fa-circle-check"></i><span><strong>Scholarships</strong> for eligible students.</span></li>
-              </ul>
-            </div>
-            <div class="col-md-6">
-              <ul class="clean-list">
-                <li><i class="fa-solid fa-circle-check"></i><span><strong>Student activities</strong> & clubs for growth.</span></li>
-                <li><i class="fa-solid fa-circle-check"></i><span><strong>Career guidance</strong> and mock interviews.</span></li>
-                <li><i class="fa-solid fa-circle-check"></i><span><strong>Central portal</strong> for notices & updates.</span></li>
-              </ul>
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      <div class="col-lg-5">
-        <div class="x-card x-card-pad h-100">
-          <h2 class="sec-title mb-1">Placement Notice</h2>
-          <p class="sec-sub mb-3">Recent campus drives (static sample data).</p>
-
-          <ul class="clean-list">
-            <li>
-              <i class="fa-solid fa-building"></i>
-              <div>
-                <div class="fw-bold">TechCorp Drive — 15 Jan 2026</div>
-                <div class="text-muted small">Eligible: CSE/IT/ECE • YOP: 2026</div>
-              </div>
-            </li>
-            <li>
-              <i class="fa-solid fa-building"></i>
-              <div>
-                <div class="fw-bold">DataWorks Hiring — 22 Jan 2026</div>
-                <div class="text-muted small">Eligible: CSE/CSBS • YOP: 2026</div>
-              </div>
-            </li>
-            <li>
-              <i class="fa-solid fa-building"></i>
-              <div>
-                <div class="fw-bold">Core Engineering Drive — 03 Feb 2026</div>
-                <div class="text-muted small">Eligible: EE/ME/CE • YOP: 2026</div>
-              </div>
-            </li>
-            <li>
-              <i class="fa-solid fa-building"></i>
-              <div>
-                <div class="fw-bold">FinServe Campus — 10 Feb 2026</div>
-                <div class="text-muted small">Eligible: BBA/CS/IT • YOP: 2026</div>
-              </div>
-            </li>
-          </ul>
-
-          <div class="d-flex gap-2 flex-wrap mt-3">
-            <a href="/placements" class="btn btn-brand">
-              <i class="fa-solid fa-arrow-right me-1"></i> View All
-            </a>
-            <a href="/training" class="btn btn-outline-secondary" style="border-radius:14px;border-color:var(--line);">
-              <i class="fa-solid fa-dumbbell me-1"></i> Training
-            </a>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  {{-- ================= COURSES OFFERED ================= --}}
-  <section class="container sec pt-0">
-    <div class="d-flex align-items-end justify-content-between flex-wrap gap-2 mb-2">
-      <div>
-        <h2 class="sec-title mb-1">Courses Offered</h2>
-        <p class="sec-sub mb-0">Popular departments (static preview — connect to DB later).</p>
-      </div>
-      <a href="/courses" class="btn btn-outline-secondary" style="border-radius:14px;border-color:var(--line);">
-        <i class="fa-solid fa-layer-group me-1"></i> All Programs
-      </a>
-    </div>
-
-    <div class="row g-3">
-      <div class="col-lg-3 col-md-6">
-        <div class="course">
-          <span class="tag">B.Tech</span>
-          <h6>Computer Science & Engineering</h6>
-          <p>Programming, systems, AI, cloud and modern software engineering.</p>
-          <div class="mt-2"><a href="/departments/cse">View Department <i class="fa-solid fa-arrow-right ms-1"></i></a></div>
-        </div>
-      </div>
-      <div class="col-lg-3 col-md-6">
-        <div class="course">
-          <span class="tag">B.Tech</span>
-          <h6>Electronics & Communication</h6>
-          <p>Circuits, communication, VLSI, embedded systems and IoT.</p>
-          <div class="mt-2"><a href="/departments/ece">View Department <i class="fa-solid fa-arrow-right ms-1"></i></a></div>
-        </div>
-      </div>
-      <div class="col-lg-3 col-md-6">
-        <div class="course">
-          <span class="tag">B.Tech</span>
-          <h6>Electrical Engineering</h6>
-          <p>Power systems, machines, control, renewable energy and design.</p>
-          <div class="mt-2"><a href="/departments/ee">View Department <i class="fa-solid fa-arrow-right ms-1"></i></a></div>
-        </div>
-      </div>
-      <div class="col-lg-3 col-md-6">
-        <div class="course">
-          <span class="tag">B.Tech</span>
-          <h6>Mechanical Engineering</h6>
-          <p>Manufacturing, thermal, CAD/CAM, robotics and automation.</p>
-          <div class="mt-2"><a href="/departments/me">View Department <i class="fa-solid fa-arrow-right ms-1"></i></a></div>
-        </div>
-      </div>
-
-      <div class="col-lg-3 col-md-6">
-        <div class="course">
-          <span class="tag">B.Tech</span>
-          <h6>Civil Engineering</h6>
-          <p>Structures, construction, surveying, environment and planning.</p>
-          <div class="mt-2"><a href="/departments/ce">View Department <i class="fa-solid fa-arrow-right ms-1"></i></a></div>
-        </div>
-      </div>
-      <div class="col-lg-3 col-md-6">
-        <div class="course">
-          <span class="tag">B.Tech</span>
-          <h6>Information Technology</h6>
-          <p>Software, databases, networks, security and enterprise systems.</p>
-          <div class="mt-2"><a href="/departments/it">View Department <i class="fa-solid fa-arrow-right ms-1"></i></a></div>
-        </div>
-      </div>
-      <div class="col-lg-3 col-md-6">
-        <div class="course">
-          <span class="tag">B.Tech</span>
-          <h6>AI & Data Science</h6>
-          <p>ML, analytics, data engineering, NLP and applied AI projects.</p>
-          <div class="mt-2"><a href="/departments/aids">View Department <i class="fa-solid fa-arrow-right ms-1"></i></a></div>
-        </div>
-      </div>
-      <div class="col-lg-3 col-md-6">
-        <div class="course">
-          <span class="tag">UG</span>
-          <h6>BBA</h6>
-          <p>Business fundamentals with modern skills and industry exposure.</p>
-          <div class="mt-2"><a href="/departments/bba">View Department <i class="fa-solid fa-arrow-right ms-1"></i></a></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  {{-- ================= NEWS + EVENTS ================= --}}
-  <section class="container sec pt-0">
-    <div class="row g-3">
-      <div class="col-lg-6">
-        <div class="x-card x-card-pad h-100">
-          <h2 class="sec-title mb-1">Notice & Updates</h2>
-          <p class="sec-sub mb-3">Academic announcements, circulars, and student updates.</p>
-
-          <ul class="clean-list">
-            <li>
-              <i class="fa-solid fa-thumbtack"></i>
-              <div>
-                <div class="fw-bold">Semester Registration Starts</div>
-                <div class="text-muted small">Registration window: 05 Jan 2026 – 12 Jan 2026</div>
-              </div>
-            </li>
-            <li>
-              <i class="fa-solid fa-thumbtack"></i>
-              <div>
-                <div class="fw-bold">Scholarship Form Submission</div>
-                <div class="text-muted small">Submit documents to admin office by 20 Jan 2026</div>
-              </div>
-            </li>
-            <li>
-              <i class="fa-solid fa-thumbtack"></i>
-              <div>
-                <div class="fw-bold">Workshop: Modern Web Development</div>
-                <div class="text-muted small">Free workshop for 1st & 2nd year — Limited seats</div>
-              </div>
-            </li>
-          </ul>
-
-          <div class="mt-3">
-            <a href="/notices" class="btn btn-outline-secondary" style="border-radius:14px;border-color:var(--line);">
-              <i class="fa-solid fa-newspaper me-1"></i> View All Notices
-            </a>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-lg-6">
-        <div class="x-card x-card-pad h-100">
-          <h2 class="sec-title mb-1">Events & Activities</h2>
-          <p class="sec-sub mb-3">Campus events, seminars, and student activities.</p>
-
-          <div class="row g-3">
-            <div class="col-md-6">
-              <div class="x-mini">
-                <div class="ico"><i class="fa-solid fa-calendar-check"></i></div>
-                <h6>Orientation 2026</h6>
-                <p>Welcome session for new students with department briefings.</p>
-                <div class="mt-2 small text-muted"><i class="fa-regular fa-clock me-1"></i> 08 Jan 2026</div>
-              </div>
-            </div>
-            <div class="col-md-6">
-              <div class="x-mini">
-                <div class="ico"><i class="fa-solid fa-robot"></i></div>
-                <h6>Tech Fest</h6>
-                <p>Hackathons, robotics, coding competitions, and exhibitions.</p>
-                <div class="mt-2 small text-muted"><i class="fa-regular fa-clock me-1"></i> 20–22 Feb 2026</div>
-              </div>
-            </div>
-            <div class="col-md-6">
-              <div class="x-mini">
-                <div class="ico"><i class="fa-solid fa-microphone"></i></div>
-                <h6>Industry Talk</h6>
-                <p>Guest lecture on AI careers, interview prep, and portfolios.</p>
-                <div class="mt-2 small text-muted"><i class="fa-regular fa-clock me-1"></i> 28 Jan 2026</div>
-              </div>
-            </div>
-            <div class="col-md-6">
-              <div class="x-mini">
-                <div class="ico"><i class="fa-solid fa-futbol"></i></div>
-                <h6>Sports Week</h6>
-                <p>Inter-department tournaments and fitness activities.</p>
-                <div class="mt-2 small text-muted"><i class="fa-regular fa-clock me-1"></i> 10–15 Mar 2026</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="mt-3">
-            <a href="/events" class="btn btn-outline-secondary" style="border-radius:14px;border-color:var(--line);">
-              <i class="fa-solid fa-calendar-days me-1"></i> View Calendar
-            </a>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  {{-- ================= RECRUITERS / PLACEMENTS ================= --}}
-  <section class="container sec pt-0">
-    <div class="x-card x-card-pad">
-      <div class="d-flex align-items-end justify-content-between flex-wrap gap-2">
-        <div>
-          <h2 class="sec-title mb-1">Our Recruiters</h2>
-          <p class="sec-sub mb-0">A snapshot of companies that frequently hire from campus (static sample).</p>
-        </div>
-        <a href="/placements" class="btn btn-brand">
-          <i class="fa-solid fa-briefcase me-1"></i> Placement Cell
-        </a>
-      </div>
-
-      <div class="row g-2 mt-2">
-        <div class="col-6 col-md-3 col-lg-2"><div class="brand-badge">TCS</div></div>
-        <div class="col-6 col-md-3 col-lg-2"><div class="brand-badge">Wipro</div></div>
-        <div class="col-6 col-md-3 col-lg-2"><div class="brand-badge">Infosys</div></div>
-        <div class="col-6 col-md-3 col-lg-2"><div class="brand-badge">Capgemini</div></div>
-        <div class="col-6 col-md-3 col-lg-2"><div class="brand-badge">HCL</div></div>
-        <div class="col-6 col-md-3 col-lg-2"><div class="brand-badge">Tech Mahindra</div></div>
-      </div>
-
-      <hr class="my-3" style="border-color:var(--line)">
-
-      <div class="row g-3">
-        <div class="col-lg-4">
-          <div class="stat">
-            <div class="s-ico"><i class="fa-solid fa-file-signature"></i></div>
-            <div>
-              <div class="s-num" data-count="550">0</div>
-              <div class="s-lbl">Offers (Last Season)</div>
-            </div>
-          </div>
-        </div>
-        <div class="col-lg-4">
-          <div class="stat">
-            <div class="s-ico"><i class="fa-solid fa-indian-rupee-sign"></i></div>
-            <div>
-              <div class="s-num" data-count="12">0</div>
-              <div class="s-lbl">Highest Package (LPA)</div>
-            </div>
-          </div>
-        </div>
-        <div class="col-lg-4">
-          <div class="stat">
-            <div class="s-ico"><i class="fa-solid fa-people-arrows"></i></div>
-            <div>
-              <div class="s-num" data-count="80">0</div>
-              <div class="s-lbl">Internship Partners</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </div>
-  </section>
-
-  {{-- ================= ENQUIRY FORM ================= --}}
-  <section class="container sec pt-0">
-    <div class="x-card x-card-pad enq">
-      <div class="row g-3 align-items-center">
-        <div class="col-lg-5">
-          <h2 class="sec-title mb-1">Start Your Journey Toward a Brighter Future</h2>
-          <p class="sec-sub mb-0">
-            Have questions about admissions, courses, or campus life? Share your details and we’ll reach out.
-          </p>
-
-          <div class="mt-3 d-flex gap-2 flex-wrap">
-            <a href="tel:+919999999999" class="btn btn-brand">
-              <i class="fa-solid fa-phone me-1"></i> Call Now
-            </a>
-            <a href="https://wa.me/919999999999" target="_blank" rel="noopener" class="btn btn-outline-secondary" style="border-radius:14px;border-color:var(--line);">
-              <i class="fa-brands fa-whatsapp me-1"></i> WhatsApp
-            </a>
-          </div>
-        </div>
-
-        <div class="col-lg-7">
-          <div class="x-card x-card-pad" style="box-shadow:none;">
-            <form action="javascript:void(0)" id="enquiryForm">
-              <div class="row g-2">
-                <div class="col-md-6">
-                  <label class="small fw-bold mb-1">First Name</label>
-                  <input class="form-control" name="first_name" placeholder="Enter first name" required>
-                </div>
-                <div class="col-md-6">
-                  <label class="small fw-bold mb-1">Last Name</label>
-                  <input class="form-control" name="last_name" placeholder="Enter last name" required>
-                </div>
-                <div class="col-md-6">
-                  <label class="small fw-bold mb-1">Phone</label>
-                  <input class="form-control" name="phone" placeholder="+91..." required>
-                </div>
-                <div class="col-md-6">
-                  <label class="small fw-bold mb-1">Email</label>
-                  <input class="form-control" type="email" name="email" placeholder="you@example.com" required>
-                </div>
-                <div class="col-md-12">
-                  <label class="small fw-bold mb-1">Interested Program</label>
-                  <select class="form-select" name="program">
-                    <option>B.Tech (CSE)</option>
-                    <option>B.Tech (ECE)</option>
-                    <option>B.Tech (EE)</option>
-                    <option>B.Tech (ME)</option>
-                    <option>B.Tech (CE)</option>
-                    <option>BBA</option>
-                    <option>Other</option>
-                  </select>
-                </div>
-                <div class="col-md-12">
-                  <label class="small fw-bold mb-1">Message (optional)</label>
-                  <textarea class="form-control" name="message" rows="3" placeholder="Ask about admissions, fees, scholarship, etc."></textarea>
-                </div>
-                <div class="col-12">
-                  <div class="form-check mt-1">
-                    <input class="form-check-input" type="checkbox" id="agree" required>
-                    <label class="form-check-label small" for="agree">
-                      I agree to be contacted regarding admissions and updates.
-                    </label>
+          <div class="carousel-inner" id="heroSlides">
+            {{-- Fallback slide (NO external image, so no 404) --}}
+            <div class="carousel-item active">
+              <div class="hero-slide" style="background-image:linear-gradient(135deg, rgba(158,54,58,.95), rgba(107,37,40,.92));">
+                <div class="hero-inner">
+                  <div class="hero-kicker">
+                    <i class="fa-solid fa-graduation-cap"></i>
+                    <span>Loading…</span>
+                  </div>
+                  <h1 class="hero-title">{{ config('app.name','College Portal') }}</h1>
+                  <div class="hero-actions">
+                    <a href="{{ url('/admissions') }}" class="btn btn-hero">Apply Now</a>
+                    <a href="{{ url('/courses') }}" class="btn btn-hero">Explore Programs</a>
                   </div>
                 </div>
-                <div class="col-12 d-flex gap-2 flex-wrap mt-2">
-                  <button class="btn btn-brand" type="submit">
-                    <i class="fa-solid fa-paper-plane me-1"></i> Submit Enquiry
-                  </button>
-                  <a href="/admissions" class="btn btn-outline-secondary" style="border-radius:14px;border-color:var(--line);">
-                    <i class="fa-solid fa-circle-info me-1"></i> Admission Info
-                  </a>
-                </div>
               </div>
-              <div id="enqToast" class="alert alert-success d-none mt-3 mb-0">
-                ✅ Thanks! Your enquiry is recorded (static demo). Connect this form to your backend API when ready.
-              </div>
-            </form>
+            </div>
+          </div>
+
+          <button class="carousel-control-prev" type="button" data-bs-target="#homeHero" data-bs-slide="prev">
+            <span class="carousel-control-prev-icon"></span>
+          </button>
+          <button class="carousel-control-next" type="button" data-bs-target="#homeHero" data-bs-slide="next">
+            <span class="carousel-control-next-icon"></span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    {{-- ================= ANNOUNCEMENT STRIP ================= --}}
+    <section class="announcement-strip">
+      <div id="announcementMarquee">
+        <marquee behavior="scroll" direction="left" scrollamount="6">
+          Loading announcements…
+        </marquee>
+      </div>
+    </section>
+
+    {{-- ================= THREE INFO BOXES ================= --}}
+    <section class="info-boxes">
+      <div class="row g-3">
+        <div class="col-lg-4 col-md-4">
+          <div class="info-box">
+            <h5><i class="fa-solid fa-trophy"></i> Career At MSIT</h5>
+            <ul id="careerList">
+              <li><i class="fa-solid fa-chevron-right"></i> <span>Loading…</span></li>
+            </ul>
+          </div>
+        </div>
+        <div class="col-lg-4 col-md-4">
+          <div class="info-box">
+            <h5><i class="fa-solid fa-star"></i> Why MSIT</h5>
+            <ul id="whyMsitList">
+              <li><i class="fa-solid fa-check"></i> <span>Loading…</span></li>
+            </ul>
+          </div>
+        </div>
+        <div class="col-lg-4 col-md-4">
+          <div class="info-box">
+            <h5><i class="fa-solid fa-award"></i> Scholarship</h5>
+            <ul id="scholarshipList">
+              <li><i class="fa-solid fa-gift"></i> <span>Loading…</span></li>
+            </ul>
           </div>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
 
+    {{-- ================= MAIN VIDEO (CENTER IFRAME) ================= --}}
+    <section class="video-section">
+      <h2 id="centerIframeTitle">Loading…</h2>
+      <div class="video-embed" id="mainVideoContainer">
+        <iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ" frameborder="0" allowfullscreen></iframe>
+      </div>
+      <div class="cta-section" id="centerIframeButtons">
+        <a href="#" class="cta-btn"><i class="fa-solid fa-link"></i> Loading…</a>
+      </div>
+    </section>
+
+    {{-- ================= NOTICE, ANNOUNCEMENTS, PLACEMENT ================= --}}
+    <section class="info-boxes">
+      <div class="row g-3">
+        <div class="col-lg-4">
+          <div class="info-box">
+            <h5><i class="fa-solid fa-bullhorn"></i> Notice</h5>
+            <ul id="noticeList">
+              <li><i class="fa-solid fa-file"></i> <span>Loading…</span></li>
+            </ul>
+          </div>
+        </div>
+        <div class="col-lg-4">
+          <div class="info-box">
+            <h5><i class="fa-solid fa-megaphone"></i> Announcements</h5>
+            <ul id="announcementList">
+              <li><i class="fa-solid fa-bell"></i> <span>Loading…</span></li>
+            </ul>
+          </div>
+        </div>
+        <div class="col-lg-4">
+          <div class="info-box">
+            <h5><i class="fa-solid fa-briefcase"></i> Placement Notice</h5>
+            <ul id="placementList">
+              <li><i class="fa-solid fa-building"></i> <span>Loading…</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {{-- ================= STATISTICS ================= --}}
+    <section class="stats-section" id="statsSection">
+      <div class="stats-head">
+        <h2 id="statsTitle">Key Stats</h2>
+      </div>
+      <div class="row g-4" id="statsRow">
+        <div class="col-lg-3 col-6">
+          <div class="stat-item">
+            <div class="stat-icon"><i class="fa-solid fa-chart-column"></i></div>
+            <div class="stat-num" data-count="0">0</div>
+            <div class="stat-label">Loading…</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {{-- ================= ACHIEVEMENTS, STUDENTS ACTIVITY, PLACEMENT ================= --}}
+    <section class="info-boxes">
+      <div class="row g-3">
+        <div class="col-lg-4">
+          <div class="info-box">
+            <h5><i class="fa-solid fa-trophy"></i> Achievements</h5>
+            <ul id="achievementList">
+              <li><i class="fa-solid fa-medal"></i> <span>Loading…</span></li>
+            </ul>
+          </div>
+        </div>
+        <div class="col-lg-4">
+          <div class="info-box">
+            <h5><i class="fa-solid fa-users"></i> Students Activity</h5>
+            <ul id="activityList">
+              <li><i class="fa-solid fa-calendar"></i> <span>Loading…</span></li>
+            </ul>
+          </div>
+        </div>
+        <div class="col-lg-4">
+          <div class="info-box">
+            <h5><i class="fa-solid fa-briefcase"></i> Placement Notice</h5>
+            <ul id="placementList2">
+              <li><i class="fa-solid fa-building"></i> <span>Loading…</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {{-- ================= TESTIMONIALS ================= --}}
+    <section class="testimonial-section">
+      <h2>Successful Entrepreneurs</h2>
+      <div class="row g-4" id="testimonialContainer">
+        <div class="col-lg-6">
+          <div class="testimonial-card">
+            <img id="testimonialFallbackAvatar" alt="Alumni" class="testimonial-avatar">
+            <p class="testimonial-text">Loading…</p>
+            <div class="testimonial-name">—</div>
+            <div class="testimonial-role">—</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {{-- ================= ALUMNI SPEAK ================= --}}
+    <section class="alumni-section">
+      <h2 id="alumniSpeakTitle">Alumni Speak</h2>
+      <div class="row g-4" id="alumniVideoContainer">
+        <div class="col-lg-4 col-md-6">
+          <div class="alumni-video-card">
+            <iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ" frameborder="0" allowfullscreen></iframe>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {{-- ================= SUCCESS STORIES ================= --}}
+    <section class="success-section">
+      <h2>Success Stories</h2>
+      <div class="row g-4" id="successStoriesContainer">
+        <div class="col-lg-3 col-md-6">
+          <div class="success-card">
+            <img id="successFallbackImage" alt="Success" class="success-img">
+            <p class="success-desc">Loading…</p>
+            <div class="success-name">—</div>
+            <div class="success-role">—</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {{-- ================= COURSES OFFERED ================= --}}
+    <section class="courses-section">
+      <h2>Courses Offered</h2>
+      <div class="row g-4" id="coursesContainer">
+        <div class="col-lg-3 col-md-6">
+          <div class="course-card">
+            <img id="courseFallbackImage" alt="Course" class="course-img">
+            <h3 class="course-title">Loading…</h3>
+            <p class="course-desc">Please wait…</p>
+            <div class="course-links">
+              <a href="#" class="course-link">Vision & Mission</a>
+              <a href="#" class="course-link">PEO, PSO, PO</a>
+              <a href="#" class="course-link">Faculty</a>
+              <a href="#" class="course-link">Department</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {{-- ================= TOP RECRUITERS ================= --}}
+    <section class="recruiters-section">
+      <h2>Top Recruiters</h2>
+      <div class="recruiter-grid" id="recruitersContainer"></div>
+      <p class="muted-note" id="recruitersNote"></p>
+    </section>
+
+  </div>
 </main>
-
-{{-- footer skipped as requested --}}
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
-(function(){
-  // counter animation
-  function animateCounters(){
-    const els = document.querySelectorAll('[data-count]');
-    els.forEach(el => {
-      const target = parseInt(el.getAttribute('data-count') || '0', 10);
-      const duration = 900;
-      const start = performance.now();
-      const from = 0;
+/**
+ * FIXES INCLUDED:
+ * 1) Removed references to missing local placeholder images (no more avatar-placeholder.jpg / hero-1.jpg / etc 404).
+ * 2) Added safe SVG data-uri placeholders + auto onerror fallback for any broken image URLs.
+ * 3) ONLY ONE API request now (so you won't see 5-6 404s). If your endpoint differs, update $homeApiUrl.
+ */
 
-      function tick(t){
-        const p = Math.min(1, (t - start) / duration);
-        const val = Math.floor(from + (target - from) * (0.15 + 0.85 * p)); // smooth-ish
-        el.textContent = val.toString();
-        if (p < 1) requestAnimationFrame(tick);
-      }
-      requestAnimationFrame(tick);
-    });
+const HOME_API_URL = @json($homeApiUrl);
+
+/* =========================
+  SVG placeholders (no 404 ever)
+========================= */
+function svgDataUri(svg){
+  return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
+}
+const PLACEHOLDERS = {
+  avatar: svgDataUri(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="160" height="160">
+      <defs>
+        <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0" stop-color="#9E363A" stop-opacity=".16"/>
+          <stop offset="1" stop-color="#C94B50" stop-opacity=".08"/>
+        </linearGradient>
+      </defs>
+      <rect width="100%" height="100%" rx="80" fill="url(#g)"/>
+      <circle cx="80" cy="62" r="30" fill="#9E363A" opacity=".35"/>
+      <rect x="34" y="98" width="92" height="44" rx="22" fill="#6B2528" opacity=".28"/>
+    </svg>
+  `),
+  image: svgDataUri(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="800" height="450">
+      <defs>
+        <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0" stop-color="#9E363A" stop-opacity=".18"/>
+          <stop offset="1" stop-color="#C94B50" stop-opacity=".08"/>
+        </linearGradient>
+      </defs>
+      <rect width="100%" height="100%" rx="24" fill="url(#g)"/>
+      <path d="M140 310 L300 180 L420 280 L520 220 L680 330 L680 370 L140 370 Z" fill="#9E363A" opacity=".25"/>
+      <circle cx="310" cy="170" r="26" fill="#C94B50" opacity=".35"/>
+      <text x="50%" y="54%" text-anchor="middle" font-family="Arial" font-size="26" fill="#6B2528" opacity=".8">Image</text>
+    </svg>
+  `)
+};
+
+// set initial fallback imgs (no 404)
+document.getElementById('testimonialFallbackAvatar')?.setAttribute('src', PLACEHOLDERS.avatar);
+document.getElementById('successFallbackImage')?.setAttribute('src', PLACEHOLDERS.image);
+document.getElementById('courseFallbackImage')?.setAttribute('src', PLACEHOLDERS.image);
+
+/* Any img that fails later -> fallback */
+function attachImgFallback(img, type){
+  if(!img) return;
+  img.addEventListener('error', () => {
+    img.src = (type === 'avatar') ? PLACEHOLDERS.avatar : PLACEHOLDERS.image;
+  }, { once: true });
+}
+
+/* =========================
+  Helpers
+========================= */
+function isObj(v){ return v && typeof v === 'object' && !Array.isArray(v); }
+function esc(s){
+  return String(s ?? '')
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#039;');
+}
+function safeHref(u){
+  const s = String(u ?? '').trim();
+  if(!s) return '#';
+  if(/^https?:\/\//i.test(s)) return s;
+  if(s.startsWith('/')) return s;
+  return '/' + s;
+}
+function safeInlineHtml(html){
+  const input = String(html ?? '');
+  if(!input) return '';
+  try{
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(`<div>${input}</div>`, 'text/html');
+    const root = doc.body.firstElementChild;
+
+    const ALLOW = new Set(['B','I','U','STRONG','EM','BR','SPAN']);
+    const walk = (node) => {
+      [...node.children].forEach(el => {
+        if(!ALLOW.has(el.tagName)){
+          const txt = doc.createTextNode(el.textContent || '');
+          el.replaceWith(txt);
+          return;
+        }
+        [...el.attributes].forEach(a => el.removeAttribute(a.name));
+        walk(el);
+      });
+    };
+    walk(root);
+    return root.innerHTML;
+  }catch(e){
+    return esc(input);
   }
+}
+function toEmbedUrl(url){
+  const u = String(url ?? '').trim();
+  if(!u) return '';
+  if(u.includes('youtube-nocookie.com/embed/')) return u;
 
-  // run counters when visible
-  const obs = new IntersectionObserver((entries) => {
+  const m1 = u.match(/youtu\.be\/([a-zA-Z0-9_-]{6,})/);
+  if(m1) return `https://www.youtube-nocookie.com/embed/${m1[1]}`;
+
+  const m2 = u.match(/[?&]v=([a-zA-Z0-9_-]{6,})/);
+  if(m2) return `https://www.youtube-nocookie.com/embed/${m2[1]}`;
+
+  const m3 = u.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]{6,})/);
+  if(m3) return `https://www.youtube-nocookie.com/embed/${m3[1]}`;
+
+  return u;
+}
+
+/* =========================
+  Counter Animation
+========================= */
+function animateCounters(){
+  const els = document.querySelectorAll('.stat-num[data-count]');
+  els.forEach(el => {
+    const target = parseInt(String(el.getAttribute('data-count') || '0').replace(/[, ]/g,''), 10) || 0;
+    const duration = 1200;
+    const start = performance.now();
+
+    function tick(t){
+      const p = Math.min(1, (t - start) / duration);
+      const val = Math.floor(target * p);
+      el.textContent = val.toLocaleString();
+      if (p < 1) requestAnimationFrame(tick);
+    }
+    el.textContent = '0';
+    requestAnimationFrame(tick);
+  });
+}
+let statsObserver = null;
+function attachStatsObserver(){
+  const statsSection = document.getElementById('statsSection');
+  if(!statsSection) return;
+  if(statsObserver) statsObserver.disconnect();
+
+  statsObserver = new IntersectionObserver((entries) => {
     if (entries.some(e => e.isIntersecting)){
       animateCounters();
-      obs.disconnect();
+      statsObserver.disconnect();
     }
   }, { threshold: 0.25 });
 
-  const watch = document.querySelector('main');
-  if (watch) obs.observe(watch);
+  statsObserver.observe(statsSection);
+}
 
-  // enquiry demo
-  const form = document.getElementById('enquiryForm');
-  const toast = document.getElementById('enqToast');
-  if (form){
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      toast?.classList.remove('d-none');
-      form.reset();
-      setTimeout(() => toast?.classList.add('d-none'), 3500);
-    });
+/* =========================
+  Fetch (single URL -> no multiple 404 spam)
+========================= */
+async function fetchHomeJson(url){
+  const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+  if(!res.ok) throw new Error(`HTTP ${res.status} @ ${url}`);
+  return await res.json();
+}
+
+/* =========================
+  Renderers
+========================= */
+function syncHeroBackgrounds(){
+  const isMobile = window.matchMedia('(max-width: 768px)').matches;
+  document.querySelectorAll('.hero-slide[data-hero-desktop]').forEach(el => {
+    const d = el.getAttribute('data-hero-desktop') || '';
+    const m = el.getAttribute('data-hero-mobile') || '';
+    const url = (isMobile && m) ? m : (d || m);
+    if(url){
+      el.style.backgroundImage = `url('${url}')`;
+    }
+  });
+}
+
+function renderHero(hero){
+  const slidesEl = document.getElementById('heroSlides');
+  const indEl = document.getElementById('heroIndicators');
+  const heroRoot = document.getElementById('homeHero');
+  if(!slidesEl || !indEl || !heroRoot) return;
+
+  const items = (hero && Array.isArray(hero.items)) ? hero.items : [];
+  const settings = (hero && isObj(hero.settings)) ? hero.settings : {};
+
+  const autoplay = Number(settings.autoplay ?? 1) === 1;
+  const interval = parseInt(settings.autoplay_delay_ms ?? 5000, 10) || 5000;
+
+  if(autoplay){
+    heroRoot.setAttribute('data-bs-ride', 'carousel');
+    heroRoot.setAttribute('data-bs-interval', String(interval));
+  }else{
+    heroRoot.removeAttribute('data-bs-ride');
+    heroRoot.setAttribute('data-bs-interval', 'false');
   }
-})();
+  heroRoot.setAttribute('data-bs-wrap', (Number(settings.loop ?? 1) === 1) ? 'true' : 'false');
+  heroRoot.setAttribute('data-bs-pause', (Number(settings.pause_on_hover ?? 1) === 1) ? 'hover' : 'false');
+
+  const showArrows = Number(settings.show_arrows ?? 1) === 1;
+  const showDots   = Number(settings.show_dots ?? 1) === 1;
+
+  const prevBtn = heroRoot.querySelector('.carousel-control-prev');
+  const nextBtn = heroRoot.querySelector('.carousel-control-next');
+  if(prevBtn) prevBtn.style.display = showArrows ? '' : 'none';
+  if(nextBtn) nextBtn.style.display = showArrows ? '' : 'none';
+  indEl.style.display = showDots ? '' : 'none';
+
+  if(!items.length){
+    // keep fallback slide
+    return;
+  }
+
+  indEl.innerHTML = items.map((_, i) => `
+    <button type="button" data-bs-target="#homeHero" data-bs-slide-to="${i}" class="${i===0?'active':''}" ${i===0?'aria-current="true"':''} aria-label="Slide ${i+1}"></button>
+  `).join('');
+
+  slidesEl.innerHTML = items.map((it, i) => {
+    const desktop = String(it.image_url ?? '').trim();
+    const mobile  = String(it.mobile_image_url ?? '').trim();
+    const alt     = String(it.alt_text ?? '').trim();
+    const overlayHtml = safeInlineHtml(it.overlay_text ?? '');
+
+    // if no image urls, fallback to gradient (no 404)
+    const bgStyle = (desktop || mobile)
+      ? `background-image:url('${esc(desktop || mobile)}');`
+      : `background-image:linear-gradient(135deg, rgba(158,54,58,.95), rgba(107,37,40,.92));`;
+
+    return `
+      <div class="carousel-item ${i===0?'active':''}">
+        <div class="hero-slide"
+             data-hero-desktop="${esc(desktop)}"
+             data-hero-mobile="${esc(mobile)}"
+             style="${bgStyle}">
+          <div class="hero-inner">
+            <div class="hero-kicker">
+              <i class="fa-solid fa-graduation-cap"></i>
+              <span>${alt ? esc(alt) : 'Welcome'}</span>
+            </div>
+            <div class="hero-title">${overlayHtml || '—'}</div>
+            <div class="hero-actions">
+              <a href="${esc(safeHref('/admissions'))}" class="btn btn-hero">Apply Now</a>
+              <a href="${esc(safeHref('/courses'))}" class="btn btn-hero">Explore Programs</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  syncHeroBackgrounds();
+  window.addEventListener('resize', syncHeroBackgrounds, { passive: true });
+
+  try{
+    const existing = bootstrap.Carousel.getInstance(heroRoot);
+    if(existing) existing.dispose();
+    new bootstrap.Carousel(heroRoot, {
+      interval: autoplay ? interval : false,
+      pause: (Number(settings.pause_on_hover ?? 1) === 1) ? 'hover' : false,
+      wrap: (Number(settings.loop ?? 1) === 1),
+      ride: autoplay ? 'carousel' : false
+    });
+  }catch(e){}
+}
+
+function setList(listId, items, iconClass, emptyText){
+  const el = document.getElementById(listId);
+  if(!el) return;
+
+  const arr = Array.isArray(items) ? items : [];
+  if(!arr.length){
+    el.innerHTML = `<li><i class="${esc(iconClass)}"></i> <span>${esc(emptyText || 'No items available')}</span></li>`;
+    return;
+  }
+
+  const max = 7;
+  el.innerHTML = arr.slice(0, max).map(it => {
+    const title = it.title ?? it.text ?? it.name ?? '-';
+    const url = it.url ?? it.href ?? '';
+    const hasLink = String(url || '').trim().length > 0;
+    return `
+      <li>
+        <i class="${esc(iconClass)}"></i>
+        ${hasLink ? `<a href="${esc(safeHref(url))}">${esc(title)}</a>` : `<span>${esc(title)}</span>`}
+      </li>
+    `;
+  }).join('');
+}
+
+function renderMarquee(noticeMarquee, announcementsArr, noticesArr){
+  const host = document.getElementById('announcementMarquee');
+  if(!host) return;
+
+  let parts = [];
+  if(noticeMarquee && Array.isArray(noticeMarquee.notice_items_json)){
+    parts = noticeMarquee.notice_items_json.map(x => x?.text || x?.title || '').filter(Boolean);
+  }
+  if(!parts.length && Array.isArray(announcementsArr)){
+    parts = announcementsArr.map(x => x?.title || x?.text || '').filter(Boolean);
+  }
+  if(!parts.length && Array.isArray(noticesArr)){
+    parts = noticesArr.map(x => x?.title || x?.text || '').filter(Boolean);
+  }
+
+  if(!parts.length){
+    host.innerHTML = `<marquee behavior="scroll" direction="left" scrollamount="6">Welcome.</marquee>`;
+    return;
+  }
+
+  const text = parts.join(' • ');
+  host.innerHTML = `<marquee behavior="scroll" direction="left" scrollamount="6">${esc(text)}</marquee>`;
+}
+
+function renderCenterIframe(center){
+  const titleEl = document.getElementById('centerIframeTitle');
+  const videoEl = document.getElementById('mainVideoContainer');
+  const btnEl   = document.getElementById('centerIframeButtons');
+
+  if(titleEl) titleEl.textContent = (center && center.title) ? String(center.title) : '—';
+
+  if(videoEl){
+    const embed = toEmbedUrl(center?.iframe_url || '');
+    if(embed){
+      videoEl.innerHTML = `
+        <iframe
+          src="${esc(embed)}"
+          loading="lazy"
+          referrerpolicy="strict-origin-when-cross-origin"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowfullscreen></iframe>
+      `;
+    }else{
+      videoEl.innerHTML = `<div class="d-flex align-items-center justify-content-center text-white" style="position:absolute;inset:0;">No video available</div>`;
+    }
+  }
+
+  if(btnEl){
+    const buttons = Array.isArray(center?.buttons_json) ? center.buttons_json : [];
+    if(!buttons.length){
+      btnEl.innerHTML = `<a href="#" class="cta-btn"><i class="fa-solid fa-link"></i> No actions</a>`;
+      return;
+    }
+
+    const iconFor = (t) => {
+      const s = String(t || '').toLowerCase();
+      if(s.includes('counsel')) return 'fa-solid fa-calendar';
+      if(s.includes('admission')) return 'fa-solid fa-pen';
+      if(s.includes('fee') || s.includes('payment')) return 'fa-solid fa-credit-card';
+      if(s.includes('tour')) return 'fa-solid fa-building';
+      return 'fa-solid fa-link';
+    };
+
+    btnEl.innerHTML = buttons
+      .slice()
+      .sort((a,b)=>(Number(a.sort_order||0)-Number(b.sort_order||0)))
+      .map((b, idx) => {
+        const cls = (idx >= 2) ? 'cta-btn btn-secondary' : 'cta-btn';
+        return `<a href="${esc(safeHref(b.url))}" class="${cls}" target="_blank" rel="noopener">
+          <i class="${esc(iconFor(b.text))}"></i> ${esc(b.text || 'Open')}
+        </a>`;
+      }).join('');
+  }
+}
+
+function renderStats(stats){
+  const section = document.getElementById('statsSection');
+  const titleEl = document.getElementById('statsTitle');
+  const rowEl   = document.getElementById('statsRow');
+  if(!section || !rowEl) return;
+
+  const items = Array.isArray(stats?.stats_items_json) ? stats.stats_items_json : [];
+
+  const title = stats?.metadata?.section_title || stats?.metadata?.title || 'Key Stats';
+  if(titleEl) titleEl.textContent = String(title);
+
+  const bg = String(stats?.background_image_url || '').trim();
+  if(bg){
+    section.classList.add('has-bg');
+    section.style.backgroundImage = `linear-gradient(135deg, rgba(255,255,255,.88), rgba(255,255,255,.88)), url('${bg}')`;
+  }else{
+    section.classList.remove('has-bg');
+    section.style.backgroundImage = '';
+  }
+
+  if(!items.length){
+    rowEl.innerHTML = `<div class="col-12"><p class="muted-note">No stats published.</p></div>`;
+    attachStatsObserver();
+    return;
+  }
+
+  const cols = (n) => {
+    if(n <= 4) return 'col-lg-3 col-6';
+    if(n <= 6) return 'col-lg-2 col-md-4 col-6';
+    return 'col-lg-2 col-md-3 col-6';
+  };
+
+  rowEl.innerHTML = items
+    .slice()
+    .sort((a,b)=>(Number(a.sort_order||0)-Number(b.sort_order||0)))
+    .map((it) => {
+      const label = it.label || it.key || '—';
+      const value = String(it.value ?? '0').replace(/[^\d]/g,'') || '0';
+      const icon  = it.icon_class ? String(it.icon_class) : 'fa-solid fa-chart-column';
+
+      return `
+        <div class="${cols(items.length)}">
+          <div class="stat-item">
+            <div class="stat-icon"><i class="${esc(icon)}"></i></div>
+            <div class="stat-num" data-count="${esc(value)}">0</div>
+            <div class="stat-label">${esc(label)}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+  attachStatsObserver();
+}
+
+function renderTestimonials(arr){
+  const container = document.getElementById('testimonialContainer');
+  if(!container) return;
+
+  const items = Array.isArray(arr) ? arr : [];
+  if(!items.length){
+    container.innerHTML = `<div class="col-12"><p class="muted-note">No testimonials available.</p></div>`;
+    return;
+  }
+
+  container.innerHTML = items.slice(0, 6).map(item => {
+    const avatar = item.avatar || item.image_url || item.photo_url || PLACEHOLDERS.avatar;
+    const text   = item.text || item.description || item.quote || '';
+    const name   = item.name || item.title || '—';
+    const role   = item.role || item.designation || item.company || '';
+
+    const imgId = 'av_' + Math.random().toString(16).slice(2);
+    return `
+      <div class="col-lg-6">
+        <div class="testimonial-card">
+          <img id="${imgId}" src="${esc(avatar)}" alt="${esc(name)}" class="testimonial-avatar">
+          <p class="testimonial-text">${esc(text || '—')}</p>
+          <div class="testimonial-name">${esc(name)}</div>
+          <div class="testimonial-role">${esc(role || '—')}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // attach img fallbacks
+  container.querySelectorAll('img.testimonial-avatar').forEach(img => attachImgFallback(img, 'avatar'));
+}
+
+function renderAlumniSpeak(alumni){
+  const titleEl = document.getElementById('alumniSpeakTitle');
+  const container = document.getElementById('alumniVideoContainer');
+  if(!container) return;
+
+  if(titleEl) titleEl.textContent = alumni?.title ? String(alumni.title) : 'Alumni Speak';
+
+  const vids = Array.isArray(alumni?.iframe_urls_json) ? alumni.iframe_urls_json : [];
+  if(!vids.length){
+    container.innerHTML = `<div class="col-12"><p class="muted-note">No alumni videos available.</p></div>`;
+    return;
+  }
+
+  container.innerHTML = vids
+    .slice()
+    .sort((a,b)=>(Number(a.sort_order||0)-Number(b.sort_order||0)))
+    .slice(0, 6)
+    .map(v => {
+      const embed = v.video_id
+        ? `https://www.youtube-nocookie.com/embed/${String(v.video_id)}`
+        : toEmbedUrl(v.url || '');
+
+      const ttl = v.title || 'Video';
+      return `
+        <div class="col-lg-4 col-md-6">
+          <div class="alumni-video-card">
+            <iframe
+              src="${esc(embed)}"
+              title="${esc(ttl)}"
+              loading="lazy"
+              referrerpolicy="strict-origin-when-cross-origin"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowfullscreen></iframe>
+          </div>
+        </div>
+      `;
+    }).join('');
+}
+
+function renderSuccessStories(arr){
+  const container = document.getElementById('successStoriesContainer');
+  if(!container) return;
+
+  const items = Array.isArray(arr) ? arr : [];
+  if(!items.length){
+    container.innerHTML = `<div class="col-12"><p class="muted-note">No success stories available.</p></div>`;
+    return;
+  }
+
+  container.innerHTML = items.slice(0, 8).map(story => {
+    const img = story.image_url || story.image || story.photo_url || PLACEHOLDERS.image;
+    const desc = story.description || story.text || '';
+    const name = story.name || story.title || '—';
+    const role = story.role || story.department || story.subtitle || '';
+
+    return `
+      <div class="col-lg-3 col-md-6">
+        <div class="success-card">
+          <img src="${esc(img)}" alt="${esc(name)}" class="success-img">
+          <p class="success-desc">${esc(desc || '—')}</p>
+          <div class="success-name">${esc(name)}</div>
+          <div class="success-role">${esc(role || '—')}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  container.querySelectorAll('img.success-img').forEach(img => attachImgFallback(img, 'image'));
+}
+
+function renderCourses(arr){
+  const container = document.getElementById('coursesContainer');
+  if(!container) return;
+
+  const items = Array.isArray(arr) ? arr : [];
+  if(!items.length){
+    container.innerHTML = `<div class="col-12"><p class="muted-note">Courses not available right now.</p></div>`;
+    return;
+  }
+
+  container.innerHTML = items.slice(0, 8).map(course => {
+    const img = course.image_url || course.image || PLACEHOLDERS.image;
+    const name = course.title || course.name || 'Course';
+    const desc = course.blurb || course.description || '';
+    const links = Array.isArray(course.links) ? course.links : [];
+
+    return `
+      <div class="col-lg-3 col-md-6">
+        <div class="course-card">
+          <img src="${esc(img)}" alt="${esc(name)}" class="course-img">
+          <h3 class="course-title">${esc(name)}</h3>
+          <p class="course-desc">${esc(desc || '—')}</p>
+          <div class="course-links">
+            ${links.length ? links.slice(0,4).map(l => `
+              <a href="${esc(safeHref(l.url || l.href))}" class="course-link">${esc(l.text || l.title || 'Link')}</a>
+            `).join('') : `<a href="#" class="course-link">View</a>`}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  container.querySelectorAll('img.course-img').forEach(img => attachImgFallback(img, 'image'));
+}
+
+function renderRecruiters(arr){
+  const container = document.getElementById('recruitersContainer');
+  const note = document.getElementById('recruitersNote');
+  if(!container) return;
+
+  const items = Array.isArray(arr) ? arr : [];
+  if(!items.length){
+    container.innerHTML = '';
+    if(note) note.textContent = 'No recruiters available.';
+    return;
+  }
+
+  const sorted = items.slice().sort((a,b)=>{
+    const fa = Number(a.is_featured_home||0), fb = Number(b.is_featured_home||0);
+    if(fa !== fb) return fb-fa;
+    return Number(a.sort_order||0) - Number(b.sort_order||0);
+  });
+
+  const shown = sorted.slice(0, 18);
+  container.innerHTML = shown.map(r => {
+    const logo = r.logo_url || r.logo || PLACEHOLDERS.image;
+    const title = r.title || r.name || 'Recruiter';
+    const href = r.url ? safeHref(r.url) : '#';
+
+    return `
+      <a class="recruiter-logo" href="${esc(href)}" ${href !== '#' ? 'target="_blank" rel="noopener"' : ''} title="${esc(title)}">
+        <img src="${esc(logo)}" alt="${esc(title)}">
+      </a>
+    `;
+  }).join('');
+
+  container.querySelectorAll('.recruiter-logo img').forEach(img => attachImgFallback(img, 'image'));
+
+  if(note){
+    note.textContent = (items.length > shown.length)
+      ? `Showing ${shown.length} of ${items.length} recruiters.`
+      : '';
+  }
+}
+
+/* =========================
+  Boot
+========================= */
+async function bootHome(){
+  const alertBox = document.getElementById('homeApiAlert');
+
+  try{
+    const json = await fetchHomeJson(HOME_API_URL);
+
+    // normalize
+    const payload = (json && isObj(json.data) && !json.hero_carousel) ? json.data : json;
+
+    if(alertBox) alertBox.style.display = 'none';
+
+    renderHero(payload.hero_carousel);
+    renderMarquee(payload.notice_marquee, payload.announcements, payload.notices);
+
+    setList('careerList',      payload.career_notices, 'fa-solid fa-chevron-right', 'No career notices.');
+    setList('whyMsitList',     payload.why_us,         'fa-solid fa-check',         'No highlights.');
+    setList('scholarshipList', payload.scholarships,   'fa-solid fa-gift',          'No scholarships.');
+
+    renderCenterIframe(payload.center_iframe);
+
+    setList('noticeList',       payload.notices,           'fa-solid fa-file',     'No notices.');
+    setList('announcementList', payload.announcements,     'fa-solid fa-bell',     'No announcements.');
+    setList('placementList',    payload.placement_notices, 'fa-solid fa-building', 'No placements.');
+
+    setList('achievementList', payload.achievements,        'fa-solid fa-medal',    'No achievements.');
+    setList('activityList',    payload.student_activities,  'fa-solid fa-calendar', 'No activities.');
+    setList('placementList2',  payload.placement_notices,   'fa-solid fa-building', 'No placements.');
+
+    renderStats(payload.stats);
+    renderTestimonials(payload.successful_entrepreneurs);
+    renderAlumniSpeak(payload.alumni_speak);
+    renderSuccessStories(payload.success_stories);
+    renderCourses(payload.courses);
+    renderRecruiters(payload.recruiters);
+
+  }catch(err){
+    console.error('Home boot error:', err);
+    if(alertBox){
+      alertBox.style.display = '';
+      alertBox.innerHTML = `Home API not found. Update <code>$homeApiUrl</code> in this view (or pass it from controller).<br><span style="font-weight:800">Tried:</span> <code>${esc(HOME_API_URL)}</code>`;
+    }
+  }
+}
+
+document.addEventListener('DOMContentLoaded', bootHome);
 </script>
 
 @stack('scripts')
