@@ -198,7 +198,6 @@
 <div id="pageLoadingWrap" style="display:block;">
   @include('partials.overlay')
 </div>
-
 <!-- Sidebar -->
 <aside id="sidebar" class="w3-sidebar" aria-label="Sidebar">
   <div class="w3-sidebar-head">
@@ -220,15 +219,18 @@
       </a>
     </nav>
 
-    <!-- Site Builder heading (STATIC heading, contents dynamic/admin) -->
-    <div class="w3-nav-section">
-      <div class="w3-section-title"><i class="fa-solid fa-screwdriver-wrench"></i> SITE BUILDER</div>
-      <div class="w3-section-rule"></div>
-    </div>
 
     {{-- ✅ ADMIN FULL MENU (static) --}}
     <div id="adminFullMenu" style="display:none">
       <nav class="w3-menu" aria-label="Site Builder (Admin)">
+
+        {{-- =======================
+           ACCESS & CONTROL
+        ======================== --}}
+        <div class="w3-nav-section" style="padding:6px 6px 2px">
+          <div class="w3-section-title"><i class="fa-solid fa-user-shield"></i> ACCESS & CONTROL</div>
+          <div class="w3-section-rule"></div>
+        </div>
 
         <div class="w3-group">
           <a href="#" class="w3-link w3-toggle" data-target="sm-users" aria-expanded="false">
@@ -240,19 +242,28 @@
           </div>
         </div>
 
-        <!-- Departments -->
-<div class="w3-group">
-  <a href="#" class="w3-link w3-toggle" data-target="sm-departments" aria-expanded="false">
-    <i class="fa-solid fa-building"></i><span>Departments</span>
-    <i class="fa fa-chevron-down w3-chev"></i>
-  </a>
-  <div id="sm-departments" class="w3-submenu" role="group" aria-label="Departments submenu">
-    <a href="/department/manage" class="w3-link">Manage Departments</a>
-    <a href="/department/curriculum-syllabus" class="w3-link">Curriculum & Syllabus</a>
-    <a href="/department/gallery" class="w3-link">Gallery</a>
-  </div>
-</div>
+        {{-- =======================
+           ACADEMICS
+        ======================== --}}
+        <div class="w3-nav-section" style="padding:10px 6px 2px">
+          <div class="w3-section-title"><i class="fa-solid fa-graduation-cap"></i> ACADEMICS</div>
+          <div class="w3-section-rule"></div>
+        </div>
 
+        <!-- Departments -->
+        <div class="w3-group">
+          <a href="#" class="w3-link w3-toggle" data-target="sm-departments" aria-expanded="false">
+            <i class="fa-solid fa-building"></i><span>Departments</span>
+            <i class="fa fa-chevron-down w3-chev"></i>
+          </a>
+          <div id="sm-departments" class="w3-submenu" role="group" aria-label="Departments submenu">
+            <a href="/department/manage" class="w3-link">Manage Departments</a>
+            <a href="/department/curriculum-syllabus" class="w3-link">Curriculum & Syllabus</a>
+            <a href="/department/gallery" class="w3-link">Gallery</a>
+          </div>
+        </div>
+
+        <!-- Courses -->
         <div class="w3-group">
           <a href="#" class="w3-link w3-toggle" data-target="sm-courses" aria-expanded="false">
             <i class="fa-solid fa-book-open-reader"></i><span>Courses</span>
@@ -263,6 +274,14 @@
             <a href="/course/semester/manage" class="w3-link">Manage Semesters</a>
             <a href="/course/semester/section/manage" class="w3-link">Manage Sections</a>
           </div>
+        </div>
+
+        {{-- =======================
+           SITE SETTINGS & CONTENT (site related changes)
+        ======================== --}}
+        <div class="w3-nav-section" style="padding:10px 6px 2px">
+          <div class="w3-section-title"><i class="fa-solid fa-screwdriver-wrench"></i> SITE SETTINGS & CONTENT</div>
+          <div class="w3-section-rule"></div>
         </div>
 
         <div class="w3-group">
@@ -309,107 +328,125 @@
         </div>
 
         <!-- Contact Info -->
-<div class="w3-group">
-  <a href="#" class="w3-link w3-toggle" data-target="sm-contact-info" aria-expanded="false">
-    <i class="fa-solid fa-address-book"></i><span>Contact Info</span>
-    <i class="fa fa-chevron-down w3-chev"></i>
-  </a>
-  <div id="sm-contact-info" class="w3-submenu" role="group" aria-label="Contact Info submenu">
-    <a href="/contact-info/manage" class="w3-link">Manage Contact Info</a>
-    <!-- <a href="/contact/forms/manage" class="w3-link">Contact Forms</a>
-    <a href="/contact/locations/manage" class="w3-link">Office Locations</a> -->
-<a href="/contact-us/manage" class="w3-link">Manage Contacts</a>
-<a href="/contact-us-visibility/manage" class="w3-link">Contact Visibility</a>
-  </div>
-</div>
+        <div class="w3-group">
+          <a href="#" class="w3-link w3-toggle" data-target="sm-contact-info" aria-expanded="false">
+            <i class="fa-solid fa-address-book"></i><span>Contact Info</span>
+            <i class="fa fa-chevron-down w3-chev"></i>
+          </a>
+          <div id="sm-contact-info" class="w3-submenu" role="group" aria-label="Contact Info submenu">
+            <a href="/contact-info/manage" class="w3-link">Manage Contact Info</a>
+            <!-- <a href="/contact/forms/manage" class="w3-link">Contact Forms</a>
+            <a href="/contact/locations/manage" class="w3-link">Office Locations</a> -->
+            <a href="/contact-us/manage" class="w3-link">Manage Contacts</a>
+            <a href="/contact-us-visibility/manage" class="w3-link">Contact Visibility</a>
+          </div>
+        </div>
 
-<!-- Hero Carousel -->
-<div class="w3-group">
-  <a href="#" class="w3-link w3-toggle" data-target="sm-hero-carousel" aria-expanded="false">
-    <i class="fa-solid fa-images"></i><span>Hero Carousel</span>
-    <i class="fa fa-chevron-down w3-chev"></i>
-  </a>
-  <div id="sm-hero-carousel" class="w3-submenu" role="group" aria-label="Hero Carousel submenu">
-    <a href="/hero-carousel/manage" class="w3-link">Manage Hero Carousel</a>
-    <a href="/hero-carousel/settings" class="w3-link">Hero Carousel Settings</a>
-  </div>
-</div>
+        <!-- Hero Carousel -->
+        <div class="w3-group">
+          <a href="#" class="w3-link w3-toggle" data-target="sm-hero-carousel" aria-expanded="false">
+            <i class="fa-solid fa-images"></i><span>Hero Carousel</span>
+            <i class="fa fa-chevron-down w3-chev"></i>
+          </a>
+          <div id="sm-hero-carousel" class="w3-submenu" role="group" aria-label="Hero Carousel submenu">
+            <a href="/hero-carousel/manage" class="w3-link">Manage Hero Carousel</a>
+            <a href="/hero-carousel/settings" class="w3-link">Hero Carousel Settings</a>
+          </div>
+        </div>
 
-<!-- Recruiters (Single Link) -->
-<a href="/recruiters" class="w3-link">
-  <i class="fa-solid fa-handshake"></i><span>Recruiters</span>
-</a>
+        <!-- Center Iframes -->
+        <a href="/center-iframes/manage" class="w3-link">
+          <i class="fa-solid fa-window-maximize"></i><span>Center Iframes</span>
+        </a>
 
-<!-- Success Stories (Single Link) -->
-<a href="/success-stories/manage" class="w3-link">
-  <i class="fa-solid fa-trophy"></i><span>Success Stories</span>
-</a>
+        <!-- Stats Settings -->
+        <a href="/stats/settings" class="w3-link">
+          <i class="fa-solid fa-chart-line"></i><span>Stats</span>
+        </a>
 
-<!-- Events (Single Link) -->
-<a href="/events/manage" class="w3-link">
-  <i class="fa-solid fa-calendar-days"></i><span>Events</span>
-</a>
+        <!-- Notice Marquee Settings -->
+        <a href="/notice-marquee/settings" class="w3-link">
+          <i class="fa-solid fa-scroll"></i><span>Notice Marquee</span>
+        </a>
 
-<!-- Placement -->
-<div class="w3-group">
-  <a href="#" class="w3-link w3-toggle" data-target="sm-placement" aria-expanded="false">
-    <i class="fa-solid fa-briefcase"></i><span>Placement</span>
-    <i class="fa fa-chevron-down w3-chev"></i>
-  </a>
-  <div id="sm-placement" class="w3-submenu" role="group" aria-label="Placement submenu">
-    <a href="/department/placement-notices" class="w3-link">Placement Notices</a>
-    <a href="/department/placed-students" class="w3-link">Placed Students</a>
-    <a href="/department/successful-entrepreneurs" class="w3-link">Successful Entrepreneurs</a>
-  </div>
-</div>
+        {{-- =======================
+           PLACEMENT & OUTCOMES
+        ======================== --}}
+        <div class="w3-nav-section" style="padding:10px 6px 2px">
+          <div class="w3-section-title"><i class="fa-solid fa-briefcase"></i> PLACEMENT & OUTCOMES</div>
+          <div class="w3-section-rule"></div>
+        </div>
 
-<!-- Notifications -->
-<div class="w3-group">
-  <a href="#" class="w3-link w3-toggle" data-target="sm-notifications" aria-expanded="false">
-    <i class="fa-solid fa-bell"></i><span>Notifications</span>
-    <i class="fa fa-chevron-down w3-chev"></i>
-  </a>
-  <div id="sm-notifications" class="w3-submenu" role="group" aria-label="Notifications submenu">
-    <a href="/department/announcements" class="w3-link">Announcements</a>
-    <a href="/department/achievements" class="w3-link">Achievements</a>
-    <a href="/department/notices" class="w3-link">Notices</a>
-    <a href="/department/student-activities" class="w3-link">Student Activities</a>
-    <a href="/career-notices" class="w3-link">Career Notices</a>
-    <a href="/why-us" class="w3-link">Why Us</a>
-    <a href="/scholarships" class="w3-link">Scholarships</a>
-  </div>
-</div>
+        <!-- Recruiters (Single Link) -->
+        <a href="/recruiters" class="w3-link">
+          <i class="fa-solid fa-handshake"></i><span>Recruiters</span>
+        </a>
 
-<!-- Alumni Speak -->
-<a href="/alumni-speak/manage" class="w3-link">
-  <i class="fa-solid fa-microphone"></i><span>Alumni Speak</span>
-</a>
+        <!-- Success Stories (Single Link) -->
+        <a href="/success-stories/manage" class="w3-link">
+          <i class="fa-solid fa-trophy"></i><span>Success Stories</span>
+        </a>
 
-<!-- Center Iframes -->
-<a href="/center-iframes/manage" class="w3-link">
-  <i class="fa-solid fa-window-maximize"></i><span>Center Iframes</span>
-</a>
+        <!-- Events (Single Link) -->
+        <a href="/events/manage" class="w3-link">
+          <i class="fa-solid fa-calendar-days"></i><span>Events</span>
+        </a>
 
-<!-- Stats Settings -->
-<a href="/stats/settings" class="w3-link">
-  <i class="fa-solid fa-chart-line"></i><span>Stats</span>
-</a>
+        <!-- Placement -->
+        <div class="w3-group">
+          <a href="#" class="w3-link w3-toggle" data-target="sm-placement" aria-expanded="false">
+            <i class="fa-solid fa-briefcase"></i><span>Placement</span>
+            <i class="fa fa-chevron-down w3-chev"></i>
+          </a>
+          <div id="sm-placement" class="w3-submenu" role="group" aria-label="Placement submenu">
+            <a href="/department/placement-notices" class="w3-link">Placement Notices</a>
+            <a href="/department/placed-students" class="w3-link">Placed Students</a>
+            <a href="/department/successful-entrepreneurs" class="w3-link">Successful Entrepreneurs</a>
+          </div>
+        </div>
 
-<!-- Notice Marquee Settings -->
-<a href="/notice-marquee/settings" class="w3-link">
-  <i class="fa-solid fa-scroll"></i><span>Notice Marquee</span>
-</a>
-              <!-- Feedback -->
-              <div class="w3-group">
-                <a href="#" class="w3-link w3-toggle" data-target="sm-feedback" aria-expanded="false">
-                  <i class="fa-solid fa-comment-dots"></i><span>Feedback</span>
-                  <i class="fa fa-chevron-down w3-chev"></i>
-                </a>
-                <div id="sm-feedback" class="w3-submenu" role="group" aria-label="Feedback submenu">
-                  <a href="/feedback/question/manage" class="w3-link">Manage Questions</a>
-                  <a href="/feedback/post/manage" class="w3-link">Manage Posts</a>
-                 </div>
-              </div>
+        <!-- Alumni Speak -->
+        <a href="/alumni-speak/manage" class="w3-link">
+          <i class="fa-solid fa-microphone"></i><span>Alumni Speak</span>
+        </a>
+
+        {{-- =======================
+           COMMUNICATIONS (notices/announcements/etc + feedback)
+        ======================== --}}
+        <div class="w3-nav-section" style="padding:10px 6px 2px">
+          <div class="w3-section-title"><i class="fa-solid fa-bell"></i> COMMUNICATIONS</div>
+          <div class="w3-section-rule"></div>
+        </div>
+
+        <!-- Notifications -->
+        <div class="w3-group">
+          <a href="#" class="w3-link w3-toggle" data-target="sm-notifications" aria-expanded="false">
+            <i class="fa-solid fa-bell"></i><span>Notifications</span>
+            <i class="fa fa-chevron-down w3-chev"></i>
+          </a>
+          <div id="sm-notifications" class="w3-submenu" role="group" aria-label="Notifications submenu">
+            <a href="/department/announcements" class="w3-link">Announcements</a>
+            <a href="/department/achievements" class="w3-link">Achievements</a>
+            <a href="/department/notices" class="w3-link">Notices</a>
+            <a href="/department/student-activities" class="w3-link">Student Activities</a>
+            <a href="/career-notices" class="w3-link">Career Notices</a>
+            <a href="/why-us" class="w3-link">Why Us</a>
+            <a href="/scholarships" class="w3-link">Scholarships</a>
+          </div>
+        </div>
+
+        <!-- Feedback -->
+        <div class="w3-group">
+          <a href="#" class="w3-link w3-toggle" data-target="sm-feedback" aria-expanded="false">
+            <i class="fa-solid fa-comment-dots"></i><span>Feedback</span>
+            <i class="fa fa-chevron-down w3-chev"></i>
+          </a>
+          <div id="sm-feedback" class="w3-submenu" role="group" aria-label="Feedback submenu">
+            <a href="/feedback/question/manage" class="w3-link">Manage Questions</a>
+            <a href="/feedback/post/manage" class="w3-link">Manage Posts</a>
+          </div>
+        </div>
+
       </nav>
 
       <!-- privileges (admin static) -->
@@ -479,8 +516,6 @@
         </div>
       </div>
 
-
-
       <a href="/settings/general" class="w3-link">
         <i class="fa-solid fa-gear"></i>
         <span>Settings</span>
@@ -506,6 +541,7 @@
     </a>
   </div>
 </aside>
+
 
 <!-- Appbar -->
 <header class="w3-appbar">
