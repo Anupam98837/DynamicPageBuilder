@@ -257,7 +257,7 @@ Route::get('/recruiters', function () {
 });
 
 Route::get('/success-stories/manage', function () {
-    return view('pages.users.pages.home.manageSuccessStories');
+    return view('pages.users.pages.successStory.manageSuccessStories');
 });
 
 Route::get('/events/manage', function () {
@@ -268,3 +268,113 @@ Route::get('/header-components/manage', function () {
     return view('pages.users.pages.headerComponents.manageHeaderComponents');
 });
 
+Route::get('/footer-components/manage', function () {
+    return view('pages.users.pages.footerComponents.manageFooterComponents');
+});
+
+
+// View All Pages
+
+Route::get('/announcements', function () {
+
+    return view('modules.announcements.viewAllAnnouncements');
+
+});
+ 
+Route::get('/achievements', function () {
+
+    return view('modules.achievements.viewAllAchievements');
+
+});
+ 
+Route::get('/notices', function () {
+
+    return view('modules.notices.viewAllNotices');
+
+});
+ 
+Route::get('/student-activities', function () {
+
+    return view('modules.studentActivities.viewAllStudentActivities');
+
+});
+ 
+Route::get('/gallery', function () {
+
+    return view('modules.gallery.viewAllGallery');
+
+});
+ 
+Route::get('/our-recruiters', function () {
+
+    return view('modules.ourRecruiters.viewAllOurRecruiters');
+
+});
+ 
+Route::get('/success-stories', function () {
+
+    return view('modules.successStory.viewAllsuccessStory');
+
+});
+ 
+Route::get('/courses', function () {
+
+    return view('modules.course.viewAllCourses');
+
+});
+ 
+Route::get('/courses/view/{uuid}', function () {
+
+    return view('modules.course.viewcourses');
+
+});
+ 
+Route::get('/events', function () {
+
+    return view('modules.events.viewAllEvents');
+
+});
+
+Route::get('/faculty-members', function () {
+
+    return view('modules.faculty.viewAllFaculty');
+
+});
+
+Route::get('/placed-students', function () {
+
+    return view('modules.placedStudents.viewAllPlacedStudents');
+
+});
+ 
+Route::get('/tp-cell', function () {
+
+    return view('modules.t&pCell.viewAllT&PCell');
+
+});
+
+Route::get('/placement-notices', function () {
+
+    return view('modules.placementNotices.viewAllPlacementNotices');
+
+});
+ 
+Route::get('/statistics', function () {
+
+    return view('modules.statistics.viewAllStatistics');
+
+});
+ 
+Route::get('/contact-us', function () {
+
+    return view('modules.contactUs.viewContactUs');
+
+});
+ 
+Route::get('/contact-us/manage', function () {
+    return view('pages.users.pages.contactUs.manageContacts');
+});
+ 
+Route::get('/contact-us-visibility/manage', function () {
+    return view('pages.users.pages.contactUs.manageContactVisibility');
+});

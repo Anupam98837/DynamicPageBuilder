@@ -1,8 +1,8 @@
 @extends('pages.users.layout.structure')
 
-@section('title', 'Manage Success Stories')
+@section('title', 'Manage Footer Components')
 
-@include('modules.home.manageSuccessStories')
+@include('modules.footerComponents.manageFooterComponents')
 
 @section('scripts')
 <script>

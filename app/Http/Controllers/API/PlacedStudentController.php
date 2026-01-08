@@ -554,4 +554,118 @@ class PlacedStudentController extends Controller
 
         return response()->json(['success' => true]);
     }
+    
+    /* ============================================
+     | Public Index
+     | GET /api/public/placed-students
+     |============================================ */
+
+    public function publicindex(Request $request)
+    {
+        $page    = max(1, (int)$request->query('page', 1));
+        $perPage = (int)$request->query('per_page', 12);
+        $perPage = max(6, min(60, $perPage));
+
+        $qText  = trim((string)$request->query('q', ''));
+        $status = trim((string)$request->query('status', 'active')) ?: 'active';
+
+        // accept both: ?department= or ?dept=
+        $deptParam = $request->query('department', $request->query('dept', null));
+
+        $sort = (string)$request->query('sort', 'created_at');
+        $dir  = strtolower((string)$request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+        $allowedSort = ['created_at','updated_at','offer_date','joining_date','sort_order','ctc','id'];
+        if (!in_array($sort, $allowedSort, true)) $sort = 'created_at';
+
+        $base = DB::table('placed_students as ps')
+            ->leftJoin('users as u', 'u.id', '=', 'ps.user_id')
+            ->leftJoin('departments as d', 'd.id', '=', 'ps.department_id')
+            ->whereNull('ps.deleted_at')
+            ->whereNull('u.deleted_at')
+            ->where(function ($w) {
+                // allow null department or non-deleted department
+                $w->whereNull('ps.department_id')
+                  ->orWhereNull('d.deleted_at');
+            });
+
+        // default public: active only (unless you pass another status)
+        if ($status !== '') {
+            $base->where('ps.status', $status);
+        }
+
+        // featured filter
+        if ($request->has('featured')) {
+            $featured = filter_var($request->query('featured'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            if ($featured !== null) {
+                $base->where('ps.is_featured_home', $featured ? 1 : 0);
+            }
+        }
+
+        // department filter (id|uuid|slug|title)
+        if (!empty($deptParam)) {
+            $dept = $this->resolveDepartment($deptParam);
+            if ($dept) $base->where('ps.department_id', (int)$dept->id);
+            else $base->whereRaw('1=0');
+        }
+
+        // search (NO d.name)
+        if ($qText !== '') {
+            $term = '%' . $qText . '%';
+            $base->where(function ($w) use ($term) {
+                $w->where('u.name', 'like', $term)
+                  ->orWhere('ps.role_title', 'like', $term)
+                  ->orWhere('d.title', 'like', $term)
+                  ->orWhere('d.slug', 'like', $term);
+            });
+        }
+
+        // total + pagination
+        $total    = (clone $base)->distinct('ps.id')->count('ps.id');
+        $lastPage = max(1, (int)ceil($total / $perPage));
+
+        $rows = (clone $base)
+            ->select([
+                'ps.id',
+                'ps.uuid',
+                'ps.user_id',
+                'ps.department_id',
+                'ps.role_title',
+                'ps.ctc',
+                'ps.offer_date',
+                'ps.joining_date',
+                'ps.note',
+                'ps.is_featured_home',
+                'ps.sort_order',
+                'ps.status',
+                'ps.created_at',
+                'ps.updated_at',
+
+                'd.title as department_title',
+                'd.slug  as department_slug',
+                'd.uuid  as department_uuid',
+
+                // IMPORTANT for card click: /user/profile/{user_uuid}
+                'u.uuid as user_uuid',
+                'u.name as user_name',
+                'u.image as user_image',
+            ])
+            ->orderBy('ps.' . $sort, $dir)
+            ->orderBy('ps.id', 'desc')
+            ->forPage($page, $perPage)
+            ->get();
+
+        $items = $rows->map(fn ($r) => $this->normalizeRow($r))->values()->all();
+
+        return response()->json([
+            'success' => true,
+            'data' => $items,
+            'pagination' => [
+                'page'      => $page,
+                'per_page'  => $perPage,
+                'total'     => $total,
+                'last_page' => $lastPage,
+            ],
+        ]);
+    }
+
 }

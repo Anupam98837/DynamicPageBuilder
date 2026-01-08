@@ -12,13 +12,15 @@
 
 /* Dropdowns inside table */
 .table-wrap .dropdown{position:relative}
+.table-responsive .dropdown{position:relative} /* ✅ same as reference page */
+
 .dropdown .dd-toggle{border-radius:10px}
 .dropdown-menu{
   border-radius:12px;
   border:1px solid var(--line-strong);
   box-shadow:var(--shadow-2);
   min-width:230px;
-  z-index:5000
+  z-index:99999; /* ✅ higher to avoid being behind / clipped feeling */
 }
 .dropdown-menu.show{display:block !important}
 .dropdown-item{display:flex;align-items:center;gap:.6rem}
@@ -324,27 +326,36 @@ td.col-code code{
 
   {{-- Tabs --}}
   <ul class="nav nav-tabs mb-3" role="tablist">
-    <li class="nav-item">
-      <a class="nav-link active" data-bs-toggle="tab" href="#tab-active" role="tab" aria-selected="true">
-        <i class="fa-solid fa-graduation-cap me-2"></i>Active
-      </a>
-    </li>
-    <li class="nav-item">
-      <a class="nav-link" data-bs-toggle="tab" href="#tab-inactive" role="tab" aria-selected="false">
-        <i class="fa-solid fa-circle-pause me-2"></i>Inactive
-      </a>
-    </li>
-    <li class="nav-item">
-      <a class="nav-link" data-bs-toggle="tab" href="#tab-trash" role="tab" aria-selected="false">
-        <i class="fa-solid fa-trash-can me-2"></i>Trash
-      </a>
-    </li>
-  </ul>
+  <li class="nav-item">
+    <a class="nav-link active" data-bs-toggle="tab" href="#tab-published" role="tab" aria-selected="true">
+      <i class="fa-solid fa-circle-check me-2"></i>Published
+    </a>
+  </li>
+
+  <li class="nav-item">
+    <a class="nav-link" data-bs-toggle="tab" href="#tab-draft" role="tab" aria-selected="false">
+      <i class="fa-solid fa-pen-to-square me-2"></i>Draft
+    </a>
+  </li>
+
+  <li class="nav-item">
+    <a class="nav-link" data-bs-toggle="tab" href="#tab-archived" role="tab" aria-selected="false">
+      <i class="fa-solid fa-box-archive me-2"></i>Archived
+    </a>
+  </li>
+
+  <li class="nav-item">
+    <a class="nav-link" data-bs-toggle="tab" href="#tab-bin" role="tab" aria-selected="false">
+      <i class="fa-solid fa-trash-can me-2"></i>Bin
+    </a>
+  </li>
+</ul>
+
 
   <div class="tab-content mb-3">
 
     {{-- ACTIVE TAB --}}
-    <div class="tab-pane fade show active" id="tab-active" role="tabpanel">
+    <div class="tab-pane fade show active" id="tab-published" role="tabpanel">
 
       {{-- Toolbar --}}
       <div class="row align-items-center g-2 mb-3 crs-toolbar panel">
@@ -399,27 +410,27 @@ td.col-code code{
                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
               </thead>
-              <tbody id="tbody-active">
+              <tbody id="tbody-published">
                 <tr><td colspan="8" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
 
-          <div id="empty-active" class="empty p-4 text-center" style="display:none;">
+          <div id="empty-published" class="empty p-4 text-center" style="display:none;">
             <i class="fa-solid fa-graduation-cap mb-2" style="font-size:32px;opacity:.6;"></i>
             <div>No active courses found.</div>
           </div>
 
           <div class="d-flex flex-wrap align-items-center justify-content-between p-3 gap-2">
-            <div class="text-muted small" id="resultsInfo-active">—</div>
-            <nav><ul id="pager-active" class="pagination mb-0"></ul></nav>
+            <div class="text-muted small" id="resultsInfo-published">—</div>
+            <nav><ul id="pager-published" class="pagination mb-0"></ul></nav>
           </div>
         </div>
       </div>
     </div>
 
     {{-- INACTIVE TAB --}}
-    <div class="tab-pane fade" id="tab-inactive" role="tabpanel">
+    <div class="tab-pane fade" id="tab-draft" role="tabpanel">
       <div class="card table-wrap">
         <div class="card-body p-0">
           <div class="table-responsive">
@@ -436,27 +447,65 @@ td.col-code code{
                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
               </thead>
-              <tbody id="tbody-inactive">
+              <tbody id="tbody-draft">
                 <tr><td colspan="8" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
 
-          <div id="empty-inactive" class="empty p-4 text-center" style="display:none;">
+          <div id="empty-draft" class="empty p-4 text-center" style="display:none;">
             <i class="fa fa-circle-pause mb-2" style="font-size:32px;opacity:.6;"></i>
             <div>No inactive courses found.</div>
           </div>
 
           <div class="d-flex flex-wrap align-items-center justify-content-between p-3 gap-2">
-            <div class="text-muted small" id="resultsInfo-inactive">—</div>
-            <nav><ul id="pager-inactive" class="pagination mb-0"></ul></nav>
+            <div class="text-muted small" id="resultsInfo-draft">—</div>
+            <nav><ul id="pager-draft" class="pagination mb-0"></ul></nav>
           </div>
         </div>
       </div>
     </div>
 
+    {{-- ARCHIVED TAB --}}
+<div class="tab-pane fade" id="tab-archived" role="tabpanel">
+  <div class="card table-wrap">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover table-borderless align-middle mb-0">
+          <thead class="sticky-top">
+            <tr>
+              <th>Title</th>
+              <th class="col-code">Code/Slug</th>
+              <th style="width:170px;">Department</th>
+              <th style="width:120px;">Status</th>
+              <th style="width:140px;">Level</th>
+              <th style="width:120px;">Duration</th>
+              <th style="width:170px;">Updated</th>
+              <th style="width:108px;" class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-archived">
+            <tr><td colspan="8" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div id="empty-archived" class="empty p-4 text-center" style="display:none;">
+        <i class="fa-solid fa-box-archive mb-2" style="font-size:32px;opacity:.6;"></i>
+        <div>No archived courses found.</div>
+      </div>
+
+      <div class="d-flex flex-wrap align-items-center justify-content-between p-3 gap-2">
+        <div class="text-muted small" id="resultsInfo-archived">—</div>
+        <nav><ul id="pager-archived" class="pagination mb-0"></ul></nav>
+      </div>
+    </div>
+  </div>
+</div>
+
+
     {{-- TRASH TAB --}}
-    <div class="tab-pane fade" id="tab-trash" role="tabpanel">
+    <div class="tab-pane fade" id="tab-bin" role="tabpanel">
       <div class="card table-wrap">
         <div class="card-body p-0">
           <div class="table-responsive">
@@ -470,20 +519,20 @@ td.col-code code{
                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
               </thead>
-              <tbody id="tbody-trash">
+              <tbody id="tbody-bin">
                 <tr><td colspan="5" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
 
-          <div id="empty-trash" class="empty p-4 text-center" style="display:none;">
+          <div id="empty-bin" class="empty p-4 text-center" style="display:none;">
             <i class="fa fa-trash-can mb-2" style="font-size:32px;opacity:.6;"></i>
             <div>Trash is empty.</div>
           </div>
 
           <div class="d-flex flex-wrap align-items-center justify-content-between p-3 gap-2">
-            <div class="text-muted small" id="resultsInfo-trash">—</div>
-            <nav><ul id="pager-trash" class="pagination mb-0"></ul></nav>
+            <div class="text-muted small" id="resultsInfo-bin">—</div>
+            <nav><ul id="pager-bin" class="pagination mb-0"></ul></nav>
           </div>
         </div>
       </div>
@@ -506,12 +555,13 @@ td.col-code code{
           <div class="col-12">
             <label class="form-label">Status</label>
             <select id="modal_status" class="form-select">
-              <option value="">All</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="draft">Draft</option>
-              <option value="archived">Archived</option>
-            </select>
+  <option value="">(Use tabs)</option>
+  <option value="published">Published</option>
+  <option value="draft">Draft</option>
+  <option value="archived">Archived</option>
+</select>
+<div class="form-text">Status is managed by the tabs (controller supports: draft/published/archived).</div>
+
             <div class="form-text">If your Course API uses different status values, adjust these options.</div>
           </div>
 
@@ -619,11 +669,10 @@ td.col-code code{
               <div class="col-md-6">
                 <label class="form-label">Status</label>
                 <select class="form-select" id="status">
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                  <option value="draft">Draft</option>
-                  <option value="archived">Archived</option>
-                </select>
+  <option value="published">Published</option>
+  <option value="draft">Draft</option>
+  <option value="archived">Archived</option>
+</select>
               </div>
 
               <div class="col-12">
@@ -754,21 +803,20 @@ td.col-code code{
   window.__COURSES_MODULE_INIT__ = true;
 
   const $ = (id) => document.getElementById(id);
-  const debounce = (fn, ms=300) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
+  const debounce = (fn, ms = 300) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 
   // =========================
   // ✅ API Map (edit here if your routes differ)
   // =========================
   const API = {
     me:          () => '/api/users/me',
-    departments: () => '/api/departments', // should return {data:[...]} or [...]
+    departments: () => '/api/departments',
     list:        () => '/api/courses',
     create:      () => '/api/courses',
-    update:      (id) => `/api/courses/${encodeURIComponent(id)}`,     // PATCH via _method
-    remove:      (id) => `/api/courses/${encodeURIComponent(id)}`,     // DELETE
+    update:      (id) => `/api/courses/${encodeURIComponent(id)}`,         // PATCH via _method
+    remove:      (id) => `/api/courses/${encodeURIComponent(id)}`,         // DELETE (soft delete -> bin)
     restore:     (id) => `/api/courses/${encodeURIComponent(id)}/restore`, // POST
-    force:       (id) => `/api/courses/${encodeURIComponent(id)}/force`,   // DELETE
-    toggle:      (id) => `/api/courses/${encodeURIComponent(id)}`
+    force:       (id) => `/api/courses/${encodeURIComponent(id)}/force`    // DELETE (permanent)
   };
 
   function esc(str){
@@ -805,6 +853,13 @@ td.col-code code{
     return window.location.origin + '/' + u;
   }
 
+  function fmtDate(dt){
+    if (!dt) return '—';
+    const d = new Date(dt);
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleString();
+  }
+
   async function fetchWithTimeout(url, opts={}, ms=15000){
     const ctrl = new AbortController();
     const t = setTimeout(()=>ctrl.abort(), ms);
@@ -824,15 +879,15 @@ td.col-code code{
     if (!v) return '';
     if (isIntString(v)) return v;
 
-    // try map uuid -> integer id
     const found = (departments || []).find(d => String(d?.uuid) === v);
     const id = found?.id;
     return (id !== null && id !== undefined) ? String(id) : '';
   }
 
-  // ✅ FIX #3: robust level extraction (API key variations / nested objects)
+  // ✅ robust level extraction (controller uses program_level)
   function getLevelFromRow(r){
     let v =
+      r?.program_level ??
       r?.level ??
       r?.course_level ??
       r?.courseLevel ??
@@ -853,7 +908,7 @@ td.col-code code{
     return (v ?? '').toString().trim();
   }
 
-  // ✅ FIX #2: robust duration extraction (API key variations / nested objects)
+  // ✅ duration from controller: duration_value + duration_unit
   function getDurationFromRow(r){
     let v =
       r?.duration ??
@@ -864,6 +919,14 @@ td.col-code code{
       r?.meta?.duration ??
       r?.metadata?.duration ??
       '';
+
+    if (!v) {
+      const dv = r?.duration_value ?? r?.durationValue ?? null;
+      const du = r?.duration_unit ?? r?.durationUnit ?? '';
+      if (dv !== null && dv !== undefined && String(dv).trim() !== '') {
+        v = `${dv} ${du || ''}`.trim();
+      }
+    }
 
     if (v && typeof v === 'object'){
       v = v.text || v.label || v.value || v.name || '';
@@ -897,25 +960,30 @@ td.col-code code{
     const writeControls = $('writeControls');
     const btnAddItem = $('btnAddItem');
 
-    const tbodyActive = $('tbody-active');
-    const tbodyInactive = $('tbody-inactive');
-    const tbodyTrash = $('tbody-trash');
+    // ✅ NEW TAB DOM IDS
+    const tbodyPublished = $('tbody-published');
+    const tbodyDraft     = $('tbody-draft');
+    const tbodyArchived  = $('tbody-archived');
+    const tbodyBin       = $('tbody-bin');
 
-    const emptyActive = $('empty-active');
-    const emptyInactive = $('empty-inactive');
-    const emptyTrash = $('empty-trash');
+    const emptyPublished = $('empty-published');
+    const emptyDraft     = $('empty-draft');
+    const emptyArchived  = $('empty-archived');
+    const emptyBin       = $('empty-bin');
 
-    const pagerActive = $('pager-active');
-    const pagerInactive = $('pager-inactive');
-    const pagerTrash = $('pager-trash');
+    const pagerPublished = $('pager-published');
+    const pagerDraft     = $('pager-draft');
+    const pagerArchived  = $('pager-archived');
+    const pagerBin       = $('pager-bin');
 
-    const infoActive = $('resultsInfo-active');
-    const infoInactive = $('resultsInfo-inactive');
-    const infoTrash = $('resultsInfo-trash');
+    const infoPublished  = $('resultsInfo-published');
+    const infoDraft      = $('resultsInfo-draft');
+    const infoArchived   = $('resultsInfo-archived');
+    const infoBin        = $('resultsInfo-bin');
 
     const filterModalEl = $('filterModal');
     const filterModal = filterModalEl ? new bootstrap.Modal(filterModalEl) : null;
-    const modalStatus = $('modal_status');
+    const modalStatus = $('modal_status'); // optional: used to jump to a tab
     const modalSort = $('modal_sort');
     const modalDepartment = $('modal_department');
     const modalLevel = $('modal_level');
@@ -976,23 +1044,40 @@ td.col-code code{
 
     // ---------- state ----------
     const state = {
-      filters: { q:'', status:'', department:'', level:'', sort:'-updated_at' },
+      filters: { q:'', department:'', level:'', sort:'-created_at' },
       perPage: parseInt(perPageSel?.value || '20', 10) || 20,
       tabs: {
-        active:   { page:1, lastPage:1, items:[] },
-        inactive: { page:1, lastPage:1, items:[] },
-        trash:    { page:1, lastPage:1, items:[] }
+        published: { page:1, lastPage:1, items:[] },
+        draft:     { page:1, lastPage:1, items:[] },
+        archived:  { page:1, lastPage:1, items:[] },
+        bin:       { page:1, lastPage:1, items:[] }
       },
       departments: []
     };
 
     const getTabKey = () => {
       const a = document.querySelector('.nav-tabs .nav-link.active');
-      const href = a?.getAttribute('href') || '#tab-active';
-      if (href === '#tab-inactive') return 'inactive';
-      if (href === '#tab-trash') return 'trash';
-      return 'active';
+      const href = a?.getAttribute('href') || '#tab-published';
+      if (href === '#tab-draft') return 'draft';
+      if (href === '#tab-archived') return 'archived';
+      if (href === '#tab-bin') return 'bin';
+      return 'published';
     };
+
+    function showTab(tabKey){
+      const map = {
+        published: '#tab-published',
+        draft:     '#tab-draft',
+        archived:  '#tab-archived',
+        bin:       '#tab-bin'
+      };
+      const sel = map[tabKey] || '#tab-published';
+      const a = document.querySelector(`a[href="${sel}"]`);
+      if (!a) { loadTab(tabKey); return; }
+      const already = a.classList.contains('active');
+      try { bootstrap.Tab.getOrCreateInstance(a).show(); } catch(_) {}
+      if (already) loadTab(tabKey);
+    }
 
     function buildUrl(tabKey){
       const params = new URLSearchParams();
@@ -1002,42 +1087,53 @@ td.col-code code{
       const q = (state.filters.q || '').trim();
       if (q) params.set('q', q);
 
-      const s = state.filters.sort || '-updated_at';
+      const s = state.filters.sort || '-created_at';
       params.set('sort', s.startsWith('-') ? s.slice(1) : s);
       params.set('direction', s.startsWith('-') ? 'desc' : 'asc');
 
-      if (state.filters.status) params.set('status', state.filters.status);
-      if (state.filters.department) params.set('department', state.filters.department); // keep as-is for your API
-      if (state.filters.level) params.set('level', state.filters.level);
+      if (state.filters.department) params.set('department', state.filters.department);
 
-      if (tabKey === 'active') params.set('active', '1');
-      if (tabKey === 'inactive') params.set('active', '0');
-      if (tabKey === 'trash') params.set('only_trashed', '1');
+      // ✅ controller expects program_level (NOT level)
+      if (state.filters.level) params.set('program_level', state.filters.level);
+
+      // ✅ strict tab filters: prevents “same course in multiple tabs”
+      if (tabKey === 'published') params.set('status', 'published');
+      if (tabKey === 'draft')     params.set('status', 'draft');
+      if (tabKey === 'archived')  params.set('status', 'archived');
+
+      // ✅ bin = soft deleted
+      if (tabKey === 'bin') params.set('only_trashed', '1');
 
       return `${API.list()}?${params.toString()}`;
     }
 
-    function setEmpty(tabKey, show){
-      const el = tabKey==='active' ? emptyActive : (tabKey==='inactive' ? emptyInactive : emptyTrash);
-      if (el) el.style.display = show ? '' : 'none';
+    function tabEls(tabKey){
+      return {
+        tbody: (tabKey==='published') ? tbodyPublished :
+               (tabKey==='draft') ? tbodyDraft :
+               (tabKey==='archived') ? tbodyArchived : tbodyBin,
+        empty: (tabKey==='published') ? emptyPublished :
+               (tabKey==='draft') ? emptyDraft :
+               (tabKey==='archived') ? emptyArchived : emptyBin,
+        pager: (tabKey==='published') ? pagerPublished :
+               (tabKey==='draft') ? pagerDraft :
+               (tabKey==='archived') ? pagerArchived : pagerBin,
+        info:  (tabKey==='published') ? infoPublished :
+               (tabKey==='draft') ? infoDraft :
+               (tabKey==='archived') ? infoArchived : infoBin
+      };
     }
 
-    // ✅ FIX #1: prefer boolean active/is_active for Active/Inactive,
-    // but still show Draft/Archived if present.
-    function statusBadge(status, activeBool){
+    function setEmpty(tabKey, show){
+      const { empty } = tabEls(tabKey);
+      if (empty) empty.style.display = show ? '' : 'none';
+    }
+
+    function statusBadge(status){
       const s = (status || '').toString().toLowerCase().trim();
-
-      if (s === 'draft') return `<span class="badge badge-soft-muted">Draft</span>`;
+      if (s === 'published') return `<span class="badge badge-soft-success">Published</span>`;
+      if (s === 'draft') return `<span class="badge badge-soft-warning">Draft</span>`;
       if (s === 'archived') return `<span class="badge badge-soft-muted">Archived</span>`;
-
-      if (typeof activeBool === 'boolean'){
-        return activeBool
-          ? `<span class="badge badge-soft-success">Active</span>`
-          : `<span class="badge badge-soft-warning">Inactive</span>`;
-      }
-
-      if (s === 'active' || s === 'published') return `<span class="badge badge-soft-success">Active</span>`;
-      if (s === 'inactive') return `<span class="badge badge-soft-warning">Inactive</span>`;
       if (!s) return `<span class="badge badge-soft-muted">—</span>`;
       return `<span class="badge badge-soft-muted">${esc(s)}</span>`;
     }
@@ -1052,8 +1148,8 @@ td.col-code code{
     }
 
     function renderPager(tabKey){
-      const pagerEl = tabKey === 'active' ? pagerActive : (tabKey === 'inactive' ? pagerInactive : pagerTrash);
-      if (!pagerEl) return;
+      const { pager } = tabEls(tabKey);
+      if (!pager) return;
 
       const st = state.tabs[tabKey];
       const page = st.page;
@@ -1071,10 +1167,11 @@ td.col-code code{
       for (let p=start; p<=end; p++) html += item(p, p, false, p===page);
       html += item(Math.min(totalPages, page+1), 'Next', page>=totalPages);
 
-      pagerEl.innerHTML = html;
+      pager.innerHTML = html;
     }
 
     function deptNameFromRow(r){
+      if (r?.department_title) return r.department_title;
       const d = r.department || r.dept || null;
       if (typeof d === 'string') return d;
       if (d && typeof d === 'object') return d.title || d.name || d.department_name || '—';
@@ -1092,10 +1189,56 @@ td.col-code code{
       return (code || slug || '—');
     }
 
+    // =========================
+    // ✅ ACTION DROPDOWN FIX (popper fixed)
+    // =========================
+    function dropdownInstance(toggle){
+      return bootstrap.Dropdown.getOrCreateInstance(toggle, {
+        autoClose: true,
+        popperConfig: (def) => {
+          const base = def || {};
+          const mods = Array.isArray(base.modifiers) ? base.modifiers.slice() : [];
+          mods.push({ name:'preventOverflow', options:{ boundary:'viewport', padding:8 } });
+          mods.push({ name:'flip', options:{ boundary:'viewport', padding:8 } });
+          return { ...base, strategy:'fixed', modifiers: mods };
+        }
+      });
+    }
+
+    function closeAllDropdownsExcept(exceptToggle){
+      document.querySelectorAll('.dd-toggle').forEach(t => {
+        if (t === exceptToggle) return;
+        try{ bootstrap.Dropdown.getInstance(t)?.hide(); }catch(_){}
+      });
+    }
+
+    // Toggle on click
+    document.addEventListener('click', (e) => {
+      const toggle = e.target.closest('.dd-toggle');
+      if (!toggle) return;
+      if (!toggle.closest('.table-wrap')) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      closeAllDropdownsExcept(toggle);
+
+      try{
+        dropdownInstance(toggle).toggle();
+      }catch(_){}
+    });
+
+    // Close when clicking outside
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('.dropdown')) return;
+      closeAllDropdownsExcept(null);
+    }, { capture:true });
+
     function renderTable(tabKey){
-      const tbody = tabKey==='active' ? tbodyActive : (tabKey==='inactive' ? tbodyInactive : tbodyTrash);
-      const rows = state.tabs[tabKey].items || [];
+      const { tbody } = tabEls(tabKey);
       if (!tbody) return;
+
+      const rows = state.tabs[tabKey].items || [];
 
       if (!rows.length){
         tbody.innerHTML = '';
@@ -1105,94 +1248,134 @@ td.col-code code{
       }
       setEmpty(tabKey, false);
 
-      tbody.innerHTML = rows.map(r => {
-        const uuid = r.uuid || r.id || r.identifier || '';
-        const title = r.title || r.name || r.course_title || '—';
-        const cs = codeSlug(r);
-        const dept = deptNameFromRow(r);
+      const isBin = tabKey === 'bin';
 
-        const activeBool =
-          (typeof r.active === 'boolean') ? r.active :
-          (typeof r.is_active === 'boolean') ? r.is_active :
-          (typeof r.isActive === 'boolean') ? r.isActive :
-          null;
+      const html = rows.map(r => {
+        const uuid = String(r.uuid || r.id || r.identifier || '');
+        const title = esc(r.title || r.name || '—');
+        const code = esc(codeSlug(r));
+        const dept = esc(deptNameFromRow(r));
+        const status = (r.status || '').toString().toLowerCase().trim();
 
-        const status = r.status || '';
-        const level = getLevelFromRow(r);
-        const duration = getDurationFromRow(r) || '—';
+        const lvl = getLevelFromRow(r);
+        const dur = getDurationFromRow(r);
 
-        const updated = r.updated_at || r.modified_at || r.updated || '—';
-        const deleted = r.deleted_at || '—';
+        const updated = fmtDate(r.updated_at || r.updatedAt || r.created_at || r.createdAt);
+        const deleted = fmtDate(r.deleted_at || r.deletedAt);
 
-        let actions = `
-          <div class="dropdown text-end">
-            <button type="button"
-              class="btn btn-light btn-sm dd-toggle"
-              data-bs-toggle="dropdown"
-              data-bs-auto-close="true"
-              aria-expanded="false" title="Actions">
-              <i class="fa fa-ellipsis-vertical"></i>
-            </button>
-            <ul class="dropdown-menu dropdown-menu-end">
-              <li><button type="button" class="dropdown-item" data-action="view"><i class="fa fa-eye"></i> View</button></li>`;
-
-        if (canEdit && tabKey !== 'trash'){
-          actions += `<li><button type="button" class="dropdown-item" data-action="edit"><i class="fa fa-pen-to-square"></i> Edit</button></li>`;
-          if (tabKey === 'active'){
-            actions += `<li><button type="button" class="dropdown-item" data-action="mark_inactive"><i class="fa fa-circle-pause"></i> Mark Inactive</button></li>`;
-          } else if (tabKey === 'inactive'){
-            actions += `<li><button type="button" class="dropdown-item" data-action="mark_active"><i class="fa fa-circle-check"></i> Mark Active</button></li>`;
+        const actions = (() => {
+          if (isBin){
+            return `
+              <div class="dropdown">
+                <button class="btn btn-sm btn-light dd-toggle" type="button" aria-expanded="false">
+                  <i class="fa-solid fa-ellipsis-vertical"></i>
+                </button>
+                <div class="dropdown-menu dropdown-menu-end">
+                  <button type="button" class="dropdown-item" data-action="view">
+                    <i class="fa-regular fa-eye"></i> View
+                  </button>
+                  <button type="button" class="dropdown-item" data-action="restore">
+                    <i class="fa-solid fa-rotate-left"></i> Restore
+                  </button>
+                  ${canDelete ? `
+                    <div class="dropdown-divider"></div>
+                    <button type="button" class="dropdown-item text-danger" data-action="force">
+                      <i class="fa-solid fa-trash-can"></i> Delete Permanently
+                    </button>
+                  ` : ``}
+                </div>
+              </div>
+            `;
           }
-        }
 
-        if (tabKey !== 'trash'){
-          if (canDelete){
-            actions += `<li><hr class="dropdown-divider"></li>
-              <li><button type="button" class="dropdown-item text-danger" data-action="delete"><i class="fa fa-trash"></i> Delete</button></li>`;
+          // non-bin tabs
+          const moveBtns = [];
+          if (canEdit && status !== 'published'){
+            moveBtns.push(`
+              <button type="button" class="dropdown-item" data-action="mark_published">
+                <i class="fa-solid fa-circle-check"></i> Move to Published
+              </button>
+            `);
           }
-        } else {
-          actions += `<li><hr class="dropdown-divider"></li>
-            <li><button type="button" class="dropdown-item" data-action="restore"><i class="fa fa-rotate-left"></i> Restore</button></li>`;
-          if (canDelete){
-            actions += `<li><button type="button" class="dropdown-item text-danger" data-action="force"><i class="fa fa-skull-crossbones"></i> Delete Permanently</button></li>`;
+          if (canEdit && status !== 'draft'){
+            moveBtns.push(`
+              <button type="button" class="dropdown-item" data-action="mark_draft">
+                <i class="fa-solid fa-pen-to-square"></i> Move to Draft
+              </button>
+            `);
           }
-        }
+          if (canEdit && status !== 'archived'){
+            moveBtns.push(`
+              <button type="button" class="dropdown-item" data-action="mark_archived">
+                <i class="fa-solid fa-box-archive"></i> Move to Archived
+              </button>
+            `);
+          }
 
-        actions += `</ul></div>`;
+          return `
+            <div class="dropdown">
+              <button class="btn btn-sm btn-light dd-toggle" type="button" aria-expanded="false">
+                <i class="fa-solid fa-ellipsis-vertical"></i>
+              </button>
+              <div class="dropdown-menu dropdown-menu-end">
+                <button type="button" class="dropdown-item" data-action="view">
+                  <i class="fa-regular fa-eye"></i> View
+                </button>
+                ${canEdit ? `
+                  <button type="button" class="dropdown-item" data-action="edit">
+                    <i class="fa-regular fa-pen-to-square"></i> Edit
+                  </button>
+                ` : ``}
+                ${moveBtns.length ? `<div class="dropdown-divider"></div>${moveBtns.join('')}` : ``}
+                ${canDelete ? `
+                  <div class="dropdown-divider"></div>
+                  <button type="button" class="dropdown-item text-danger" data-action="delete">
+                    <i class="fa-regular fa-trash-can"></i> Move to Bin
+                  </button>
+                ` : ``}
+              </div>
+            </div>
+          `;
+        })();
 
-        if (tabKey === 'trash'){
+        if (isBin){
           return `
             <tr data-uuid="${esc(uuid)}">
-              <td class="fw-semibold">${esc(title)}</td>
-              <td class="col-code"><code>${esc(cs)}</code></td>
-              <td>${esc(dept)}</td>
-              <td>${esc(String(deleted))}</td>
+              <td><div class="fw-semibold">${title}</div></td>
+              <td class="col-code"><code>${code}</code></td>
+              <td>${dept}</td>
+              <td>${esc(deleted)}</td>
               <td class="text-end">${actions}</td>
-            </tr>`;
+            </tr>
+          `;
         }
 
         return `
           <tr data-uuid="${esc(uuid)}">
-            <td class="fw-semibold">${esc(title)}</td>
-            <td class="col-code"><code>${esc(cs)}</code></td>
-            <td>${esc(dept)}</td>
-            <td>${statusBadge(status, activeBool)}</td>
-            <td>${levelBadge(level)}</td>
-            <td>${esc(String(duration || '—'))}</td>
-            <td>${esc(String(updated))}</td>
+            <td><div class="fw-semibold">${title}</div></td>
+            <td class="col-code"><code>${code}</code></td>
+            <td>${dept}</td>
+            <td>${statusBadge(status)}</td>
+            <td>${levelBadge(lvl)}</td>
+            <td>${esc(dur || '—')}</td>
+            <td>${esc(updated)}</td>
             <td class="text-end">${actions}</td>
-          </tr>`;
+          </tr>
+        `;
       }).join('');
 
+      tbody.innerHTML = html;
       renderPager(tabKey);
     }
 
     async function loadTab(tabKey){
-      const tbody = tabKey==='active' ? tbodyActive : (tabKey==='inactive' ? tbodyInactive : tbodyTrash);
+      const { tbody, info } = tabEls(tabKey);
+
       if (tbody){
-        const cols = (tabKey==='trash') ? 5 : 8;
+        const cols = (tabKey === 'bin') ? 5 : 8;
         tbody.innerHTML = `<tr><td colspan="${cols}" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>`;
       }
+
       try{
         const res = await fetchWithTimeout(buildUrl(tabKey), { headers: authHeaders() }, 15000);
         if (res.status === 401 || res.status === 403) { window.location.href = '/'; return; }
@@ -1206,10 +1389,7 @@ td.col-code code{
         state.tabs[tabKey].lastPage = parseInt(p.last_page || p.total_pages || 1, 10) || 1;
 
         const total = p.total ?? p.total_items ?? null;
-        const infoTxt = total !== null ? `${total} result(s)` : '—';
-        if (tabKey === 'active' && infoActive) infoActive.textContent = infoTxt;
-        if (tabKey === 'inactive' && infoInactive) infoInactive.textContent = infoTxt;
-        if (tabKey === 'trash' && infoTrash) infoTrash.textContent = infoTxt;
+        if (info) info.textContent = (total !== null) ? `${total} result(s)` : '—';
 
         renderTable(tabKey);
       }catch(e){
@@ -1227,9 +1407,12 @@ td.col-code code{
       const a = e.target.closest('a.page-link[data-page]');
       if (!a) return;
       e.preventDefault();
+
       const tab = a.dataset.tab;
       const p = parseInt(a.dataset.page, 10);
       if (!tab || Number.isNaN(p)) return;
+      if (!state.tabs[tab]) return;
+
       if (p === state.tabs[tab].page) return;
       state.tabs[tab].page = p;
       loadTab(tab);
@@ -1239,55 +1422,66 @@ td.col-code code{
     // ---------- filters ----------
     searchInput?.addEventListener('input', debounce(() => {
       state.filters.q = (searchInput.value || '').trim();
-      state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
+      state.tabs.published.page = state.tabs.draft.page = state.tabs.archived.page = state.tabs.bin.page = 1;
       reloadCurrent();
     }, 320));
 
     perPageSel?.addEventListener('change', () => {
       state.perPage = parseInt(perPageSel.value, 10) || 20;
-      state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
+      state.tabs.published.page = state.tabs.draft.page = state.tabs.archived.page = state.tabs.bin.page = 1;
       reloadCurrent();
     });
 
     filterModalEl?.addEventListener('show.bs.modal', () => {
-      if (modalStatus) modalStatus.value = state.filters.status || '';
-      if (modalSort) modalSort.value = state.filters.sort || '-updated_at';
+      // status filter is used as “jump to tab” (optional)
+      if (modalStatus) modalStatus.value = '';
+      if (modalSort) modalSort.value = state.filters.sort || '-created_at';
       if (modalDepartment) modalDepartment.value = state.filters.department || '';
       if (modalLevel) modalLevel.value = state.filters.level || '';
     });
 
     btnApplyFilters?.addEventListener('click', () => {
-      state.filters.status = modalStatus?.value || '';
-      state.filters.sort = modalSort?.value || '-updated_at';
+      const jump = (modalStatus?.value || '').trim().toLowerCase(); // published/draft/archived (optional)
+
+      state.filters.sort = modalSort?.value || '-created_at';
       state.filters.department = modalDepartment?.value || '';
       state.filters.level = modalLevel?.value || '';
-      state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
+
+      state.tabs.published.page = state.tabs.draft.page = state.tabs.archived.page = state.tabs.bin.page = 1;
+
       filterModal && filterModal.hide();
-      reloadCurrent();
+
+      if (jump && ['published','draft','archived'].includes(jump)){
+        showTab(jump);
+      } else {
+        reloadCurrent();
+      }
     });
 
     btnReset?.addEventListener('click', () => {
-      state.filters = { q:'', status:'', department:'', level:'', sort:'-updated_at' };
+      state.filters = { q:'', department:'', level:'', sort:'-created_at' };
       state.perPage = 20;
+
       if (searchInput) searchInput.value = '';
       if (perPageSel) perPageSel.value = '20';
       if (modalStatus) modalStatus.value = '';
       if (modalDepartment) modalDepartment.value = '';
       if (modalLevel) modalLevel.value = '';
-      if (modalSort) modalSort.value = '-updated_at';
-      state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
+      if (modalSort) modalSort.value = '-created_at';
+
+      state.tabs.published.page = state.tabs.draft.page = state.tabs.archived.page = state.tabs.bin.page = 1;
       reloadCurrent();
     });
 
-    document.querySelector('a[href="#tab-active"]')?.addEventListener('shown.bs.tab', () => loadTab('active'));
-    document.querySelector('a[href="#tab-inactive"]')?.addEventListener('shown.bs.tab', () => loadTab('inactive'));
-    document.querySelector('a[href="#tab-trash"]')?.addEventListener('shown.bs.tab', () => loadTab('trash'));
+    document.querySelector('a[href="#tab-published"]')?.addEventListener('shown.bs.tab', () => loadTab('published'));
+    document.querySelector('a[href="#tab-draft"]')?.addEventListener('shown.bs.tab', () => loadTab('draft'));
+    document.querySelector('a[href="#tab-archived"]')?.addEventListener('shown.bs.tab', () => loadTab('archived'));
+    document.querySelector('a[href="#tab-bin"]')?.addEventListener('shown.bs.tab', () => loadTab('bin'));
 
     // ---------- Departments ----------
     function fillDeptSelects(){
-      // ✅ FIX: use integer id ONLY as value (backend expects integer department_id)
       const opts = state.departments.map(d => {
-        const id = d?.id; // integer
+        const id = d?.id;
         const name = d?.title || d?.name || d?.department_name || '—';
         if (id === null || id === undefined || String(id).trim() === '') return '';
         return `<option value="${esc(String(id))}">${esc(String(name))}</option>`;
@@ -1576,24 +1770,20 @@ td.col-code code{
       codeInput.value = r.code || r.course_code || '';
       slugInput.value = r.slug || r.course_slug || '';
 
-      // ✅ FIX: always set department select to INTEGER ID
       const rawDid = r.department_id || r.dept_id || r.department?.id || r.department?.uuid || '';
       const did = resolveDepartmentId(String(rawDid || ''), state.departments);
       if (deptSel) deptSel.value = did ? String(did) : '';
 
-      // ✅ FIX #3: use robust getter so value actually appears in edit modal
       const lvl = getLevelFromRow(r) || 'ug';
       levelSel.value = lvl.toString().toLowerCase();
 
-      // ✅ FIX #2: use robust getter so duration appears; also helps edits
       durationInput.value = getDurationFromRow(r) || '';
 
+      // ✅ status is ONLY: draft/published/archived
       const st = (r.status || '').toString().toLowerCase().trim();
-      if (st) statusSel.value = st;
-      else if (typeof r.active === 'boolean') statusSel.value = r.active ? 'active' : 'inactive';
-      else if (typeof r.is_active === 'boolean') statusSel.value = r.is_active ? 'active' : 'inactive';
+      statusSel.value = (st === 'published' || st === 'draft' || st === 'archived') ? st : 'draft';
 
-      const descHtml = (r.description ?? r.description_html ?? r.body ?? r.about ?? '') || '';
+      const descHtml = (r.body ?? r.description ?? r.description_html ?? r.about ?? '') || '';
       if (rte.editor) rte.editor.innerHTML = ensurePreHasCode(descHtml);
       syncRteToCode();
       setRteMode('text');
@@ -1642,9 +1832,10 @@ td.col-code code{
 
     function findRowByUuid(uuid){
       const all = [
-        ...(state.tabs.active.items || []),
-        ...(state.tabs.inactive.items || []),
-        ...(state.tabs.trash.items || []),
+        ...(state.tabs.published.items || []),
+        ...(state.tabs.draft.items || []),
+        ...(state.tabs.archived.items || []),
+        ...(state.tabs.bin.items || []),
       ];
       return all.find(x => String(x?.uuid || x?.id || x?.identifier) === String(uuid)) || null;
     }
@@ -1678,35 +1869,30 @@ td.col-code code{
       if (coverObjectUrl){ try{ URL.revokeObjectURL(coverObjectUrl); }catch(_){ } coverObjectUrl=null; }
     });
 
-    // ---------- row actions ----------
-    // ✅ FIX #1: backend likely validates "status" enum (and doesn't allow "inactive").
-    // So: for active/inactive toggle we update only active/is_active, and (optionally) keep existing status.
-    async function toggleActive(uuid, makeActive, row=null){
+    // ✅ NEW: status update helper (draft/published/archived)
+    async function updateStatus(uuid, status){
       const fd = new FormData();
       fd.append('_method', 'PATCH');
-
-      const v = makeActive ? '1' : '0';
-      fd.append('active', v);
-      fd.append('is_active', v);     // extra compatibility
-      fd.append('isActive', v);      // extra compatibility
-
-      // keep existing allowed status (draft/archived/active etc.), but never send "inactive"
-      const rowStatus = (row?.status || '').toString().toLowerCase().trim();
-      if (rowStatus && rowStatus !== 'inactive') {
-        fd.append('status', rowStatus);
-      }
+      fd.append('status', status); // controller accepts only these
 
       showLoading(true);
       try{
-        const res = await fetchWithTimeout(API.toggle(uuid), {
+        const res = await fetchWithTimeout(API.update(uuid), {
           method: 'POST',
           headers: authHeaders(),
           body: fd
         }, 15000);
+
         const js = await res.json().catch(()=> ({}));
         if (!res.ok || js.success === false) throw new Error(js?.message || 'Update failed');
-        ok(makeActive ? 'Marked active' : 'Marked inactive');
-        await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
+
+        ok(`Moved to ${status}`);
+        await Promise.all([
+          loadTab('published'),
+          loadTab('draft'),
+          loadTab('archived'),
+          loadTab('bin')
+        ]);
       }catch(ex){
         err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
       }finally{
@@ -1714,6 +1900,7 @@ td.col-code code{
       }
     }
 
+    // ---------- row actions ----------
     document.addEventListener('click', async (e) => {
       const btn = e.target.closest('button[data-action]');
       if (!btn) return;
@@ -1725,8 +1912,9 @@ td.col-code code{
 
       const row = findRowByUuid(uuid);
 
+      // close dropdown
       const toggle = btn.closest('.dropdown')?.querySelector('.dd-toggle');
-      if (toggle) { try { bootstrap.Dropdown.getOrCreateInstance(toggle).hide(); } catch (_) {} }
+      if (toggle) { try { dropdownInstance(toggle).hide(); } catch (_) {} }
 
       if (act === 'view' || act === 'edit'){
         if (act === 'edit' && !canEdit) return;
@@ -1737,37 +1925,52 @@ td.col-code code{
         return;
       }
 
-      if (act === 'mark_inactive'){
+      // ✅ status moves
+      if (act === 'mark_published'){
         if (!canEdit) return;
         const conf = await Swal.fire({
-          title: 'Mark this course inactive?',
+          title: 'Move to Published?',
           icon: 'question',
           showCancelButton: true,
-          confirmButtonText: 'Mark Inactive'
+          confirmButtonText: 'Move'
         });
         if (!conf.isConfirmed) return;
-        await toggleActive(uuid, false, row);
+        await updateStatus(uuid, 'published');
         return;
       }
 
-      if (act === 'mark_active'){
+      if (act === 'mark_draft'){
         if (!canEdit) return;
         const conf = await Swal.fire({
-          title: 'Mark this course active?',
+          title: 'Move to Draft?',
           icon: 'question',
           showCancelButton: true,
-          confirmButtonText: 'Mark Active'
+          confirmButtonText: 'Move'
         });
         if (!conf.isConfirmed) return;
-        await toggleActive(uuid, true, row);
+        await updateStatus(uuid, 'draft');
         return;
       }
 
+      if (act === 'mark_archived'){
+        if (!canEdit) return;
+        const conf = await Swal.fire({
+          title: 'Move to Archived?',
+          icon: 'question',
+          showCancelButton: true,
+          confirmButtonText: 'Move'
+        });
+        if (!conf.isConfirmed) return;
+        await updateStatus(uuid, 'archived');
+        return;
+      }
+
+      // soft delete -> bin
       if (act === 'delete'){
         if (!canDelete) return;
         const conf = await Swal.fire({
           title: 'Delete this course?',
-          text: 'This will move the item to Trash.',
+          text: 'This will move the item to Bin.',
           icon: 'warning',
           showCancelButton: true,
           confirmButtonText: 'Delete',
@@ -1781,11 +1984,12 @@ td.col-code code{
             method: 'DELETE',
             headers: authHeaders()
           }, 15000);
+
           const js = await res.json().catch(()=> ({}));
           if (!res.ok || js.success === false) throw new Error(js?.message || 'Delete failed');
 
-          ok('Moved to trash');
-          await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
+          ok('Moved to bin');
+          await Promise.all([loadTab('published'), loadTab('draft'), loadTab('archived'), loadTab('bin')]);
         }catch(ex){
           err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
         }finally{
@@ -1794,6 +1998,7 @@ td.col-code code{
         return;
       }
 
+      // restore from bin
       if (act === 'restore'){
         const conf = await Swal.fire({
           title: 'Restore this item?',
@@ -1809,11 +2014,12 @@ td.col-code code{
             method: 'POST',
             headers: authHeaders()
           }, 15000);
+
           const js = await res.json().catch(()=> ({}));
           if (!res.ok || js.success === false) throw new Error(js?.message || 'Restore failed');
 
           ok('Restored');
-          await Promise.all([loadTab('trash'), loadTab('active'), loadTab('inactive')]);
+          await Promise.all([loadTab('bin'), loadTab('published'), loadTab('draft'), loadTab('archived')]);
         }catch(ex){
           err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
         }finally{
@@ -1822,6 +2028,7 @@ td.col-code code{
         return;
       }
 
+      // permanent delete
       if (act === 'force'){
         if (!canDelete) return;
 
@@ -1841,11 +2048,12 @@ td.col-code code{
             method: 'DELETE',
             headers: authHeaders()
           }, 15000);
+
           const js = await res.json().catch(()=> ({}));
           if (!res.ok || js.success === false) throw new Error(js?.message || 'Force delete failed');
 
           ok('Deleted permanently');
-          await loadTab('trash');
+          await loadTab('bin');
         }catch(ex){
           err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
         }finally{
@@ -1875,25 +2083,14 @@ td.col-code code{
         const code = (codeInput.value || '').trim();
         const slug = (slugInput.value || '').trim();
 
-        // ✅ ensure department_id is integer
         const deptRaw = (deptSel?.value || '').trim();
         const deptId = resolveDepartmentId(deptRaw, state.departments);
 
         const level = (levelSel?.value || 'ug').trim();
+        const durationText = (durationInput.value || '').trim();
 
-        // ✅ FIX #2: send duration with multiple common keys (API variations)
-        const duration = (durationInput.value || '').trim();
-
-        // ✅ FIX #1: if UI selected "inactive", do NOT send status=inactive (often fails validation).
-        const statusUi = (statusSel.value || 'active').trim().toLowerCase();
-        const activeVal = (statusUi === 'inactive') ? '0' : '1';
-
-        // keep existing status if editing and user picked "inactive" (so backend enum stays valid)
-        const existingRow = isEdit ? findRowByUuid(itemUuid.value) : null;
-        const existingStatus = (existingRow?.status || 'active').toString().trim().toLowerCase();
-        const statusToSend = (statusUi === 'inactive')
-          ? (existingStatus && existingStatus !== 'inactive' ? existingStatus : 'active')
-          : statusUi;
+        // ✅ status is ONLY: draft/published/archived (no active/inactive)
+        const statusToSend = (statusSel?.value || 'draft').trim().toLowerCase();
 
         const rawDesc = (rte.mode === 'code') ? (rte.code.value || '') : (rte.editor.innerHTML || '');
         const cleanDesc = ensurePreHasCode(rawDesc).trim();
@@ -1907,32 +2104,29 @@ td.col-code code{
         if (code) fd.append('code', code);
         if (slug) fd.append('slug', slug);
 
-        // ✅ send integer only
         if (deptId) fd.append('department_id', String(parseInt(deptId, 10)));
 
-        fd.append('level', level);
+        // ✅ controller expects program_level
+        fd.append('program_level', level);
 
-        // ✅ FIX #2: duration key compatibility
-        if (duration){
-          fd.append('duration', duration);
-          fd.append('duration_text', duration);
-          fd.append('course_duration', duration);
-          fd.append('courseDuration', duration);
+        // ✅ duration_value + duration_unit (best-effort; won’t break if empty)
+        if (durationText){
+          const m = durationText.match(/(\d+)/);
+          if (m) fd.append('duration_value', m[1]);
+          let unit = 'months';
+          if (/year/i.test(durationText)) unit = 'years';
+          else if (/semester/i.test(durationText)) unit = 'semesters';
+          else if (/month/i.test(durationText)) unit = 'months';
+          fd.append('duration_unit', unit);
         }
 
-        // ✅ FIX #1: status + active handling
-        if (statusToSend) fd.append('status', statusToSend);
-        fd.append('active', activeVal);
-        fd.append('is_active', activeVal);
-        fd.append('isActive', activeVal);
-
-        fd.append('description', cleanDesc);
+        fd.append('status', statusToSend);
         fd.append('body', cleanDesc);
 
-        const cover = coverInput.files?.[0] || null;
+        const cover = coverInput?.files?.[0] || null;
         if (cover) fd.append('cover_image', cover);
 
-        Array.from(attachmentsInput.files || []).forEach(f => fd.append('attachments[]', f));
+        Array.from(attachmentsInput?.files || []).forEach(f => fd.append('attachments[]', f));
 
         const url = isEdit ? API.update(itemUuid.value) : API.create();
         if (isEdit) fd.append('_method', 'PATCH');
@@ -1959,8 +2153,8 @@ td.col-code code{
         ok(isEdit ? 'Updated' : 'Created');
         itemModal && itemModal.hide();
 
-        state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
-        await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
+        state.tabs.published.page = state.tabs.draft.page = state.tabs.archived.page = state.tabs.bin.page = 1;
+        await Promise.all([loadTab('published'), loadTab('draft'), loadTab('archived'), loadTab('bin')]);
       }catch(ex){
         err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
       }finally{
@@ -1976,7 +2170,14 @@ td.col-code code{
       try{
         await fetchMe();
         await loadDepartments();
-        await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
+
+        // initial loads (safe)
+        await Promise.all([
+          loadTab('published'),
+          loadTab('draft'),
+          loadTab('archived'),
+          loadTab('bin')
+        ]);
       }catch(ex){
         err(ex?.message || 'Initialization failed');
       }finally{
@@ -1985,5 +2186,6 @@ td.col-code code{
     })();
   });
 })();
+
 </script>
 @endpush

@@ -162,20 +162,28 @@ class CourseController extends Controller
         $abs = public_path(ltrim($path, '/'));
         if (is_file($abs)) @unlink($abs);
     }
+private function applyVisibleWindow($q): void
+{
+    $now = now();
 
-    protected function applyVisibleWindow($q): void
-    {
-        $now = now();
+    // ✅ must be active for public
+    $q->where('c.status', 'active');
 
-        $q->whereNull('c.deleted_at')
-          ->where('c.status', 'published')
-          ->where(function ($w) use ($now) {
-              $w->whereNull('c.publish_at')->orWhere('c.publish_at', '<=', $now);
-          })
-          ->where(function ($w) use ($now) {
-              $w->whereNull('c.expire_at')->orWhere('c.expire_at', '>', $now);
-          });
+    // ✅ visible start: publish_at is NULL OR publish_at <= now
+    $q->where(function ($w) use ($now) {
+        $w->whereNull('c.publish_at')
+          ->orWhere('c.publish_at', '<=', $now);
+    });
+
+    // ✅ optional visible end: publish_end_at is NULL OR publish_end_at >= now
+    if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'publish_end_at')) {
+        $q->where(function ($w) use ($now) {
+            $w->whereNull('c.publish_end_at')
+              ->orWhere('c.publish_end_at', '>=', $now);
+        });
     }
+}
+
 
     protected function baseQuery(Request $request, bool $includeDeleted = false)
     {

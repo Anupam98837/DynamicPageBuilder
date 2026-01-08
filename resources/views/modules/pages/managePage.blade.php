@@ -3,132 +3,304 @@
 
 @section('title','Manage Pages')
 
+@push('styles')
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
 <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}"/>
 
-@push('styles')
 <style>
-/* ===== SAME CSS AS MODULES (UNCHANGED-ish) ===== */
-.cm-wrap{max-width:1140px;margin:16px auto 40px;overflow:visible}
-.mfa-toolbar .form-control,.mfa-toolbar .form-select{height:40px;border-radius:12px}
-.table-wrap.card{border-radius:16px}
-.table thead th{font-size:13px;color:var(--muted-color)}
+/* =========================
+ * Manage Pages - Admin UI (reference-aligned)
+ * Fixes:
+ *  ✅ Action dropdown opens (not clipped / not blocked)
+ *  ✅ Table + toolbar structure aligned like reference module
+ * ========================= */
+
+.mp-wrap{max-width:1140px;margin:16px auto 40px;overflow:visible;padding:0 4px}
+
+/* Tabs */
+.mp-tabs.nav-tabs{border-color:var(--line-strong)}
+.mp-tabs .nav-link{color:var(--ink)}
+.mp-tabs .nav-link.active{
+  background:var(--surface);
+  border-color:var(--line-strong) var(--line-strong) var(--surface);
+}
+
+/* Card/Table */
+.mp-card{
+  border:1px solid var(--line-strong);
+  border-radius:16px;
+  background:var(--surface);
+  box-shadow:var(--shadow-2);
+  overflow:visible;
+}
+.mp-card .card-body{overflow:visible}
+.mp-table{--bs-table-bg:transparent}
+.mp-table thead th{
+  font-weight:650;
+  color:var(--muted-color);
+  font-size:13px;
+  border-bottom:1px solid var(--line-strong);
+  background:var(--surface);
+}
+.mp-table thead.sticky-top{z-index:3}
+.mp-table tbody tr{border-top:1px solid var(--line-soft)}
+.mp-table tbody tr:hover{background:var(--page-hover)}
+.mp-muted{color:var(--muted-color)}
+.mp-small{font-size:12.5px}
+
+/* Horizontal scroll (like reference) */
+.mp-table-responsive{
+  display:block;
+  width:100%;
+  max-width:100%;
+  overflow-x:auto !important;
+  overflow-y:visible !important;
+  -webkit-overflow-scrolling:touch;
+  position:relative;
+}
+.mp-table-responsive > table{width:max-content; min-width:1050px;}
+.mp-table-responsive th,.mp-table-responsive td{white-space:nowrap;}
+
+/* Toolbar */
+.mp-toolbar{
+  border:1px solid var(--line-strong);
+  border-radius:16px;
+  background:var(--surface);
+  box-shadow:var(--shadow-2);
+  padding:12px 12px;
+}
+.mp-toolbar .mp-search{min-width:280px; position:relative;}
+.mp-toolbar .mp-search input{padding-left:40px;}
+.mp-toolbar .mp-search i{
+  position:absolute; left:12px; top:50%;
+  transform:translateY(-50%); opacity:.6;
+}
+.mp-toolbar .form-control,.mp-toolbar .form-select{height:40px;border-radius:12px}
+
+/* Department filter width */
+#mpDept{min-width:220px}
+@media (max-width:768px){
+  #mpDept{min-width:160px}
+  .mp-toolbar .mp-row{flex-direction:column; align-items:stretch !important;}
+  .mp-toolbar .mp-search{min-width:100%;}
+  .mp-toolbar .mp-actions{display:flex; gap:8px; flex-wrap:wrap;}
+  .mp-toolbar .mp-actions .btn{flex:1; min-width:150px;}
+}
+
+/* Badges */
 .badge-success{background:#16a34a!important}
 .badge-secondary{background:#64748b!important}
-.empty{color:var(--muted-color)}
-.icon-btn{height:34px;border-radius:10px}
-.dropdown-menu{border-radius:12px;min-width:220px}
 
-/* tiny helpers */
-#dept{min-width:220px}
-@media (max-width:768px){
-  #dept{min-width:160px}
+/* ✅ Dropdown (fixed like reference) */
+.mp-table-responsive .dropdown{position:relative}
+.mp-dd-toggle{border-radius:10px}
+.dropdown-menu{
+  border-radius:12px;
+  border:1px solid var(--line-strong);
+  box-shadow:var(--shadow-2);
+  min-width:230px;
+  z-index:99999; /* ✅ keep above */
 }
+.dropdown-menu.show{display:block !important} /* ✅ safety against global overrides */
+.dropdown-item{display:flex;align-items:center;gap:.6rem}
+.dropdown-item i{width:16px;text-align:center}
+.dropdown-item.text-danger{color:var(--danger-color) !important}
+
+/* Loading overlay */
+.mp-loading{
+  position:fixed; inset:0;
+  background:rgba(0,0,0,.45);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  z-index:9999;
+  backdrop-filter:blur(2px);
+}
+.mp-loading .box{
+  background:var(--surface);
+  padding:18px 20px;
+  border-radius:14px;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  box-shadow:0 10px 26px rgba(0,0,0,.3);
+}
+.mp-spin{
+  width:38px;height:38px;border-radius:50%;
+  border:4px solid rgba(148,163,184,.3);
+  border-top:4px solid var(--primary-color);
+  animation:mpSpin 1s linear infinite;
+}
+@keyframes mpSpin{to{transform:rotate(360deg)}}
 </style>
 @endpush
 
 @section('content')
-<div class="cm-wrap">
+<div class="mp-wrap">
 
-  {{-- Toolbar --}}
-  <div class="panel mb-3 d-flex align-items-center justify-content-between">
-    <div class="fw-semibold">My Pages</div>
-    <button id="btnCreate" class="btn btn-primary">
-      <i class="fa fa-plus me-1"></i> New Page
-    </button>
+  {{-- Global Loading --}}
+  <div id="mpLoading" class="mp-loading" aria-hidden="true">
+    <div class="box">
+      <div class="mp-spin"></div>
+      <div class="mp-small">Loading…</div>
+    </div>
   </div>
 
-  {{-- Tabs --}}
-  <ul class="nav nav-tabs mb-3">
-    <li class="nav-item">
-      <a class="nav-link active" data-bs-toggle="tab" href="#tab-active">Pages</a>
-    </li>
-    <li class="nav-item">
-      <a class="nav-link" data-bs-toggle="tab" href="#tab-archived">Archived</a>
-    </li>
-    <li class="nav-item">
-      <a class="nav-link" data-bs-toggle="tab" href="#tab-bin">Bin</a>
-    </li>
-  </ul>
+  {{-- Top Toolbar (applies to active tab filters) --}}
+  <div class="mp-toolbar mb-3">
+    <div class="d-flex align-items-center justify-content-between gap-2 mp-row">
+      <div class="d-flex align-items-center flex-wrap gap-2">
+        <div class="mp-search">
+          <i class="fa fa-search"></i>
+          <input id="mpQ" class="form-control" placeholder="Search title / slug" />
+        </div>
 
-  <div class="tab-content">
-
-    {{-- ACTIVE PAGES TAB --}}
-    <div class="tab-pane fade show active" id="tab-active">
-      <div class="panel mb-3 d-flex gap-2 align-items-center flex-wrap">
-        <input id="q" class="form-control" placeholder="Search title / slug" style="min-width:220px">
-        <select id="status" class="form-select" style="width:160px">
+        <select id="mpStatus" class="form-select" style="width:160px">
           <option value="">All Status</option>
           <option value="Active">Active</option>
           <option value="Inactive">Inactive</option>
         </select>
 
-        {{-- ✅ NEW: Department filter --}}
-        <select id="dept" class="form-select">
+        {{-- ✅ Department filter --}}
+        <select id="mpDept" class="form-select">
           <option value="">All Departments</option>
         </select>
 
-        <button id="btnFilter" class="btn btn-light">Filter</button>
-        <button id="btnReset" class="btn btn-outline-secondary">Reset</button>
+        <button id="mpBtnFilter" class="btn btn-outline-primary">
+          <i class="fa fa-sliders me-1"></i> Filter
+        </button>
+        <button id="mpBtnReset" class="btn btn-light">
+          <i class="fa fa-rotate-left me-1"></i> Reset
+        </button>
       </div>
 
-      <div class="card table-wrap">
-        <table class="table table-hover mb-0">
-          <thead>
-            <tr>
-              <th>Title</th>
-              <th>Slug</th>
-              <th>Shortcode</th>
-              <th>Status</th>
-              <th>Published</th>
-              <th class="text-end">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="rows-active"></tbody>
-        </table>
+      <div class="mp-actions">
+        <button id="mpBtnCreate" class="btn btn-primary">
+          <i class="fa fa-plus me-1"></i> New Page
+        </button>
       </div>
+    </div>
+  </div>
 
-      <div id="meta-active" class="small text-muted mt-2"></div>
-      <ul id="pager-active" class="pagination mt-2"></ul>
+  {{-- Tabs --}}
+  <ul class="nav nav-tabs mp-tabs mb-3" role="tablist">
+    <li class="nav-item">
+      <a class="nav-link active" data-bs-toggle="tab" href="#mpTabActive" role="tab" aria-selected="true">
+        <i class="fa-solid fa-file-lines me-2"></i>Pages
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" data-bs-toggle="tab" href="#mpTabArchived" role="tab" aria-selected="false">
+        <i class="fa-solid fa-box-archive me-2"></i>Archived
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" data-bs-toggle="tab" href="#mpTabBin" role="tab" aria-selected="false">
+        <i class="fa-solid fa-trash-can me-2"></i>Bin
+      </a>
+    </li>
+  </ul>
+
+  <div class="tab-content">
+
+    {{-- ACTIVE --}}
+    <div class="tab-pane fade show active" id="mpTabActive" role="tabpanel">
+      <div class="card mp-card">
+        <div class="card-body p-0">
+          <div class="mp-table-responsive">
+            <table class="table mp-table table-hover table-borderless align-middle mb-0">
+              <thead class="sticky-top">
+                <tr>
+                  <th>Title</th>
+                  <th>Slug</th>
+                  <th>Shortcode</th>
+                  <th>Status</th>
+                  <th>Published</th>
+                  <th class="text-end" style="width:108px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="mpRowsActive">
+                <tr><td colspan="6" class="text-center mp-muted" style="padding:38px;">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div id="mpEmptyActive" class="p-4 text-center" style="display:none;">
+            <i class="fa fa-file-lines mb-2" style="font-size:32px;opacity:.6;"></i>
+            <div class="mp-muted">No pages found.</div>
+          </div>
+
+          <div class="d-flex flex-wrap align-items-center justify-content-between p-3 gap-2">
+            <div class="mp-small mp-muted" id="mpMetaActive">—</div>
+            <nav><ul id="mpPagerActive" class="pagination mb-0"></ul></nav>
+          </div>
+        </div>
+      </div>
     </div>
 
-    {{-- ARCHIVED PAGES TAB --}}
-    <div class="tab-pane fade" id="tab-archived">
-      <div class="card table-wrap">
-        <table class="table table-hover mb-0">
-          <thead>
-            <tr>
-              <th>Title</th>
-              <th>Slug</th>
-              <th>Archived At</th>
-              <th class="text-end">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="rows-archived"></tbody>
-        </table>
-      </div>
+    {{-- ARCHIVED --}}
+    <div class="tab-pane fade" id="mpTabArchived" role="tabpanel">
+      <div class="card mp-card">
+        <div class="card-body p-0">
+          <div class="mp-table-responsive">
+            <table class="table mp-table table-hover table-borderless align-middle mb-0">
+              <thead class="sticky-top">
+                <tr>
+                  <th>Title</th>
+                  <th>Slug</th>
+                  <th>Archived At</th>
+                  <th class="text-end" style="width:108px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="mpRowsArchived">
+                <tr><td colspan="4" class="text-center mp-muted" style="padding:38px;">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
 
-      <div id="meta-archived" class="small text-muted mt-2"></div>
-      <ul id="pager-archived" class="pagination mt-2"></ul>
+          <div id="mpEmptyArchived" class="p-4 text-center" style="display:none;">
+            <i class="fa fa-box-archive mb-2" style="font-size:32px;opacity:.6;"></i>
+            <div class="mp-muted">No archived pages.</div>
+          </div>
+
+          <div class="d-flex flex-wrap align-items-center justify-content-between p-3 gap-2">
+            <div class="mp-small mp-muted" id="mpMetaArchived">—</div>
+            <nav><ul id="mpPagerArchived" class="pagination mb-0"></ul></nav>
+          </div>
+        </div>
+      </div>
     </div>
 
-    {{-- BIN TAB --}}
-    <div class="tab-pane fade" id="tab-bin">
-      <div class="card table-wrap">
-        <table class="table table-hover mb-0">
-          <thead>
-            <tr>
-              <th>Title</th>
-              <th>Deleted At</th>
-              <th class="text-end">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="rows-bin"></tbody>
-        </table>
-      </div>
+    {{-- BIN --}}
+    <div class="tab-pane fade" id="mpTabBin" role="tabpanel">
+      <div class="card mp-card">
+        <div class="card-body p-0">
+          <div class="mp-table-responsive">
+            <table class="table mp-table table-hover table-borderless align-middle mb-0">
+              <thead class="sticky-top">
+                <tr>
+                  <th>Title</th>
+                  <th>Deleted At</th>
+                  <th class="text-end" style="width:108px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="mpRowsBin">
+                <tr><td colspan="3" class="text-center mp-muted" style="padding:38px;">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
 
-      <div id="meta-bin" class="small text-muted mt-2"></div>
-      <ul id="pager-bin" class="pagination mt-2"></ul>
+          <div id="mpEmptyBin" class="p-4 text-center" style="display:none;">
+            <i class="fa fa-trash-can mb-2" style="font-size:32px;opacity:.6;"></i>
+            <div class="mp-muted">Bin is empty.</div>
+          </div>
+
+          <div class="d-flex flex-wrap align-items-center justify-content-between p-3 gap-2">
+            <div class="mp-small mp-muted" id="mpMetaBin">—</div>
+            <nav><ul id="mpPagerBin" class="pagination mb-0"></ul></nav>
+          </div>
+        </div>
+      </div>
     </div>
 
   </div>
@@ -138,26 +310,43 @@
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<script>
-(function(){
-  const TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token');
-  if(!TOKEN) location.href='/';
 
-  const state = {
-    active: 1, archived: 1, bin: 1,
-    departments: [] // ✅ NEW
+<script>
+(() => {
+  if (window.__MANAGE_PAGES_INIT__) return;
+  window.__MANAGE_PAGES_INIT__ = true;
+
+  const TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token');
+  if (!TOKEN) { location.href='/'; return; }
+
+  const $ = (id) => document.getElementById(id);
+
+  const showLoading = (v) => {
+    const el = $('mpLoading');
+    if (el) el.style.display = v ? 'flex' : 'none';
   };
 
-  const api = (url, opt={}) =>
-    fetch(url,{
-      ...opt,
-      headers:{
-        'Authorization':'Bearer '+TOKEN,
-        'Accept':'application/json',
-        ...(opt.headers||{})
-      }
-    }).then(async r=>{
-      // try to parse JSON safely
+  const esc = (s) => (s||'').toString().replace(/[&<>"']/g,m=>({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
+  }[m]));
+
+  const badge = (s) =>
+    `<span class="badge ${String(s)==='Active'?'badge-success':'badge-secondary'}">${esc(s||'-')}</span>`;
+
+  const api = async (url, opt={}) => {
+    const ctrl = new AbortController();
+    const t = setTimeout(()=>ctrl.abort(), 15000);
+    try{
+      const r = await fetch(url,{
+        ...opt,
+        signal: ctrl.signal,
+        headers:{
+          'Authorization':'Bearer '+TOKEN,
+          'Accept':'application/json',
+          ...(opt.headers||{})
+        }
+      });
+
       const ct = r.headers.get('content-type') || '';
       let j = {};
       if(ct.includes('application/json')) j = await r.json().catch(()=>({}));
@@ -171,22 +360,25 @@
         throw e;
       }
       return j;
-    });
+    } finally {
+      clearTimeout(t);
+    }
+  };
 
-  const esc = s => (s||'').toString().replace(/[&<>"']/g,m=>({
-    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
-  }[m]));
+  const state = {
+    active: { page: 1, lastPage: 1 },
+    archived: { page: 1, lastPage: 1 },
+    bin: { page: 1, lastPage: 1 },
+    departments: []
+  };
 
-  const badge = s =>
-    `<span class="badge ${s==='Active'?'badge-success':'badge-secondary'}">${esc(s)}</span>`;
-
-  /* ================== ✅ DEPARTMENTS (NEW) ================== */
+  /* ================== DEPARTMENTS ================== */
   function deptLabel(d){
     return d?.title || d?.name || d?.slug || (d?.id ? `Department #${d.id}` : 'Department');
   }
 
   async function loadDepartments(){
-    const deptSel = document.getElementById('dept');
+    const deptSel = $('mpDept');
     if(!deptSel) return;
 
     try{
@@ -203,198 +395,328 @@
       deptSel.innerHTML = html;
     }catch(e){
       console.warn('Departments load failed:', e);
-      // keep only default
       deptSel.innerHTML = `<option value="">All Departments</option>`;
     }
   }
 
-  /* ================= ACTIVE ================= */
+  /* ================== PAGINATION (like reference) ================== */
+  function renderPager(which){
+    const st = state[which];
+    const pager = which === 'active' ? $('mpPagerActive') : (which === 'archived' ? $('mpPagerArchived') : $('mpPagerBin'));
+    if (!pager) return;
 
+    const page = st.page || 1;
+    const totalPages = st.lastPage || 1;
+
+    const item = (p, label, dis=false, act=false) => {
+      if (dis) return `<li class="page-item disabled"><span class="page-link">${label}</span></li>`;
+      if (act) return `<li class="page-item active"><span class="page-link">${label}</span></li>`;
+      return `<li class="page-item"><a class="page-link" href="#" data-page="${p}" data-which="${which}">${label}</a></li>`;
+    };
+
+    let html = '';
+    html += item(Math.max(1, page-1), 'Previous', page<=1);
+    const start = Math.max(1, page-2), end = Math.min(totalPages, page+2);
+    for (let p=start; p<=end; p++) html += item(p, p, false, p===page);
+    html += item(Math.min(totalPages, page+1), 'Next', page>=totalPages);
+
+    pager.innerHTML = html;
+  }
+
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a.page-link[data-page]');
+    if (!a) return;
+    e.preventDefault();
+    const which = a.dataset.which;
+    const p = parseInt(a.dataset.page, 10);
+    if (!which || Number.isNaN(p)) return;
+
+    if (state[which].page === p) return;
+    state[which].page = p;
+
+    if (which === 'active') loadActive();
+    if (which === 'archived') loadArchived();
+    if (which === 'bin') loadBin();
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  /* ================== DROPDOWN FIX (same concept as reference) ================== */
+  function closeAllDropdownsExcept(exceptToggle){
+    document.querySelectorAll('.mp-dd-toggle').forEach(t => {
+      if (t === exceptToggle) return;
+      try{
+        const inst = bootstrap.Dropdown.getInstance(t);
+        inst && inst.hide();
+      }catch(_){}
+    });
+  }
+
+  // open/close dropdown manually with fixed strategy (escapes overflow clipping)
+  document.addEventListener('click', (e) => {
+    const toggle = e.target.closest('.mp-dd-toggle');
+    if (!toggle) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    closeAllDropdownsExcept(toggle);
+
+    try{
+      const inst = bootstrap.Dropdown.getOrCreateInstance(toggle, {
+        autoClose: true,
+        popperConfig: (def) => {
+          const base = def || {};
+          const mods = Array.isArray(base.modifiers) ? base.modifiers.slice() : [];
+          mods.push({ name:'preventOverflow', options:{ boundary:'viewport', padding:8 } });
+          mods.push({ name:'flip', options:{ boundary:'viewport', padding:8 } });
+          return { ...base, strategy:'fixed', modifiers: mods };
+        }
+      });
+      inst.toggle();
+    }catch(_){}
+  });
+
+  // clicking elsewhere closes any open dropdowns
+  document.addEventListener('click', () => closeAllDropdownsExcept(null), { capture:true });
+
+  /* ================== LOADERS ================== */
+  function setEmpty(which, show){
+    const el = which === 'active' ? $('mpEmptyActive') : (which === 'archived' ? $('mpEmptyArchived') : $('mpEmptyBin'));
+    if (el) el.style.display = show ? '' : 'none';
+  }
+
+  /* ================== ACTIVE ================== */
   async function loadActive(){
-    const q = document.getElementById('q')?.value || '';
-    const status = document.getElementById('status')?.value || '';
-    const dept = document.getElementById('dept')?.value || '';
+    const q = $('mpQ')?.value || '';
+    const status = $('mpStatus')?.value || '';
+    const dept = $('mpDept')?.value || '';
 
     const params = new URLSearchParams();
     params.set('q', q);
     if(status) params.set('status', status);
-    params.set('page', String(state.active));
-
-    // ✅ NEW: department filter param (common patterns)
-    // Prefer "department_id", fallback can be "department"
     if(dept) params.set('department_id', dept);
+    params.set('page', String(state.active.page));
+
+    const tbody = $('mpRowsActive');
+    if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="text-center mp-muted" style="padding:38px;">Loading…</td></tr>`;
+    setEmpty('active', false);
 
     try{
+      showLoading(true);
       const j = await api(`/api/pages?${params.toString()}`);
 
-      const rows = document.getElementById('rows-active');
-      rows.innerHTML = '';
+      const rows = Array.isArray(j.data) ? j.data : [];
+      const p = j.pagination || {};
+      state.active.lastPage = parseInt(p.last_page || 1, 10) || 1;
 
-      if(!j.data || !j.data.length){
-        rows.innerHTML = '<tr><td colspan="6" class="text-center empty">No pages found</td></tr>';
-        document.getElementById('meta-active').textContent = `0 page(s)`;
+      if(!rows.length){
+        if (tbody) tbody.innerHTML = '';
+        setEmpty('active', true);
+        $('mpMetaActive').textContent = `0 page(s)`;
+        renderPager('active');
         return;
       }
 
-      j.data.forEach(r=>{
+      const html = rows.map(r=>{
         const slug = (r.slug || '');
         const viewUrl = `/page/${encodeURIComponent(slug)}`;
-
-        // ✅ IMPORTANT: edit by uuid (fallback to id)
         const editKey = (r.uuid || r.id || '');
 
-        rows.innerHTML += `
-        <tr>
-          <td>${esc(r.title)}</td>
-          <td><a target="_blank" href="${viewUrl}">/${esc(slug)}</a></td>
-          <td><code>${esc(r.shortcode || '-')}</code></td>
-          <td>${badge(r.status || '-')}</td>
-          <td>${esc(r.published_at || '-')}</td>
+        return `
+          <tr>
+            <td class="fw-semibold">${esc(r.title || '—')}</td>
+            <td><a target="_blank" href="${viewUrl}">/${esc(slug)}</a></td>
+            <td><code>${esc(r.shortcode || '-')}</code></td>
+            <td>${badge(r.status || '-')}</td>
+            <td>${esc(r.published_at || '-')}</td>
+            <td class="text-end">
+              <div class="dropdown">
+                <button type="button" class="btn btn-sm btn-primary mp-dd-toggle" aria-expanded="false" title="Actions">
+                  <i class="fa fa-ellipsis-vertical"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                  <li>
+                    <a class="dropdown-item" target="_blank" href="${viewUrl}">
+                      <i class="fa fa-eye me-1"></i> View
+                    </a>
+                  </li>
+                  <li>
+                    <button type="button" class="dropdown-item" onclick="editPage('${esc(String(editKey))}')">
+                      <i class="fa fa-edit me-1"></i> Edit
+                    </button>
+                  </li>
+                  <li>
+                    <button type="button" class="dropdown-item" onclick="archivePage('${esc(String(r.id))}')">
+                      <i class="fa fa-box-archive me-1"></i> Archive
+                    </button>
+                  </li>
+                  <li><hr class="dropdown-divider"></li>
+                  <li>
+                    <button type="button" class="dropdown-item text-danger" onclick="deletePage('${esc(String(r.id))}')">
+                      <i class="fa fa-trash me-1"></i> Delete
+                    </button>
+                  </li>
+                </ul>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
 
-          <td class="text-end">
-            <div class="dropdown">
-              <button class="btn btn-sm btn-primary" data-bs-toggle="dropdown">
-                <i class="fa fa-ellipsis-vertical"></i>
-              </button>
-              <ul class="dropdown-menu dropdown-menu-end">
-                <li>
-                  <a class="dropdown-item" target="_blank" href="${viewUrl}">
-                    <i class="fa fa-eye me-1"></i> View
-                  </a>
-                </li>
-                <li>
-                  <button class="dropdown-item" onclick="editPage('${esc(String(editKey))}')">
-                    <i class="fa fa-edit me-1"></i> Edit
-                  </button>
-                </li>
-                <li>
-                  <button class="dropdown-item" onclick="archivePage('${esc(String(r.id))}')">
-                    <i class="fa fa-box-archive me-1"></i> Archive
-                  </button>
-                </li>
-                <li><hr class="dropdown-divider"></li>
-                <li>
-                  <button class="dropdown-item text-danger" onclick="deletePage('${esc(String(r.id))}')">
-                    <i class="fa fa-trash me-1"></i> Delete
-                  </button>
-                </li>
-              </ul>
-            </div>
-          </td>
-        </tr>`;
-      });
+      if (tbody) tbody.innerHTML = html;
 
-      document.getElementById('meta-active').textContent =
-        `${j.pagination?.total ?? j.data.length} page(s)`;
+      const total = (p.total ?? rows.length);
+      $('mpMetaActive').textContent = `${total} page(s)`;
+      renderPager('active');
     }catch(e){
       console.error('Active load failed', e);
-      const rows = document.getElementById('rows-active');
-      rows.innerHTML = '<tr><td colspan="6" class="text-center empty">Failed to load pages</td></tr>';
-      document.getElementById('meta-active').textContent = `—`;
+      if (tbody) tbody.innerHTML = '';
+      setEmpty('active', true);
+      $('mpMetaActive').textContent = `Failed to load`;
+      renderPager('active');
       if(e.status === 401 || e.status === 403) location.href='/';
+    }finally{
+      showLoading(false);
     }
   }
 
-  /* ================= ARCHIVED ================= */
-
+  /* ================== ARCHIVED ================== */
   async function loadArchived(){
-    const params = new URLSearchParams({ page: state.archived });
+    const params = new URLSearchParams({ page: String(state.archived.page) });
+
+    const tbody = $('mpRowsArchived');
+    if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="text-center mp-muted" style="padding:38px;">Loading…</td></tr>`;
+    setEmpty('archived', false);
 
     try{
+      showLoading(true);
       const j = await api(`/api/pages/archived?${params.toString()}`);
-      const rows = document.getElementById('rows-archived');
-      rows.innerHTML = '';
 
-      if(!Array.isArray(j.data) || !j.data.length){
-        rows.innerHTML = '<tr><td colspan="4" class="text-center empty">No archived pages</td></tr>';
-        document.getElementById('meta-archived').textContent = `0 archived page(s)`;
+      const rows = Array.isArray(j.data) ? j.data : [];
+      const p = j.pagination || {};
+      state.archived.lastPage = parseInt(p.last_page || 1, 10) || 1;
+
+      if(!rows.length){
+        if (tbody) tbody.innerHTML = '';
+        setEmpty('archived', true);
+        $('mpMetaArchived').textContent = `0 archived page(s)`;
+        renderPager('archived');
         return;
       }
 
-      j.data.forEach(r=>{
-        rows.innerHTML += `
-        <tr>
-          <td>${esc(r.title)}</td>
-          <td>/${esc(r.slug)}</td>
-          <td>${esc(r.updated_at || '-')}</td>
-          <td class="text-end">
-            <div class="dropdown">
-              <button class="btn btn-sm btn-primary" data-bs-toggle="dropdown">
-                <i class="fa fa-ellipsis-vertical"></i>
-              </button>
-              <ul class="dropdown-menu dropdown-menu-end">
-                <li>
-                  <button class="dropdown-item text-success" onclick="restorePage('${esc(String(r.id))}')">
-                    <i class="fa fa-box-open me-1"></i> Unarchive
-                  </button>
-                </li>
-              </ul>
-            </div>
-          </td>
-        </tr>`;
-      });
+      const html = rows.map(r=>{
+        return `
+          <tr>
+            <td class="fw-semibold">${esc(r.title || '—')}</td>
+            <td>/${esc(r.slug || '')}</td>
+            <td>${esc(r.updated_at || '-')}</td>
+            <td class="text-end">
+              <div class="dropdown">
+                <button type="button" class="btn btn-sm btn-primary mp-dd-toggle" aria-expanded="false" title="Actions">
+                  <i class="fa fa-ellipsis-vertical"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                  <li>
+                    <button type="button" class="dropdown-item text-success" onclick="restorePage('${esc(String(r.id))}')">
+                      <i class="fa fa-box-open me-1"></i> Unarchive
+                    </button>
+                  </li>
+                </ul>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
 
-      document.getElementById('meta-archived').textContent =
-        `${j.pagination?.total ?? j.data.length} archived page(s)`;
+      if (tbody) tbody.innerHTML = html;
+
+      const total = (p.total ?? rows.length);
+      $('mpMetaArchived').textContent = `${total} archived page(s)`;
+      renderPager('archived');
     }catch(e){
       console.error('Archived load failed', e);
+      if (tbody) tbody.innerHTML = '';
+      setEmpty('archived', true);
+      $('mpMetaArchived').textContent = `Failed to load`;
+      renderPager('archived');
       if(e.status === 401 || e.status === 403) location.href='/';
+    }finally{
+      showLoading(false);
     }
   }
 
-  /* ================= BIN ================= */
-
+  /* ================== BIN ================== */
   async function loadBin(){
-    try{
-      const j = await api(`/api/pages/trash?page=${state.bin}`);
-      const rows = document.getElementById('rows-bin');
-      rows.innerHTML = '';
+    const params = new URLSearchParams({ page: String(state.bin.page) });
 
-      if(!Array.isArray(j.data) || !j.data.length){
-        rows.innerHTML = '<tr><td colspan="3" class="text-center empty">Bin is empty</td></tr>';
-        document.getElementById('meta-bin').textContent = `0 item(s)`;
+    const tbody = $('mpRowsBin');
+    if (tbody) tbody.innerHTML = `<tr><td colspan="3" class="text-center mp-muted" style="padding:38px;">Loading…</td></tr>`;
+    setEmpty('bin', false);
+
+    try{
+      showLoading(true);
+      const j = await api(`/api/pages/trash?${params.toString()}`);
+
+      const rows = Array.isArray(j.data) ? j.data : [];
+      const p = j.pagination || {};
+      state.bin.lastPage = parseInt(p.last_page || 1, 10) || 1;
+
+      if(!rows.length){
+        if (tbody) tbody.innerHTML = '';
+        setEmpty('bin', true);
+        $('mpMetaBin').textContent = `0 item(s)`;
+        renderPager('bin');
         return;
       }
 
-      j.data.forEach(r=>{
-        rows.innerHTML += `
-        <tr>
-          <td>${esc(r.title)}</td>
-          <td>${esc(r.deleted_at || '-')}</td>
-          <td class="text-end">
-            <div class="dropdown">
-              <button class="btn btn-sm btn-primary" data-bs-toggle="dropdown">
-                <i class="fa fa-ellipsis-vertical"></i>
-              </button>
-              <ul class="dropdown-menu dropdown-menu-end">
-                <li>
-                  <button class="dropdown-item" onclick="restorePage('${esc(String(r.id))}')">
-                    <i class="fa fa-undo me-1"></i> Restore
-                  </button>
-                </li>
-                <li><hr class="dropdown-divider"></li>
-                <li>
-                  <button class="dropdown-item text-danger" onclick="forceDeletePage('${esc(String(r.id))}')">
-                    <i class="fa fa-trash me-1"></i> Delete Permanently
-                  </button>
-                </li>
-              </ul>
-            </div>
-          </td>
-        </tr>`;
-      });
+      const html = rows.map(r=>{
+        return `
+          <tr>
+            <td class="fw-semibold">${esc(r.title || '—')}</td>
+            <td>${esc(r.deleted_at || '-')}</td>
+            <td class="text-end">
+              <div class="dropdown">
+                <button type="button" class="btn btn-sm btn-primary mp-dd-toggle" aria-expanded="false" title="Actions">
+                  <i class="fa fa-ellipsis-vertical"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                  <li>
+                    <button type="button" class="dropdown-item" onclick="restorePage('${esc(String(r.id))}')">
+                      <i class="fa fa-undo me-1"></i> Restore
+                    </button>
+                  </li>
+                  <li><hr class="dropdown-divider"></li>
+                  <li>
+                    <button type="button" class="dropdown-item text-danger" onclick="forceDeletePage('${esc(String(r.id))}')">
+                      <i class="fa fa-trash me-1"></i> Delete Permanently
+                    </button>
+                  </li>
+                </ul>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
 
-      document.getElementById('meta-bin').textContent =
-        `${j.pagination?.total ?? j.data.length} item(s)`;
+      if (tbody) tbody.innerHTML = html;
+
+      const total = (p.total ?? rows.length);
+      $('mpMetaBin').textContent = `${total} item(s)`;
+      renderPager('bin');
     }catch(e){
       console.error('Trash load failed', e);
+      if (tbody) tbody.innerHTML = '';
+      setEmpty('bin', true);
+      $('mpMetaBin').textContent = `Failed to load`;
+      renderPager('bin');
       if(e.status === 401 || e.status === 403) location.href='/';
+    }finally{
+      showLoading(false);
     }
   }
 
-  /* ================= ACTIONS ================= */
-
-  // ✅ FIXED: redirect by uuid (the create/edit page reads ?uuid=...)
+  /* ================== ACTIONS (kept same endpoints/behavior) ================== */
   window.editPage = (uuid) => {
     location.href = `/pages/create?uuid=${encodeURIComponent(uuid)}`;
   };
@@ -408,8 +730,8 @@
     }).then(r=>{
       if(r.isConfirmed){
         api(`/api/pages/${encodeURIComponent(id)}/archive`,{method:'POST'})
-        .then(()=>{ loadActive(); Swal.fire('Archived','','success'); })
-        .catch(e=>Swal.fire('Error', e.message || 'Failed', 'error'));
+          .then(()=>{ loadActive(); Swal.fire('Archived','','success'); })
+          .catch(e=>Swal.fire('Error', e.message || 'Failed', 'error'));
       }
     });
   };
@@ -423,16 +745,16 @@
     }).then(r=>{
       if(r.isConfirmed){
         api(`/api/pages/${encodeURIComponent(id)}`,{method:'DELETE'})
-        .then(()=>{ loadActive(); loadArchived(); Swal.fire('Deleted','','success'); })
-        .catch(e=>Swal.fire('Error', e.message || 'Failed', 'error'));
+          .then(()=>{ loadActive(); loadArchived(); Swal.fire('Deleted','','success'); })
+          .catch(e=>Swal.fire('Error', e.message || 'Failed', 'error'));
       }
     });
   };
 
   window.restorePage = (id) =>
     api(`/api/pages/${encodeURIComponent(id)}/restore`,{method:'POST'})
-    .then(()=>{ loadArchived(); loadBin(); loadActive(); })
-    .catch(e=>Swal.fire('Error', e.message || 'Failed', 'error'));
+      .then(()=>{ loadArchived(); loadBin(); loadActive(); })
+      .catch(e=>Swal.fire('Error', e.message || 'Failed', 'error'));
 
   window.forceDeletePage = (id) => {
     Swal.fire({
@@ -443,51 +765,49 @@
     }).then(r=>{
       if(r.isConfirmed){
         api(`/api/pages/${encodeURIComponent(id)}/force`,{method:'DELETE'})
-        .then(()=>{ loadBin(); Swal.fire('Deleted','','success'); })
-        .catch(e=>Swal.fire('Error', e.message || 'Failed', 'error'));
+          .then(()=>{ loadBin(); Swal.fire('Deleted','','success'); })
+          .catch(e=>Swal.fire('Error', e.message || 'Failed', 'error'));
       }
     });
   };
 
-  /* ================= EVENTS ================= */
-
-  document.getElementById('btnFilter').onclick = () => {
-    state.active = 1;
+  /* ================== EVENTS ================== */
+  $('mpBtnFilter')?.addEventListener('click', () => {
+    state.active.page = 1;
     loadActive();
-  };
+  });
 
-  document.getElementById('btnReset').onclick = () => {
-    state.active = 1;
-    const q = document.getElementById('q');
-    const status = document.getElementById('status');
-    const dept = document.getElementById('dept');
+  $('mpBtnReset')?.addEventListener('click', () => {
+    state.active.page = 1;
+    const q = $('mpQ');
+    const status = $('mpStatus');
+    const dept = $('mpDept');
     if(q) q.value = '';
     if(status) status.value = '';
     if(dept) dept.value = '';
     loadActive();
-  };
+  });
 
-  // quick reload on enter
-  document.getElementById('q')?.addEventListener('keydown', (e)=>{
+  $('mpQ')?.addEventListener('keydown', (e)=>{
     if(e.key === 'Enter'){
-      state.active = 1;
+      state.active.page = 1;
       loadActive();
     }
   });
 
-  document.getElementById('btnCreate').onclick = () => {
+  $('mpBtnCreate')?.addEventListener('click', () => {
     location.href='/pages/create';
-  };
+  });
 
-  document.querySelector('a[href="#tab-archived"]')
-    .addEventListener('shown.bs.tab', loadArchived);
+  document.querySelector('a[href="#mpTabArchived"]')
+    ?.addEventListener('shown.bs.tab', () => { state.archived.page = 1; loadArchived(); });
 
-  document.querySelector('a[href="#tab-bin"]')
-    .addEventListener('shown.bs.tab', loadBin);
+  document.querySelector('a[href="#mpTabBin"]')
+    ?.addEventListener('shown.bs.tab', () => { state.bin.page = 1; loadBin(); });
 
-  // init
+  /* ================== INIT ================== */
   (async () => {
-    await loadDepartments(); // ✅ NEW
+    await loadDepartments();
     loadActive();
   })();
 })();

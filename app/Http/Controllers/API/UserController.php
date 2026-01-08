@@ -29,19 +29,22 @@ class UserController extends Controller
         'faculty',
         'technical_assistant',
         'it_person',
+        'placement_officer',
         'student',
     ];
 
     private const ROLE_SHORT_MAP = [
-        'admin'               => 'adm',
-        'director'            => 'DIR',
-        'principal'           => 'PRI',
-        'hod'                 => 'HOD',
-        'faculty'             => 'FAC',
-        'technical_assistant' => 'TA',
-        'it_person'           => 'IT',
-        'student'             => 'STD',
-    ];
+    'admin'               => 'adm',
+    'director'            => 'DIR',
+    'principal'           => 'PRI',
+    'hod'                 => 'HOD',
+    'faculty'             => 'FAC',
+    'technical_assistant' => 'TA',
+    'it_person'           => 'IT',
+    'placement_officer'   => 'TPO',   // ✅ added
+    'student'             => 'STD',
+];
+
 
     private const SELECT_COLUMNS = [
         'id',
@@ -113,24 +116,50 @@ class UserController extends Controller
      * Normalize a role + derive short form.
      * If invalid/missing, default to "faculty" + "FAC".
      */
-    private function normalizeRole(?string $role): array
-    {
-        $role = $role !== null ? strtolower(trim($role)) : '';
+    /**
+ * Normalize a role + derive short form.
+ * If invalid/missing, default to "faculty" + "FAC".
+ */
+private function normalizeRole(?string $role): array
+{
+    $role = $role !== null ? strtolower(trim($role)) : '';
 
-        // small normalizations
-        $role = str_replace(' ', '_', $role);
-        if ($role === 'tech_assistant') {
-            $role = 'technical_assistant';
-        }
+    // normalize separators
+    $role = str_replace([' ', '-'], '_', $role);
+    $role = preg_replace('/_+/', '_', $role) ?? $role;
+    $role = trim($role, '_');
 
-        if (!in_array($role, self::ALLOWED_ROLES, true)) {
-            $role = 'faculty';
-        }
-
-        $short = self::ROLE_SHORT_MAP[$role] ?? strtoupper(substr($role, 0, 3));
-
-        return [$role, $short];
+    // aliases/synonyms
+    if ($role === 'tech_assistant' || $role === 'techassistant') {
+        $role = 'technical_assistant';
     }
+
+    // ✅ placement officer aliases
+    if (in_array($role, [
+        'po',
+        'tpo',
+        'placement',
+        'placementofficer',
+        'placement_officer',
+        'training_placement_officer',
+        'trainingplacementofficer',
+        'trainingandplacementofficer',
+        'training_and_placement_officer',
+        'placement_cell',
+        'placementcell',
+    ], true)) {
+        $role = 'placement_officer';
+    }
+
+    if (!in_array($role, self::ALLOWED_ROLES, true)) {
+        $role = 'faculty';
+    }
+
+    $short = self::ROLE_SHORT_MAP[$role] ?? strtoupper(substr($role, 0, 3));
+
+    return [$role, $short];
+}
+
 
     /**
      * Generate unique slug from name.
@@ -920,4 +949,349 @@ class UserController extends Controller
             'data'    => $user,
         ]);
     }
+ /* ============================================
+ | PUBLIC: Faculty Index
+ | GET /api/public/faculty
+ |============================================ */
+public function facultyindex(Request $request)
+{
+    $page    = max(1, (int)$request->query('page', 1));
+    $perPage = (int)$request->query('per_page', 12);
+    $perPage = max(6, min(60, $perPage));
+
+    $qText  = trim((string)$request->query('q', ''));
+    $status = trim((string)$request->query('status', 'active')) ?: 'active';
+
+    $sort = (string)$request->query('sort', 'created_at');
+    $dir  = strtolower((string)$request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+    $allowedSort = ['created_at','updated_at','name','id'];
+    if (!in_array($sort, $allowedSort, true)) $sort = 'created_at';
+
+    // ✅ exclude roles
+    $excludedRoles = ['super_admin', 'admin', 'student', 'students'];
+
+    $base = DB::table('users as u')
+        ->leftJoin('user_personal_information as upi', 'upi.user_id', '=', 'u.id')
+        ->whereNull('u.deleted_at')
+        ->whereNotIn('u.role', $excludedRoles)
+        ->where('u.status', $status)
+        ->where(function ($w) {
+            $w->whereNull('upi.id')->orWhereNull('upi.deleted_at');
+        });
+
+    if ($qText !== '') {
+        $term = '%' . $qText . '%';
+        $base->where(function ($w) use ($term) {
+            $w->where('u.name', 'like', $term)
+              ->orWhere('u.email', 'like', $term)
+              ->orWhere('upi.affiliation', 'like', $term)
+              ->orWhere('upi.specification', 'like', $term)
+              ->orWhere('upi.experience', 'like', $term)
+              ->orWhere('upi.interest', 'like', $term)
+              ->orWhere('upi.administration', 'like', $term)
+              ->orWhere('upi.research_project', 'like', $term);
+        });
+    }
+
+    $total    = (clone $base)->distinct('u.id')->count('u.id');
+    $lastPage = max(1, (int)ceil($total / $perPage));
+
+    $rows = (clone $base)
+        ->select([
+            'u.id',
+            'u.uuid',
+            'u.slug',
+            'u.name',
+            'u.email',            // ✅ include email
+            'u.image',
+            'u.role',
+            'u.role_short_form',
+            'u.status',
+            'u.created_at',
+            'u.updated_at',
+
+            'upi.uuid as personal_info_uuid',
+            'upi.qualification',
+            'upi.affiliation',
+            'upi.specification',
+            'upi.experience',
+            'upi.interest',
+            'upi.administration',
+            'upi.research_project',
+        ])
+        ->orderBy($sort === 'name' ? 'u.name' : 'u.' . $sort, $dir)
+        ->orderBy('u.id', 'desc')
+        ->forPage($page, $perPage)
+        ->get();
+
+    // ✅ fetch socials for these users
+    $ids = $rows->pluck('id')->filter()->values()->all();
+    $socialsByUserId = [];
+
+    if (!empty($ids)) {
+        $socialRows = DB::table('user_social_media as usm')
+            ->select([
+                'usm.user_id',
+                'usm.platform',
+                'usm.icon',
+                'usm.link',
+                'usm.sort_order',
+                'usm.metadata',
+            ])
+            ->whereIn('usm.user_id', $ids)
+            ->whereNull('usm.deleted_at')
+            ->where('usm.active', 1)
+            ->orderBy('usm.sort_order', 'asc')
+            ->orderBy('usm.id', 'asc')
+            ->get();
+
+        foreach ($socialRows as $s) {
+            $platform = strtolower(trim((string)$s->platform));
+            $socialsByUserId[(int)$s->user_id][] = [
+                'platform'   => $platform,
+                'icon'       => (string)($s->icon ?? ''),
+                'url'        => (string)($s->link ?? ''),
+                'sort_order' => (int)($s->sort_order ?? 0),
+                'metadata'   => $this->maybeJson($s->metadata),
+            ];
+        }
+    }
+
+    // attach socials onto each row object
+    $rows->each(function ($r) use ($socialsByUserId) {
+        $r->socials = $socialsByUserId[(int)$r->id] ?? [];
+    });
+
+    $items = $rows->map(fn($r) => $this->normalizeRow($r))->values()->all();
+
+    return response()->json([
+        'success' => true,
+        'data' => $items,
+        'pagination' => [
+            'page'      => $page,
+            'per_page'  => $perPage,
+            'total'     => $total,
+            'last_page' => $lastPage,
+        ],
+    ]);
+}
+
+/* =========================
+ | Helpers for Faculty API
+ * ========================= */
+
+protected function maybeJson($v)
+{
+    if ($v === null) return null;
+    if (is_array($v) || is_object($v)) return $v;
+    $s = trim((string)$v);
+    if ($s === '') return null;
+    try { return json_decode($s, true, 512, JSON_THROW_ON_ERROR); }
+    catch (\Throwable $e) { return $v; }
+}
+
+protected function toUrl(?string $path): ?string
+{
+    $path = trim((string)$path);
+    if ($path === '') return null;
+
+    // already absolute
+    if (preg_match('~^https?://~i', $path)) return $path;
+
+    // normalize to /...
+    $path = '/' . ltrim($path, '/');
+
+    return rtrim(config('app.url'), '/') . $path;
+}
+
+protected function normalizeRow($r): array
+{
+    $qualification = $this->maybeJson($r->qualification);
+    if (is_array($qualification)) {
+        // keep array -> frontend can join
+    } elseif ($qualification === null) {
+        $qualification = null;
+    } else {
+        $qualification = (string)$qualification;
+    }
+
+    // website can also be stored as a "website" platform row (optional)
+    $website = null;
+    $socials = [];
+    $rawSocials = is_array($r->socials ?? null) ? $r->socials : [];
+
+    foreach ($rawSocials as $s) {
+        $plat = strtolower(trim((string)($s['platform'] ?? '')));
+        $url  = trim((string)($s['url'] ?? ''));
+
+        if ($plat === 'website' || $plat === 'site' || $plat === 'web' || $plat === 'personal_website') {
+            if ($website === null && $url !== '') $website = $url;
+            continue; // don’t show website as icon
+        }
+
+        $socials[] = [
+            'platform'   => $plat,
+            'icon'       => (string)($s['icon'] ?? ''),
+            'url'        => $url,
+            'sort_order' => (int)($s['sort_order'] ?? 0),
+        ];
+    }
+
+    return [
+        'id' => (int)$r->id,
+        'uuid' => (string)$r->uuid,
+        'slug' => (string)($r->slug ?? ''),
+        'name' => (string)($r->name ?? ''),
+        'email' => (string)($r->email ?? ''),
+
+        'image' => (string)($r->image ?? ''),
+        'image_full_url' => $this->toUrl($r->image),
+
+        // this line in your screenshot is basically "designation"
+        'designation' => (string)($r->affiliation ?? ''),
+
+        'qualification' => $qualification,
+        'specification' => (string)($r->specification ?? ''),
+        'experience' => (string)($r->experience ?? ''),
+
+        'website' => $website,
+
+        // ✅ socials come from user_social_media
+        'socials' => $socials,
+    ];
+}
+
+/* ============================================
+ | PUBLIC: Placement Officer Index
+ | GET /api/public/placement-officers
+ |============================================ */
+public function placementOfficerIndex(Request $request)
+{
+    $page    = max(1, (int)$request->query('page', 1));
+    $perPage = (int)$request->query('per_page', 12);
+    $perPage = max(6, min(60, $perPage));
+
+    $qText  = trim((string)$request->query('q', ''));
+    $status = trim((string)$request->query('status', 'active')) ?: 'active';
+
+    $sort = (string)$request->query('sort', 'created_at');
+    $dir  = strtolower((string)$request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+    $allowedSort = ['created_at','updated_at','name','id'];
+    if (!in_array($sort, $allowedSort, true)) $sort = 'created_at';
+
+    // ✅ Only placement roles (edit/add as per your project roles)
+    $placementRoles = [
+        'placement_officer',
+        'placement_officer_admin',
+        'tpo',
+        'training_placement_officer',
+        'placement',
+        'placement_cell',
+    ];
+
+    $base = DB::table('users as u')
+        ->leftJoin('user_personal_information as upi', 'upi.user_id', '=', 'u.id')
+        ->whereNull('u.deleted_at')
+        ->whereIn('u.role', $placementRoles)
+        ->where('u.status', $status)
+        ->where(function ($w) {
+            $w->whereNull('upi.id')->orWhereNull('upi.deleted_at');
+        });
+
+    if ($qText !== '') {
+        $term = '%' . $qText . '%';
+        $base->where(function ($w) use ($term) {
+            $w->where('u.name', 'like', $term)
+              ->orWhere('u.email', 'like', $term)
+              ->orWhere('upi.affiliation', 'like', $term)
+              ->orWhere('upi.specification', 'like', $term)
+              ->orWhere('upi.experience', 'like', $term)
+              ->orWhere('upi.interest', 'like', $term)
+              ->orWhere('upi.administration', 'like', $term)
+              ->orWhere('upi.research_project', 'like', $term);
+        });
+    }
+
+    $total    = (clone $base)->distinct('u.id')->count('u.id');
+    $lastPage = max(1, (int)ceil($total / $perPage));
+
+    $rows = (clone $base)
+        ->select([
+            'u.id',
+            'u.uuid',
+            'u.slug',
+            'u.name',
+            'u.email',            // ✅ include email
+            'u.image',
+            'u.role',
+            'u.role_short_form',
+            'u.status',
+            'u.created_at',
+            'u.updated_at',
+
+            'upi.uuid as personal_info_uuid',
+            'upi.qualification',
+            'upi.affiliation',
+            'upi.specification',
+            'upi.experience',
+            'upi.interest',
+            'upi.administration',
+            'upi.research_project',
+        ])
+        ->orderBy($sort === 'name' ? 'u.name' : 'u.' . $sort, $dir)
+        ->orderBy('u.id', 'desc')
+        ->forPage($page, $perPage)
+        ->get();
+
+    // ✅ fetch socials for these users
+    $ids = $rows->pluck('id')->filter()->values()->all();
+    $socialsByUserId = [];
+
+    if (!empty($ids)) {
+        $socialRows = DB::table('user_social_media as usm')
+            ->select([
+                'usm.user_id',
+                'usm.platform',
+                'usm.icon',
+                'usm.link',
+                'usm.sort_order',
+                'usm.metadata',
+            ])
+            ->whereIn('usm.user_id', $ids)
+            ->whereNull('usm.deleted_at')
+            ->where('usm.active', 1)
+            ->orderBy('usm.sort_order', 'asc')
+            ->orderBy('usm.id', 'asc')
+            ->get();
+
+        foreach ($socialRows as $s) {
+            $platform = strtolower(trim((string)$s->platform));
+            $socialsByUserId[(int)$s->user_id][] = [
+                'platform'   => $platform,
+                'icon'       => (string)($s->icon ?? ''),
+                'url'        => (string)($s->link ?? ''),
+                'sort_order' => (int)($s->sort_order ?? 0),
+                'metadata'   => $this->maybeJson($s->metadata),
+            ];
+        }
+    }
+
+    // attach socials onto each row object
+    $rows->each(function ($r) use ($socialsByUserId) {
+        $r->socials = $socialsByUserId[(int)$r->id] ?? [];
+    });
+
+    $items = $rows->map(fn($r) => $this->normalizeRow($r))->values()->all();
+
+    return response()->json([
+        'success' => true,
+        'data' => $items,
+        'pagination' => [
+            'page'      => $page,
+            'per_page'  => $perPage,
+            'total'     => $total,
+            'last_page' => $lastPage,
+        ],
+    ]);
+}
 }

@@ -306,6 +306,7 @@ td .fw-semibold{color:var(--ink)}
               <option value="faculty">Faculty</option>
               <option value="technical_assistant">Technical Assistant</option>
               <option value="it_person">IT Person</option>
+              <option value="placement_officer">Placement Officer</option> {{-- ✅ added --}}
               <option value="student">Student</option>
             </select>
           </div>
@@ -370,6 +371,7 @@ td .fw-semibold{color:var(--ink)}
               <option value="faculty">Faculty</option>
               <option value="technical_assistant">Technical Assistant</option>
               <option value="it_person">IT Person</option>
+              <option value="placement_officer">Placement Officer</option> {{-- ✅ added --}}
               <option value="student">Student</option>
             </select>
           </div>
@@ -540,12 +542,14 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   const ROLE_LABEL = {
+    admin: 'Admin',
     director: 'Director',
     principal: 'Principal',
     hod: 'Head of Department',
     faculty: 'Faculty',
     technical_assistant: 'Technical Assistant',
     it_person: 'IT Person',
+    placement_officer: 'Placement Officer', // ✅ added
     student: 'Student',
   };
   const roleLabel = v => ROLE_LABEL[(v || '').toLowerCase()] || (v || '');
@@ -1051,13 +1055,13 @@ document.addEventListener('DOMContentLoaded', function () {
       window.open(profileUrl, '_blank', 'noopener');
       return;
     }
-/* ✅ ASSIGN PRIVILEGE REDIRECT */
-if (act === 'assign_privilege') {
-  // open in same tab (change to window.open if you want new tab)
-  const url = `/user-privileges/manage?user_uuid=${encodeURIComponent(uuid)}&user_id=${encodeURIComponent(id || '')}`;
-  window.location.href = url;
-  return;
-}
+
+    /* ✅ ASSIGN PRIVILEGE REDIRECT */
+    if (act === 'assign_privilege') {
+      const url = `/user-privileges/manage?user_uuid=${encodeURIComponent(uuid)}&user_id=${encodeURIComponent(id || '')}`;
+      window.location.href = url;
+      return;
+    }
 
     // ✅ FIXED: view => viewOnly true, edit => viewOnly false
     if (act === 'view') {

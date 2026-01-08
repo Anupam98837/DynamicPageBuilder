@@ -21,15 +21,15 @@
   padding:14px;
 }
 
-/* Dropdowns inside table */
-.table-wrap .dropdown{position:relative}
-.dropdown .dd-toggle{border-radius:10px}
+/* Dropdowns inside table (✅ align with reference behavior) */
+.table-responsive .dropdown{position:relative} /* ✅ important: inside overflow container */
+.gl-dd-toggle{border-radius:10px}
 .dropdown-menu{
   border-radius:12px;
   border:1px solid var(--line-strong);
   box-shadow:var(--shadow-2);
   min-width:230px;
-  z-index:5000;
+  z-index:99999; /* ✅ higher like reference to avoid being behind */
 }
 .dropdown-menu.show{display:block !important}
 .dropdown-item{display:flex;align-items:center;gap:.6rem}
@@ -934,12 +934,11 @@
           </div>
         `;
 
+        // ✅ FIX: manual dropdown toggling like reference (no data-bs-toggle)
         let actions = `
           <div class="dropdown text-end">
             <button type="button"
-              class="btn btn-light btn-sm dd-toggle"
-              data-bs-toggle="dropdown"
-              data-bs-auto-close="true"
+              class="btn btn-light btn-sm gl-dd-toggle"
               aria-expanded="false" title="Actions">
               <i class="fa fa-ellipsis-vertical"></i>
             </button>
@@ -1115,12 +1114,10 @@
 
         // filter modal department
         if (modalDepartment){
-          // keep existing 2 options
-          const keep = modalDepartment.innerHTML;
+          const keep = modalDepartment.innerHTML; // keep All + Global
           modalDepartment.innerHTML = keep + rows.map(d => {
             const id = d.id ?? '';
             const title = d.title || d.name || d.slug || ('Dept #' + id);
-            // allow id-based filter (works)
             return `<option value="${esc(String(id))}">${esc(String(title))}</option>`;
           }).join('');
         }
@@ -1177,7 +1174,6 @@
     imageFileInput?.addEventListener('change', () => {
       const f = imageFileInput.files?.[0];
       if (!f) { return; }
-      // file chosen => preview and clear path input (optional)
       if (imgObjectUrl){ try{ URL.revokeObjectURL(imgObjectUrl); }catch(_){ } }
       imgObjectUrl = URL.createObjectURL(f);
       setImagePreview(imgObjectUrl, `${f.name || 'image'} • ${bytes(f.size)}`);
@@ -1186,7 +1182,6 @@
     imagePathInput?.addEventListener('input', debounce(() => {
       const v = (imagePathInput.value || '').trim();
       if (!v) return;
-      // show preview from path
       setImagePreview(v, 'Using path/URL');
     }, 250));
 
@@ -1204,7 +1199,6 @@
       clearImagePreview(true);
 
       if (imgRequiredStar) imgRequiredStar.style.display = '';
-      // enable fields
       itemForm?.querySelectorAll('input,select,textarea').forEach(el => {
         if (el.id === 'itemUuid' || el.id === 'itemId') return;
         if (el.type === 'file') el.disabled = false;
@@ -1238,20 +1232,16 @@
       publishAtInput.value = dtLocal(r.publish_at);
       expireAtInput.value = dtLocal(r.expire_at);
 
-      // tags
       const tagsArr = Array.isArray(r.tags) ? r.tags : (Array.isArray(r.tags_json) ? r.tags_json : []);
       tagsInput.value = (tagsArr && tagsArr.length) ? tagsArr.join(', ') : '';
 
-      // metadata
       const meta = r.metadata ?? null;
       metadataInput.value = meta ? (typeof meta === 'string' ? meta : JSON.stringify(meta, null, 2)) : '';
 
-      // image
       imagePathInput.value = (r.image || '');
       clearImagePreview(true);
       setImagePreview(r.image_url || r.image || '', 'Current image');
 
-      // image required star
       if (imgRequiredStar) imgRequiredStar.style.display = (r.uuid ? 'none' : '');
 
       if (viewOnly){
@@ -1283,7 +1273,47 @@
       if (imgObjectUrl){ try{ URL.revokeObjectURL(imgObjectUrl); }catch(_){ } imgObjectUrl=null; }
     });
 
-    // row actions
+    // ---------- ✅ ACTION DROPDOWN FIX (same idea as reference page) ----------
+    function closeAllDropdownsExcept(exceptToggle){
+      document.querySelectorAll('.gl-dd-toggle').forEach(t => {
+        if (t === exceptToggle) return;
+        try{
+          const inst = bootstrap.Dropdown.getInstance(t);
+          inst && inst.hide();
+        }catch(_){}
+      });
+    }
+
+    document.addEventListener('click', (e) => {
+      const toggle = e.target.closest('.gl-dd-toggle');
+      if (!toggle) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      closeAllDropdownsExcept(toggle);
+
+      try{
+        const inst = bootstrap.Dropdown.getOrCreateInstance(toggle, {
+          autoClose: true,
+          popperConfig: (def) => {
+            const base = def || {};
+            const mods = Array.isArray(base.modifiers) ? base.modifiers.slice() : [];
+            mods.push({ name:'preventOverflow', options:{ boundary:'viewport', padding:8 } });
+            mods.push({ name:'flip', options:{ boundary:'viewport', padding:8 } });
+            return { ...base, strategy:'fixed', modifiers: mods };
+          }
+        });
+        inst.toggle();
+      }catch(_){}
+    });
+
+    // outside click closes
+    document.addEventListener('click', () => {
+      closeAllDropdownsExcept(null);
+    }, { capture:true });
+
+    // row actions (dropdown menu items)
     document.addEventListener('click', async (e) => {
       const btn = e.target.closest('button[data-action]');
       if (!btn) return;
@@ -1294,8 +1324,8 @@
       if (!uuid) return;
 
       // close dropdown
-      const toggle = btn.closest('.dropdown')?.querySelector('.dd-toggle');
-      if (toggle) { try { bootstrap.Dropdown.getOrCreateInstance(toggle).hide(); } catch (_) {} }
+      const toggle = btn.closest('.dropdown')?.querySelector('.gl-dd-toggle');
+      if (toggle) { try { bootstrap.Dropdown.getInstance(toggle)?.hide(); } catch (_) {} }
 
       const currentTab = getTabKey();
       const inTrash = (currentTab === 'trash');
@@ -1444,7 +1474,6 @@
         if (isEdit && !canEdit) return;
         if (!isEdit && !canCreate) return;
 
-        // metadata JSON validate
         const metaRaw = (metadataInput.value || '').trim();
         if (metaRaw){
           try{ JSON.parse(metaRaw); }catch(_){
@@ -1456,11 +1485,9 @@
 
         const fd = new FormData();
 
-        // dept
         const deptVal = (departmentSel.value || '').trim();
         if (deptVal) fd.append('department_id', deptVal);
 
-        // fields
         const t = (titleInput.value || '').trim();
         const d = (descInput.value || '').trim();
         const tags = (tagsInput.value || '').trim();
@@ -1470,7 +1497,7 @@
 
         if (t) fd.append('title', t);
         if (d) fd.append('description', d);
-        if (tags) fd.append('tags_json', tags); // controller accepts comma or json
+        if (tags) fd.append('tags_json', tags);
         fd.append('status', st);
         fd.append('is_featured_home', feat === '1' ? '1' : '0');
         fd.append('sort_order', so);
@@ -1480,7 +1507,6 @@
 
         if (metaRaw) fd.append('metadata', metaRaw);
 
-        // image: either file OR path/url
         const imgFile = imageFileInput.files?.[0] || null;
         const imgPath = (imagePathInput.value || '').trim();
 
@@ -1488,7 +1514,6 @@
         if (imgPath) fd.append('image', imgPath);
 
         if (!isEdit){
-          // store requires one of them
           if (!imgFile && !imgPath){
             err('Image is required (upload a file or provide a path/URL).');
             imageFileInput.focus();
@@ -1500,7 +1525,6 @@
           ? `/api/gallery/${encodeURIComponent(itemUuid.value)}`
           : `/api/gallery`;
 
-        // for file uploads, we use POST + _method for edit
         if (isEdit) fd.append('_method', 'PUT');
 
         setBtnLoading(saveBtn, true);

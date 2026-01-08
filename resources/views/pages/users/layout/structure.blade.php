@@ -279,6 +279,11 @@
   <i class="fa-solid fa-header"></i><span>Header Components</span>
 </a>
 
+<!-- Footer Components -->
+<a href="/footer-components/manage" class="w3-link">
+  <i class="fa-solid fa-window-minimize"></i><span>Footer Components</span>
+</a>
+
         <div class="w3-group">
           <a href="#" class="w3-link w3-toggle" data-target="sm-pages" aria-expanded="false">
             <i class="fa-solid fa-file-lines"></i><span>Pages</span>
@@ -311,6 +316,8 @@
     <a href="/contact-info/manage" class="w3-link">Manage Contact Info</a>
     <!-- <a href="/contact/forms/manage" class="w3-link">Contact Forms</a>
     <a href="/contact/locations/manage" class="w3-link">Office Locations</a> -->
+<a href="/contact-us/manage" class="w3-link">Manage Contacts</a>
+<a href="/contact-us-visibility/manage" class="w3-link">Contact Visibility</a>
   </div>
 </div>
 

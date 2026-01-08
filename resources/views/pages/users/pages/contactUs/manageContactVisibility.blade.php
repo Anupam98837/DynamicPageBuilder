@@ -1,9 +1,9 @@
 @extends('pages.users.layout.structure')
-
-@section('title', 'Recruiters')
-
-@include('modules.ourRecruiters.manageRecruiters')
-
+ 
+@section('title', 'Manage Contact Visibility')
+ 
+@include('modules.contactUs.manageContactVisibility')
+ 
 @section('scripts')
 <script>
   // On DOM ready, verify token; if missing, redirect home

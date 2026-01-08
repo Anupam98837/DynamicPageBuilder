@@ -14,10 +14,12 @@ class CheckRole
 
     /**
      * Usage:
-     *   ->middleware('checkRole')                         // any authenticated user
-     *   ->middleware('checkRole:director,principal')      // only director/principal
-     *   ->middleware('checkRole:hod,faculty')             // only HOD/faculty
-     *   ->middleware('checkRole:student')                 // only students
+     *   ->middleware('checkRole')                               // any authenticated user
+     *   ->middleware('checkRole:director,principal')            // only director/principal
+     *   ->middleware('checkRole:hod,faculty')                   // only HOD/faculty
+     *   ->middleware('checkRole:student')                       // only students
+     *   ->middleware('checkRole:placement_officer')             // only placement officer
+     *   ->middleware('checkRole:placement_officer,principal')   // multiple roles
      */
     public function handle(Request $request, Closure $next, ...$roles): Response
     {
@@ -128,7 +130,7 @@ class CheckRole
      * Map short forms & synonyms → canonical tokens for MSIT Home Builder:
      *
      * Canonical set (what controllers see):
-     *  director, principal, hod, faculty, technical_assistant, it_person, student
+     *  admin, director, principal, hod, faculty, technical_assistant, it_person, placement_officer, student
      *
      * DB values (from UserController normalizeRole): same as above (with underscores).
      */
@@ -136,6 +138,7 @@ class CheckRole
     {
         $map = [
             'admin'     => 'admin',
+
             // director
             'dir'       => 'director',
             'director'  => 'director',
@@ -167,6 +170,15 @@ class CheckRole
             'itperson'    => 'it_person',
             'systemadmin' => 'it_person',
 
+            // ✅ placement officer (T&P)
+            'po'                       => 'placement_officer',
+            'tpo'                      => 'placement_officer',
+            'placement'                => 'placement_officer',
+            'placementofficer'         => 'placement_officer',
+            'trainingplacementofficer' => 'placement_officer',
+            'trainingandplacementofficer' => 'placement_officer',
+            'placementcell'            => 'placement_officer',
+
             // student
             'std'       => 'student',
             'stu'       => 'student',
@@ -184,13 +196,13 @@ class CheckRole
     {
         $set = [];
 
-        // from DB role (e.g., "director" | "hod" | "technical_assistant")
+        // from DB role (e.g., "director" | "hod" | "technical_assistant" | "placement_officer")
         $role = $this->normalize((string) ($user->role ?? ''));
         if ($role !== '') {
             $set[] = $role;
         }
 
-        // from DB short form (e.g., "DIR","PRI","HOD","FAC","TA","IT","STD")
+        // from DB short form (e.g., "DIR","PRI","HOD","FAC","TA","IT","PO","TPO","STD")
         $short = $this->normalize((string) ($user->role_short_form ?? ''));
         if ($short !== '') {
             $set[] = $this->aliasToCanonical($short);

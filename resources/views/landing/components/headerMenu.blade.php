@@ -10,11 +10,16 @@
        - Child menus render as NEW BLOCK/COLUMN beside parent column
        - Hovering an item updates the next column content (top-aligned)
        - Supports deep levels via more columns
-       - Overflow fallback: hamburger -> offcanvas sidebar
+       - Desktop: ✅ 1280px max + horizontal scroll + right arrow
+       - Mobile: hamburger -> offcanvas sidebar
        ========================================================= */
 
-    /* Reset & Base (kept) */
     * { margin:0; padding:0; box-sizing:border-box; }
+
+    :root{
+        /* ✅ Hard cap (requested) */
+        --menu-max-w: 1280px;
+    }
 
     /* Navbar Container */
     .dynamic-navbar{
@@ -30,22 +35,108 @@
     .navbar-container{
         display:flex;
         align-items:stretch;
-        justify-content:center;
+        justify-content:flex-start;          /* ✅ start from left */
         width:100%;
         position:relative;
         overflow: visible;
+
+        /* ✅ restricted to 1280 everywhere */
+        max-width: var(--menu-max-w);
+        margin: 0 auto;
+        padding: 0 10px;
     }
 
     .menu-row{
-        flex: 0 0 auto;
+        flex: 1 1 auto;
         display:flex;
-        justify-content:center;
+        justify-content:flex-start;          /* ✅ start from left */
         align-items:stretch;
-        overflow: visible;
         min-width: 0;
+
+        /* ✅ horizontal scroll (don’t overflow screen) */
+        width: 100%;
+        max-width: var(--menu-max-w);
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+
+        /* ✅ keep room for scroll arrow overlay so text doesn’t hide under it */
+        padding-right: 44px;
+
+        /* scrollbar */
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255,255,255,.25) rgba(0,0,0,.12);
     }
 
-    /* Hamburger (mobile + overflow) */
+    /* ✅ VERY THIN horizontal scrollbar (requested) */
+    .menu-row::-webkit-scrollbar{ height: 3px; }
+    .menu-row::-webkit-scrollbar-thumb{
+        background: rgba(255,255,255,.25);
+        border-radius: 10px;
+    }
+    .menu-row::-webkit-scrollbar-track{
+        background: rgba(0,0,0,.12);
+        border-radius: 10px;
+    }
+
+    /* ✅ Scroll arrows (desktop only) */
+    .menu-scroll-btn{
+        position:absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 34px;
+        height: 34px;
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,.22);
+        background: rgba(255,255,255,.10);
+        color:#fff;
+        display:none;              /* shown via JS when overflow */
+        align-items:center;
+        justify-content:center;
+        cursor:pointer;
+        z-index: 11000;
+        box-shadow: 0 10px 22px rgba(0,0,0,.22);
+        transition: transform .18s ease, background .18s ease, opacity .18s ease;
+        user-select:none;
+        backdrop-filter: blur(2px);
+    }
+    .menu-scroll-btn:hover{ transform: translateY(-50%) translateY(-1px); background: rgba(255,255,255,.14); }
+    .menu-scroll-btn:active{ transform: translateY(-50%) translateY(0px); }
+    .menu-scroll-btn:focus{
+        outline:none;
+        box-shadow: 0 0 0 3px rgba(201,75,80,.35), 0 10px 22px rgba(0,0,0,.22);
+    }
+
+    .menu-scroll-prev{ left: 6px; }
+    .menu-scroll-next{ right: 6px; }  /* ✅ right arrow requested */
+
+    /* Small fade so it looks natural */
+    .menu-scroll-fade-right{
+        position:absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        width: 54px;
+        pointer-events:none;
+        background: linear-gradient(90deg, rgba(158,54,58,0.0), rgba(158,54,58,0.75));
+        border-radius: 0;
+        display:none; /* shown via JS when overflow */
+        z-index: 10500;
+    }
+
+    .menu-scroll-fade-left{
+        position:absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 34px;
+        pointer-events:none;
+        background: linear-gradient(270deg, rgba(158,54,58,0.0), rgba(158,54,58,0.65));
+        display:none; /* shown via JS when scrolled right */
+        z-index: 10500;
+    }
+
+    /* Hamburger (mobile only) */
     .menu-toggle{
         display:none;
         align-items:center;
@@ -58,6 +149,8 @@
         cursor:pointer;
         user-select:none;
         transition: transform .25s ease, opacity .25s ease;
+        flex: 0 0 auto;
+        margin-left: 6px;
     }
     .menu-toggle:hover{ transform: translateY(-1px); opacity:.95; }
     .menu-toggle:focus{
@@ -94,20 +187,19 @@
         margin:0;
         padding:0;
         align-items:stretch;
-        justify-content:center;
-        width:auto;
+        justify-content:flex-start;  /* ✅ start from left */
         min-width:0;
+        width: max-content;          /* scroll inside menu-row */
     }
 
     .nav-item{
-        position: relative; /* anchor dropdown under this item */
+        position: relative;
         margin:0;
         display:flex;
         flex: 0 0 auto;
         min-width: 0;
     }
 
-    /* Top Level Links */
     .nav-link{
         display:flex;
         align-items:center;
@@ -123,12 +215,9 @@
         cursor:pointer;
         width:100%;
         text-align:center;
-
-        /* nicer hover */
         transition: background-color .25s ease, color .25s ease, transform .25s ease;
     }
 
-    /* Dynamic sizing classes */
     .navbar-nav.compact .nav-link{ font-size:.85rem; padding:.75rem .8rem; }
     .navbar-nav.very-compact .nav-link{ font-size:.8rem; padding:.75rem .55rem; }
     .navbar-nav.ultra-compact .nav-link{ font-size:.75rem; padding:.75rem .45rem; }
@@ -140,31 +229,26 @@
     }
 
     /* =========================================================
-       MEGA DROPDOWN (Column blocks like your screenshot)
-       FIX: background width should be only based on columns count
+       MEGA DROPDOWN
        ========================================================= */
 
-    /* Dropdown container under top-level item */
     .dynamic-navbar .dropdown-menu{
-        /* IMPORTANT: keep it "block" always (absolute), animate via opacity/visibility */
         display:block;
         position:absolute;
         top: 100%;
         left: 0;
-
-        background: transparent; /* columns carry background */
+        background: transparent;
         padding: 0;
         margin: 0;
-
         z-index: 9999;
         overflow: visible;
 
-        /* FIX: shrink-wrap to content instead of full row width */
         width: max-content;
         min-width: 0;
-        max-width: calc(100vw - 20px);
 
-        /* animation */
+        /* ✅ cap dropdown to 1280 and viewport */
+        max-width: min(var(--menu-max-w), calc(100vw - 20px));
+
         opacity: 0;
         visibility: hidden;
         transform: translateY(8px);
@@ -172,7 +256,6 @@
         transition: opacity .25s ease, transform .25s ease, visibility .25s ease;
     }
 
-    /* open state (desktop hover OR .show) */
     .dynamic-navbar .dropdown-menu.show{
         opacity:1;
         visibility:visible;
@@ -189,29 +272,25 @@
         }
     }
 
-    /* The mega panel */
     .dynamic-navbar .mega-panel{
-        /* FIX: inline-flex so width becomes only columns width */
         display:inline-flex;
         align-items:stretch;
-        gap: 0; /* NO GAP between columns */
+        gap: 0;
         background: var(--secondary-color, #6B2528);
         border: 1px solid rgba(255,255,255,0.12);
         border-top: 0;
         border-radius: 0 0 10px 10px;
         box-shadow: 0 12px 30px rgba(0,0,0,0.22);
 
-        /* if too wide, cap + allow horizontal scroll */
-        max-width: calc(100vw - 20px);
+        max-width: min(var(--menu-max-w), calc(100vw - 20px));
         overflow-x: auto;
         overflow-y: hidden;
 
-        position: relative; /* needed for staggered columns calc */
+        position: relative;
         will-change: transform;
         transition: box-shadow .25s ease;
     }
 
-    /* Each column block */
     .dynamic-navbar .mega-col{
         width: 270px;
         min-width: 270px;
@@ -219,13 +298,10 @@
         flex-direction:column;
         padding: 8px;
         position: relative;
-
-        /* child columns will be staggered by inline margin-top */
         margin-top: 0;
         align-self: flex-start;
     }
 
-    /* divider line between columns (stagger-aware) */
     .dynamic-navbar .mega-col:not([data-col="0"])::before{
         content:"";
         position:absolute;
@@ -236,7 +312,6 @@
         background: rgba(255,255,255,0.14);
     }
 
-    /* scroll list inside column */
     .dynamic-navbar .mega-list{
         list-style:none;
         margin:0;
@@ -245,7 +320,6 @@
         overflow:auto;
     }
 
-    /* Scrollbar subtle */
     .dynamic-navbar .mega-list::-webkit-scrollbar{ width: 8px; height: 8px; }
     .dynamic-navbar .mega-list::-webkit-scrollbar-thumb{
         background: rgba(255,255,255,.20);
@@ -256,7 +330,6 @@
         border-radius: 10px;
     }
 
-    /* Items */
     .dynamic-navbar .dropdown-item{
         display:flex;
         align-items:center;
@@ -278,8 +351,6 @@
         border-radius: 10px;
 
         outline: 1px solid rgba(255,255,255,0.00);
-
-        /* nicer hover */
         transition: background-color .25s ease, transform .25s ease, outline-color .25s ease;
         will-change: transform;
     }
@@ -290,14 +361,12 @@
         transform: translateX(2px);
     }
 
-    /* Active/selected within a column */
     .dynamic-navbar .dropdown-item.is-active{
         background: rgba(255,255,255,0.13);
         outline: 1px solid rgba(255,255,255,0.16);
         position: relative;
     }
 
-    /* small yellow indicator like reference site */
     .dynamic-navbar .dropdown-item.is-active::before{
         content:"";
         position:absolute;
@@ -311,7 +380,6 @@
         opacity: .95;
     }
 
-    /* Arrow indicator for items with children */
     .dynamic-navbar .dropdown-item.has-children::after{
         content:'›';
         font-size: 1.2rem;
@@ -329,7 +397,25 @@
     }
 
     /* =========================================================
-       OVERFLOW MODE -> OFFCANVAS
+       ✅ DROPDOWN PORTAL (prevents clipping by horizontal scroller)
+       ========================================================= */
+    .mega-portal{
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 12000;
+    }
+    .mega-portal .dropdown-menu{ pointer-events: auto; }
+
+    .dynamic-navbar .dropdown-menu.is-portaled{
+        position: fixed !important;
+        top: 0;
+        left: 0;
+        right: auto;
+    }
+
+    /* =========================================================
+       OFFCANVAS (mobile)
        ========================================================= */
     .dynamic-navbar.use-offcanvas .menu-row{ display:none; }
     .dynamic-navbar.use-offcanvas .menu-toggle{ display:flex; }
@@ -337,9 +423,9 @@
     @media (max-width: 991.98px){
         .menu-row{ display:none; }
         .menu-toggle{ display:flex; }
+        .menu-scroll-btn, .menu-scroll-fade-right, .menu-scroll-fade-left{ display:none !important; }
     }
 
-    /* Offcanvas styling */
     .dynamic-offcanvas{
         --bs-offcanvas-width: 340px;
         background: var(--secondary-color, #6B2528);
@@ -425,7 +511,7 @@
     }
 
     /* =========================================================
-       LOADING OVERLAY (NEW)
+       LOADING OVERLAY
        ========================================================= */
     .menu-loading-overlay{
         position: fixed;
@@ -463,7 +549,7 @@
     .menu-loading-text small{ opacity: .85; font-size: .85rem; }
 </style>
 
-<!-- LOADING OVERLAY (NEW) -->
+<!-- LOADING OVERLAY -->
 <div id="menuLoadingOverlay" class="menu-loading-overlay" aria-hidden="true">
     @include('partials.overlay')
 </div>
@@ -471,19 +557,30 @@
 <!-- Navbar HTML -->
 <nav class="dynamic-navbar" id="dynamicNavbar">
     <div class="navbar-container">
+
+        <!-- ✅ fades + arrows (desktop only) -->
+        <div class="menu-scroll-fade-left" id="menuFadeLeft" aria-hidden="true"></div>
+        <div class="menu-scroll-fade-right" id="menuFadeRight" aria-hidden="true"></div>
+
+        <button class="menu-scroll-btn menu-scroll-prev" id="menuScrollPrev" type="button" aria-label="Scroll menu left">‹</button>
+        <button class="menu-scroll-btn menu-scroll-next" id="menuScrollNext" type="button" aria-label="Scroll menu right">›</button>
+
         <div class="menu-row" id="menuRow">
             <ul class="navbar-nav" id="mainMenuContainer">
                 <!-- Menu items will be loaded here -->
             </ul>
         </div>
 
-        <!-- Hamburger (mobile + overflow fallback) -->
+        <!-- Hamburger (mobile) -->
         <button class="menu-toggle" type="button"
                 data-bs-toggle="offcanvas" data-bs-target="#menuOffcanvas"
                 aria-controls="menuOffcanvas" aria-label="Open menu">
             <span class="burger"><span></span></span>
         </button>
     </div>
+
+    <!-- Portal layer for mega dropdowns -->
+    <div class="mega-portal" id="megaPortal" aria-hidden="true"></div>
 </nav>
 
 <!-- Offcanvas Sidebar -->
@@ -509,16 +606,25 @@
             this.apiBase = '{{ url("/api/public/header-menus") }}';
             this.menuData = null;
 
-            // maps for mega columns
-            this.nodeById = new Map();        // id -> node
-            this.childrenById = new Map();    // id -> children[]
+            this.nodeById = new Map();
+            this.childrenById = new Map();
 
             this.currentSlug = this.getCurrentSlug();
             this.activePathIds = [];
             this.activePathNodes = [];
 
-            // loading overlay
             this.loadingEl = document.getElementById('menuLoadingOverlay');
+
+            // portal meta
+            this.portalMeta = new Map();
+            this.portalBound = false;
+
+            // ✅ scroller refs
+            this.menuRowEl = null;
+            this.btnNext = null;
+            this.btnPrev = null;
+            this.fadeRight = null;
+            this.fadeLeft = null;
 
             this.init();
         }
@@ -532,7 +638,6 @@
             });
         }
 
-        /* -------------------- Loading overlay (NEW) -------------------- */
         showLoading(message = 'Loading menu…') {
             if (!this.loadingEl) return;
             const strong = this.loadingEl.querySelector('.menu-loading-text strong');
@@ -555,13 +660,16 @@
                     this.adjustMenuSizing();
                     this.toggleOverflowMode();
                     this.bindMegaGuards();
+                    this.setupDesktopDropdownPortal();
+                    this.repositionOpenPortaled();
+                    this.setupMenuScroller();     // ✅ keep arrows in sync
                 }, 150);
             });
         }
 
         getCurrentSlug() {
             const path = window.location.pathname || '';
-            if (path === '/' || path === '') return '__HOME__'; // ✅ special home marker
+            if (path === '/' || path === '') return '__HOME__';
             if (path.startsWith('/page/')) return path.replace('/page/', '').replace(/^\/+/, '');
             return '';
         }
@@ -580,7 +688,6 @@
 
                     this.buildNodeMaps(this.menuData);
 
-                    // Active path (for offcanvas expand + mega prefill)
                     this.activePathNodes = (this.currentSlug && this.currentSlug !== '__HOME__')
                         ? this.getActivePathNodes(this.menuData, this.currentSlug)
                         : [];
@@ -590,9 +697,12 @@
                     this.renderOffcanvasMenu();
 
                     setTimeout(() => {
+                        this.resetMenuRowStart();   // ✅ always start from left (Home visible)
                         this.adjustMenuSizing();
                         this.toggleOverflowMode();
                         this.bindMegaGuards();
+                        this.setupDesktopDropdownPortal();
+                        this.setupMenuScroller();   // ✅ show right arrow when overflow
                         this.highlightActiveMenu();
                     }, 50);
                 } else {
@@ -606,7 +716,6 @@
             }
         }
 
-        /* -------------------- Maps -------------------- */
         buildNodeMaps(items) {
             this.nodeById.clear();
             this.childrenById.clear();
@@ -639,7 +748,6 @@
             return dfs(items, slug);
         }
 
-        /* -------------------- Desktop sizing -------------------- */
         adjustMenuSizing() {
             if (window.innerWidth < 992) return;
 
@@ -661,28 +769,14 @@
             else if (estimatedItemWidth < 140) container.classList.add('compact');
         }
 
-        /* -------------------- Overflow -> offcanvas fallback -------------------- */
         toggleOverflowMode() {
             const nav = document.getElementById('dynamicNavbar');
-            const row = document.getElementById('menuRow');
-            const menu = document.getElementById('mainMenuContainer');
-            if (!nav || !row || !menu) return;
+            if (!nav) return;
 
             const isMobile = window.innerWidth < 992;
-            let shouldOffcanvas = isMobile;
+            nav.classList.toggle('use-offcanvas', isMobile);
 
-            if (!isMobile) {
-                nav.classList.remove('use-offcanvas');
-                const available = row.clientWidth || 0;
-                const needed = menu.scrollWidth || 0;
-                shouldOffcanvas = needed > (available + 6);
-            }
-
-            nav.classList.toggle('use-offcanvas', shouldOffcanvas);
-
-            if (!shouldOffcanvas) {
-                this.forceCloseOffcanvas();
-            }
+            if (!isMobile) this.forceCloseOffcanvas();
         }
 
         forceCloseOffcanvas() {
@@ -700,11 +794,13 @@
             ocEl.setAttribute('aria-hidden', 'true');
         }
 
-        /* ===========================================================
-           ✅ STATIC HOME ITEM (NEW)
-           - Always first menu item in desktop + offcanvas
-           - Route: /
-           =========================================================== */
+        /* ✅ Always start from left so Home is default visible */
+        resetMenuRowStart() {
+            const row = document.getElementById('menuRow');
+            if (!row) return;
+            row.scrollLeft = 0;
+        }
+
         buildHomeNavItem() {
             const li = document.createElement('li');
             li.className = 'nav-item';
@@ -716,7 +812,6 @@
             a.href = '{{ url("/") }}';
             a.innerHTML = `Home`;
 
-            // active state on home
             if (this.currentSlug === '__HOME__') a.classList.add('active');
 
             li.appendChild(a);
@@ -748,12 +843,10 @@
             return li;
         }
 
-        /* -------------------- Render top row -------------------- */
         renderMenu() {
             const container = document.getElementById('mainMenuContainer');
             container.innerHTML = '';
 
-            // ✅ add Home first
             container.appendChild(this.buildHomeNavItem());
 
             if (!this.menuData || !this.menuData.length) return;
@@ -790,9 +883,11 @@
 
                 container.appendChild(li);
             });
+
+            // ✅ ensure Home is visible after re-render
+            this.resetMenuRowStart();
         }
 
-        /* -------------------- Mega dropdown builder -------------------- */
         getAnchorTop(panel, anchorEl) {
             if (!panel || !anchorEl) return 0;
 
@@ -964,21 +1059,225 @@
             }
         }
 
-        getMenuItemUrl(item) {
-            if (item.page_url && item.page_url.trim() !== '') {
-                return item.page_url.startsWith('http') ? item.page_url : `{{ url('') }}${item.page_url}`;
-            } else if (item.page_slug && item.page_slug.trim() !== '') {
-                return `{{ url('/page') }}/${item.page_slug}`;
-            } else if (item.slug) {
-                return `{{ url('/page') }}/${item.slug}`;
+        /* ✅ Desktop portal for dropdown (prevents clipping by menuRow overflow) */
+        ensurePortal() { return document.getElementById('megaPortal'); }
+
+        setupDesktopDropdownPortal() {
+            if (window.innerWidth < 992) {
+                this.restoreAllPortaled();
+                return;
             }
-            return '#';
+
+            const portal = this.ensurePortal();
+            const root = document.getElementById('mainMenuContainer');
+            const row = document.getElementById('menuRow');
+            if (!portal || !root) return;
+
+            if (!this.portalBound) {
+                this.portalBound = true;
+                window.addEventListener('scroll', () => this.repositionOpenPortaled(), { passive: true });
+                if (row) row.addEventListener('scroll', () => this.repositionOpenPortaled(), { passive: true });
+            }
+
+            root.querySelectorAll(':scope > .nav-item.has-dropdown').forEach(li => {
+                if (li.dataset.portalBound === '1') return;
+                li.dataset.portalBound = '1';
+
+                const dropdown = li.querySelector(':scope > .dropdown-menu');
+                if (!dropdown) return;
+
+                let closeTimer = null;
+
+                const open = () => {
+                    clearTimeout(closeTimer);
+                    this.portalizeDropdown(li, dropdown);
+                };
+
+                const scheduleClose = () => {
+                    clearTimeout(closeTimer);
+                    closeTimer = setTimeout(() => {
+                        this.unportalizeDropdown(dropdown);
+                    }, 140);
+                };
+
+                li.addEventListener('mouseenter', open);
+                li.addEventListener('mouseleave', scheduleClose);
+
+                dropdown.addEventListener('mouseenter', () => clearTimeout(closeTimer));
+                dropdown.addEventListener('mouseleave', scheduleClose);
+            });
+        }
+
+        portalizeDropdown(anchorLi, dropdown) {
+            const portal = this.ensurePortal();
+            if (!portal) return;
+
+            this.portalMeta.forEach((meta, dm) => {
+                if (dm !== dropdown && dm.classList.contains('is-portaled') && dm.classList.contains('show')) {
+                    this.unportalizeDropdown(dm);
+                }
+            });
+
+            if (!this.portalMeta.has(dropdown)) {
+                const ph = document.createElement('span');
+                ph.className = 'dropdown-placeholder';
+                ph.style.display = 'none';
+                anchorLi.appendChild(ph);
+                this.portalMeta.set(dropdown, { anchor: anchorLi, placeholder: ph });
+            } else {
+                this.portalMeta.get(dropdown).anchor = anchorLi;
+            }
+
+            if (dropdown.parentElement !== portal) portal.appendChild(dropdown);
+
+            dropdown.classList.add('is-portaled', 'show');
+            requestAnimationFrame(() => this.positionPortaledDropdown(anchorLi, dropdown));
+        }
+
+        unportalizeDropdown(dropdown) {
+            const meta = this.portalMeta.get(dropdown);
+            if (!meta || !meta.anchor || !meta.placeholder) return;
+
+            dropdown.classList.remove('show', 'is-portaled');
+            dropdown.style.removeProperty('top');
+            dropdown.style.removeProperty('left');
+            dropdown.style.removeProperty('right');
+
+            try { meta.anchor.insertBefore(dropdown, meta.placeholder); }
+            catch(e){ meta.anchor.appendChild(dropdown); }
+        }
+
+        restoreAllPortaled() {
+            this.portalMeta.forEach((meta, dm) => {
+                if (dm && dm.classList.contains('is-portaled')) this.unportalizeDropdown(dm);
+            });
+        }
+
+        repositionOpenPortaled() {
+            if (window.innerWidth < 992) return;
+
+            this.portalMeta.forEach((meta, dm) => {
+                if (!dm || !meta || !meta.anchor) return;
+                if (dm.classList.contains('is-portaled') && dm.classList.contains('show')) {
+                    this.positionPortaledDropdown(meta.anchor, dm);
+                }
+            });
+        }
+
+        positionPortaledDropdown(anchorLi, dropdown) {
+            const nav = document.getElementById('dynamicNavbar');
+            if (!nav || !anchorLi || !dropdown) return;
+
+            const navRect = nav.getBoundingClientRect();
+            const aRect = anchorLi.getBoundingClientRect();
+
+            const pad = 10;
+
+            dropdown.style.top = `${Math.round(navRect.bottom)}px`;
+            dropdown.style.left = `${Math.round(Math.max(pad, aRect.left))}px`;
+            dropdown.style.right = 'auto';
+
+            const r = dropdown.getBoundingClientRect();
+            if (r.right > (window.innerWidth - pad)) {
+                dropdown.style.left = 'auto';
+                dropdown.style.right = `${pad}px`;
+            }
+
+            const r2 = dropdown.getBoundingClientRect();
+            if (r2.left < pad) {
+                dropdown.style.right = 'auto';
+                dropdown.style.left = `${pad}px`;
+            }
+        }
+
+        /* ✅ Scroll arrows logic (right arrow when too many menus) */
+        setupMenuScroller() {
+            if (window.innerWidth < 992) return;
+
+            this.menuRowEl = document.getElementById('menuRow');
+            this.btnNext = document.getElementById('menuScrollNext');
+            this.btnPrev = document.getElementById('menuScrollPrev');
+            this.fadeRight = document.getElementById('menuFadeRight');
+            this.fadeLeft = document.getElementById('menuFadeLeft');
+
+            if (!this.menuRowEl || !this.btnNext || !this.btnPrev) return;
+
+            const update = () => {
+                const row = this.menuRowEl;
+                const maxScroll = Math.max(0, (row.scrollWidth || 0) - (row.clientWidth || 0));
+                const hasOverflow = maxScroll > 2;
+
+                const atStart = (row.scrollLeft || 0) <= 1;
+                const atEnd = (row.scrollLeft || 0) >= (maxScroll - 1);
+
+                // show/hide
+                this.btnNext.style.display = (hasOverflow && !atEnd) ? 'flex' : 'none';
+                this.btnPrev.style.display = (hasOverflow && !atStart) ? 'flex' : 'none';
+
+                if (this.fadeRight) this.fadeRight.style.display = (hasOverflow && !atEnd) ? 'block' : 'none';
+                if (this.fadeLeft)  this.fadeLeft.style.display  = (hasOverflow && !atStart) ? 'block' : 'none';
+            };
+
+            if (!this.menuRowEl.dataset.scrollerBound) {
+                this.menuRowEl.dataset.scrollerBound = '1';
+
+                this.menuRowEl.addEventListener('scroll', () => requestAnimationFrame(update), { passive: true });
+
+                this.btnNext.addEventListener('click', () => {
+                    const row = this.menuRowEl;
+                    const step = Math.max(240, Math.floor(row.clientWidth * 0.65));
+                    row.scrollBy({ left: step, behavior: 'smooth' });
+                });
+
+                this.btnPrev.addEventListener('click', () => {
+                    const row = this.menuRowEl;
+                    const step = Math.max(240, Math.floor(row.clientWidth * 0.65));
+                    row.scrollBy({ left: -step, behavior: 'smooth' });
+                });
+
+                window.addEventListener('resize', () => requestAnimationFrame(update), { passive: true });
+            }
+
+            update();
+        }
+
+        applyDepartmentUuid(url, deptUuid) {
+            deptUuid = (deptUuid || '').trim();
+            if (!deptUuid) return url;
+            if (!url || url === '#') return url;
+
+            if (url.includes(deptUuid)) return url;
+
+            try {
+                const u = new URL(url, window.location.origin);
+                if (u.origin !== window.location.origin) return url;
+            } catch (e) {}
+
+            const sep = url.includes('?') ? '&' : '?';
+            return `${url}${sep}${encodeURIComponent(deptUuid)}`;
+        }
+
+        getMenuItemUrl(item) {
+            let url = '#';
+
+            if (item.page_url && item.page_url.trim() !== '') {
+                url = item.page_url.startsWith('http')
+                    ? item.page_url
+                    : `{{ url('') }}${item.page_url}`;
+            } else if (item.page_slug && item.page_slug.trim() !== '') {
+                url = `{{ url('/page') }}/${item.page_slug}`;
+            } else if (item.slug) {
+                url = `{{ url('/page') }}/${item.slug}`;
+            }
+
+            url = this.applyDepartmentUuid(url, item.department_uuid);
+            return url;
         }
 
         highlightActiveMenu() {
-            document.querySelectorAll('.nav-link.active, .dropdown-item.active').forEach(link => link.classList.remove('active'));
+            document.querySelectorAll('.nav-link.active, .dropdown-item.active')
+                .forEach(link => link.classList.remove('active'));
 
-            // ✅ Home highlight
             if (this.currentSlug === '__HOME__') {
                 const homeLink = document.querySelector(`.nav-item[data-slug="__HOME__"] > a.nav-link`);
                 if (homeLink) homeLink.classList.add('active');
@@ -1001,18 +1300,11 @@
             if (off) off.innerHTML = '';
         }
 
-        refresh() {
-            this.loadMenu();
-        }
-
-        /* -------------------- Offcanvas rendering -------------------- */
         renderOffcanvasMenu() {
             const root = document.getElementById('offcanvasMenuList');
             if (!root) return;
 
             root.innerHTML = '';
-
-            // ✅ add Home first in sidebar
             root.appendChild(this.buildHomeOffcanvasItem());
 
             if (!this.menuData || this.menuData.length === 0) return;

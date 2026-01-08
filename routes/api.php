@@ -47,7 +47,9 @@ use App\Http\Controllers\API\CenterIframeController;
 use App\Http\Controllers\API\StatsController;
 use App\Http\Controllers\API\NoticeMarqueeController;
 use App\Http\Controllers\API\GrandHomepageController;
-
+use App\Http\Controllers\API\FooterComponentController;
+use App\Http\Controllers\API\ContactUsController;
+use App\Http\Controllers\API\ContactUsPageVisibilityController;
 
 /*
 |--------------------------------------------------------------------------
@@ -1492,9 +1494,71 @@ Route::prefix('public')->group(function () {
 });
 
 
+Route::prefix('footer-components')->group(function () {
+
+    // helpers for UI selections
+    Route::get('/header-menu-options',       [FooterComponentController::class, 'headerMenuOptions']);
+    Route::get('/header-component-options',  [FooterComponentController::class, 'headerComponentOptions']);
+
+    // CRUD
+    Route::get('/',             [FooterComponentController::class, 'index']);
+    Route::get('/trash',        [FooterComponentController::class, 'trash']);
+    Route::get('/{identifier}', [FooterComponentController::class, 'show']);
+
+    Route::post('/',            [FooterComponentController::class, 'store']);
+    Route::put('/{identifier}', [FooterComponentController::class, 'update']);
+
+    Route::delete('/{identifier}',         [FooterComponentController::class, 'destroy']);
+    Route::put('/{identifier}/restore',    [FooterComponentController::class, 'restore']);
+    Route::delete('/{identifier}/force',   [FooterComponentController::class, 'forceDelete']);
+});
 
 
 
 
+Route::prefix('public/grand-homepage')->group(function () {
+    // ✅ Bootstrap (fast)
+    Route::get('/', [GrandHomepageController::class, 'index']);
 
-Route::get('/public/grand-homepage', [GrandHomepageController::class, 'index']);
+    // ✅ Section wise endpoints (lazy-load on scroll)
+    Route::get('/notice-marquee', [GrandHomepageController::class, 'noticeMarquee']);
+    Route::get('/hero-carousel',  [GrandHomepageController::class, 'heroCarousel']);
+
+    Route::get('/quick-links',    [GrandHomepageController::class, 'quickLinks']);      // career_notices, why_us, scholarships
+    Route::get('/notice-board',   [GrandHomepageController::class, 'noticeBoard']);     // notices, center_iframe, announcements
+    Route::get('/activities',     [GrandHomepageController::class, 'activities']);      // achievements, student_activities
+    Route::get('/placement-notices', [GrandHomepageController::class, 'placementNotices']);
+
+    Route::get('/courses',        [GrandHomepageController::class, 'courses']);
+    Route::get('/stats',          [GrandHomepageController::class, 'stats']);
+
+    Route::get('/successful-entrepreneurs', [GrandHomepageController::class, 'successfulEntrepreneurs']);
+    Route::get('/alumni-speak',             [GrandHomepageController::class, 'alumniSpeak']);
+    Route::get('/success-stories',          [GrandHomepageController::class, 'successStories']);
+    Route::get('/recruiters',               [GrandHomepageController::class, 'recruiters']);
+
+    // Optional explicit full endpoint (same as ?full=1)
+    Route::get('/full', [GrandHomepageController::class, 'full']);
+});
+
+
+//Contact Us
+/* Public */
+Route::post('/contact-us', [ContactUsController::class, 'store']);
+ 
+/* Admin */
+Route::get('/contact-us', [ContactUsController::class, 'index']);
+Route::get('/contact-us/{id}', [ContactUsController::class, 'show']);
+Route::delete('/contact-us/{id}', [ContactUsController::class, 'destroy']);
+Route::get('/contact-us/export/csv', [ContactUsController::class, 'exportCsv']);
+Route::patch('/contact-us/{id}/read', [ContactUsController::class, 'markAsRead']);
+ 
+ 
+Route::get('/public/contact-us/visibility', [ContactUsPageVisibilityController::class, 'publicShow']);
+ 
+// Put these behind your admin/auth middleware group
+Route::get('/contact-us/visibility', [ContactUsPageVisibilityController::class, 'Show']);
+Route::put('/contact-us/visibility', [ContactUsPageVisibilityController::class, 'Update']);
+
+ Route::get('/public/faculty',                  [UserController::class, 'facultyindex']);
+Route::get('/public/placement-officers', [UserController::class, 'placementOfficerIndex']);

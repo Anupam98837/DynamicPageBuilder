@@ -1,8 +1,8 @@
 @extends('pages.users.layout.structure')
 
-@section('title', 'Recruiters')
+@section('title', 'Manage Success Stories')
 
-@include('modules.ourRecruiters.manageRecruiters')
+@include('modules.successStory.manageSuccessStories')
 
 @section('scripts')
 <script>
