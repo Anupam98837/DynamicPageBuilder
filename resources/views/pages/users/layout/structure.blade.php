@@ -260,6 +260,8 @@
           </a>
           <div id="sm-courses" class="w3-submenu" role="group" aria-label="Courses submenu">
             <a href="/course/manage" class="w3-link">Manage Courses</a>
+            <a href="/course/semester/manage" class="w3-link">Manage Semesters</a>
+            <a href="/course/semester/section/manage" class="w3-link">Manage Sections</a>
           </div>
         </div>
 
@@ -275,14 +277,14 @@
         </div>
 
         <!-- Header Components (Single Link) -->
-<a href="/header-components/manage" class="w3-link">
-  <i class="fa-solid fa-header"></i><span>Header Components</span>
-</a>
+        <a href="/header-components/manage" class="w3-link">
+          <i class="fa-solid fa-header"></i><span>Header Components</span>
+        </a>
 
-<!-- Footer Components -->
-<a href="/footer-components/manage" class="w3-link">
-  <i class="fa-solid fa-window-minimize"></i><span>Footer Components</span>
-</a>
+        <!-- Footer Components -->
+        <a href="/footer-components/manage" class="w3-link">
+          <i class="fa-solid fa-window-minimize"></i><span>Footer Components</span>
+        </a>
 
         <div class="w3-group">
           <a href="#" class="w3-link w3-toggle" data-target="sm-pages" aria-expanded="false">
@@ -397,6 +399,17 @@
 <a href="/notice-marquee/settings" class="w3-link">
   <i class="fa-solid fa-scroll"></i><span>Notice Marquee</span>
 </a>
+              <!-- Feedback -->
+              <div class="w3-group">
+                <a href="#" class="w3-link w3-toggle" data-target="sm-feedback" aria-expanded="false">
+                  <i class="fa-solid fa-comment-dots"></i><span>Feedback</span>
+                  <i class="fa fa-chevron-down w3-chev"></i>
+                </a>
+                <div id="sm-feedback" class="w3-submenu" role="group" aria-label="Feedback submenu">
+                  <a href="/feedback/question/manage" class="w3-link">Manage Questions</a>
+                  <a href="/feedback/post/manage" class="w3-link">Manage Posts</a>
+                 </div>
+              </div>
       </nav>
 
       <!-- privileges (admin static) -->
@@ -466,6 +479,8 @@
         </div>
       </div>
 
+
+
       <a href="/settings/general" class="w3-link">
         <i class="fa-solid fa-gear"></i>
         <span>Settings</span>
@@ -478,6 +493,7 @@
       <div class="w3-section-rule"></div>
     </div>
     <nav class="w3-menu d-lg-none" aria-label="Account">
+      <a href="/feedback/submit" class="w3-link"><i class="fa-solid fa-comment-dots"></i><span> Feedback</span></a>
       <a href="/profile" class="w3-link"><i class="fa fa-id-badge"></i><span>Profile</span></a>
       <a href="/settings" class="w3-link"><i class="fa fa-gear"></i><span>Settings</span></a>
     </nav>

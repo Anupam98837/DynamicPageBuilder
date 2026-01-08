@@ -168,6 +168,34 @@ Route::get('/scholarships/view/{uuid}', function () {
 Route::get('/course/manage', function () {
     return view('pages.users.pages.course.manageCourses');
 });
+Route::get('/course/manage', function () {
+    return view('pages.users.pages.course.manageCourses');
+});
+Route::get('/course/semester/manage', function () {
+    return view('pages.users.pages.course.manageCourseSemester');
+});
+Route::get('/course/semester/section/manage', function () {
+    return view('pages.users.pages.course.manageCourseSemesterSection');
+});
+
+Route::get('/course/subject/manage', function () {
+    return view('pages.users.pages.subject.manageSubject');
+});
+
+
+//Feedback
+Route::get('/feedback/submit', function () {
+    return view('pages.users.pages.feedback.giveFeedBack');
+});
+Route::get('/feedback/question/manage', function () {
+    return view('pages.users.pages.feedback.feedbackQuestion');
+});
+Route::get('/feedback/post/manage', function () {
+    return view('pages.users.pages.feedback.feedbackPost');
+});
+Route::get('/feedback/result', function () {
+    return view('pages.users.pages.feedback.feedbackResult');
+});
 Route::get('/department/menu/create', function () {
     return view('pages.users.pages.deptMenu.createMenu');
 });

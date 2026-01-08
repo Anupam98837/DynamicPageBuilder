@@ -50,7 +50,14 @@ use App\Http\Controllers\API\GrandHomepageController;
 use App\Http\Controllers\API\FooterComponentController;
 use App\Http\Controllers\API\ContactUsController;
 use App\Http\Controllers\API\ContactUsPageVisibilityController;
-
+use App\Http\Controllers\API\CourseSemesterController;
+use App\Http\Controllers\API\CourseSemesterSectionController;
+use App\Http\Controllers\API\FeedbackController;
+use App\Http\Controllers\API\SubjectController;
+use App\Http\Controllers\API\FeedbackQuestionController;
+use App\Http\Controllers\API\FeedbackPostController;
+use App\Http\Controllers\API\FeedbackSubmissionController;
+use App\Http\Controllers\API\FeedbackResultsController;
 /*
 |--------------------------------------------------------------------------
 | Base Authenticated User (Sanctum)
@@ -957,6 +964,296 @@ Route::prefix('public')->group(function () {
 
     Route::get('/departments/{department}/courses', [CourseController::class, 'publicIndexByDepartment']);
 });
+
+
+/*
+|--------------------------------------------------------------------------
+| Course Semesters Routes
+|--------------------------------------------------------------------------
+*/
+
+// Read-only (authenticated)
+Route::middleware('checkRole')->group(function () {
+    // Global listing + show
+    Route::get('/course-semesters',              [CourseSemesterController::class, 'index']);
+    Route::get('/course-semesters/{identifier}', [CourseSemesterController::class, 'show']);
+
+    // Course-scoped listing + show
+    Route::get('/courses/{course}/semesters',                    [CourseSemesterController::class, 'indexByCourse']);
+    Route::get('/courses/{course}/semesters/{identifier}',       [CourseSemesterController::class, 'showByCourse']);
+
+    // Department + Course (optional dept override/filter)
+    Route::get('/departments/{department}/courses/{course}/semesters',              [CourseSemesterController::class, 'indexByDepartmentCourse']);
+    Route::get('/departments/{department}/courses/{course}/semesters/{identifier}', [CourseSemesterController::class, 'showByDepartmentCourse']);
+});
+
+// Modify (authenticated role-based)
+Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+    // Create (global)
+    Route::post('/course-semesters', [CourseSemesterController::class, 'store']);
+
+    // Create under a course
+    Route::post('/courses/{course}/semesters', [CourseSemesterController::class, 'storeForCourse']);
+
+    // Create under department+course (optional override/filter)
+    Route::post('/departments/{department}/courses/{course}/semesters', [CourseSemesterController::class, 'storeForDepartmentCourse']);
+
+    // Trash listing
+    Route::get('/course-semesters-trash', [CourseSemesterController::class, 'trash']);
+
+    // Update
+    Route::match(['put','patch'], '/course-semesters/{identifier}', [CourseSemesterController::class, 'update']);
+
+    // Soft delete / Restore / Force delete
+    Route::delete('/course-semesters/{identifier}',       [CourseSemesterController::class, 'destroy']);
+    Route::post('/course-semesters/{identifier}/restore', [CourseSemesterController::class, 'restore']);
+    Route::delete('/course-semesters/{identifier}/force', [CourseSemesterController::class, 'forceDelete']);
+});
+
+// Public (no auth)
+Route::prefix('public')->group(function () {
+    // Global visible list/show
+    Route::get('/course-semesters',              [CourseSemesterController::class, 'publicIndex']);
+    Route::get('/course-semesters/{identifier}', [CourseSemesterController::class, 'publicShow']);
+
+    // Course visible list/show
+    Route::get('/courses/{course}/semesters',              [CourseSemesterController::class, 'publicIndexByCourse']);
+    Route::get('/courses/{course}/semesters/{identifier}', [CourseSemesterController::class, 'publicShowByCourse']);
+
+    // Department + course visible list/show
+    Route::get('/departments/{department}/courses/{course}/semesters',              [CourseSemesterController::class, 'publicIndexByDepartmentCourse']);
+    Route::get('/departments/{department}/courses/{course}/semesters/{identifier}', [CourseSemesterController::class, 'publicShowByDepartmentCourse']);
+});
+
+// ===============================
+// Course Semester Sections Routes
+// ===============================
+
+// Read-only (authenticated)
+Route::middleware('checkRole')->prefix('course-semester-sections')->group(function () {
+    Route::get('/',        [CourseSemesterSectionController::class, 'index']);
+    Route::get('/trash',   [CourseSemesterSectionController::class, 'trash']);
+    Route::get('/current', [CourseSemesterSectionController::class, 'current']);
+
+    Route::get('/{idOrUuid}', [CourseSemesterSectionController::class, 'show']);
+});
+
+// Modify (authenticated role-based)
+Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')
+    ->prefix('course-semester-sections')
+    ->group(function () {
+
+        Route::post('/', [CourseSemesterSectionController::class, 'store']);
+
+        Route::match(['put','patch'], '/{idOrUuid}', [CourseSemesterSectionController::class, 'update']);
+
+        Route::delete('/{idOrUuid}', [CourseSemesterSectionController::class, 'destroy']);
+
+        Route::post('/{idOrUuid}/restore', [CourseSemesterSectionController::class, 'restore']);
+
+        Route::delete('/{idOrUuid}/force', [CourseSemesterSectionController::class, 'forceDelete']);
+    });
+    
+
+    // ===============================
+    // Subjects Routes
+    // ===============================
+    
+    // Read-only (authenticated)
+    Route::middleware('checkRole')
+        ->prefix('subjects')
+        ->group(function () {
+            Route::get('/',        [SubjectController::class, 'index']);
+            Route::get('/current', [SubjectController::class, 'current']);
+            Route::get('/trash',   [SubjectController::class, 'trash']);
+            Route::get('/{idOrUuid}', [SubjectController::class, 'show']);
+        });
+    
+    // Modify (authenticated role-based)
+    Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')
+        ->prefix('subjects')
+        ->group(function () {
+            Route::post('/', [SubjectController::class, 'store']);
+            Route::match(['put','patch'], '/{idOrUuid}', [SubjectController::class, 'update']);
+    
+            Route::delete('/{idOrUuid}', [SubjectController::class, 'destroy']);
+            Route::post('/{idOrUuid}/restore', [SubjectController::class, 'restore']);
+            Route::delete('/{idOrUuid}/force', [SubjectController::class, 'forceDelete']);
+        });
+    
+// ===============================
+// Course Semester members Routes (MINIMAL / REQUIRED ONLY)
+// ===============================
+
+// Read
+Route::middleware('checkRole')
+  ->prefix('semester-members')
+  ->group(function () {
+    Route::get('/', [CourseSemesterMemberController::class, 'index']);
+  });
+
+// Bulk push user_ids -> individual rows
+Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person,student')
+  ->prefix('semester-members')
+  ->group(function () {
+    Route::post('/bulk-import', [CourseSemesterMemberController::class, 'bulkImport']);
+    // Scoped by token/role
+    Route::get('/scoped', [CourseSemesterMemberController::class, 'scoped']);
+  });
+
+
+/* =========================================================
+ | Feedback Routes
+ | Table: feedbacks
+ | NOTE: store + edit only (no delete)
+ |========================================================= */
+
+// ✅ Authenticated read (any logged-in user can read their scoped feedback list/show)
+Route::middleware('checkRole')
+->prefix('feedbacks')
+->group(function () {
+
+    // list (supports filters)
+    Route::get('/', [FeedbackController::class, 'index']);
+
+    // show by id|uuid
+    Route::get('/{idOrUuid}', [FeedbackController::class, 'show'])
+        ->where('idOrUuid', '[0-9]+|[0-9a-fA-F\-]{36}');
+});
+
+
+// ✅ Create + Update (restricted roles)
+Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person,student')
+->prefix('feedbacks')
+->group(function () {
+
+    // create
+    Route::post('/', [FeedbackController::class, 'store']);
+
+    // update (edit)
+    Route::match(['put','patch'], '/{idOrUuid}', [FeedbackController::class, 'update'])
+        ->where('idOrUuid', '[0-9]+|[0-9a-fA-F\-]{36}');
+});
+
+/* =========================================================
+| Optional: "My Feedback" convenience routes (viewer-scoped)
+| If you implement these in controller
+|========================================================= */
+// Route::middleware('checkRole')->prefix('feedbacks')->group(function () {
+//     Route::get('/me/given',    [FeedbackController::class, 'myGiven']);
+//     Route::get('/me/received', [FeedbackController::class, 'myReceived']);
+// });
+
+
+// Read-only (authenticated)
+Route::middleware('checkRole')->prefix('feedback-questions')->group(function () {
+    Route::get('/',        [FeedbackQuestionController::class, 'index']);
+    Route::get('/trash',   [FeedbackQuestionController::class, 'trash']);
+    Route::get('/current', [FeedbackQuestionController::class, 'current']);
+    Route::get('/{idOrUuid}', [FeedbackQuestionController::class, 'show']);
+});
+
+// Modify (role-based)
+Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')
+    ->prefix('feedback-questions')
+    ->group(function () {
+        Route::post('/', [FeedbackQuestionController::class, 'store']);
+        Route::match(['put','patch'], '/{idOrUuid}', [FeedbackQuestionController::class, 'update']);
+        Route::delete('/{idOrUuid}', [FeedbackQuestionController::class, 'destroy']);
+        Route::post('/{idOrUuid}/restore', [FeedbackQuestionController::class, 'restore']);
+        Route::delete('/{idOrUuid}/force', [FeedbackQuestionController::class, 'forceDelete']);
+    });
+
+
+/* =========================================================
+ | Feedback Posts Routes
+ | Table: feedback_posts
+ | NOTE: Student can READ only (scoped in controller)
+ |========================================================= */
+
+// ✅ Authenticated read (any logged-in user)
+Route::middleware('checkRole')
+->prefix('feedback-posts')
+->group(function () {
+
+    // list (supports filters)
+    Route::get('/', [FeedbackPostController::class, 'index']);
+
+    // current active (publish/expire window)
+    Route::get('/current', [FeedbackPostController::class, 'current']);
+
+    // trash (controller also blocks students)
+    Route::get('/trash', [FeedbackPostController::class, 'trash']);
+
+    // show by id|uuid
+    Route::get('/{idOrUuid}', [FeedbackPostController::class, 'show'])
+        ->where('idOrUuid', '[0-9]+|[0-9a-fA-F\-]{36}');
+});
+
+
+// ✅ Create + Update + Delete + Restore + Force (restricted roles)
+Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')
+->prefix('feedback-posts')
+->group(function () {
+
+    // create
+    Route::post('/', [FeedbackPostController::class, 'store']);
+
+    // update
+    Route::match(['put','patch'], '/{idOrUuid}', [FeedbackPostController::class, 'update'])
+        ->where('idOrUuid', '[0-9]+|[0-9a-fA-F\-]{36}');
+
+    // soft delete
+    Route::delete('/{idOrUuid}', [FeedbackPostController::class, 'destroy'])
+        ->where('idOrUuid', '[0-9]+|[0-9a-fA-F\-]{36}');
+
+    // restore
+    Route::post('/{idOrUuid}/restore', [FeedbackPostController::class, 'restore'])
+        ->where('idOrUuid', '[0-9]+|[0-9a-fA-F\-]{36}');
+
+    // force delete
+    Route::delete('/{idOrUuid}/force', [FeedbackPostController::class, 'forceDelete'])
+        ->where('idOrUuid', '[0-9]+|[0-9a-fA-F\-]{36}');
+});
+
+/* =========================================================
+ | Feedback Submissions (Student submit + view)
+ |========================================================= */
+Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person,student')
+    ->prefix('feedback-posts')
+    ->group(function () {
+
+        // ✅ list available posts for current user
+        // student => only assigned + current window
+        // staff/admin => current window (all)
+        Route::get('/available', [FeedbackSubmissionController::class, 'available']);
+
+        // ✅ submit once per user per post
+        Route::post('/{idOrUuid}/submit', [FeedbackSubmissionController::class, 'submit'])
+            ->where('idOrUuid', '[0-9]+|[0-9a-fA-F\-]{36}');
+    });
+
+Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person,student')
+    ->prefix('feedback-submissions')
+    ->group(function () {
+
+        // view submissions
+        Route::get('/', [FeedbackSubmissionController::class, 'index']);
+        Route::get('/{idOrUuid}', [FeedbackSubmissionController::class, 'show'])
+            ->where('idOrUuid', '[0-9]+|[0-9a-fA-F\-]{36}');
+
+        // optional admin delete
+        Route::delete('/{idOrUuid}', [FeedbackSubmissionController::class, 'destroy'])
+            ->where('idOrUuid', '[0-9]+|[0-9a-fA-F\-]{36}');
+    });
+
+
+    Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')
+    ->group(function () {
+        Route::get('/feedback-results', [FeedbackResultsController::class, 'results']);
+    });
+
+
 
 
 Route::middleware('checkRole')->group(function () {
