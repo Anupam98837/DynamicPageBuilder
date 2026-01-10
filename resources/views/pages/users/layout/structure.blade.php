@@ -224,22 +224,28 @@
     <div id="adminFullMenu" style="display:none">
       <nav class="w3-menu" aria-label="Site Builder (Admin)">
 
-        {{-- =======================
+                {{-- =======================
            ACCESS & CONTROL
         ======================== --}}
         <div class="w3-nav-section" style="padding:6px 6px 2px">
           <div class="w3-section-title"><i class="fa-solid fa-user-shield"></i> ACCESS & CONTROL</div>
           <div class="w3-section-rule"></div>
         </div>
-
+ 
         <div class="w3-group">
           <a href="#" class="w3-link w3-toggle" data-target="sm-users" aria-expanded="false">
             <i class="fa-solid fa-user-shield"></i><span>Users & Access</span>
             <i class="fa fa-chevron-down w3-chev"></i>
           </a>
           <div id="sm-users" class="w3-submenu" role="group" aria-label="Users submenu">
-            <a href="/user/manage" class="w3-link">Users</a>
+            <a href="/user/manage" class="w3-link">All Users</a>
+                        <a href="/senior-authority/manage" class="w3-link">Senior Authority</a>
+                                <a href="/faculty/manage" class="w3-link">Faculty</a>
+            <a href="/other-roles/manage" class="w3-link">Other Roles</a>
+            <a href="/students/manage" class="w3-link">Students</a>
+ 
           </div>
+         
         </div>
 
         {{-- =======================

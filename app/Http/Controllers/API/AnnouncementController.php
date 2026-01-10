@@ -46,82 +46,100 @@ class AnnouncementController extends Controller
 
         return $q->first();
     }
+protected function baseQuery(Request $request, bool $includeDeleted = false)
+{
+    $q = DB::table('announcements as a')
+        ->leftJoin('departments as d', 'd.id', '=', 'a.department_id')
+        ->select([
+            'a.*',
+            'd.title as department_title',
+            'd.slug  as department_slug',
+            'd.uuid  as department_uuid',
+        ]);
 
-    protected function baseQuery(Request $request, bool $includeDeleted = false)
-    {
-        $q = DB::table('announcements as a')
-            ->leftJoin('departments as d', 'd.id', '=', 'a.department_id')
-            ->select([
-                'a.*',
-                'd.title as department_title',
-                'd.slug  as department_slug',
-                'd.uuid  as department_uuid',
-            ]);
-
-        if (! $includeDeleted) {
-            $q->whereNull('a.deleted_at');
-        }
-
-        // ?q=
-        if ($request->filled('q')) {
-            $term = '%' . trim((string) $request->query('q')) . '%';
-            $q->where(function ($sub) use ($term) {
-                $sub->where('a.title', 'like', $term)
-                    ->orWhere('a.slug', 'like', $term)
-                    ->orWhere('a.body', 'like', $term);
-            });
-        }
-
-        // ?status=draft|published|archived
-        if ($request->filled('status')) {
-            $q->where('a.status', (string) $request->query('status'));
-        }
-
-        // ?featured=1/0
-        if ($request->has('featured')) {
-            $featured = filter_var($request->query('featured'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
-            if ($featured !== null) {
-                $q->where('a.is_featured_home', $featured ? 1 : 0);
-            }
-        }
-
-        // ?department=id|uuid|slug
-        if ($request->filled('department')) {
-            $dept = $this->resolveDepartment($request->query('department'), true);
-            if ($dept) {
-                $q->where('a.department_id', (int) $dept->id);
-            } else {
-                $q->whereRaw('1=0');
-            }
-        }
-
-        // ?visible_now=1 -> only published and currently in window
-        if ($request->has('visible_now')) {
-            $visible = filter_var($request->query('visible_now'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
-            if ($visible) {
-                $now = now();
-                $q->where('a.status', 'published')
-                    ->where(function ($w) use ($now) {
-                        $w->whereNull('a.publish_at')->orWhere('a.publish_at', '<=', $now);
-                    })
-                    ->where(function ($w) use ($now) {
-                        $w->whereNull('a.expire_at')->orWhere('a.expire_at', '>', $now);
-                    });
-            }
-        }
-
-        // sort
-        $sort = (string) $request->query('sort', 'created_at');
-        $dir  = strtolower((string) $request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
-
-        $allowed = ['created_at', 'publish_at', 'expire_at', 'title', 'views_count', 'id'];
-        if (! in_array($sort, $allowed, true)) $sort = 'created_at';
-
-        $q->orderBy('a.' . $sort, $dir);
-
-        return $q;
+    if (! $includeDeleted) {
+        $q->whereNull('a.deleted_at');
     }
 
+    // ?q=
+    if ($request->filled('q')) {
+        $term = '%' . trim((string) $request->query('q')) . '%';
+        $q->where(function ($sub) use ($term) {
+            $sub->where('a.title', 'like', $term)
+                ->orWhere('a.slug', 'like', $term)
+                ->orWhere('a.body', 'like', $term);
+        });
+    }
+
+    // ✅ FIX: Handle multiple statuses (comma-separated or array)
+    // ?status=draft,archived OR ?status[]=draft&status[]=archived
+    if ($request->filled('status')) {
+        $status = $request->query('status');
+        
+        // If it's an array, use whereIn
+        if (is_array($status)) {
+            $q->whereIn('a.status', $status);
+        } 
+        // If it's a comma-separated string, split it
+        elseif (str_contains($status, ',')) {
+            $statuses = array_map('trim', explode(',', $status));
+            $q->whereIn('a.status', $statuses);
+        }
+        // Single status value
+        else {
+            $q->where('a.status', $status);
+        }
+    }
+
+    // ✅ ADD: Support for inactive flag (shows draft + archived)
+    if ($request->has('inactive') && $request->boolean('inactive')) {
+        $q->whereIn('a.status', ['draft', 'archived']);
+    }
+
+    // ?featured=1/0
+    if ($request->has('featured')) {
+        $featured = filter_var($request->query('featured'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        if ($featured !== null) {
+            $q->where('a.is_featured_home', $featured ? 1 : 0);
+        }
+    }
+
+    // ?department=id|uuid|slug
+    if ($request->filled('department')) {
+        $dept = $this->resolveDepartment($request->query('department'), true);
+        if ($dept) {
+            $q->where('a.department_id', (int) $dept->id);
+        } else {
+            $q->whereRaw('1=0');
+        }
+    }
+
+    // ?visible_now=1 -> only published and currently in window
+    if ($request->has('visible_now')) {
+        $visible = filter_var($request->query('visible_now'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        if ($visible) {
+            $now = now();
+            $q->where('a.status', 'published')
+                ->where(function ($w) use ($now) {
+                    $w->whereNull('a.publish_at')->orWhere('a.publish_at', '<=', $now);
+                })
+                ->where(function ($w) use ($now) {
+                    $w->whereNull('a.expire_at')->orWhere('a.expire_at', '>', $now);
+                });
+        }
+    }
+
+    // sort
+    $sort = (string) $request->query('sort', 'created_at');
+    $dir  = strtolower((string) $request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+
+    $allowed = ['created_at', 'publish_at', 'expire_at', 'title', 'views_count', 'id'];
+    if (! in_array($sort, $allowed, true)) $sort = 'created_at';
+
+    $q->orderBy('a.' . $sort, $dir);
+
+    return $q;
+}
     protected function resolveAnnouncement(Request $request, $identifier, bool $includeDeleted = false, $departmentId = null)
     {
         $q = DB::table('announcements as a');

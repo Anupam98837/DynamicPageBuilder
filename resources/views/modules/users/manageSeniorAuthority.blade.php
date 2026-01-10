@@ -194,6 +194,13 @@ td .fw-semibold{color:var(--ink)}
             <i class="fa fa-rotate-left me-1"></i>Reset
           </button>
 
+          {{-- ✅ IMPORT (same option like other manage pages) --}}
+          <button id="btnImportAdmins" class="btn btn-outline-primary" style="display:none;">
+            <i class="fa fa-file-import me-1"></i>Import CSV
+          </button>
+          {{-- Hidden file input for import --}}
+          <input id="importAdminsFile" type="file" accept=".csv,text/csv" style="display:none;" />
+
           {{-- ✅ EXPORT --}}
           <button id="btnExportAdmins" class="btn btn-outline-success">
             <i class="fa fa-file-csv me-1"></i>Export CSV
@@ -574,6 +581,10 @@ document.addEventListener('DOMContentLoaded', function () {
   const btnAdd = document.getElementById('btnAddUser');
   const btnExportAdmins = document.getElementById('btnExportAdmins');
 
+  // ✅ Import refs
+  const btnImportAdmins = document.getElementById('btnImportAdmins');
+  const importAdminsFile = document.getElementById('importAdminsFile');
+
   // Modal + form
   const userModalEl = document.getElementById('userModal');
   const userModal = new bootstrap.Modal(userModalEl);
@@ -630,6 +641,9 @@ document.addEventListener('DOMContentLoaded', function () {
     canEdit = writeRoles.includes(r);
 
     if (writeControls) writeControls.style.display = canCreate ? 'flex' : 'none';
+
+    // ✅ Import button visibility (same gating as create)
+    if (btnImportAdmins) btnImportAdmins.style.display = canCreate ? '' : 'none';
   }
 
   async function fetchMe() {
@@ -1028,6 +1042,154 @@ document.addEventListener('DOMContentLoaded', function () {
       err(ex.message);
     } finally {
       showGlobalLoading(false);
+    }
+  });
+
+  // ✅ Import CSV (same behavior style; uses /api/users/import-csv)
+  btnImportAdmins?.addEventListener('click', async () => {
+    if (!canCreate) return;
+
+    const { isConfirmed } = await Swal.fire({
+      title: 'Import Admins (CSV)',
+      html: `
+        <div class="text-start" style="font-size:13px;line-height:1.4">
+          <div class="mb-2">
+            Upload a <b>.csv</b> file to create/update admin users.
+          </div>
+          <div class="mb-2 text-muted">
+            Tip: keep role values within: <code>admin</code>, <code>super_admin</code>, <code>director</code>, <code>principal</code>
+          </div>
+          <div class="form-check mt-2">
+            <input class="form-check-input" type="checkbox" id="swUpdateExisting" checked>
+            <label class="form-check-label" for="swUpdateExisting">Update existing users (match by email/uuid if supported)</label>
+          </div>
+        </div>
+      `,
+      icon: 'info',
+      showCancelButton: true,
+      confirmButtonText: 'Choose CSV',
+      cancelButtonText: 'Cancel'
+    });
+
+    if (!isConfirmed) return;
+
+    // stash updateExisting preference for this selection
+    const updateExisting = document.getElementById('swUpdateExisting')?.checked ? '1' : '0';
+    importAdminsFile.dataset.update_existing = updateExisting;
+
+    importAdminsFile.value = '';
+    importAdminsFile.click();
+  });
+
+  importAdminsFile?.addEventListener('change', async () => {
+    const file = importAdminsFile.files?.[0];
+    if (!file) return;
+
+    const name = (file.name || '').toLowerCase();
+    if (!name.endsWith('.csv')) {
+      err('Please choose a .csv file');
+      importAdminsFile.value = '';
+      return;
+    }
+
+    // small safety size check (optional)
+    const maxMb = 10;
+    if (file.size > maxMb * 1024 * 1024) {
+      err(`CSV too large (max ${maxMb}MB)`);
+      importAdminsFile.value = '';
+      return;
+    }
+
+    const updateExisting = importAdminsFile.dataset.update_existing || '1';
+
+    const conf = await Swal.fire({
+      title: 'Confirm Import',
+      text: `Import "${file.name}" ?`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Import'
+    });
+    if (!conf.isConfirmed) {
+      importAdminsFile.value = '';
+      return;
+    }
+
+    try {
+      showGlobalLoading(true);
+
+      const fd = new FormData();
+      fd.append('file', file);
+
+      // optional hints (backend may ignore safely)
+      fd.append('scope', 'admins');
+      fd.append('allowed_roles', 'admin,super_admin,superadmin,super-admin,director,principal');
+      fd.append('update_existing', updateExisting);
+
+      // If your backend supports applying current filter/search while importing (usually not needed), skip.
+      const res = await fetch('/api/users/import-csv', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/json' },
+        body: fd
+      });
+      if (handleAuthStatus(res, 'You are not allowed to import admins.')) return;
+
+      // Try JSON first
+      const ct = (res.headers.get('Content-Type') || '').toLowerCase();
+      if (ct.includes('application/json')) {
+        const js = await res.json().catch(() => ({}));
+        if (!res.ok || js.success === false) {
+          throw new Error(js.error || js.message || 'Import failed');
+        }
+
+        // show summary if present
+        const summary = js.summary || js.data?.summary;
+        if (summary && typeof summary === 'object') {
+          await Swal.fire({
+            title: 'Import Complete',
+            icon: 'success',
+            html: `
+              <div class="text-start" style="font-size:13px;line-height:1.5">
+                <div><b>Created:</b> ${escapeHtml(String(summary.created ?? summary.inserted ?? 0))}</div>
+                <div><b>Updated:</b> ${escapeHtml(String(summary.updated ?? 0))}</div>
+                <div><b>Skipped:</b> ${escapeHtml(String(summary.skipped ?? 0))}</div>
+                <div><b>Failed:</b> ${escapeHtml(String(summary.failed ?? summary.errors ?? 0))}</div>
+              </div>
+            `
+          });
+        } else {
+          ok('CSV imported');
+        }
+
+        await loadUsers(false);
+        return;
+      }
+
+      // If backend returns a file (e.g., error report CSV), download it
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        throw new Error(txt || 'Import failed');
+      }
+      const blob = await res.blob();
+      const dispo = res.headers.get('Content-Disposition') || '';
+      const match = dispo.match(/filename="([^"]+)"/i);
+      const filename = match?.[1] || ('import_result_' + new Date().toISOString().slice(0,19).replace(/[:T]/g,'-') + '.csv');
+
+      const a = document.createElement('a');
+      const u = window.URL.createObjectURL(blob);
+      a.href = u;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(u);
+
+      ok('Import processed (downloaded result)');
+      await loadUsers(false);
+    } catch (ex) {
+      err(ex.message);
+    } finally {
+      showGlobalLoading(false);
+      importAdminsFile.value = '';
     }
   });
 

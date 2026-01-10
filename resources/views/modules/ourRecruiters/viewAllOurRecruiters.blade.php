@@ -1,10 +1,14 @@
 {{-- resources/views/landing/our-recruiters.blade.php --}}
 <style>
   /* =========================================================
-    ✅ Scoped-only variables (NO :root)
-    - prevents conflicts when this view is @included anywhere
-    - applied to BOTH wrapper + modal via .orc-scope class
+    ✅ Recruiters (Scoped / No :root / No global body rules)
+    - UI structure matches Announcements reference (header/search/dept/chip/pager)
+    - Dept dropdown UI improved (pill, icon, caret)
+    - Dept filtering (frontend) + deep-link ?d-{uuid}
+    - Keeps: masonry-ish logo tiles (different size boxes) + enhanced modal
+    - ✅ Scoped variables applied to BOTH wrapper + modal via .orc-scope
   ========================================================= */
+
   .orc-scope{
     --orc-brand:  var(--primary-color, #8f2f2f);
     --orc-ink:    var(--ink, #0f172a);
@@ -17,12 +21,15 @@
 
   /* Wrapper */
   .orc-wrap{
-    max-width: 1180px;
+    max-width: 1320px;               /* ✅ match reference width */
     margin: 18px auto 54px;
     padding: 0 12px;
-    background: transparent; /* ✅ don't touch body/page background */
+    background: transparent;
+    position: relative;
+    overflow: visible;
   }
 
+  /* Header */
   .orc-head{
     background: var(--orc-card);
     border: 1px solid var(--orc-line);
@@ -30,7 +37,8 @@
     box-shadow: var(--orc-shadow);
     padding: 14px 16px;
     margin-bottom: 16px;
-    display: flex;
+
+    display:flex;
     gap: 12px;
     align-items: flex-end;
     justify-content: space-between;
@@ -43,7 +51,11 @@
     letter-spacing: .2px;
     color: var(--orc-ink);
     font-size: 28px;
+    display:flex;
+    align-items:center;
+    gap: 10px;
   }
+  .orc-title i{ color: var(--orc-brand); }
 
   .orc-sub{
     margin: 6px 0 0;
@@ -52,52 +64,100 @@
   }
 
   .orc-tools{
-    display: flex;
+    display:flex;
     gap: 10px;
-    align-items: center;
+    align-items:center;
     flex-wrap: wrap;
   }
 
+  /* Search (pill) */
   .orc-search{
     position: relative;
     min-width: 260px;
-    max-width: 420px;
-    flex: 1 1 260px;
+    max-width: 520px;
+    flex: 1 1 320px;
   }
-
   .orc-search i{
-    position: absolute;
+    position:absolute;
     left: 14px;
     top: 50%;
     transform: translateY(-50%);
     opacity: .65;
     color: var(--orc-muted);
+    pointer-events:none;
   }
-
   .orc-search input{
-    width: 100%;
-    border-radius: 14px;
+    width:100%;
+    height: 42px;
+    border-radius: 999px;
     padding: 11px 12px 11px 42px;
     border: 1px solid var(--orc-line);
     background: var(--orc-card);
     color: var(--orc-ink);
     outline: none;
   }
-
   .orc-search input:focus{
-    border-color: rgba(201, 75, 80, .55);
-    box-shadow: 0 0 0 4px rgba(201, 75, 80, .18);
+    border-color: rgba(201,75,80,.55);
+    box-shadow: 0 0 0 4px rgba(201,75,80,.18);
   }
 
+  /* ✅ Dept dropdown (pill) */
+  .orc-select{
+    position: relative;
+    min-width: 260px;
+    max-width: 360px;
+    flex: 0 1 320px;
+  }
+  .orc-select__icon{
+    position:absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: .70;
+    color: var(--orc-muted);
+    pointer-events:none;
+    font-size: 14px;
+  }
+  .orc-select__caret{
+    position:absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: .70;
+    color: var(--orc-muted);
+    pointer-events:none;
+    font-size: 12px;
+  }
+  .orc-select select{
+    width:100%;
+    height: 42px;
+    border-radius: 999px;
+    padding: 10px 38px 10px 42px;
+    border: 1px solid var(--orc-line);
+    background: var(--orc-card);
+    color: var(--orc-ink);
+    outline: none;
+
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+  }
+  .orc-select select:focus{
+    border-color: rgba(201,75,80,.55);
+    box-shadow: 0 0 0 4px rgba(201,75,80,.18);
+  }
+
+  /* Chip */
   .orc-chip{
-    display: flex;
-    align-items: center;
+    display:flex;
+    align-items:center;
     gap: 8px;
-    padding: 10px 12px;
+    height: 42px;
+    padding: 0 12px;
     border-radius: 999px;
     border: 1px solid var(--orc-line);
     background: var(--orc-card);
-    box-shadow: 0 8px 18px rgba(2, 6, 23, .06);
+    box-shadow: 0 8px 18px rgba(2,6,23,.06);
     color: var(--orc-ink);
     font-size: 13px;
     font-weight: 900;
@@ -105,11 +165,11 @@
   }
 
   /* =========================================================
-     ✅ Masonry-style grid
+     ✅ Masonry-style grid (different size boxes) — RESTORED
   ========================================================= */
   .orc-grid{
     display: grid;
-    /* gap: 14px; */
+    /* gap: 14px; */                 /* keep as you had */
     grid-template-columns: repeat(9, minmax(0, 1fr));
     align-items: start;
   }
@@ -126,6 +186,8 @@
 
     height: 110px;
     grid-column: span 1;
+    position: relative;
+    outline: none;
   }
 
   .orc-tile:nth-child(12n + 2),
@@ -137,10 +199,11 @@
     grid-column: span 2;
   }
 
-  .orc-tile:hover{
+  .orc-tile:hover,
+  .orc-tile:focus{
     transform: translateY(-3px);
     box-shadow: 0 4px 6px rgba(2, 6, 23, .08), 0 16px 28px rgba(2, 6, 23, .12);
-    border-color: rgba(143, 47, 47, .2);
+    border-color: rgba(143, 47, 47, .20);
   }
 
   .orc-tile__inner{ display:block; width:100%; height:100%; background:#fff; }
@@ -165,13 +228,12 @@
     text-align: center;
   }
 
-  /* Skeleton */
+  /* Skeleton (shimmer) */
   .orc-skeleton{
-    display: grid;
+    display:grid;
     gap: 14px;
     grid-template-columns: repeat(12, minmax(0, 1fr));
   }
-
   .orc-sk-tile{
     --w: 2;
     grid-column: span var(--w);
@@ -182,7 +244,16 @@
     border-radius: 18px;
     overflow: hidden;
     position: relative;
+    height: 110px;
   }
+  .orc-sk-tile:before{
+    content:'';
+    position:absolute; inset:0;
+    transform: translateX(-60%);
+    background: linear-gradient(90deg, transparent, rgba(148,163,184,.22), transparent);
+    animation: orcSkMove 1.15s ease-in-out infinite;
+  }
+  @keyframes orcSkMove{ to{ transform: translateX(60%);} }
 
   .orc-sk-tile:nth-child(6n + 1){ --w: 1; }
   .orc-sk-tile:nth-child(6n + 2){ --w: 2; }
@@ -200,6 +271,12 @@
     .orc-tile, .orc-sk-tile{ grid-column: span 2; }
   }
 
+  /* Legacy responsive overrides (kept, but scoped) */
+  @media (max-width: 1200px){ .orc-grid{ grid-template-columns: repeat(5, minmax(0,1fr)); } }
+  @media (max-width: 992px) { .orc-grid{ grid-template-columns: repeat(4, minmax(0,1fr)); } }
+  @media (max-width: 768px) { .orc-grid{ grid-template-columns: repeat(3, minmax(0,1fr)); } }
+  @media (max-width: 520px) { .orc-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); } }
+
   /* State */
   .orc-state{
     background: var(--orc-card);
@@ -212,44 +289,43 @@
   }
 
   /* Pagination */
-  .orc-pagination{ display: flex; justify-content: center; margin-top: 18px; }
+  .orc-pagination{ display:flex; justify-content:center; margin-top: 18px; }
   .orc-pagination .orc-pager{
-    display: flex;
+    display:flex;
     gap: 8px;
     flex-wrap: wrap;
-    align-items: center;
-    justify-content: center;
+    align-items:center;
+    justify-content:center;
     padding: 10px;
   }
-
   .orc-pagebtn{
-    border: 1px solid var(--orc-line);
+    border:1px solid var(--orc-line);
     background: var(--orc-card);
     color: var(--orc-ink);
     border-radius: 12px;
     padding: 9px 12px;
     font-size: 13px;
     font-weight: 950;
-    box-shadow: 0 8px 18px rgba(2, 6, 23, .06);
-    cursor: pointer;
-    user-select: none;
+    box-shadow: 0 8px 18px rgba(2,6,23,.06);
+    cursor:pointer;
+    user-select:none;
   }
-  .orc-pagebtn:hover{ background: rgba(2, 6, 23, .03); }
-  .orc-pagebtn[disabled]{ opacity: .55; cursor: not-allowed; }
+  .orc-pagebtn:hover{ background: rgba(2,6,23,.03); }
+  .orc-pagebtn[disabled]{ opacity:.55; cursor:not-allowed; }
   .orc-pagebtn.active{
-    background: rgba(201, 75, 80, .12);
-    border-color: rgba(201, 75, 80, .35);
+    background: rgba(201,75,80,.12);
+    border-color: rgba(201,75,80,.35);
     color: var(--orc-brand);
   }
 
-  /* Legacy responsive overrides (kept, but scoped) */
-  @media (max-width: 1200px){ .orc-grid{ grid-template-columns: repeat(5, minmax(0,1fr)); } }
-  @media (max-width: 992px) { .orc-grid{ grid-template-columns: repeat(4, minmax(0,1fr)); } }
-  @media (max-width: 768px) { .orc-grid{ grid-template-columns: repeat(3, minmax(0,1fr)); } }
-  @media (max-width: 520px) { .orc-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); } }
+  @media (max-width: 640px){
+    .orc-title{ font-size: 24px; }
+    .orc-search{ min-width: 220px; flex: 1 1 240px; }
+    .orc-select{ min-width: 220px; flex: 1 1 240px; }
+  }
 
   /* =========================
-     ✅ Enhanced Modal UI (scoped)
+     ✅ Enhanced Modal UI (scoped) — kept
      ========================= */
   .orc-modal{
     position: fixed;
@@ -584,20 +660,44 @@
     .orc-modal__btn{ padding: 10px 14px; font-size: 13px; }
     .orc-modal__info-grid{ grid-template-columns: 1fr; }
   }
+
+  /* ✅ Guard against Bootstrap overriding mega menu dropdown positioning */
+  .dynamic-navbar .navbar-nav .dropdown-menu{
+    position: absolute !important;
+    inset: auto !important;
+  }
+  .dynamic-navbar .dropdown-menu.is-portaled{
+    position: fixed !important;
+  }
 </style>
 
-<div class="orc-wrap orc-scope" data-api="{{ url('/api/public/recruiters') }}">
+
+<div
+  class="orc-wrap orc-scope"
+  data-api="{{ url('/api/public/recruiters') }}"
+  data-dept-api="{{ url('/api/public/departments') }}"
+>
   <div class="orc-head">
     <div>
-      <h1 class="orc-title">Our Recruiters</h1>
+      <h1 class="orc-title"><i class="fa-solid fa-building"></i>Our Recruiters</h1>
       <div class="orc-sub" id="recSub">Companies that recruit from our campus</div>
     </div>
 
     <div class="orc-tools">
       <div class="orc-search">
         <i class="fa fa-magnifying-glass"></i>
-        <input id="recSearch" type="search" placeholder="Search company…">
+        <input id="recSearch" type="search" placeholder="Search recruiters (name/industry/location)…">
       </div>
+
+      {{-- ✅ Dept dropdown added --}}
+      <div class="orc-select" title="Filter by department">
+        <i class="fa-solid fa-building-columns orc-select__icon"></i>
+        <select id="recDept" aria-label="Filter by department">
+          <option value="">All Departments</option>
+        </select>
+        <i class="fa-solid fa-chevron-down orc-select__caret"></i>
+      </div>
+
       <div class="orc-chip" title="Total results">
         <i class="fa-solid fa-building" style="opacity:.85"></i>
         <span id="recCount">—</span>
@@ -615,7 +715,7 @@
   </div>
 </div>
 
-{{-- ✅ Enhanced Modal --}}
+{{-- ✅ Enhanced Modal (kept) --}}
 <div id="recModal"
      class="orc-modal orc-scope"
      aria-hidden="true"
@@ -641,7 +741,7 @@
     <div class="orc-modal__body" id="recModalBody">
       <div class="orc-modal__logo-container">
         <div class="orc-modal__logo">
-          <img id="recModalLogo" src="" alt="Company Logo" style="display: none;">
+          <img id="recModalLogo" src="" alt="Company Logo" style="display:none;">
           <div id="recModalLogoFallback" class="orc-modal__logo-fallback">
             <i class="fa-solid fa-building"></i>
           </div>
@@ -695,7 +795,7 @@
            href="#"
            target="_blank"
            rel="noopener noreferrer"
-           style="display: none;">
+           style="display:none;">
           <i class="fa-solid fa-external-link"></i>
           Visit Website
         </a>
@@ -711,18 +811,49 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
 
 <script>
-  (() => {
-    if (window.__PUBLIC_RECRUITERS__) return;
-    window.__PUBLIC_RECRUITERS__ = true;
+(() => {
+  // allow safe include: init each .orc-wrap once
+  const roots = Array.from(document.querySelectorAll('.orc-wrap.orc-scope'))
+    .filter(r => r.getAttribute('data-orc-inited') !== '1');
 
-    const root = document.querySelector('.orc-wrap');
-    if (!root) return;
+  if (!roots.length) return;
+
+  roots.forEach((root) => {
+    root.setAttribute('data-orc-inited', '1');
 
     const API = root.getAttribute('data-api') || '/api/public/recruiters';
+    const DEPT_API = root.getAttribute('data-dept-api') || '/api/public/departments';
+
     const $ = (id) => document.getElementById(id);
 
-    const state = { page: 1, perPage: 24, lastPage: 1, total: 0, q: '' };
+    const els = {
+      grid: $('recGrid'),
+      skel: $('recSkeleton'),
+      state: $('recState'),
+      pager: $('recPager'),
+      search: $('recSearch'),
+      dept: $('recDept'),
+      count: $('recCount'),
+      sub: $('recSub'),
+    };
+
+    const state = {
+      page: 1,
+      perPage: 24,
+      lastPage: 1,
+      total: 0,
+      q: '',
+      deptUuid: '',
+      deptId: null,
+      deptName: '',
+    };
+
     let activeController = null;
+
+    // cache
+    let allRecruiters = null;          // array
+    let deptByUuid = new Map();        // uuid -> {id, title, uuid}
+    let itemByKey = new Map();         // key -> recruiter object for modal
 
     // Modal elements
     const modal = $('recModal');
@@ -740,72 +871,132 @@
     const modalDate = $('recModalDate');
     const modalUpdated = $('recModalUpdated');
 
-    function esc(str) {
+    function esc(str){
       return (str ?? '').toString().replace(/[&<>"']/g, s => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
       }[s]));
     }
+    function escAttr(str){
+      return (str ?? '').toString().replace(/"/g, '&quot;');
+    }
 
-    function normalizeUrl(url) {
+    function stripHtml(html){
+      const raw = String(html || '')
+        .replace(/<\s*br\s*\/?>/gi, ' ')
+        .replace(/<\/\s*(p|div|li|h[1-6]|tr|td|th|section|article)\s*>/gi, '$& ')
+        .replace(/<\s*(p|div|li|h[1-6]|tr|td|th|section|article)\b[^>]*>/gi, ' ');
+      const div = document.createElement('div');
+      div.innerHTML = raw;
+      return (div.textContent || div.innerText || '').replace(/\s+/g, ' ').trim();
+    }
+
+    function normalizeUrl(url){
       const u = (url || '').toString().trim();
       if (!u) return '';
       if (/^(data:|blob:|https?:\/\/)/i.test(u)) return u;
+      if (u.startsWith('//')) return 'https:' + u;
       if (u.startsWith('/')) return window.location.origin + u;
-      return window.location.origin + '/' + u;
+
+      // if looks like domain, assume https
+      if (u.includes('.') && !u.includes(' ')) return 'https://' + u.replace(/^\/+/, '');
+      return window.location.origin + '/' + u.replace(/^\/+/, '');
     }
 
-    function pick(obj, keys) {
-      for (const k of keys) {
+    function pick(obj, keys){
+      for (const k of keys){
         const v = obj?.[k];
         if (v !== null && v !== undefined && String(v).trim() !== '') return v;
       }
       return '';
     }
 
-    function formatDate(dateString) {
+    function formatDate(dateString){
       if (!dateString) return '—';
-      try {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-      } catch { return dateString; }
+      try{
+        const d = new Date(dateString);
+        if (Number.isNaN(d.getTime())) return String(dateString);
+        return new Intl.DateTimeFormat('en-IN', { day:'2-digit', month:'short', year:'numeric' }).format(d);
+      } catch {
+        return String(dateString);
+      }
     }
 
-    function formatNumber(num) {
-      if (!num && num !== 0) return '—';
-      return num.toLocaleString();
+    function formatNumber(num){
+      if (num === null || num === undefined || num === '') return '—';
+      const n = (typeof num === 'number') ? num : parseFloat(String(num).replace(/[^\d.\-]/g,''));
+      if (Number.isNaN(n)) return String(num);
+      return n.toLocaleString();
     }
 
-    function showModalLoading(show) {
+    function showModalLoading(show){
       if (modalLoading) modalLoading.style.display = show ? 'flex' : 'none';
-      if (modalBody) modalBody.style.display = show ? 'block' : 'none';
+      if (modalBody) modalBody.style.display = show ? 'none' : 'grid';
     }
 
-    function setBodyScroll(lock) {
+    function setBodyScroll(lock){
       document.documentElement.style.overflow = lock ? 'hidden' : '';
       document.body.style.overflow = lock ? 'hidden' : '';
     }
 
-    function openModal({ name, desc, logo, website, industry, location, hired, date, updated }) {
+    function openModalFromItem(it){
       if (!modal) return;
 
       showModalLoading(true);
 
-      const n = (name || 'Company').toString().trim();
-      const d = (desc || '').toString().trim();
-      if (modalTitle) modalTitle.textContent = n;
+      const name = (pick(it, ['name','title','company','label']) || 'Company').toString().trim();
+      const descRaw = pick(it, ['description','about','summary','content','details','body']) || '';
+      const desc = stripHtml(descRaw);
 
-      if (modalDesc) {
-        if (d) {
-          const paragraphs = d.split('\n\n').filter(p => p.trim());
-          modalDesc.innerHTML = paragraphs.map(p => `<p>${esc(p.replace(/\n/g, '<br>'))}</p>`).join('');
+      const logoRaw =
+        pick(it, ['logo_url','image_url','image_full_url','logo','image','src','url']) ||
+        (it?.attachment?.url ?? '');
+      const logo = logoRaw ? normalizeUrl(logoRaw) : '';
+
+      const websiteRaw = pick(it, ['website','link','web_url','site','company_url']) || '';
+      const website = websiteRaw ? normalizeUrl(websiteRaw) : '';
+
+      const industry = pick(it, ['industry','sector','category']) || '';
+      const location = pick(it, ['location','city','country','headquarters']) || '';
+      const hired = pick(it, ['students_hired','hired_count','placements']) || '';
+
+      const created = pick(it, ['created_at','date_added','joined_date']) || '';
+      const updated = pick(it, ['updated_at','last_updated']) || '';
+
+      if (modalTitle) modalTitle.textContent = name;
+
+      if (modalDesc){
+        if (desc){
+          const chunks = desc.split(/\n\s*\n/g).map(s => s.trim()).filter(Boolean);
+          modalDesc.innerHTML = chunks.length
+            ? chunks.map(p => `<p>${esc(p)}</p>`).join('')
+            : `<p style="color: var(--orc-muted); font-style: italic;">No description available.</p>`;
         } else {
           modalDesc.innerHTML = '<p style="color: var(--orc-muted); font-style: italic;">No description available.</p>';
         }
       }
 
-      const hasLogo = !!(logo && logo.trim());
-      if (modalLogo && modalLogoFallback) {
-        if (hasLogo) {
+      if (modalIndustry) modalIndustry.textContent = industry || '—';
+      if (modalLocation) modalLocation.textContent = location || '—';
+      if (modalHired) modalHired.textContent = hired !== '' ? formatNumber(hired) : '—';
+      if (modalDate) modalDate.textContent = created ? formatDate(created) : '—';
+      if (modalUpdated) modalUpdated.textContent = updated ? formatDate(updated) : '—';
+
+      if (modalWebsite){
+        if (website){
+          modalWebsite.href = website;
+          modalWebsite.style.display = 'inline-flex';
+        } else {
+          modalWebsite.style.display = 'none';
+        }
+      }
+
+      // logo handling
+      if (modalLogo && modalLogoFallback){
+        modalLogo.onload = null;
+        modalLogo.onerror = null;
+        modalLogo.style.display = 'none';
+
+        if (logo){
           modalLogo.onload = () => {
             modalLogo.style.display = 'block';
             modalLogoFallback.style.display = 'none';
@@ -817,38 +1008,23 @@
             showModalLoading(false);
           };
           modalLogo.src = logo;
-          modalLogo.alt = `${n} Logo`;
+          modalLogo.alt = name + ' Logo';
         } else {
-          modalLogo.style.display = 'none';
           modalLogoFallback.style.display = 'flex';
           modalLogoFallback.innerHTML = '<i class="fa-solid fa-building"></i>';
           showModalLoading(false);
         }
       }
 
-      if (modalWebsite) {
-        if (website && website.trim()) {
-          modalWebsite.href = website;
-          modalWebsite.style.display = 'flex';
-        } else {
-          modalWebsite.style.display = 'none';
-        }
-      }
-
-      if (modalIndustry) modalIndustry.textContent = industry || '—';
-      if (modalLocation) modalLocation.textContent = location || '—';
-      if (modalHired) modalHired.textContent = hired !== undefined ? formatNumber(hired) : '—';
-      if (modalDate) modalDate.textContent = date ? formatDate(date) : '—';
-      if (modalUpdated) modalUpdated.textContent = updated ? formatDate(updated) : '—';
-
       modal.classList.add('show');
       modal.setAttribute('aria-hidden', 'false');
       setBodyScroll(true);
 
-      if (!hasLogo) setTimeout(() => showModalLoading(false), 100);
+      // safety fallback if image never triggers events
+      setTimeout(() => showModalLoading(false), 400);
     }
 
-    function closeModal() {
+    function closeModal(){
       if (!modal) return;
       modal.classList.remove('show');
       modal.setAttribute('aria-hidden', 'true');
@@ -863,11 +1039,8 @@
       if (e.key === 'Escape' && modal?.classList.contains('show')) closeModal();
     });
 
-    function showSkeleton() {
-      const sk = $('recSkeleton');
-      const st = $('recState');
-      const grid = $('recGrid');
-      const pager = $('recPager');
+    function showSkeleton(){
+      const sk = els.skel, st = els.state, grid = els.grid, pager = els.pager;
 
       if (grid) grid.style.display = 'none';
       if (pager) pager.style.display = 'none';
@@ -875,245 +1048,367 @@
 
       if (!sk) return;
       sk.style.display = '';
-
-      const heights = [160, 190, 220, 170, 210, 180, 240, 165, 205, 175, 230, 185];
-      sk.innerHTML = heights.map(h => `<div class="orc-sk-tile" style="height:${h}px"></div>`).join('');
+      sk.innerHTML = Array.from({length: 18}).map(() => `<div class="orc-sk-tile"></div>`).join('');
     }
 
-    function hideSkeleton() {
-      const sk = $('recSkeleton');
+    function hideSkeleton(){
+      const sk = els.skel;
       if (!sk) return;
       sk.style.display = 'none';
       sk.innerHTML = '';
     }
 
-    async function fetchJson(url) {
+    async function fetchJson(url){
       if (activeController) activeController.abort();
       activeController = new AbortController();
 
-      const res = await fetch(url, { headers: { 'Accept': 'application/json' }, signal: activeController.signal });
+      const res = await fetch(url, { headers: { 'Accept':'application/json' }, signal: activeController.signal });
       const js = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(js?.message || 'Request failed');
+      if (!res.ok) throw new Error(js?.message || ('Request failed: ' + res.status));
       return js;
     }
 
-    function buildUrl() {
-      const params = new URLSearchParams();
-      params.set('page', String(state.page));
-      params.set('per_page', String(state.perPage));
-      if (state.q.trim()) params.set('q', state.q.trim());
-      params.set('sort', 'created_at');
-      params.set('direction', 'desc');
-      return API + '?' + params.toString();
+    function extractDeptUuidFromUrl(){
+      // matches "?d-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" anywhere in URL/search
+      const hay = (window.location.search || '') + ' ' + (window.location.href || '');
+      const m = hay.match(/d-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+      return m ? m[1] : '';
     }
 
-    function render(items) {
-      const grid = $('recGrid');
-      const st = $('recState');
-      const count = $('recCount');
+    function setDeptSelection(uuid){
+      const sel = els.dept;
+      uuid = (uuid || '').toString().trim();
+
+      if (!sel) return;
+
+      if (!uuid){
+        sel.value = '';
+        state.deptUuid = '';
+        state.deptId = null;
+        state.deptName = '';
+        if (els.sub) els.sub.textContent = 'Companies that recruit from our campus';
+        return;
+      }
+
+      const meta = deptByUuid.get(uuid);
+      if (!meta) return;
+
+      sel.value = uuid;
+      state.deptUuid = uuid;
+      state.deptId = meta.id ?? null;
+      state.deptName = meta.title ?? '';
+
+      if (els.sub){
+        els.sub.textContent = state.deptName
+          ? ('Recruiters for ' + state.deptName)
+          : 'Recruiters (filtered)';
+      }
+    }
+
+    async function loadDepartments(){
+      const sel = els.dept;
+      if (!sel) return;
+
+      sel.innerHTML = `
+        <option value="">All Departments</option>
+        <option value="__loading" disabled>Loading departments…</option>
+      `;
+      sel.value = '__loading';
+
+      try{
+        const res = await fetch(DEPT_API, { headers: { 'Accept':'application/json' } });
+        const js = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(js?.message || ('HTTP ' + res.status));
+
+        const items = Array.isArray(js?.data) ? js.data : [];
+        const depts = items
+          .map(d => ({
+            id: d?.id ?? null,
+            uuid: (d?.uuid ?? '').toString().trim(),
+            title: (d?.title ?? d?.name ?? '').toString().trim(),
+            active: (d?.active ?? 1),
+          }))
+          .filter(x => x.uuid && x.title && String(x.active) === '1');
+
+        deptByUuid = new Map(depts.map(d => [d.uuid, d]));
+
+        depts.sort((a,b) => a.title.localeCompare(b.title));
+
+        sel.innerHTML = `<option value="">All Departments</option>` + depts
+          .map(d => `<option value="${escAttr(d.uuid)}">${esc(d.title)}</option>`)
+          .join('');
+
+        sel.value = '';
+      } catch (e){
+        console.warn('Departments load failed:', e);
+        sel.innerHTML = `<option value="">All Departments</option>`;
+        sel.value = '';
+      }
+    }
+
+    async function ensureRecruitersLoaded(force=false){
+      if (allRecruiters && !force) return;
+
+      showSkeleton();
+
+      try{
+        // fetch a larger page so frontend filtering always works
+        const u = new URL(API, window.location.origin);
+        u.searchParams.set('page', '1');
+        u.searchParams.set('per_page', '500');
+        u.searchParams.set('sort', 'created_at');
+        u.searchParams.set('direction', 'desc');
+
+        const js = await fetchJson(u.toString());
+        const items = Array.isArray(js?.data) ? js.data : (Array.isArray(js) ? js : []);
+        allRecruiters = items;
+      } finally {
+        hideSkeleton();
+      }
+    }
+
+    function applyFilterAndSearch(){
+      const q = (state.q || '').toString().trim().toLowerCase();
+      let items = Array.isArray(allRecruiters) ? allRecruiters.slice() : [];
+
+      // ✅ Dept filter:
+      // when dept selected -> show ONLY recruiters that match dept id/uuid
+      if (state.deptUuid && state.deptId !== null && state.deptId !== undefined && String(state.deptId) !== ''){
+        const deptIdStr = String(state.deptId);
+        const deptUuidStr = String(state.deptUuid);
+
+        items = items.filter(it => {
+          const did = (it?.department_id === null || it?.department_id === undefined) ? '' : String(it.department_id);
+          const duu = (it?.department_uuid === null || it?.department_uuid === undefined) ? '' : String(it.department_uuid);
+          return (did === deptIdStr) || (duu && duu === deptUuidStr);
+        });
+      } else if (state.deptUuid){
+        // if deptId missing, try uuid-only
+        const deptUuidStr = String(state.deptUuid);
+        items = items.filter(it => String(it?.department_uuid || '') === deptUuidStr);
+      }
+
+      // Search
+      if (q){
+        items = items.filter(it => {
+          const name = String(pick(it, ['name','title','company','label']) || '').toLowerCase();
+          const industry = String(pick(it, ['industry','sector','category']) || '').toLowerCase();
+          const location = String(pick(it, ['location','city','country','headquarters']) || '').toLowerCase();
+          const desc = stripHtml(pick(it, ['description','about','summary','content','details','body']) || '').toLowerCase();
+          return name.includes(q) || industry.includes(q) || location.includes(q) || desc.includes(q);
+        });
+      }
+
+      return items;
+    }
+
+    function bindTileImages(gridEl){
+      gridEl.querySelectorAll('img.orc-logo').forEach(img => {
+        const tile = img.closest('.orc-tile');
+        const fallback = tile ? tile.querySelector('.orc-tile__fallback') : null;
+
+        if (img.complete && img.naturalWidth > 0){
+          if (fallback) fallback.style.display = 'none';
+          return;
+        }
+
+        img.addEventListener('load', () => {
+          if (fallback) fallback.style.display = 'none';
+        }, { once:true });
+
+        img.addEventListener('error', () => {
+          img.remove();
+          if (fallback) fallback.style.display = 'flex';
+        }, { once:true });
+      });
+    }
+
+    function render(items){
+      const grid = els.grid, st = els.state, count = els.count;
       if (!grid || !st) return;
 
-      if (!items.length) {
+      if (count) count.textContent = String(state.total || 0);
+
+      if (!items.length){
         grid.style.display = 'none';
         st.style.display = '';
+        const deptLine = state.deptName
+          ? `<div style="margin-top:6px;font-size:12.5px;opacity:.95;">Department: <b>${esc(state.deptName)}</b></div>`
+          : '';
         st.innerHTML = `
           <div style="font-size:34px;opacity:.6;margin-bottom:6px;">
             <i class="fa-regular fa-face-frown"></i>
           </div>
           No recruiters found.
+          ${deptLine}
         `;
-        if (count) count.textContent = '0';
         return;
       }
 
-      if (count) count.textContent = String(state.total || items.length);
       st.style.display = 'none';
       grid.style.display = '';
+      itemByKey = new Map();
 
-      grid.innerHTML = items.map(it => {
-        const logo =
-          pick(it, ['logo_url', 'image_url', 'image_full_url', 'logo', 'image', 'src', 'url']) ||
+      grid.innerHTML = items.map((it, idx) => {
+        const key = String(it?.uuid || it?.id || ('idx_' + idx));
+        itemByKey.set(key, it);
+
+        const name = pick(it, ['name','title','company','label']) || 'Recruiter';
+        const logoRaw =
+          pick(it, ['logo_url','image_url','image_full_url','logo','image','src','url']) ||
           (it?.attachment?.url ?? '');
-
-        const name = pick(it, ['name', 'title', 'company', 'label']) || 'Recruiter';
-        const desc = pick(it, ['description', 'about', 'summary', 'content', 'details', 'body']) || '';
-        const website = pick(it, ['website', 'link', 'web_url', 'site', 'company_url']) || '';
-        const industry = pick(it, ['industry', 'sector', 'category']) || '';
-        const location = pick(it, ['location', 'city', 'country', 'headquarters']) || '';
-        const hired = pick(it, ['students_hired', 'hired_count', 'placements']) || '';
-        const date = pick(it, ['created_at', 'date_added', 'joined_date']) || '';
-        const updated = pick(it, ['updated_at', 'last_updated']) || '';
-
-        const fullLogo = normalizeUrl(logo);
-        const webHref = website ? normalizeUrl(website) : '';
+        const logo = logoRaw ? normalizeUrl(logoRaw) : '';
 
         return `
           <div class="orc-tile"
                role="button"
                tabindex="0"
-               data-name="${esc(name)}"
-               data-desc="${esc(desc)}"
-               data-logo="${esc(fullLogo)}"
-               data-website="${esc(webHref)}"
-               data-industry="${esc(industry)}"
-               data-location="${esc(location)}"
-               data-hired="${esc(hired)}"
-               data-date="${esc(date)}"
-               data-updated="${esc(updated)}"
-               aria-label="View ${esc(name)} details">
-            <span class="orc-tile__inner">
-              ${fullLogo
-                ? `<img src="${esc(fullLogo)}" alt="${esc(name)}" loading="lazy">`
-                : `<div class="orc-tile__fallback">${esc(name)}</div>`
-              }
-            </span>
+               data-key="${escAttr(key)}"
+               aria-label="View ${escAttr(name)} details">
+            <div class="orc-tile__inner">
+              <div class="orc-tile__fallback">${esc(name)}</div>
+              ${logo ? `<img class="orc-logo" src="${escAttr(logo)}" alt="${escAttr(name)}" loading="lazy">` : ``}
+            </div>
           </div>
         `;
       }).join('');
+
+      bindTileImages(grid);
     }
 
-    function renderPager() {
-      const pager = $('recPager');
+    function renderPager(){
+      const pager = els.pager;
       if (!pager) return;
 
       const last = state.lastPage || 1;
-      const cur = state.page || 1;
+      const cur  = state.page || 1;
 
-      if (last <= 1) {
+      if (last <= 1){
         pager.style.display = 'none';
         pager.innerHTML = '';
         return;
       }
 
-      const btn = (label, page, { disabled = false, active = false } = {}) => {
+      const btn = (label, page, {disabled=false, active=false}={}) => {
         const dis = disabled ? 'disabled' : '';
         const cls = active ? 'orc-pagebtn active' : 'orc-pagebtn';
         return `<button class="${cls}" ${dis} data-page="${page}">${label}</button>`;
       };
 
       let html = '';
-      html += btn('Previous', Math.max(1, cur - 1), { disabled: cur <= 1 });
+      html += btn('Previous', Math.max(1, cur-1), { disabled: cur<=1 });
 
       const win = 2;
       const start = Math.max(1, cur - win);
-      const end = Math.min(last, cur + win);
+      const end   = Math.min(last, cur + win);
 
-      if (start > 1) {
-        html += btn('1', 1, { active: cur === 1 });
+      if (start > 1){
+        html += btn('1', 1, { active: cur===1 });
         if (start > 2) html += `<span style="opacity:.6;padding:0 4px;">…</span>`;
       }
 
-      for (let p = start; p <= end; p++) html += btn(String(p), p, { active: p === cur });
-
-      if (end < last) {
-        if (end < last - 1) html += `<span style="opacity:.6;padding:0 4px;">…</span>`;
-        html += btn(String(last), last, { active: cur === last });
+      for (let p=start; p<=end; p++){
+        html += btn(String(p), p, { active: p===cur });
       }
 
-      html += btn('Next', Math.min(last, cur + 1), { disabled: cur >= last });
+      if (end < last){
+        if (end < last - 1) html += `<span style="opacity:.6;padding:0 4px;">…</span>`;
+        html += btn(String(last), last, { active: cur===last });
+      }
+
+      html += btn('Next', Math.min(last, cur+1), { disabled: cur>=last });
 
       pager.innerHTML = html;
       pager.style.display = 'flex';
     }
 
-    async function load() {
-      showSkeleton();
+    function repaint(){
+      const filtered = applyFilterAndSearch();
 
-      try {
-        const js = await fetchJson(buildUrl());
-        const items = Array.isArray(js?.data) ? js.data : (Array.isArray(js) ? js : []);
-        const p = js?.pagination || {};
-        state.total = parseInt(p.total ?? items.length, 10) || items.length;
-        state.lastPage = parseInt(p.last_page ?? 1, 10) || 1;
-        state.page = parseInt(p.page ?? state.page, 10) || state.page;
+      state.total = filtered.length;
+      state.lastPage = Math.max(1, Math.ceil(filtered.length / state.perPage));
+      if (state.page > state.lastPage) state.page = state.lastPage;
 
-        hideSkeleton();
-        render(items);
-        renderPager();
-      } catch (e) {
-        hideSkeleton();
-        const st = $('recState');
-        const grid = $('recGrid');
-        const pager = $('recPager');
+      const start = (state.page - 1) * state.perPage;
+      const pageItems = filtered.slice(start, start + state.perPage);
 
-        if (grid) grid.style.display = 'none';
-        if (pager) pager.style.display = 'none';
-
-        if (st) {
-          st.style.display = '';
-          st.innerHTML = `
-            <div style="font-size:34px;opacity:.6;margin-bottom:6px;">
-              <i class="fa-solid fa-triangle-exclamation"></i>
-            </div>
-            Could not load recruiters.
-            <div style="margin-top:8px;font-size:12.5px;opacity:.9;">
-              API: <b>${esc(API)}</b>
-            </div>
-          `;
-        }
-      }
+      render(pageItems);
+      renderPager();
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-      const search = $('recSearch');
+    // tile click -> modal
+    function openFromTile(tile){
+      const key = tile?.getAttribute('data-key') || '';
+      const it = itemByKey.get(key);
+      if (!it) return;
+      openModalFromItem(it);
+    }
 
+    document.addEventListener('click', (e) => {
+      const tile = e.target.closest('.orc-tile');
+      if (!tile) return;
+      openFromTile(tile);
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const tile = e.target.closest?.('.orc-tile');
+      if (!tile) return;
+      e.preventDefault();
+      openFromTile(tile);
+    });
+
+    // pagination click
+    document.addEventListener('click', (e) => {
+      const b = e.target.closest('button.orc-pagebtn[data-page]');
+      if (!b) return;
+      const p = parseInt(b.dataset.page, 10);
+      if (!p || Number.isNaN(p) || p === state.page) return;
+      state.page = p;
+      repaint();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    // init
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadDepartments();
+
+      // ✅ deep-link ?d-{uuid}
+      const deepDeptUuid = extractDeptUuidFromUrl();
+      if (deepDeptUuid && deptByUuid.has(deepDeptUuid)){
+        setDeptSelection(deepDeptUuid);
+      } else {
+        setDeptSelection('');
+      }
+
+      // load once, filter client-side
+      await ensureRecruitersLoaded(false);
+      repaint();
+
+      // search (debounced)
       let t = null;
-      search && search.addEventListener('input', () => {
+      els.search && els.search.addEventListener('input', () => {
         clearTimeout(t);
         t = setTimeout(() => {
-          state.q = (search.value || '').trim();
+          state.q = (els.search.value || '').trim();
           state.page = 1;
-          load();
+          repaint();
         }, 260);
       });
 
-      document.addEventListener('click', (e) => {
-        const b = e.target.closest('button.orc-pagebtn[data-page]');
-        if (!b) return;
-        const p = parseInt(b.dataset.page, 10);
-        if (!p || Number.isNaN(p) || p === state.page) return;
-        state.page = p;
-        load();
+      // dept change
+      els.dept && els.dept.addEventListener('change', () => {
+        const v = (els.dept.value || '').toString();
+        if (v === '__loading') return;
+
+        if (!v) setDeptSelection('');
+        else setDeptSelection(v);
+
+        state.page = 1;
+        repaint();
         window.scrollTo({ top: 0, behavior: 'smooth' });
       });
-
-      document.addEventListener('click', (e) => {
-        const tile = e.target.closest('.orc-tile');
-        if (!tile) return;
-
-        openModal({
-          name: tile.getAttribute('data-name') || 'Company',
-          desc: tile.getAttribute('data-desc') || '',
-          logo: tile.getAttribute('data-logo') || '',
-          website: tile.getAttribute('data-website') || '',
-          industry: tile.getAttribute('data-industry') || '',
-          location: tile.getAttribute('data-location') || '',
-          hired: tile.getAttribute('data-hired') || '',
-          date: tile.getAttribute('data-date') || '',
-          updated: tile.getAttribute('data-updated') || ''
-        });
-      });
-
-      document.addEventListener('keydown', (e) => {
-        if (e.key !== 'Enter' && e.key !== ' ') return;
-        const tile = e.target.closest?.('.orc-tile');
-        if (!tile) return;
-        e.preventDefault();
-
-        openModal({
-          name: tile.getAttribute('data-name') || 'Company',
-          desc: tile.getAttribute('data-desc') || '',
-          logo: tile.getAttribute('data-logo') || '',
-          website: tile.getAttribute('data-website') || '',
-          industry: tile.getAttribute('data-industry') || '',
-          location: tile.getAttribute('data-location') || '',
-          hired: tile.getAttribute('data-hired') || '',
-          date: tile.getAttribute('data-date') || '',
-          updated: tile.getAttribute('data-updated') || ''
-        });
-      });
-
-      load();
     });
-  })();
+  });
+})();
 </script>

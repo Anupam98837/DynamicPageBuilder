@@ -14,478 +14,964 @@
   <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}">
 
   <style>
-    :root{
-      --ev-accent: var(--primary-color, #9E363A);
-      --ev-border: rgba(0,0,0,.08);
-      --ev-shadow: 0 10px 24px rgba(0,0,0,.08);
-      --ev-radius: 10px;
+    /* =========================================================
+      ✅ Events (Scoped / No :root / No global body rules)
+      - UI structure matches Announcements reference for consistency
+      - Dept dropdown UI improved (pill, icon, caret)
+      - Dept filtering (frontend filter by department_id / department_uuid)
+      - Deep-link ?d-{uuid} auto-selects dept and filters
+    ========================================================= */
 
-      --ev-card-w: 381.5px;
-      --ev-card-h: 426.4px;
-      --ev-media-h: 240px;
+    .evx-wrap{
+      /* scoped tokens */
+      --evx-brand: var(--primary-color, #9E363A);
+      --evx-ink: #0f172a;
+      --evx-muted: #64748b;
+      --evx-bg: var(--page-bg, #ffffff);
+      --evx-card: var(--surface, #ffffff);
+      --evx-line: var(--line-soft, rgba(15,23,42,.10));
+      --evx-shadow: 0 10px 24px rgba(2,6,23,.08);
+
+      /* card sizing */
+      --evx-card-h: 426.4px;
+      --evx-media-h: 240px;
+
+      max-width: 1320px;
+      margin: 18px auto 54px;
+      padding: 0 12px;
+      background: transparent;
+      position: relative;
+      overflow: visible;
     }
-    body{background:#f6f7fb}
 
-    .ev-wrap{max-width:1140px;margin:24px auto 56px;padding:0 12px;}
-    .ev-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;}
-    .ev-title{font-weight:800;letter-spacing:.2px;margin:0;}
+    /* Header */
+    .evx-head{
+      background: var(--evx-card);
+      border: 1px solid var(--evx-line);
+      border-radius: 16px;
+      box-shadow: var(--evx-shadow);
+      padding: 14px 16px;
+      margin-bottom: 16px;
 
-    .ev-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
-    .ev-toolbar .form-control{
-      height:42px;border-radius:10px;border:1px solid var(--ev-border);
-      box-shadow:none;min-width:280px;
+      display:flex;
+      gap: 12px;
+      align-items: flex-end;
+      justify-content: space-between;
+      flex-wrap: wrap;
     }
-    @media (max-width:576px){
-      .ev-toolbar .form-control{min-width:100%}
-      .ev-head{flex-direction:column;align-items:stretch}
+    .evx-title{
+      margin: 0;
+      font-weight: 950;
+      letter-spacing: .2px;
+      color: var(--evx-ink);
+      font-size: 28px;
+      display:flex;
+      align-items:center;
+      gap: 10px;
+    }
+    .evx-title i{ color: var(--evx-brand); }
+    .evx-sub{
+      margin: 6px 0 0;
+      color: var(--evx-muted);
+      font-size: 14px;
+    }
+
+    .evx-tools{
+      display:flex;
+      gap: 10px;
+      align-items:center;
+      flex-wrap: wrap;
+    }
+
+    /* Search */
+    .evx-search{
+      position: relative;
+      min-width: 260px;
+      max-width: 520px;
+      flex: 1 1 320px;
+    }
+    .evx-search i{
+      position:absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      opacity: .65;
+      color: var(--evx-muted);
+      pointer-events:none;
+    }
+    .evx-search input{
+      width:100%;
+      height: 42px;
+      border-radius: 999px;
+      padding: 11px 12px 11px 42px;
+      border: 1px solid var(--evx-line);
+      background: var(--evx-card);
+      color: var(--evx-ink);
+      outline: none;
+    }
+    .evx-search input:focus{
+      border-color: rgba(201,75,80,.55);
+      box-shadow: 0 0 0 4px rgba(201,75,80,.18);
+    }
+
+    /* ✅ Dept dropdown (nicer UI) */
+    .evx-select{
+      position: relative;
+      min-width: 260px;
+      max-width: 360px;
+      flex: 0 1 320px;
+    }
+    .evx-select__icon{
+      position:absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      opacity: .70;
+      color: var(--evx-muted);
+      pointer-events:none;
+      font-size: 14px;
+    }
+    .evx-select__caret{
+      position:absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      opacity: .70;
+      color: var(--evx-muted);
+      pointer-events:none;
+      font-size: 12px;
+    }
+    .evx-select select{
+      width: 100%;
+      height: 42px;
+      border-radius: 999px;
+      padding: 10px 38px 10px 42px; /* left icon + right caret */
+      border: 1px solid var(--evx-line);
+      background: var(--evx-card);
+      color: var(--evx-ink);
+      outline: none;
+
+      /* remove native arrow */
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+    }
+    .evx-select select:focus{
+      border-color: rgba(201,75,80,.55);
+      box-shadow: 0 0 0 4px rgba(201,75,80,.18);
+    }
+
+    /* Chip */
+    .evx-chip{
+      display:flex;
+      align-items:center;
+      gap: 8px;
+      height: 42px;
+      padding: 0 12px;
+      border-radius: 999px;
+      border: 1px solid var(--evx-line);
+      background: var(--evx-card);
+      box-shadow: 0 8px 18px rgba(2,6,23,.06);
+      color: var(--evx-ink);
+      font-size: 13px;
+      font-weight: 900;
+      white-space: nowrap;
     }
 
     /* Grid */
-    .ev-grid{
+    .evx-grid{
       display:grid;
-  grid-template-columns:repeat(3, minmax(0, 1fr));
-  gap:25px;
-  align-items:stretch;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 18px;
+      align-items: stretch;
     }
-    
-/* Tablet -> 2 cards */
-@media (max-width: 992px){
-  .ev-grid{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
-}
-
-/* Mobile -> 1 card */
-@media (max-width: 576px){
-  .ev-grid{ grid-template-columns:1fr; }
-}
 
     /* Card */
-    .ev-card{
+    .evx-card{
       width:100%;
-      height:var(--ev-card-h);
+      height: var(--evx-card-h);
       position:relative;
       display:flex;
       flex-direction:column;
-      border:1px solid var(--ev-border);
-      border-radius:var(--ev-radius);
-      background:#fff;
-      box-shadow:var(--ev-shadow);
+      border: 1px solid rgba(2,6,23,.08);
+      border-radius: 16px;
+      background: #fff;
+      box-shadow: var(--evx-shadow);
       overflow:hidden;
-      transition:transform .18s ease, box-shadow .18s ease;
+      transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+      will-change: transform;
     }
-    .ev-card:hover{transform:translateY(-2px);box-shadow:0 14px 30px rgba(0,0,0,.10);}
+    .evx-card:hover{
+      transform: translateY(-2px);
+      box-shadow: 0 16px 34px rgba(2,6,23,.12);
+      border-color: rgba(158,54,58,.22);
+    }
 
-    .ev-media{
+    .evx-media{
       width:100%;
-      height:var(--ev-media-h);
-      flex:0 0 auto;
-      background:var(--ev-accent);
+      height: var(--evx-media-h);
+      flex: 0 0 auto;
+      background: var(--evx-brand);
+      position:relative;
+      overflow:hidden;
+      user-select:none;
+    }
+    .evx-media .evx-fallback{
+      position:absolute;
+      inset:0;
       display:flex;
       align-items:center;
       justify-content:center;
       color:#fff;
-      font-weight:900;
-      font-size:28px;
-      letter-spacing:.3px;
-      user-select:none;
-      position:relative;
-    }
-    .ev-media img{width:100%;height:100%;object-fit:cover;display:block;}
-    .ev-media .ev-fallback{
-      padding:0 18px;
+      font-weight:950;
+      font-size: 26px;
+      letter-spacing:.2px;
+      z-index: 0;
+      padding: 0 14px;
       text-align:center;
       line-height:1.15;
-      display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+    }
+    .evx-media img{
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      display:block;
+      z-index: 1;
     }
 
-    .ev-body{
-      padding:18px 18px 16px;
+    .evx-body{
+      padding: 16px 16px 14px;
       display:flex;
       flex-direction:column;
-      flex:1 1 auto;
-      min-height:0;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+    .evx-h{
+      font-size: 20px;
+      line-height: 1.25;
+      font-weight: 950;
+      margin: 0 0 10px 0;
+      color: var(--evx-ink);
+
+      display:-webkit-box;
+      -webkit-line-clamp:2;
+      -webkit-box-orient:vertical;
+      overflow:hidden;
+
+      overflow-wrap:anywhere;
+      word-break:break-word;
     }
 
-    .ev-h{
-      font-size:22px;line-height:1.25;font-weight:900;margin:0 0 10px 0;color:#0f172a;
-      display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
-    }
-
-    .ev-meta{
+    .evx-meta{
       display:flex;
       flex-direction:column;
       gap:6px;
-      margin-bottom:10px;
+      margin: 0 0 10px 0;
       color:#334155;
-      font-weight:700;
+      font-weight:800;
       font-size:13px;
     }
-    .ev-meta .rowx{display:flex;align-items:center;gap:8px;min-height:18px;}
-    .ev-meta i{width:16px;text-align:center;color:#64748b;}
-
-    .ev-p{
-      margin:0;color:#475569;font-size:15px;line-height:1.7;
-      display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
-    }
-
-    .ev-date{
-      margin-top:auto;
-      color:#94a3b8;
-      font-size:13px;
-      padding-top:12px;
+    .evx-meta .rowx{
       display:flex;
       align-items:center;
-      gap:6px;
-    }
-
-    .ev-pill{
-      position:absolute;
-      left:12px;
-      top:12px;
-      z-index:1;
-      padding:6px 10px;
-      border-radius:999px;
-      font-size:12px;
-      font-weight:900;
-      background:rgba(0,0,0,.55);
-      color:#fff;
-      backdrop-filter: blur(6px);
-    }
-
-    .ev-link{position:absolute;inset:0;z-index:2;border-radius:var(--ev-radius);}
-
-    /* Skeletons */
-    .ev-skel{
-      width:100%;
-      height:var(--ev-card-h);
-      border:1px solid var(--ev-border);
-      border-radius:var(--ev-radius);
-      background:#fff;
-      box-shadow:var(--ev-shadow);
+      gap:8px;
+      min-height:18px;
       overflow:hidden;
+    }
+    .evx-meta i{
+      width:16px;
+      text-align:center;
+      color: var(--evx-muted);
+      flex:0 0 auto;
+    }
+    .evx-meta span{
+      display:block;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    .evx-p{
+      margin:0;
+      color:#475569;
+      font-size: 14.5px;
+      line-height: 1.7;
+
+      display:-webkit-box;
+      -webkit-line-clamp:3;
+      -webkit-box-orient:vertical;
+      overflow:hidden;
+
+      overflow-wrap:anywhere;
+      word-break:break-word;
+      hyphens:auto;
+    }
+
+    .evx-date{
+      margin-top:auto;
+      color:#94a3b8;
+      font-size: 13px;
+      padding-top: 12px;
       display:flex;
-      flex-direction:column;
+      align-items:center;
+      gap: 6px;
     }
-    .ev-skel .m{
-      height:var(--ev-media-h);
-      background:linear-gradient(90deg,#eee,#f6f6f6,#eee);
-      background-size:200% 100%;
-      animation:sk 1.1s infinite;
-    }
-    .ev-skel .b{padding:18px;flex:1}
-    .ev-skel .l{
-      height:16px;margin:10px 0;border-radius:8px;
-      background:linear-gradient(90deg,#eee,#f6f6f6,#eee);
-      background-size:200% 100%;
-      animation:sk 1.1s infinite;
-    }
-    .ev-skel .l.w70{width:70%}
-    .ev-skel .l.w95{width:95%}
-    .ev-skel .l.w85{width:85%}
-    @keyframes sk{0%{background-position:0 0}100%{background-position:200% 0}}
 
-    .ev-footer{display:flex;justify-content:center;margin-top:22px;}
-    .btn-ev{
-      border-radius:12px;padding:10px 16px;border:1px solid var(--ev-border);
-      background:#fff;font-weight:800;
+    .evx-link{
+      position:absolute;
+      inset:0;
+      z-index:2;
+      border-radius: 16px;
     }
-    .btn-ev:hover{border-color:rgba(0,0,0,.14);background:#fff;}
 
-    .ev-empty{text-align:center;color:#64748b;padding:40px 10px;}
+    /* State / empty */
+    .evx-state{
+      background: var(--evx-card);
+      border: 1px solid var(--evx-line);
+      border-radius: 16px;
+      box-shadow: var(--evx-shadow);
+      padding: 18px;
+      color: var(--evx-muted);
+      text-align:center;
+    }
 
-        .ev-title i {
-color: var(--ev-accent);
-}
+    /* Skeleton */
+    .evx-skeleton{
+      display:grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 18px;
+    }
+    .evx-sk{
+      border-radius: 16px;
+      border: 1px solid var(--evx-line);
+      background: #fff;
+      overflow:hidden;
+      position:relative;
+      box-shadow: 0 10px 24px rgba(2,6,23,.08);
+      height: var(--evx-card-h);
+    }
+    .evx-sk:before{
+      content:'';
+      position:absolute; inset:0;
+      transform: translateX(-60%);
+      background: linear-gradient(90deg, transparent, rgba(148,163,184,.22), transparent);
+      animation: evxSkMove 1.15s ease-in-out infinite;
+    }
+    @keyframes evxSkMove{ to{ transform: translateX(60%);} }
+
+    /* Pagination */
+    .evx-pagination{
+      display:flex;
+      justify-content:center;
+      margin-top: 18px;
+    }
+    .evx-pagination .evx-pager{
+      display:flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items:center;
+      justify-content:center;
+      padding: 10px;
+    }
+    .evx-pagebtn{
+      border:1px solid var(--evx-line);
+      background: var(--evx-card);
+      color: var(--evx-ink);
+      border-radius: 12px;
+      padding: 9px 12px;
+      font-size: 13px;
+      font-weight: 950;
+      box-shadow: 0 8px 18px rgba(2,6,23,.06);
+      cursor:pointer;
+      user-select:none;
+    }
+    .evx-pagebtn:hover{ background: rgba(2,6,23,.03); }
+    .evx-pagebtn[disabled]{ opacity:.55; cursor:not-allowed; }
+    .evx-pagebtn.active{
+      background: rgba(201,75,80,.12);
+      border-color: rgba(201,75,80,.35);
+      color: var(--evx-brand);
+    }
+
+    @media (max-width: 640px){
+      .evx-title{ font-size: 24px; }
+      .evx-search{ min-width: 220px; flex: 1 1 240px; }
+      .evx-select{ min-width: 220px; flex: 1 1 240px; }
+      .evx-wrap{ --evx-media-h: 210px; }
+      .evx-media .evx-fallback{ font-size: 22px; }
+    }
+
+    /* ✅ Guard against Bootstrap overriding mega menu dropdown positioning */
+    .dynamic-navbar .navbar-nav .dropdown-menu{
+      position: absolute !important;
+      inset: auto !important;
+    }
+    .dynamic-navbar .dropdown-menu.is-portaled{
+      position: fixed !important;
+    }
   </style>
 </head>
 <body>
 
-  <div class="ev-wrap">
-    <div class="ev-head">
+  <div
+    class="evx-wrap"
+    data-api="{{ url('/api/public/events') }}"
+    data-view-base="{{ url('/events/view') }}"
+    data-dept-api="{{ url('/api/public/departments') }}"
+  >
+    <div class="evx-head">
       <div>
-        <h2 class="ev-title"><i class="fa-solid fa-bullhorn"></i> Events</h2>
-        <div class="text-muted" style="font-size:13px;">Workshops, seminars, fests, and campus activities.</div>
+        <h1 class="evx-title"><i class="fa-solid fa-calendar-days"></i>Events</h1>
+        <div class="evx-sub" id="evxSub">Workshops, seminars, fests, and campus activities.</div>
       </div>
 
-      <div class="ev-toolbar">
-        <input id="evSearch" class="form-control" type="search" placeholder="Search events (title/location)..." />
-      </div>
-    </div>
-
-    <div class="ev-grid" id="evGrid">
-      {{-- skeletons --}}
-      @for($i=0; $i<4; $i++)
-        <div class="ev-skel">
-          <div class="m"></div>
-          <div class="b">
-            <div class="l w70"></div>
-            <div class="l w95"></div>
-            <div class="l w85"></div>
-            <div class="l w70" style="margin-top:16px;"></div>
-          </div>
+      <div class="evx-tools">
+        <div class="evx-search">
+          <i class="fa fa-magnifying-glass"></i>
+          <input id="evxSearch" type="search" placeholder="Search events (title/location/description)…">
         </div>
-      @endfor
+
+        <div class="evx-select" title="Filter by department">
+          <i class="fa-solid fa-building-columns evx-select__icon"></i>
+          <select id="evxDept" aria-label="Filter by department">
+            <option value="">All Departments</option>
+          </select>
+          <i class="fa-solid fa-chevron-down evx-select__caret"></i>
+        </div>
+
+        <div class="evx-chip" title="Total results">
+          <i class="fa-regular fa-rectangle-list" style="opacity:.85"></i>
+          <span id="evxCount">—</span>
+        </div>
+      </div>
     </div>
 
-    <div class="ev-footer">
-      <button id="evLoadMore" class="btn btn-ev d-none">
-        <i class="fa-solid fa-rotate me-2"></i>Load more
-      </button>
-    </div>
+    <div id="evxGrid" class="evx-grid" style="display:none;"></div>
 
-    <div id="evEmpty" class="ev-empty d-none">
-      <div style="font-size:34px; line-height:1;">📅</div>
-      <div class="mt-2" style="font-weight:900; font-size:18px;">No events found</div>
-      <div class="mt-1">Try a different search term.</div>
+    <div id="evxSkeleton" class="evx-skeleton"></div>
+    <div id="evxState" class="evx-state" style="display:none;"></div>
+
+    <div class="evx-pagination">
+      <div id="evxPager" class="evx-pager" style="display:none;"></div>
     </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
   <script>
-    (function(){
-      // ✅ API route that calls EventController@publicIndex
-      const API_INDEX = @json(url('/api/public/events'));
+  (() => {
+    if (window.__PUBLIC_EVENTS_ALL__) return;
+    window.__PUBLIC_EVENTS_ALL__ = true;
 
-      // ✅ web route: /events/view/{uuid}
-      const VIEW_BASE = @json(url('/events/view'));
+    const root = document.querySelector('.evx-wrap');
+    if (!root) return;
 
-      const grid     = document.getElementById('evGrid');
-      const btnMore  = document.getElementById('evLoadMore');
-      const emptyBox = document.getElementById('evEmpty');
-      const qInput   = document.getElementById('evSearch');
+    const API = root.getAttribute('data-api') || '/api/public/events';
+    const VIEW_BASE = root.getAttribute('data-view-base') || '/events/view';
+    const DEPT_API = root.getAttribute('data-dept-api') || '/api/public/departments';
 
-      let page = 1;
-      let lastPage = 1;
-      let loading = false;
-      let q = '';
+    const $ = (id) => document.getElementById(id);
 
-      const stripHtml = (html) => {
-        const div = document.createElement('div');
-        div.innerHTML = (html || '');
-        return (div.textContent || div.innerText || '').trim();
-      };
+    const els = {
+      grid: $('evxGrid'),
+      skel: $('evxSkeleton'),
+      state: $('evxState'),
+      pager: $('evxPager'),
+      search: $('evxSearch'),
+      dept: $('evxDept'),
+      count: $('evxCount'),
+      sub: $('evxSub'),
+    };
 
-      const escAttr = (s) => String(s || '').replace(/"/g, '&quot;');
+    const state = {
+      page: 1,
+      perPage: 9,
+      lastPage: 1,
+      total: 0,
+      q: '',
+      deptUuid: '',
+      deptId: null,
+      deptName: '',
+    };
 
-      const fmtDate = (iso) => {
-        if (!iso) return '';
-        const d = new Date(iso);
-        if (isNaN(d.getTime())) return '';
-        return new Intl.DateTimeFormat('en-IN', { day:'2-digit', month:'short', year:'numeric' }).format(d);
-      };
+    let activeController = null;
 
-      const fmtTime = (t) => {
-        if (!t) return '';
-        // accept "HH:MM" or "HH:MM:SS"
-        const parts = String(t).split(':');
-        if (parts.length < 2) return '';
-        const hh = parseInt(parts[0], 10);
-        const mm = parts[1];
-        if (isNaN(hh)) return '';
-        const ampm = hh >= 12 ? 'PM' : 'AM';
-        const h12 = ((hh + 11) % 12) + 1;
-        return `${h12}:${mm} ${ampm}`;
-      };
+    // cache
+    let allEvents = null;
+    let deptByUuid = new Map(); // uuid -> {id, title, uuid}
 
-      const setSkeletons = (n=4) => {
-        const s = [];
-        for (let i=0;i<n;i++){
-          s.push(`
-            <div class="ev-skel">
-              <div class="m"></div>
-              <div class="b">
-                <div class="l w70"></div>
-                <div class="l w95"></div>
-                <div class="l w85"></div>
-                <div class="l w70" style="margin-top:16px;"></div>
-              </div>
-            </div>
-          `);
+    function esc(str){
+      return (str ?? '').toString().replace(/[&<>"']/g, s => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[s]));
+    }
+    function escAttr(str){
+      return (str ?? '').toString().replace(/"/g, '&quot;');
+    }
+
+    function stripHtml(html){
+      const raw = String(html || '')
+        .replace(/<\s*br\s*\/?>/gi, ' ')
+        .replace(/<\/\s*(p|div|li|h[1-6]|tr|td|th|section|article)\s*>/gi, '$& ')
+        .replace(/<\s*(p|div|li|h[1-6]|tr|td|th|section|article)\b[^>]*>/gi, ' ');
+      const div = document.createElement('div');
+      div.innerHTML = raw;
+      return (div.textContent || div.innerText || '').replace(/\s+/g, ' ').trim();
+    }
+
+    function fmtDate(iso){
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return '';
+      return new Intl.DateTimeFormat('en-IN', { day:'2-digit', month:'short', year:'numeric' }).format(d);
+    }
+
+    function fmtTime(t){
+      if (!t) return '';
+      const parts = String(t).split(':');
+      if (parts.length < 2) return '';
+      const hh = parseInt(parts[0], 10);
+      const mm = parts[1];
+      if (Number.isNaN(hh)) return '';
+      const ampm = hh >= 12 ? 'PM' : 'AM';
+      const h12 = ((hh + 11) % 12) + 1;
+      return `${h12}:${mm} ${ampm}`;
+    }
+
+    function buildWhen(it){
+      const sd = it?.event_start_date ? fmtDate(it.event_start_date) : '';
+      const ed = it?.event_end_date ? fmtDate(it.event_end_date) : '';
+      const st = it?.event_start_time ? fmtTime(it.event_start_time) : '';
+      const et = it?.event_end_time ? fmtTime(it.event_end_time) : '';
+
+      let datePart = '';
+      if (sd && ed && sd !== ed) datePart = `${sd} – ${ed}`;
+      else datePart = sd || ed || '';
+
+      let timePart = '';
+      if (st && et) timePart = `${st} – ${et}`;
+      else timePart = st || et || '';
+
+      if (datePart && timePart) return `${datePart} • ${timePart}`;
+      return datePart || timePart || '';
+    }
+
+    function normalizeUrl(url){
+      const u = (url || '').toString().trim();
+      if (!u) return '';
+      if (/^(data:|blob:|https?:\/\/)/i.test(u)) return u;
+      if (u.startsWith('/')) return window.location.origin + u;
+      return window.location.origin + '/' + u;
+    }
+
+    // ✅ handle image load/error without inline JS
+    function bindCardImages(rootEl){
+      rootEl.querySelectorAll('img.evx-img').forEach(img => {
+        const media = img.closest('.evx-media');
+        const fallback = media ? media.querySelector('.evx-fallback') : null;
+
+        if (img.complete && img.naturalWidth > 0) {
+          if (fallback) fallback.style.display = 'none';
+          return;
         }
-        grid.innerHTML = s.join('');
-      };
 
-      const removeSkeletons = () => {
-        grid.querySelectorAll('.ev-skel').forEach(el => el.remove());
-      };
+        img.addEventListener('load', () => {
+          if (fallback) fallback.style.display = 'none';
+        }, { once: true });
 
-      const setEmpty = (isEmpty) => emptyBox.classList.toggle('d-none', !isEmpty);
+        img.addEventListener('error', () => {
+          img.remove();
+          if (fallback) fallback.style.display = 'flex';
+        }, { once: true });
+      });
+    }
 
-      const setMore = () => {
-        const show = page < lastPage;
-        btnMore.classList.toggle('d-none', !show);
-        btnMore.disabled = loading;
-      };
+    function cardHtml(item){
+      const titleRaw = item?.title || 'Untitled';
+      const title = esc(titleRaw);
 
-      const buildWhen = (it) => {
-        const sd = it.event_start_date ? fmtDate(it.event_start_date) : '';
-        const ed = it.event_end_date ? fmtDate(it.event_end_date) : '';
-        const st = it.event_start_time ? fmtTime(it.event_start_time) : '';
-        const et = it.event_end_time ? fmtTime(it.event_end_time) : '';
+      const locRaw = (item?.location ?? '').toString().trim();
+      const whenRaw = buildWhen(item);
 
-        let datePart = '';
-        if (sd && ed && sd !== ed) datePart = `${sd} – ${ed}`;
-        else datePart = sd || ed || '';
+      const descText = stripHtml(item?.description || item?.body || '');
+      const MAX_CHARS = 120;
 
-        let timePart = '';
-        if (st && et) timePart = `${st} – ${et}`;
-        else timePart = st || et || '';
+      let excerptText = descText;
+      if (descText.length > MAX_CHARS){
+        excerptText = descText
+          .slice(0, MAX_CHARS)
+          .trim()
+          .replace(/[,\.;:\-\s]+$/g, '');
+        excerptText += '......';
+      }
 
-        if (datePart && timePart) return `${datePart} • ${timePart}`;
-        return datePart || timePart || '';
-      };
+      const excerpt = esc(excerptText || '');
+      const created = fmtDate(item?.created_at || null);
 
-      const cardHtml = (item) => {
-        const title = item.title || 'Event';
-        const loc   = item.location || '';
-        const when  = buildWhen(item);
+      const uuid = item?.uuid ? String(item.uuid) : '';
+      const href = uuid ? (VIEW_BASE + '/' + encodeURIComponent(uuid)) : '#';
 
-        const descRaw = item.description ? stripHtml(item.description) : '';
-        const excerpt = descRaw.length > 220 ? (descRaw.slice(0, 220).trim() + '...') : descRaw;
+      const cover = item?.cover_image_url || item?.cover_image || item?.image_url || '';
+      const coverNorm = cover ? normalizeUrl(String(cover).trim()) : '';
 
-        const created = fmtDate(item.created_at || null);
-
-        const uuid = item.uuid ? String(item.uuid) : '';
-        const href = uuid ? (VIEW_BASE + '/' + encodeURIComponent(uuid)) : '#';
-
-        const cover = item.cover_image_url || null;
-
-        // pill: show "Upcoming" if start_date in future, else show start_date
-        let pill = '';
-        try{
-          if (item.event_start_date){
-            const now = new Date(); now.setHours(0,0,0,0);
-            const sd = new Date(item.event_start_date);
-            if (!isNaN(sd.getTime())) {
-              if (sd.getTime() > now.getTime()) pill = 'Upcoming';
-              else pill = fmtDate(item.event_start_date);
-            }
-          }
-        } catch(e){}
-
-        return `
-          <div class="ev-card">
-            ${pill ? `<div class="ev-pill">${escAttr(pill)}</div>` : ``}
-
-            <div class="ev-media">
-              ${cover
-                ? `<img src="${cover}" alt="${escAttr(title)}" loading="lazy" />`
-                : `<div class="ev-fallback">${escAttr(title)}</div>`
-              }
-            </div>
-
-            <div class="ev-body">
-              <div class="ev-h">${title}</div>
-
-              <div class="ev-meta">
-                <div class="rowx">
-                  <i class="fa-solid fa-location-dot"></i>
-                  <span>${loc ? escAttr(loc) : '—'}</span>
-                </div>
-                <div class="rowx">
-                  <i class="fa-regular fa-clock"></i>
-                  <span>${when ? escAttr(when) : '—'}</span>
-                </div>
-              </div>
-
-              <p class="ev-p">${excerpt || ''}</p>
-
-              <div class="ev-date">
-                <i class="fa-regular fa-calendar"></i>
-                <span>Created: ${created || '—'}</span>
-              </div>
-            </div>
-
-            ${uuid
-              ? `<a class="ev-link" href="${href}" aria-label="Open ${escAttr(title)}"></a>`
-              : `<div class="ev-link" title="Missing UUID"></div>`
-            }
+      return `
+        <div class="evx-card">
+          <div class="evx-media">
+            <div class="evx-fallback">${esc(titleRaw || 'Event')}</div>
+            ${coverNorm ? `
+              <img class="evx-img"
+                   src="${escAttr(coverNorm)}"
+                   alt="${escAttr(titleRaw)}"
+                   loading="lazy" />
+            ` : ``}
           </div>
-        `;
-      };
 
-      const fetchPage = async (reset=false) => {
-        if (loading) return;
-        loading = true;
+          <div class="evx-body">
+            <div class="evx-h">${title}</div>
 
-        if (reset) {
-          page = 1;
-          lastPage = 1;
-          setSkeletons(4);
-          setEmpty(false);
-        }
-
-        setMore();
-
-        try{
-          const url = new URL(API_INDEX, window.location.origin);
-          url.searchParams.set('per_page', '10');
-          url.searchParams.set('page', String(page));
-          if (q) url.searchParams.set('q', q);
-
-          // ✅ only published + in window
-          url.searchParams.set('visible_now', '1');
-
-          const res = await fetch(url.toString(), { headers: { 'Accept': 'application/json' } });
-          if (!res.ok) throw new Error('HTTP ' + res.status);
-
-          const json = await res.json();
-          const items = Array.isArray(json.data) ? json.data : [];
-          const pg = json.pagination || {};
-          lastPage = Number(pg.last_page || 1);
-
-          removeSkeletons();
-          if (reset) grid.innerHTML = '';
-
-          if (!items.length && page === 1) {
-            setEmpty(true);
-            btnMore.classList.add('d-none');
-            loading = false;
-            return;
-          }
-
-          const frag = document.createElement('div');
-          frag.innerHTML = items.map(cardHtml).join('');
-          while (frag.firstChild) grid.appendChild(frag.firstChild);
-
-          setEmpty(false);
-          setMore();
-        } catch (e) {
-          console.error('Events load error:', e);
-          removeSkeletons();
-          if (!grid.children.length) {
-            grid.innerHTML = `
-              <div class="ev-empty">
-                <div style="font-size:34px; line-height:1;">⚠️</div>
-                <div class="mt-2" style="font-weight:900; font-size:18px;">Failed to load events</div>
-                <div class="mt-1">Please try again.</div>
+            <div class="evx-meta">
+              <div class="rowx" title="${escAttr(locRaw)}">
+                <i class="fa-solid fa-location-dot"></i>
+                <span>${locRaw ? esc(locRaw) : '—'}</span>
               </div>
-            `;
-          }
-          btnMore.classList.add('d-none');
-        } finally {
-          loading = false;
-          setMore();
-        }
-      };
+              <div class="rowx" title="${escAttr(whenRaw)}">
+                <i class="fa-regular fa-clock"></i>
+                <span>${whenRaw ? esc(whenRaw) : '—'}</span>
+              </div>
+            </div>
 
-      btnMore.addEventListener('click', () => {
-        if (page >= lastPage) return;
-        page += 1;
-        fetchPage(false);
+            <p class="evx-p">${excerpt || ''}</p>
+
+            <div class="evx-date">
+              <i class="fa-regular fa-calendar"></i>
+              <span>Created: ${esc(created || '—')}</span>
+            </div>
+          </div>
+
+          ${uuid
+            ? `<a class="evx-link" href="${href}" aria-label="Open ${escAttr(titleRaw)}"></a>`
+            : `<div class="evx-link" title="Missing UUID"></div>`
+          }
+        </div>
+      `;
+    }
+
+    function showSkeleton(){
+      const sk = els.skel, st = els.state, grid = els.grid, pager = els.pager;
+      if (grid) grid.style.display = 'none';
+      if (pager) pager.style.display = 'none';
+      if (st) st.style.display = 'none';
+
+      if (!sk) return;
+      sk.style.display = '';
+      sk.innerHTML = Array.from({length: 6}).map(() => `<div class="evx-sk"></div>`).join('');
+    }
+
+    function hideSkeleton(){
+      const sk = els.skel;
+      if (!sk) return;
+      sk.style.display = 'none';
+      sk.innerHTML = '';
+    }
+
+    async function fetchJson(url){
+      if (activeController) activeController.abort();
+      activeController = new AbortController();
+
+      const res = await fetch(url, {
+        headers: { 'Accept':'application/json' },
+        signal: activeController.signal
       });
 
+      const js = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(js?.message || ('Request failed: ' + res.status));
+      return js;
+    }
+
+    function extractDeptUuidFromUrl(){
+      // matches "?d-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" anywhere
+      const hay = (window.location.search || '') + ' ' + (window.location.href || '');
+      const m = hay.match(/d-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+      return m ? m[1] : '';
+    }
+
+    function setDeptSelection(uuid){
+      const sel = els.dept;
+      uuid = (uuid || '').toString().trim();
+
+      if (!sel) return;
+
+      if (!uuid){
+        sel.value = '';
+        state.deptUuid = '';
+        state.deptId = null;
+        state.deptName = '';
+        if (els.sub) els.sub.textContent = 'Workshops, seminars, fests, and campus activities.';
+        return;
+      }
+
+      const meta = deptByUuid.get(uuid);
+      if (!meta) return;
+
+      sel.value = uuid;
+      state.deptUuid = uuid;
+      state.deptId = meta.id ?? null;
+      state.deptName = meta.title ?? '';
+
+      if (els.sub){
+        els.sub.textContent = state.deptName
+          ? ('Events for ' + state.deptName)
+          : 'Events (filtered)';
+      }
+    }
+
+    async function loadDepartments(){
+      const sel = els.dept;
+      if (!sel) return;
+
+      sel.innerHTML = `
+        <option value="">All Departments</option>
+        <option value="__loading" disabled>Loading departments…</option>
+      `;
+      sel.value = '__loading';
+
+      try{
+        const res = await fetch(DEPT_API, { headers: { 'Accept':'application/json' } });
+        const js = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(js?.message || ('HTTP ' + res.status));
+
+        const items = Array.isArray(js?.data) ? js.data : [];
+        const depts = items
+          .map(d => ({
+            id: d?.id ?? null,
+            uuid: (d?.uuid ?? '').toString().trim(),
+            title: (d?.title ?? d?.name ?? '').toString().trim(),
+            active: (d?.active ?? 1),
+          }))
+          .filter(x => x.uuid && x.title && String(x.active) === '1'); // ✅ only active
+
+        deptByUuid = new Map(depts.map(d => [d.uuid, d]));
+
+        // sort A-Z
+        depts.sort((a,b) => a.title.localeCompare(b.title));
+
+        sel.innerHTML = `<option value="">All Departments</option>` + depts
+          .map(d => `<option value="${escAttr(d.uuid)}" data-id="${escAttr(d.id ?? '')}">${esc(d.title)}</option>`)
+          .join('');
+
+        sel.value = '';
+      } catch (e){
+        console.warn('Departments load failed:', e);
+        sel.innerHTML = `<option value="">All Departments</option>`;
+        sel.value = '';
+      }
+    }
+
+    function extractItemsFromResponse(js){
+      // supports: {data: [...]}, or {success:true, data:[...]}
+      if (Array.isArray(js?.data)) return js.data;
+      if (Array.isArray(js?.data?.data)) return js.data.data; // just in case
+      return [];
+    }
+
+    async function ensureEventsLoaded(force=false){
+      if (allEvents && !force) return;
+
+      showSkeleton();
+
+      try{
+        // ask for a bigger page so frontend filtering always works
+        const u = new URL(API, window.location.origin);
+        u.searchParams.set('page', '1');
+        u.searchParams.set('per_page', '300');
+        u.searchParams.set('visible_now', '1');
+        u.searchParams.set('sort', 'created_at');
+        u.searchParams.set('direction', 'desc');
+
+        const js = await fetchJson(u.toString());
+        allEvents = extractItemsFromResponse(js);
+
+      } finally {
+        hideSkeleton();
+      }
+    }
+
+    function applyFilterAndSearch(){
+      const q = (state.q || '').toString().trim().toLowerCase();
+
+      let items = Array.isArray(allEvents) ? allEvents.slice() : [];
+
+      // ✅ DEPT FILTER (frontend filter by department_id / department_uuid)
+      if (state.deptUuid && (state.deptId !== null && state.deptId !== undefined && String(state.deptId) !== '')){
+        const deptIdStr = String(state.deptId);
+        const deptUuidStr = String(state.deptUuid);
+
+        items = items.filter(it => {
+          const did = (it?.department_id === null || it?.department_id === undefined) ? '' : String(it.department_id);
+          const duu = (it?.department_uuid === null || it?.department_uuid === undefined) ? '' : String(it.department_uuid);
+          return (did === deptIdStr) || (duu && duu === deptUuidStr);
+        });
+      } else if (state.deptUuid) {
+        const deptUuidStr = String(state.deptUuid);
+        items = items.filter(it => String(it?.department_uuid || '') === deptUuidStr);
+      }
+
+      // search on title + location + stripped description/body
+      if (q){
+        items = items.filter(it => {
+          const t = String(it?.title || '').toLowerCase();
+          const l = String(it?.location || '').toLowerCase();
+          const d = stripHtml(it?.description || it?.body || '').toLowerCase();
+          return (t.includes(q) || l.includes(q) || d.includes(q));
+        });
+      }
+
+      return items;
+    }
+
+    function render(items){
+      const grid = els.grid, st = els.state, count = els.count;
+      if (!grid || !st) return;
+
+      if (count) count.textContent = String(state.total || 0);
+
+      if (!items.length){
+        grid.style.display = 'none';
+        st.style.display = '';
+        const deptLine = state.deptName ? `<div style="margin-top:6px;font-size:12.5px;opacity:.95;">Department: <b>${esc(state.deptName)}</b></div>` : '';
+        st.innerHTML = `
+          <div style="font-size:34px;opacity:.6;margin-bottom:6px;">
+            <i class="fa-regular fa-face-frown"></i>
+          </div>
+          No events found.
+          ${deptLine}
+        `;
+        return;
+      }
+
+      st.style.display = 'none';
+      grid.style.display = '';
+      grid.innerHTML = items.map(cardHtml).join('');
+      bindCardImages(grid);
+    }
+
+    function renderPager(){
+      const pager = els.pager;
+      if (!pager) return;
+
+      const last = state.lastPage || 1;
+      const cur  = state.page || 1;
+
+      if (last <= 1){
+        pager.style.display = 'none';
+        pager.innerHTML = '';
+        return;
+      }
+
+      const btn = (label, page, {disabled=false, active=false}={}) => {
+        const dis = disabled ? 'disabled' : '';
+        const cls = active ? 'evx-pagebtn active' : 'evx-pagebtn';
+        return `<button class="${cls}" ${dis} data-page="${page}">${label}</button>`;
+      };
+
+      let html = '';
+      html += btn('Previous', Math.max(1, cur-1), { disabled: cur<=1 });
+
+      const win = 2;
+      const start = Math.max(1, cur - win);
+      const end   = Math.min(last, cur + win);
+
+      if (start > 1){
+        html += btn('1', 1, { active: cur===1 });
+        if (start > 2) html += `<span style="opacity:.6;padding:0 4px;">…</span>`;
+      }
+
+      for (let p=start; p<=end; p++){
+        html += btn(String(p), p, { active: p===cur });
+      }
+
+      if (end < last){
+        if (end < last - 1) html += `<span style="opacity:.6;padding:0 4px;">…</span>`;
+        html += btn(String(last), last, { active: cur===last });
+      }
+
+      html += btn('Next', Math.min(last, cur+1), { disabled: cur>=last });
+
+      pager.innerHTML = html;
+      pager.style.display = 'flex';
+    }
+
+    function repaint(){
+      const filtered = applyFilterAndSearch();
+
+      state.total = filtered.length;
+      state.lastPage = Math.max(1, Math.ceil(filtered.length / state.perPage));
+      if (state.page > state.lastPage) state.page = state.lastPage;
+
+      const start = (state.page - 1) * state.perPage;
+      const pageItems = filtered.slice(start, start + state.perPage);
+
+      render(pageItems);
+      renderPager();
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadDepartments();
+
+      // deep-link
+      const deepDeptUuid = extractDeptUuidFromUrl();
+      if (deepDeptUuid && deptByUuid.has(deepDeptUuid)){
+        setDeptSelection(deepDeptUuid);
+      } else {
+        setDeptSelection('');
+      }
+
+      // load events once, then filter client-side
+      await ensureEventsLoaded(false);
+      repaint();
+
+      // search (debounced)
       let t = null;
-      qInput.addEventListener('input', () => {
+      els.search && els.search.addEventListener('input', () => {
         clearTimeout(t);
         t = setTimeout(() => {
-          q = (qInput.value || '').trim();
-          fetchPage(true);
-        }, 350);
+          state.q = (els.search.value || '').trim();
+          state.page = 1;
+          repaint();
+        }, 260);
       });
 
-      fetchPage(true);
-    })();
+      // dept change
+      els.dept && els.dept.addEventListener('change', () => {
+        const v = (els.dept.value || '').toString();
+        if (v === '__loading') return;
+
+        if (!v){
+          setDeptSelection('');
+        } else {
+          setDeptSelection(v);
+        }
+
+        state.page = 1;
+        repaint();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+
+      // pagination click
+      document.addEventListener('click', (e) => {
+        const b = e.target.closest('button.evx-pagebtn[data-page]');
+        if (!b) return;
+        const p = parseInt(b.dataset.page, 10);
+        if (!p || Number.isNaN(p) || p === state.page) return;
+        state.page = p;
+        repaint();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    });
+
+  })();
   </script>
 </body>
 </html>

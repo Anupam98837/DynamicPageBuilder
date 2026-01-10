@@ -649,20 +649,38 @@ td .fw-semibold{color:var(--ink)}
     });
 
     /* =========================
-     * Permissions (same idea)
+     * Permissions (updated with publish control)
      * ========================= */
     const ACTOR = { role: '' };
-    let canCreate=false, canEdit=false, canDelete=false;
+    let canCreate=false, canEdit=false, canDelete=false, canPublish=false;
 
     function computePermissions(){
       const r = (ACTOR.role || '').toLowerCase();
       const createDeleteRoles = ['admin','super_admin','director','principal'];
       const writeRoles = ['admin','super_admin','director','principal','hod','faculty','technical_assistant','it_person'];
+      
       canCreate = createDeleteRoles.includes(r);
       canDelete = createDeleteRoles.includes(r);
       canEdit   = writeRoles.includes(r);
+      canPublish = createDeleteRoles.includes(r); // Only specific roles can publish
+      
       const wc = $('wuWriteControls');
       if (wc) wc.style.display = canCreate ? 'flex' : 'none';
+      
+      // Update publish option visibility
+      updatePublishOption();
+    }
+
+    function updatePublishOption(){
+      if (!fStatus) return;
+      const publishOption = fStatus.querySelector('option[value="published"]');
+      if (publishOption){
+        publishOption.style.display = canPublish ? '' : 'none';
+        // If current value is published but user can't publish, change to draft
+        if (!canPublish && fStatus.value === 'published'){
+          fStatus.value = 'draft';
+        }
+      }
     }
 
     async function fetchMe(){
@@ -796,7 +814,7 @@ td .fw-semibold{color:var(--ink)}
           ? `<span class="d-inline-flex align-items-center gap-2"><i class="${esc(icon)}"></i><span class="small text-muted">${esc(icon)}</span></span>`
           : `<span class="text-muted small">—</span>`;
 
-        // ✅ FIX: like reference page, remove data-bs-toggle and manually control dropdown (fixed strategy)
+        // ✅ UPDATED: Added "Make Published" button
         let actions = `
           <div class="dropdown text-end">
             <button type="button" class="btn btn-light btn-sm wu-dd-toggle"
@@ -808,6 +826,12 @@ td .fw-semibold{color:var(--ink)}
 
         if (canEdit && tabKey !== 'trash'){
           actions += `<li><button type="button" class="dropdown-item" data-action="edit"><i class="fa fa-pen-to-square"></i> Edit</button></li>`;
+          
+          // ✅ ADDED: "Make Published" option ONLY for publishers when status is not published
+          const statusLower = (status || 'draft').toString().toLowerCase();
+          if (canPublish && statusLower !== 'published'){
+            actions += `<li><button type="button" class="dropdown-item" data-action="make-publish"><i class="fa fa-circle-check"></i> Make Published</button></li>`;
+          }
         }
 
         if (tabKey !== 'trash'){
@@ -1143,6 +1167,9 @@ td .fw-semibold{color:var(--ink)}
       form.dataset.mode = 'edit';
       form.dataset.intent = 'create';
       if (saveBtn) saveBtn.style.display = '';
+      
+      // ✅ ADD THIS: Update publish option for new items
+      setTimeout(() => updatePublishOption(), 50);
     }
 
     function fillFormFromRow(r, viewOnly=false){
@@ -1193,6 +1220,11 @@ td .fw-semibold{color:var(--ink)}
         form.dataset.mode = 'edit';
         form.dataset.intent = 'edit';
       }
+      
+      // ✅ ADD THIS: Update publish option visibility when opening form
+      if (!viewOnly) {
+        setTimeout(() => updatePublishOption(), 50);
+      }
     }
 
     function findRow(uuid){
@@ -1221,7 +1253,7 @@ td .fw-semibold{color:var(--ink)}
     });
 
     /* =========================
-     * Row actions
+     * Row actions (updated with "make-publish")
      * ========================= */
     document.addEventListener('click', async (e) => {
       const btn = e.target.closest('button[data-action]');
@@ -1244,6 +1276,45 @@ td .fw-semibold{color:var(--ink)}
         if ($('wuItemModalTitle')) $('wuItemModalTitle').textContent = act === 'view' ? 'View Why Us' : 'Edit Why Us';
         fillFormFromRow(row || {}, act === 'view');
         itemModal && itemModal.show();
+        return;
+      }
+
+      // ✅ ADDED: "Make Published" action
+      if (act === 'make-publish'){
+        if (!canPublish) return;
+        
+        const conf = await Swal.fire({
+          title: 'Publish this item?',
+          text: 'This will make the item visible to the public.',
+          icon: 'question',
+          showCancelButton: true,
+          confirmButtonText: 'Publish',
+          confirmButtonColor: '#10b981'
+        });
+        if (!conf.isConfirmed) return;
+
+        showLoading(true);
+        try{
+          const fd = new FormData();
+          fd.append('status', 'published');
+          fd.append('_method', 'PATCH');
+
+          const res = await fetchWithTimeout(API.update(uuid), {
+            method: 'POST',
+            headers: authHeaders(),
+            body: fd
+          }, 15000);
+
+          const js = await res.json().catch(() => ({}));
+          if (!res.ok || js.success === false) throw new Error(js?.message || 'Publish failed');
+
+          ok('Item published successfully');
+          await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
+        }catch(ex){
+          err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
+        }finally{
+          showLoading(false);
+        }
         return;
       }
 

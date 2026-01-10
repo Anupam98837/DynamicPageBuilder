@@ -197,8 +197,20 @@ td .fw-semibold{color:var(--ink)}
             <i class="fa fa-rotate-left me-1"></i>Reset
           </button>
         </div>
+         <div class="col-12 col-lg-auto ms-lg-auto d-flex justify-content-lg-end">
+          <div class="col mb-6">
+{{-- ✅ IMPORT (same as manageAdmins) --}}
+      <button id="btnImportUsers" class="btn btn-outline-primary" style="display:none;">
+        <i class="fa fa-file-import me-1"></i>Import CSV
+      </button>
+      {{-- Hidden file input for import --}}
+      <input id="importUsersFile" type="file" accept=".csv,text/csv" style="display:none;" />
 
-        <div class="col-12 col-lg-auto ms-lg-auto d-flex justify-content-lg-end">
+      {{-- ✅ EXPORT --}}
+      <button id="btnExportUsers" class="btn btn-outline-success">
+        <i class="fa fa-file-csv me-1"></i>Export CSV
+      </button>
+        </div>
           <div id="writeControls" style="display:none;">
             <button type="button" class="btn btn-primary" id="btnAddUser">
               <i class="fa fa-plus me-1"></i> Add User
@@ -206,8 +218,9 @@ td .fw-semibold{color:var(--ink)}
           </div>
         </div>
       </div>
-
-      {{-- Table --}}
+    
+    </div>
+     {{-- Table --}}
       <div class="card table-wrap">
         <div class="card-body p-0">
           <div class="table-responsive">
@@ -581,7 +594,10 @@ document.addEventListener('DOMContentLoaded', function () {
   const filterModal = new bootstrap.Modal(filterModalEl);
   const writeControls = document.getElementById('writeControls');
   const btnAdd = document.getElementById('btnAddUser');
-
+    // DOM refs (add these after existing ones)
+const btnExportUsers = document.getElementById('btnExportUsers');
+const btnImportUsers = document.getElementById('btnImportUsers');
+const importUsersFile = document.getElementById('importUsersFile');
   // Modal + form
   const userModalEl = document.getElementById('userModal');
   const userModal = new bootstrap.Modal(userModalEl);
@@ -630,19 +646,21 @@ document.addEventListener('DOMContentLoaded', function () {
     departments: [],
     departmentsLoaded: false,
   };
+function computePermissions() {
+  const r = (ACTOR.role || '').toLowerCase();
+  const createDeleteRoles = ['admin', 'director', 'principal'];
+  const writeRoles = ['admin', 'director', 'principal', 'hod'];
 
-  function computePermissions() {
-    const r = (ACTOR.role || '').toLowerCase();
-    const createDeleteRoles = ['admin', 'director', 'principal'];
-    const writeRoles = ['admin', 'director', 'principal', 'hod'];
+  canCreate = createDeleteRoles.includes(r);
+  canDelete = createDeleteRoles.includes(r);
+  canEdit = writeRoles.includes(r);
 
-    canCreate = createDeleteRoles.includes(r);
-    canDelete = createDeleteRoles.includes(r);
-    canEdit = writeRoles.includes(r);
+  if (canCreate && writeControls) writeControls.style.display = 'flex';
+  else if (writeControls) writeControls.style.display = 'none';
 
-    if (canCreate && writeControls) writeControls.style.display = 'flex';
-    else if (writeControls) writeControls.style.display = 'none';
-  }
+  // ✅ Import button visibility (same gating as create)
+  if (btnImportUsers) btnImportUsers.style.display = canCreate ? '' : 'none';
+}
 
   async function fetchMe() {
     try {
@@ -722,33 +740,75 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
-  async function loadUsers(showOverlay = true) {
-    try {
-      if (showOverlay) showGlobalLoading(true);
+  // Update the loadUsers function to filter by status
+async function loadUsers(showOverlay = true) {
+  try {
+    if (showOverlay) showGlobalLoading(true);
 
-      const params = new URLSearchParams();
-      if (state.q) params.set('q', state.q);
-      if (state.roleFilter) params.set('role', state.roleFilter);
+    const params = new URLSearchParams();
+    if (state.q) params.set('q', state.q);
+    if (state.roleFilter) params.set('role', state.roleFilter);
+    // Add status filter if needed
+    // params.set('status', 'active'); // or 'inactive' for the other tab
 
-      const url = '/api/users' + (params.toString() ? ('?' + params.toString()) : '');
-      const res = await fetch(url, { headers: authHeaders() });
-      if (handleAuthStatus(res, 'You are not allowed to view users.')) return;
+    const url = '/api/users' + (params.toString() ? ('?' + params.toString()) : '');
+    const res = await fetch(url, { headers: authHeaders() });
+    if (handleAuthStatus(res, 'You are not allowed to view users.')) return;
 
-      const js = await res.json().catch(() => ({}));
-      if (!res.ok || js.success === false) throw new Error(js.error || js.message || 'Failed to load users');
+    const js = await res.json().catch(() => ({}));
+    if (!res.ok || js.success === false) throw new Error(js.error || js.message || 'Failed to load users');
 
-      state.items = Array.isArray(js.data) ? js.data : [];
-      state.page.active = 1;
-      state.page.inactive = 1;
-      recomputeAndRender();
-    } catch (e) {
-      err(e.message);
-      console.error(e);
-    } finally {
-      if (showOverlay) showGlobalLoading(false);
-    }
+    // Store all users
+    state.items = Array.isArray(js.data) ? js.data : [];
+    state.page.active = 1;
+    state.page.inactive = 1;
+    recomputeAndRender();
+  } catch (e) {
+    err(e.message);
+    console.error(e);
+  } finally {
+    if (showOverlay) showGlobalLoading(false);
   }
+}
 
+// Update the recomputeAndRender function to properly filter by status
+function recomputeAndRender() {
+  const lists = { active: [], inactive: [] };
+
+  state.items.forEach(u => {
+    const st = (u.status || 'active').toLowerCase();
+    // Make sure we're checking the correct status field
+    // Some APIs might use 'is_active', 'active', or 'status'
+    if (st === 'inactive' || st === '0' || u.is_active === false) {
+      lists.inactive.push(u);
+    } else {
+      lists.active.push(u);
+    }
+  });
+
+  const activeSorted = sortUsers(lists.active);
+  const inactiveSorted = sortUsers(lists.inactive);
+
+  ['active', 'inactive'].forEach(tab => {
+    const full = tab === 'active' ? activeSorted : inactiveSorted;
+    const total = full.length;
+    const per = state.perPage || 10;
+    const pages = Math.max(1, Math.ceil(total / per));
+    state.total[tab] = total;
+    state.totalPages[tab] = pages;
+    if (state.page[tab] > pages) state.page[tab] = pages;
+
+    const start = (state.page[tab] - 1) * per;
+    const rows = full.slice(start, start + per);
+
+    renderTable(tab, rows);
+    renderPager(tab);
+    renderInfo(tab, total, rows.length);
+
+    const emptyEl = tab === 'active' ? emptyActive : emptyInactive;
+    if (emptyEl) emptyEl.style.display = total === 0 ? '' : 'none';
+  });
+}
   function sortUsers(arr) {
     const sortKey = state.sort.startsWith('-') ? state.sort.slice(1) : state.sort;
     const dir = state.sort.startsWith('-') ? -1 : 1;
@@ -763,39 +823,6 @@ document.addEventListener('DOMContentLoaded', function () {
       }
       if (av === bv) return 0;
       return av > bv ? dir : -dir;
-    });
-  }
-
-  function recomputeAndRender() {
-    const lists = { active: [], inactive: [] };
-
-    state.items.forEach(u => {
-      const st = (u.status || 'active').toLowerCase();
-      if (st === 'inactive') lists.inactive.push(u);
-      else lists.active.push(u);
-    });
-
-    const activeSorted = sortUsers(lists.active);
-    const inactiveSorted = sortUsers(lists.inactive);
-
-    ['active', 'inactive'].forEach(tab => {
-      const full = tab === 'active' ? activeSorted : inactiveSorted;
-      const total = full.length;
-      const per = state.perPage || 10;
-      const pages = Math.max(1, Math.ceil(total / per));
-      state.total[tab] = total;
-      state.totalPages[tab] = pages;
-      if (state.page[tab] > pages) state.page[tab] = pages;
-
-      const start = (state.page[tab] - 1) * per;
-      const rows = full.slice(start, start + per);
-
-      renderTable(tab, rows);
-      renderPager(tab);
-      renderInfo(tab, total, rows.length);
-
-      const emptyEl = tab === 'active' ? emptyActive : emptyInactive;
-      if (emptyEl) emptyEl.style.display = total === 0 ? '' : 'none';
     });
   }
 
@@ -1213,7 +1240,191 @@ document.addEventListener('DOMContentLoaded', function () {
     if (loading) { button.disabled = true; button.classList.add('btn-loading'); }
     else { button.disabled = false; button.classList.remove('btn-loading'); }
   }
+// ✅ Export CSV (respects current role filter + search)
+btnExportUsers?.addEventListener('click', async () => {
+  try {
+    showGlobalLoading(true);
 
+    const params = new URLSearchParams();
+    const q = (searchInput?.value || '').trim();
+    if (q) params.set('q', q);
+    if (state.roleFilter) params.set('role', state.roleFilter);
+
+    const url = '/api/users/export-csv' + (params.toString() ? ('?' + params.toString()) : '');
+    const res = await fetch(url, { headers: authHeaders() });
+    if (handleAuthStatus(res, 'You are not allowed to export users.')) return;
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      throw new Error(txt || 'Export failed');
+    }
+
+    const blob = await res.blob();
+    const dispo = res.headers.get('Content-Disposition') || '';
+    const match = dispo.match(/filename="([^"]+)"/i);
+    const filename = match?.[1] || ('users_export_' + new Date().toISOString().slice(0,19).replace(/[:T]/g,'-') + '.csv');
+
+    const a = document.createElement('a');
+    const u = window.URL.createObjectURL(blob);
+    a.href = u;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(u);
+
+    ok('CSV exported');
+  } catch (ex) {
+    err(ex.message);
+  } finally {
+    showGlobalLoading(false);
+  }
+});
+// ✅ Import CSV (same behavior style; uses /api/users/import-csv)
+btnImportUsers?.addEventListener('click', async () => {
+  if (!canCreate) return;
+
+  const { isConfirmed } = await Swal.fire({
+    title: 'Import Users (CSV)',
+    html: `
+      <div class="text-start" style="font-size:13px;line-height:1.4">
+        <div class="mb-2">
+          Upload a <b>.csv</b> file to create/update users.
+        </div>
+        <div class="mb-2 text-muted">
+          Tip: role values must be from allowed roles
+        </div>
+        <div class="form-check mt-2">
+          <input class="form-check-input" type="checkbox" id="swUpdateExisting" checked>
+          <label class="form-check-label" for="swUpdateExisting">Update existing users (match by email/uuid if supported)</label>
+        </div>
+      </div>
+    `,
+    icon: 'info',
+    showCancelButton: true,
+    confirmButtonText: 'Choose CSV',
+    cancelButtonText: 'Cancel'
+  });
+
+  if (!isConfirmed) return;
+
+  // stash updateExisting preference for this selection
+  const updateExisting = document.getElementById('swUpdateExisting')?.checked ? '1' : '0';
+  importUsersFile.dataset.update_existing = updateExisting;
+
+  importUsersFile.value = '';
+  importUsersFile.click();
+});
+
+importUsersFile?.addEventListener('change', async () => {
+  const file = importUsersFile.files?.[0];
+  if (!file) return;
+
+  const name = (file.name || '').toLowerCase();
+  if (!name.endsWith('.csv')) {
+    err('Please choose a .csv file');
+    importUsersFile.value = '';
+    return;
+  }
+
+  // small safety size check (optional)
+  const maxMb = 10;
+  if (file.size > maxMb * 1024 * 1024) {
+    err(`CSV too large (max ${maxMb}MB)`);
+    importUsersFile.value = '';
+    return;
+  }
+
+  const updateExisting = importUsersFile.dataset.update_existing || '1';
+
+  const conf = await Swal.fire({
+    title: 'Confirm Import',
+    text: `Import "${file.name}" ?`,
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Import'
+  });
+  if (!conf.isConfirmed) {
+    importUsersFile.value = '';
+    return;
+  }
+
+  try {
+    showGlobalLoading(true);
+
+    const fd = new FormData();
+    fd.append('file', file);
+
+    // optional hints (backend may ignore safely)
+    fd.append('scope', 'users');
+    fd.append('allowed_roles', 'director,principal,hod,faculty,technical_assistant,it_person,placement_officer,student');
+    fd.append('update_existing', updateExisting);
+
+    const res = await fetch('/api/users/import-csv', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/json' },
+      body: fd
+    });
+    if (handleAuthStatus(res, 'You are not allowed to import users.')) return;
+
+    // Try JSON first
+    const ct = (res.headers.get('Content-Type') || '').toLowerCase();
+    if (ct.includes('application/json')) {
+      const js = await res.json().catch(() => ({}));
+      if (!res.ok || js.success === false) {
+        throw new Error(js.error || js.message || 'Import failed');
+      }
+
+      // show summary if present
+      const summary = js.summary || js.data?.summary;
+      if (summary && typeof summary === 'object') {
+        await Swal.fire({
+          title: 'Import Complete',
+          icon: 'success',
+          html: `
+            <div class="text-start" style="font-size:13px;line-height:1.5">
+              <div><b>Created:</b> ${escapeHtml(String(summary.created ?? summary.inserted ?? 0))}</div>
+              <div><b>Updated:</b> ${escapeHtml(String(summary.updated ?? 0))}</div>
+              <div><b>Skipped:</b> ${escapeHtml(String(summary.skipped ?? 0))}</div>
+              <div><b>Failed:</b> ${escapeHtml(String(summary.failed ?? summary.errors ?? 0))}</div>
+            </div>
+          `
+        });
+      } else {
+        ok('CSV imported');
+      }
+
+      await loadUsers(false);
+      return;
+    }
+
+    // If backend returns a file (e.g., error report CSV), download it
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      throw new Error(txt || 'Import failed');
+    }
+    const blob = await res.blob();
+    const dispo = res.headers.get('Content-Disposition') || '';
+    const match = dispo.match(/filename="([^"]+)"/i);
+    const filename = match?.[1] || ('import_result_' + new Date().toISOString().slice(0,19).replace(/[:T]/g,'-') + '.csv');
+
+    const a = document.createElement('a');
+    const u = window.URL.createObjectURL(blob);
+    a.href = u;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(u);
+
+    ok('Import processed (downloaded result)');
+    await loadUsers(false);
+  } catch (ex) {
+    err(ex.message);
+  } finally {
+    showGlobalLoading(false);
+    importUsersFile.value = '';
+  }
+});
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (form.dataset.mode === 'view') return;

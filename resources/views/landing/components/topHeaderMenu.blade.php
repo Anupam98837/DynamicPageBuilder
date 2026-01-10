@@ -210,12 +210,12 @@
         transition: background-color .25s ease, color .25s ease, transform .25s ease;
     }
 
-    .navbar-nav.compact .nav-link{ font-size:.85rem; padding:.75rem .8rem; }
-    .navbar-nav.very-compact .nav-link{ font-size:.8rem; padding:.75rem .55rem; }
-    .navbar-nav.ultra-compact .nav-link{ font-size:.75rem; padding:.75rem .45rem; }
+    #thmNavbar .navbar-nav.compact .nav-link{ font-size:.85rem; padding:.75rem .8rem; }
+    #thmNavbar .navbar-nav.very-compact .nav-link{ font-size:.8rem; padding:.75rem .55rem; }
+    #thmNavbar .navbar-nav.ultra-compact .nav-link{ font-size:.75rem; padding:.75rem .45rem; }
 
-    .nav-link:hover,
-    .nav-link.active{
+    #thmNavbar .nav-link:hover,
+    #thmNavbar .nav-link.active{
         background-color: var(--secondary-color, #6B2528);
         color:#fff !important;
     }

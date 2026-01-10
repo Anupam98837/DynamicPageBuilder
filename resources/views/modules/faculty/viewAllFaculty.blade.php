@@ -1,159 +1,209 @@
 {{-- resources/views/landing/faculty-members.blade.php --}}
+
 <style>
-  :root{
-    --brand:#8f2f2f;
-    --brand-2:#7a2626;
-    --ink:#0f172a;
-    --muted:#64748b;
-    --bg:#f6f7fb;
-    --card:#ffffff;
-    --line: rgba(15,23,42,.10);
-    --shadow: 0 10px 24px rgba(2,6,23,.08);
-    --radius: 14px;
-  }
+  /* =========================================================
+    ✅ Faculty Members (Scoped / No :root / No global body rules)
+    - Matches Announcements UI DNA
+    - Dept dropdown + ?d-{uuid} deep-link
+    - Loads dept-specific data from API (dept_uuid param)
+  ========================================================= */
 
-  /* If your theme tokens exist, use them */
-  :root{
-    --brand: var(--primary-color, var(--brand));
-    --brand-2: var(--secondary-color, var(--brand-2));
-    --ink: var(--ink, var(--ink));
-    --muted: var(--muted-color, var(--muted));
-    --bg: var(--page-bg, var(--bg));
-    --card: var(--surface, var(--card));
-    --line: var(--line-soft, var(--line));
-    --fac-accent: var(--primary-color, #9E363A);
-  }
+  .fmx-wrap{
+    --fmx-brand: var(--primary-color, #9E363A);
+    --fmx-ink: #0f172a;
+    --fmx-muted: #64748b;
+    --fmx-card: var(--surface, #ffffff);
+    --fmx-line: var(--line-soft, rgba(15,23,42,.10));
+    --fmx-shadow: 0 10px 24px rgba(2,6,23,.08);
 
-  body{ background: var(--bg); }
+    --fmx-card-h: 426.4px;
 
-  .fac-page{
-    max-width: 1180px;
-    margin: 18px auto 50px;
+    max-width: 1320px;
+    margin: 18px auto 54px;
     padding: 0 12px;
+    background: transparent;
+    position: relative;
+    overflow: visible;
   }
 
-  .fac-header{
-    background: var(--card);
-    border: 1px solid var(--line);
-    border-radius: 18px;
-    box-shadow: var(--shadow);
-    padding: 16px 16px 14px;
+  .fmx-head{
+    background: var(--fmx-card);
+    border: 1px solid var(--fmx-line);
+    border-radius: 16px;
+    box-shadow: var(--fmx-shadow);
+    padding: 14px 16px;
     margin-bottom: 16px;
-  }
 
-  .fac-header-top{
     display:flex;
-    align-items:flex-end;
-    justify-content:space-between;
     gap: 12px;
+    align-items: flex-end;
+    justify-content: space-between;
     flex-wrap: wrap;
   }
-
-  .fac-title{
-    margin:0;
+  .fmx-title{
+    margin: 0;
     font-weight: 950;
     letter-spacing: .2px;
-    color: var(--ink);
-    font-size: 32px;
-  }
-
-  .fac-sub{
-    margin: 6px 0 0;
-    color: var(--muted);
-    font-size: 14px;
-  }
-
-  .fac-tools{
+    color: var(--fmx-ink);
+    font-size: 28px;
     display:flex;
     align-items:center;
     gap: 10px;
+  }
+  .fmx-title i{ color: var(--fmx-brand); }
+  .fmx-sub{
+    margin: 6px 0 0;
+    color: var(--fmx-muted);
+    font-size: 14px;
+  }
+
+  .fmx-tools{
+    display:flex;
+    gap: 10px;
+    align-items:center;
     flex-wrap: wrap;
   }
 
-  .fac-search{
+  .fmx-search{
     position: relative;
-    min-width: 280px;
-    max-width: 460px;
-    flex: 1 1 280px;
+    min-width: 260px;
+    max-width: 520px;
+    flex: 1 1 320px;
   }
-  .fac-search input{
-    width:100%;
-    border-radius: 14px;
-    padding: 11px 12px 11px 42px;
-    border: 1px solid var(--line);
-    background: var(--card);
-    color: var(--ink);
-    outline: none;
-  }
-  .fac-search input:focus{
-    border-color: rgba(201,75,80,.55);
-    box-shadow: 0 0 0 4px rgba(201,75,80,.18);
-  }
-  .fac-search i{
+  .fmx-search i{
     position:absolute;
     left: 14px;
     top: 50%;
     transform: translateY(-50%);
     opacity: .65;
-    color: var(--muted);
+    color: var(--fmx-muted);
+    pointer-events:none;
+  }
+  .fmx-search input{
+    width:100%;
+    height: 42px;
+    border-radius: 999px;
+    padding: 11px 12px 11px 42px;
+    border: 1px solid var(--fmx-line);
+    background: var(--fmx-card);
+    color: var(--fmx-ink);
+    outline: none;
+  }
+  .fmx-search input:focus{
+    border-color: rgba(201,75,80,.55);
+    box-shadow: 0 0 0 4px rgba(201,75,80,.18);
   }
 
-  .fac-chip{
+  .fmx-select{
+    position: relative;
+    min-width: 260px;
+    max-width: 360px;
+    flex: 0 1 320px;
+  }
+  .fmx-select__icon{
+    position:absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: .70;
+    color: var(--fmx-muted);
+    pointer-events:none;
+    font-size: 14px;
+  }
+  .fmx-select__caret{
+    position:absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: .70;
+    color: var(--fmx-muted);
+    pointer-events:none;
+    font-size: 12px;
+  }
+  .fmx-select select{
+    width: 100%;
+    height: 42px;
+    border-radius: 999px;
+    padding: 10px 38px 10px 42px;
+    border: 1px solid var(--fmx-line);
+    background: var(--fmx-card);
+    color: var(--fmx-ink);
+    outline: none;
+
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+  }
+  .fmx-select select:focus{
+    border-color: rgba(201,75,80,.55);
+    box-shadow: 0 0 0 4px rgba(201,75,80,.18);
+  }
+
+  .fmx-chip{
     display:flex;
     align-items:center;
     gap: 8px;
-    padding: 10px 12px;
+    height: 42px;
+    padding: 0 12px;
     border-radius: 999px;
-    border: 1px solid var(--line);
-    background: var(--card);
+    border: 1px solid var(--fmx-line);
+    background: var(--fmx-card);
     box-shadow: 0 8px 18px rgba(2,6,23,.06);
-    color: var(--ink);
+    color: var(--fmx-ink);
     font-size: 13px;
     font-weight: 900;
+    white-space: nowrap;
   }
 
-  /* List */
-  .fac-list{
-    display: grid;
-    grid-template-columns: 1fr;
+  .fmx-grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: 18px;
+    align-items: stretch;
   }
 
-  /* Card (screenshot-like) */
-  .fac-card{
-    position: relative;
-    background: #f8f9fa;
+  .fmx-card{
+    width:100%;
+    min-height: var(--fmx-card-h);
+    position:relative;
+    display:flex;
+    flex-direction:column;
     border: 1px solid rgba(2,6,23,.08);
-    border-radius: 14px;
-    box-shadow: var(--shadow);
-    padding: 18px;
-    cursor: pointer;
-    user-select: none;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: var(--fmx-shadow);
+    overflow:hidden;
     transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+    will-change: transform;
+    cursor: pointer;
     outline: none;
   }
-  .fac-card:hover{
+  .fmx-card:hover{
     transform: translateY(-2px);
-    box-shadow: 0 18px 42px rgba(2,6,23,.12);
-    border-color: rgba(158,54,58,.30);
+    box-shadow: 0 16px 34px rgba(2,6,23,.12);
+    border-color: rgba(158,54,58,.22);
   }
-  .fac-card:focus-visible{
-    box-shadow: 0 0 0 4px rgba(201,75,80,.22), 0 18px 42px rgba(2,6,23,.12);
+  .fmx-card:focus-visible{
+    box-shadow: 0 0 0 4px rgba(201,75,80,.18), 0 16px 34px rgba(2,6,23,.12);
     border-color: rgba(201,75,80,.55);
   }
 
-  .fac-row{
+  .fmx-body{
+    padding: 16px 16px 14px;
     display:flex;
-    gap: 16px;
-    align-items:flex-start;
+    flex-direction:column;
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
-  .fac-avatar{
-    width: 76px;
-    height: 76px;
+  .fmx-top{ display:flex; gap: 12px; align-items:flex-start; }
+
+  .fmx-avatar{
+    width: 64px;
+    height: 64px;
     border-radius: 999px;
-    flex: 0 0 76px;
-    overflow: hidden;
+    flex: 0 0 64px;
+    overflow:hidden;
     border: 3px solid #fff;
     box-shadow: 0 10px 22px rgba(2,6,23,.12);
     background: radial-gradient(140px 140px at 30% 20%,
@@ -164,177 +214,125 @@
     display:grid;
     place-items:center;
   }
-  .fac-avatar img{
-    width:100%;
-    height:100%;
-    object-fit: cover;
-    display:block;
-  }
-  .fac-initial{
-    position:absolute;
-    inset:0;
-    display:grid;
-    place-items:center;
+  .fmx-avatar img{ width:100%; height:100%; object-fit: cover; display:block; }
+  .fmx-initial{
+    position:absolute; inset:0;
+    display:grid; place-items:center;
     font-weight: 950;
     color: rgba(158,54,58,.95);
-    font-size: 20px;
+    font-size: 18px;
     letter-spacing:.5px;
   }
-  .fac-avatar.has-img .fac-initial{ opacity:0; pointer-events:none; }
+  .fmx-avatar.has-img .fmx-initial{ opacity:0; pointer-events:none; }
 
-  .fac-main{ flex: 1 1 auto; min-width: 0; }
-
-  .fac-name{
-       font-size: 1.3rem;
-    font-weight: bold;
-    color: #2c3e50;
+  .fmx-name{
     margin: 0;
+    font-weight: 950;
+    color: var(--fmx-ink);
+    font-size: 18px;
+    line-height: 1.25;
     text-transform: uppercase;
-}
 
-  .fac-desig{
-        font-size: 1rem;
-    color: #34495e;
-    margin: 0;
-    font-weight: 500;
-}
-
-
-
-  .fac-meta{
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 6px;
+    display:-webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow:hidden;
+    overflow-wrap:anywhere;
+    word-break:break-word;
+  }
+  .fmx-desig{
     margin-top: 6px;
+    color: #334155;
+    font-size: 14px;
+    font-weight: 800;
+
+    display:-webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow:hidden;
   }
-  .fac-meta .line{
-       font-size: 1rem;
-    color: #34495e;
-    margin: 0;
-    font-weight: 500;
-}
 
-  .fac-meta b{ font-weight: 950; }
-  .fac-meta span{ color: #334155; }
+  .fmx-meta{ margin-top: 12px; display:grid; gap: 6px; }
+  .fmx-line{ font-size: 14px; color: #334155; line-height: 1.55; overflow-wrap:anywhere; }
+  .fmx-line b{ font-weight: 950; color: var(--fmx-ink); }
 
-  .fac-links{
-    margin-top: 10px;
+  .fmx-links{
+    margin-top: 12px;
     display:flex;
-    flex-wrap: wrap;
-    gap: 10px 14px;
-    align-items:center;
+    flex-direction:column;
+    gap: 6px;
+    font-size: 14px;
   }
-  .fac-links a{
+  .fmx-links a{
     color: #1d4ed8;
     text-decoration: none;
-    font-weight: 800;
-    font-size: 14px;
+    font-weight: 900;
     word-break: break-word;
   }
-  .fac-links a:hover{ text-decoration: underline; }
-.fac-social{
-  margin-top: 14px;
-  display:flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  opacity: 1 !important;
-}
+  .fmx-links a:hover{ text-decoration: underline; }
 
-.fac-social a{
-  width: 44px;
-  height: 44px;
-  border-radius: 999px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-
-  background: #8f2f2f !important; /* exact like screenshot */
-  color:#fff !important;
-  text-decoration:none !important;
-
-  border: 0;
-  box-shadow: 0 10px 18px rgba(143,47,47,.22);
-}
-
-.fac-social a i{
-  color:#fff !important;
-  font-size: 16px;
-  line-height: 1;
-}
-
-  .fac-social{
-    margin-top: 14px;
+  .fmx-social{
+    margin-top: auto;
+    padding-top: 14px;
     display:flex;
     gap: 10px;
     flex-wrap: wrap;
   }
-  .fac-social a{
+  .fmx-social a{
     width: 42px;
     height: 42px;
     border-radius: 999px;
     display:grid;
     place-items:center;
-    background: var(--brand);
+    background: var(--fmx-brand);
     color:#fff;
     border: 1px solid rgba(255,255,255,.18);
     box-shadow: 0 12px 22px rgba(143,47,47,.18);
     transition: transform .14s ease, filter .14s ease;
     text-decoration:none;
   }
-  .fac-social a:hover{
-    transform: translateY(-1px);
-    filter: brightness(1.06);
+  .fmx-social a:hover{ transform: translateY(-1px); filter: brightness(1.06); }
+  .fmx-social a i{ color:#fff; font-size: 16px; line-height: 1; }
+
+  .fmx-state{
+    background: var(--fmx-card);
+    border: 1px solid var(--fmx-line);
+    border-radius: 16px;
+    box-shadow: var(--fmx-shadow);
+    padding: 18px;
+    color: var(--fmx-muted);
+    text-align:center;
   }
 
-  /* Loading skeleton */
-  .fac-skeleton{
+  .fmx-skeleton{
     display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: 18px;
   }
-  .sk-card{
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    background: var(--card);
-    box-shadow: var(--shadow);
-    padding: 18px;
-    position: relative;
-    overflow: hidden;
+  .fmx-sk{
+    border-radius: 16px;
+    border: 1px solid var(--fmx-line);
+    background: #fff;
+    overflow:hidden;
+    position:relative;
+    box-shadow: 0 10px 24px rgba(2,6,23,.08);
+    height: var(--fmx-card-h);
   }
-  .sk-card:before{
+  .fmx-sk:before{
     content:'';
     position:absolute; inset:0;
     transform: translateX(-60%);
     background: linear-gradient(90deg, transparent, rgba(148,163,184,.22), transparent);
-    animation: skMove 1.15s ease-in-out infinite;
+    animation: fmxSkMove 1.15s ease-in-out infinite;
   }
-  @keyframes skMove{ to{ transform: translateX(60%); } }
+  @keyframes fmxSkMove{ to{ transform: translateX(60%);} }
 
-  .sk-row{ display:flex; gap:16px; align-items:flex-start; }
-  .sk-avatar{ width:76px; height:76px; border-radius:999px; background: rgba(148,163,184,.22); flex:0 0 76px; }
-  .sk-lines{ flex:1; display:grid; gap:10px; }
-  .sk-line{ height:14px; border-radius:10px; background: rgba(148,163,184,.22); width: 70%; }
-  .sk-line.sm{ width: 48%; }
-  .sk-line.xs{ width: 38%; }
-  .sk-line.lg{ width: 86%; }
-
-  /* Empty / error */
-  .fac-state{
-    background: var(--card);
-    border: 1px solid var(--line);
-    border-radius: 16px;
-    box-shadow: var(--shadow);
-    padding: 18px;
-    color: var(--muted);
-    text-align:center;
-  }
-
-  /* Pagination */
-  .fac-pagination{
+  .fmx-pagination{
     display:flex;
     justify-content:center;
     margin-top: 18px;
   }
-  .fac-pagination .pager{
+  .fmx-pagination .fmx-pager{
     display:flex;
     gap: 8px;
     flex-wrap: wrap;
@@ -342,10 +340,10 @@
     justify-content:center;
     padding: 10px;
   }
-  .fac-pagebtn{
-    border:1px solid var(--line);
-    background: var(--card);
-    color: var(--ink);
+  .fmx-pagebtn{
+    border:1px solid var(--fmx-line);
+    background: var(--fmx-card);
+    color: var(--fmx-ink);
     border-radius: 12px;
     padding: 9px 12px;
     font-size: 13px;
@@ -354,140 +352,124 @@
     cursor:pointer;
     user-select:none;
   }
-  .fac-pagebtn:hover{ background: rgba(2,6,23,.03); }
-  .fac-pagebtn[disabled]{ opacity:.55; cursor:not-allowed; }
-  .fac-pagebtn.active{
+  .fmx-pagebtn:hover{ background: rgba(2,6,23,.03); }
+  .fmx-pagebtn[disabled]{ opacity:.55; cursor:not-allowed; }
+  .fmx-pagebtn.active{
     background: rgba(201,75,80,.12);
     border-color: rgba(201,75,80,.35);
-    color: var(--brand);
+    color: var(--fmx-brand);
   }
 
   @media (max-width: 640px){
-    .fac-title{ font-size: 26px; }
-    .fac-row{ gap: 12px; }
-    .fac-avatar{ width: 64px; height: 64px; flex-basis: 64px; }
-    .sk-avatar{ width:64px; height:64px; flex-basis:64px; }
-    .fac-name{ font-size: 18px; }
-    .fac-desig{ font-size: 14px; }
+    .fmx-title{ font-size: 24px; }
+    .fmx-search{ min-width: 220px; flex: 1 1 240px; }
+    .fmx-select{ min-width: 220px; flex: 1 1 240px; }
   }
-  /* Disabled social icons (still show same row) */
-.fac-social .soc{
-  width: 42px;
-  height: 42px;
-  border-radius: 999px;
-  display:grid;
-  place-items:center;
-  background: var(--brand);
-  color:#fff;
-  border: 1px solid rgba(255,255,255,.18);
-  box-shadow: 0 12px 22px rgba(143,47,47,.18);
-  text-decoration:none;
-  transition: transform .14s ease, filter .14s ease, opacity .14s ease;
-}
-.fac-social .soc:hover{ transform: translateY(-1px); filter: brightness(1.06); }
 
-.fac-social .soc.is-disabled{
-  opacity: .35;
-  box-shadow: none;
-  cursor: default;
-  transform: none !important;
-  filter: none !important;
-}
-
-    .fac-title i {
-color: var(--fac-accent);
-}
-
+  .dynamic-navbar .navbar-nav .dropdown-menu{
+    position: absolute !important;
+    inset: auto !important;
+  }
+  .dynamic-navbar .dropdown-menu.is-portaled{
+    position: fixed !important;
+  }
 </style>
 
-<div class="fac-page"
-     data-api="{{ url('/api/public/faculty') }}"
-     data-profile-base="{{ url('/user/profile') }}/">
+<div
+  class="fmx-wrap"
+  data-api="{{ url('/api/public/faculty') }}"
+  data-profile-base="{{ url('/user/profile') }}/"
+  data-dept-api="{{ url('/api/public/departments') }}"
+>
+  <div class="fmx-head">
+    <div>
+      <h1 class="fmx-title"><i class="fa-solid fa-users"></i>Faculty Members</h1>
+      <div class="fmx-sub" id="fmxSub">Select a department to view its faculty members.</div>
+    </div>
 
-  {{-- Header --}}
-  <div class="fac-header">
-    <div class="fac-header-top">
-      <div>
-        <h1 class="fac-title"><i class="fa-solid fa-bullhorn"></i> Faculty Members</h1>
-        <div class="fac-sub" id="facSub">Click any faculty card to view the profile.</div>
+    <div class="fmx-tools">
+      <div class="fmx-search">
+        <i class="fa fa-magnifying-glass"></i>
+        <input id="fmxSearch" type="search" placeholder="Select a department to search…" disabled>
       </div>
 
-      <div class="fac-tools">
-        <div class="fac-search">
-          <i class="fa fa-magnifying-glass"></i>
-          <input id="facSearch" type="search" placeholder="Search by name / specialization / qualification…">
-        </div>
-        <div class="fac-chip" title="Total results">
-          <i class="fa-solid fa-users" style="opacity:.85"></i>
-          <span id="facCount">—</span>
-        </div>
+      <div class="fmx-select" title="Filter by department">
+        <i class="fa-solid fa-building-columns fmx-select__icon"></i>
+        <select id="fmxDept" aria-label="Filter by department">
+          <option value="">Select Department</option>
+        </select>
+        <i class="fa-solid fa-chevron-down fmx-select__caret"></i>
+      </div>
+
+      <div class="fmx-chip" title="Total results">
+        <i class="fa-solid fa-user-group" style="opacity:.85"></i>
+        <span id="fmxCount">0</span>
       </div>
     </div>
   </div>
 
-  {{-- List --}}
-  <div id="facList" class="fac-list" style="display:none;"></div>
+  <div id="fmxGrid" class="fmx-grid" style="display:none;"></div>
+  <div id="fmxSkeleton" class="fmx-skeleton" style="display:none;"></div>
+  <div id="fmxState" class="fmx-state"></div>
 
-  {{-- Skeleton --}}
-  <div id="facSkeleton" class="fac-skeleton"></div>
-
-  {{-- Empty/Error --}}
-  <div id="facState" class="fac-state" style="display:none;"></div>
-
-  {{-- Pagination --}}
-  <div class="fac-pagination">
-    <div id="facPager" class="pager" style="display:none;"></div>
+  <div class="fmx-pagination">
+    <div id="fmxPager" class="fmx-pager" style="display:none;"></div>
   </div>
-
 </div>
 
-{{-- FontAwesome (if not already in header) --}}
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
 
 <script>
 (() => {
-  if (window.__PUBLIC_FACULTY_PAGE__) return;
-  window.__PUBLIC_FACULTY_PAGE__ = true;
+  if (window.__PUBLIC_FACULTY_MEMBERS_DEPT__) return;
+  window.__PUBLIC_FACULTY_MEMBERS_DEPT__ = true;
 
-  const root = document.querySelector('.fac-page');
+  const root = document.querySelector('.fmx-wrap');
   if (!root) return;
+
+  const API = root.getAttribute('data-api') || '/api/public/faculty';
+  const PROFILE_BASE = root.getAttribute('data-profile-base') || (window.location.origin + '/user/profile/');
+  const DEPT_API = root.getAttribute('data-dept-api') || '/api/public/departments';
 
   const $ = (id) => document.getElementById(id);
 
-  const API_LIST = root.getAttribute('data-api') || '/api/public/faculty';
-  const PROFILE_BASE = root.getAttribute('data-profile-base') || (window.location.origin + '/user/profile/');
+  const els = {
+    grid: $('fmxGrid'),
+    skel: $('fmxSkeleton'),
+    state: $('fmxState'),
+    pager: $('fmxPager'),
+    search: $('fmxSearch'),
+    dept: $('fmxDept'),
+    count: $('fmxCount'),
+    sub: $('fmxSub'),
+  };
 
   const state = {
     page: 1,
-    perPage: 12,
+    perPage: 9,
     lastPage: 1,
     total: 0,
-    q: ''
+    q: '',
+    deptUuid: '',
+    deptName: '',
   };
 
   let activeController = null;
+  let deptByUuid = new Map();
 
   function esc(str){
     return (str ?? '').toString().replace(/[&<>"']/g, s => ({
       '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
     }[s]));
   }
-
-  function initials(name){
-    const n = (name || '').trim();
-    if (!n) return 'FM';
-    const parts = n.split(/\s+/).filter(Boolean).slice(0,2);
-    return parts.map(p => p[0].toUpperCase()).join('');
+  function escAttr(str){
+    return (str ?? '').toString().replace(/"/g, '&quot;');
   }
-
-  function normalizeUrl(url){
-    const u = (url || '').toString().trim();
-    if (!u) return '';
-    if (/^(data:|blob:|https?:\/\/)/i.test(u)) return u;
-    if (u.startsWith('/')) return window.location.origin + u;
-    return window.location.origin + '/' + u;
+  function decodeMaybeJson(v){
+    if (v == null) return null;
+    if (Array.isArray(v) || typeof v === 'object') return v;
+    try { return JSON.parse(String(v)); } catch(e){ return null; }
   }
-
   function pick(obj, keys){
     for (const k of keys){
       const v = obj?.[k];
@@ -495,24 +477,23 @@ color: var(--fac-accent);
     }
     return '';
   }
-
-  function decodeMaybeJson(v){
-    if (v == null) return null;
-    if (Array.isArray(v) || typeof v === 'object') return v;
-    try { return JSON.parse(String(v)); } catch(e){ return null; }
+  function normalizeUrl(url){
+    const u = (url || '').toString().trim();
+    if (!u) return '';
+    if (/^(data:|blob:|https?:\/\/)/i.test(u)) return u;
+    if (u.startsWith('/')) return window.location.origin + u;
+    return window.location.origin + '/' + u;
   }
-
-  function truncate(v, max=140){
-    const s = (v ?? '').toString().trim();
-    if (!s) return '';
-    return s.length > max ? (s.slice(0, max).trim() + '…') : s;
+  function initials(name){
+    const n = (name || '').trim();
+    if (!n) return 'FM';
+    const parts = n.split(/\s+/).filter(Boolean).slice(0,2);
+    return parts.map(p => p[0].toUpperCase()).join('');
   }
-
   function getProfileUrl(userUuid){
     if (!userUuid) return '#';
     return PROFILE_BASE + encodeURIComponent(userUuid);
   }
-
   function formatQualification(q){
     const arr = Array.isArray(q) ? q : (decodeMaybeJson(q) || null);
     if (!arr) return '';
@@ -520,89 +501,94 @@ color: var(--fac-accent);
     const bits = arr.map(x => x?.title || x?.degree || x?.name).filter(Boolean);
     return bits.length ? bits.join(', ') : '';
   }
-
   function metaLine(label, value){
     const v = (value || '').toString().trim();
     if (!v) return '';
-    return `<div class="line"><b>${esc(label)}:</b> <span>${esc(v)}</span></div>`;
+    return `<div class="fmx-line"><b>${esc(label)}:</b> <span>${esc(v)}</span></div>`;
   }
-function iconForPlatform(platform){
-  const p = (platform || '').toLowerCase().trim();
-  if (p.includes('linkedin')) return 'fa-brands fa-linkedin-in';
-  if (p.includes('google') || p.includes('scholar')) return 'fa-solid fa-graduation-cap';
-  if (p.includes('researchgate')) return 'fa-brands fa-researchgate';
-  if (p === 'facebook' || p.includes('fb')) return 'fa-brands fa-facebook-f';
-  if (p.includes('instagram') || p.includes('insta')) return 'fa-brands fa-instagram';
-  if (p === 'x' || p.includes('twitter')) return 'fa-brands fa-x-twitter';
-  if (p.includes('github')) return 'fa-brands fa-github';
-  if (p.includes('youtube')) return 'fa-brands fa-youtube';
-  return 'fa-solid fa-link';
-}
 
-function normalizeFaIcon(icon){
-  const i = (icon || '').trim();
-  if (!i) return '';
-  // if they saved only "fa-linkedin-in"
-  if (i.startsWith('fa-') && !i.includes('fa-solid') && !i.includes('fa-brands') && !i.includes('fa-regular')) {
-    return 'fa-brands ' + i;
+  function iconForPlatform(platform){
+    const p = (platform || '').toLowerCase().trim();
+    if (p.includes('linkedin')) return 'fa-brands fa-linkedin-in';
+    if (p.includes('google') || p.includes('scholar')) return 'fa-solid fa-graduation-cap';
+    if (p.includes('researchgate')) return 'fa-brands fa-researchgate';
+    if (p === 'facebook' || p.includes('fb')) return 'fa-brands fa-facebook-f';
+    if (p.includes('instagram') || p.includes('insta')) return 'fa-brands fa-instagram';
+    if (p === 'x' || p.includes('twitter')) return 'fa-brands fa-x-twitter';
+    if (p.includes('github')) return 'fa-brands fa-github';
+    if (p.includes('youtube')) return 'fa-brands fa-youtube';
+    return 'fa-solid fa-link';
   }
-  return i;
-}
+  function normalizeFaIcon(icon){
+    const i = (icon || '').trim();
+    if (!i) return '';
+    if (i.startsWith('fa-') && !i.includes('fa-solid') && !i.includes('fa-brands') && !i.includes('fa-regular')) {
+      return 'fa-brands ' + i;
+    }
+    return i;
+  }
+  function buildSocialFromItem(it){
+    const arr = Array.isArray(it?.socials) ? it.socials : [];
+    const html = arr.map(s => {
+      const url = (s?.url || '').toString().trim();
+      if (!url) return '';
+      const icon = normalizeFaIcon(s?.icon) || iconForPlatform(s?.platform);
+      const title = (s?.platform || 'Link').toString();
+      return `
+        <a href="${escAttr(normalizeUrl(url))}" target="_blank" rel="noopener"
+           title="${escAttr(title)}" data-stop-card="1">
+          <i class="${escAttr(icon)}"></i>
+        </a>
+      `;
+    }).join('');
+    return html ? `<div class="fmx-social">${html}</div>` : '';
+  }
 
-function buildSocialFromItem(item){
-  const arr = Array.isArray(item?.socials) ? item.socials : [];
-  const html = arr.map(s => {
-    const url = (s?.url || '').toString().trim();
-    if (!url) return '';
+  function bindAvatarImages(rootEl){
+    rootEl.querySelectorAll('img.fmx-img').forEach(img => {
+      const avatar = img.closest('.fmx-avatar');
+      if (!avatar) return;
 
-    const icon = normalizeFaIcon(s?.icon) || iconForPlatform(s?.platform);
-    const title = (s?.platform || 'Link').toString();
+      if (img.complete && img.naturalWidth > 0) {
+        avatar.classList.add('has-img');
+        return;
+      }
 
-    return `
-      <a href="${esc(normalizeUrl(url))}" target="_blank" rel="noopener"
-         title="${esc(title)}" data-stop-card="1">
-        <i class="${esc(icon)}"></i>
-      </a>
-    `;
-  }).join('');
+      img.addEventListener('load', () => avatar.classList.add('has-img'), { once:true });
+      img.addEventListener('error', () => { img.remove(); avatar.classList.remove('has-img'); }, { once:true });
+    });
+  }
 
-  return html ? `<div class="fac-social">${html}</div>` : '';
-}
+  function showSelectDeptState(){
+    if (els.grid) els.grid.style.display = 'none';
+    if (els.pager) els.pager.style.display = 'none';
+    if (els.count) els.count.textContent = '0';
 
+    if (els.state){
+      els.state.style.display = '';
+      els.state.innerHTML = `
+        <div style="font-size:34px;opacity:.6;margin-bottom:6px;">
+          <i class="fa-solid fa-building-columns"></i>
+        </div>
+        Please select a department to view faculty members.
+      `;
+    }
+  }
 
   function showSkeleton(){
-    const sk = $('facSkeleton');
-    const st = $('facState');
-    const list = $('facList');
-    const pager = $('facPager');
+    if (els.grid) els.grid.style.display = 'none';
+    if (els.pager) els.pager.style.display = 'none';
+    if (els.state) els.state.style.display = 'none';
 
-    if (list) list.style.display = 'none';
-    if (pager) pager.style.display = 'none';
-    if (st) st.style.display = 'none';
-
-    if (!sk) return;
-    sk.style.display = '';
-    sk.innerHTML = new Array(6).fill(0).map(() => `
-      <div class="sk-card">
-        <div class="sk-row">
-          <div class="sk-avatar"></div>
-          <div class="sk-lines">
-            <div class="sk-line lg"></div>
-            <div class="sk-line sm"></div>
-            <div class="sk-line"></div>
-            <div class="sk-line"></div>
-            <div class="sk-line xs"></div>
-          </div>
-        </div>
-      </div>
-    `).join('');
+    if (!els.skel) return;
+    els.skel.style.display = '';
+    els.skel.innerHTML = Array.from({length: 6}).map(() => `<div class="fmx-sk"></div>`).join('');
   }
 
   function hideSkeleton(){
-    const sk = $('facSkeleton');
-    if (!sk) return;
-    sk.style.display = 'none';
-    sk.innerHTML = '';
+    if (!els.skel) return;
+    els.skel.style.display = 'none';
+    els.skel.innerHTML = '';
   }
 
   async function fetchJson(url){
@@ -615,120 +601,159 @@ function buildSocialFromItem(item){
     });
 
     const js = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(js?.message || 'Request failed');
+    if (!res.ok) throw new Error(js?.message || ('Request failed: ' + res.status));
     return js;
   }
 
+  function extractDeptUuidFromUrl(){
+    const hay = (window.location.search || '') + ' ' + (window.location.href || '');
+    const m = hay.match(/d-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+    return m ? m[1] : '';
+  }
+
+  async function loadDepartments(){
+    const sel = els.dept;
+    if (!sel) return;
+
+    sel.innerHTML = `
+      <option value="">Select Department</option>
+      <option value="__loading" disabled>Loading departments…</option>
+    `;
+    sel.value = '__loading';
+
+    try{
+      const res = await fetch(DEPT_API, { headers: { 'Accept':'application/json' } });
+      const js = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(js?.message || ('HTTP ' + res.status));
+
+      const items = Array.isArray(js?.data) ? js.data : [];
+      const depts = items
+        .map(d => ({
+          id: d?.id ?? null,
+          uuid: (d?.uuid ?? '').toString().trim(),
+          title: (d?.title ?? d?.name ?? '').toString().trim(),
+          active: (d?.active ?? 1),
+        }))
+        .filter(x => x.uuid && x.title && String(x.active) === '1');
+
+      deptByUuid = new Map(depts.map(d => [d.uuid, d]));
+      depts.sort((a,b) => a.title.localeCompare(b.title));
+
+      sel.innerHTML = `<option value="">Select Department</option>` + depts
+        .map(d => `<option value="${escAttr(d.uuid)}">${esc(d.title)}</option>`)
+        .join('');
+
+      sel.value = '';
+    } catch (e){
+      console.warn('Departments load failed:', e);
+      sel.innerHTML = `<option value="">Select Department</option>`;
+      sel.value = '';
+    }
+  }
+
   function buildListUrl(){
-    const params = new URLSearchParams();
-    params.set('page', String(state.page));
-    params.set('per_page', String(state.perPage));
-    params.set('status', 'active');
-    if (state.q.trim()) params.set('q', state.q.trim());
-    params.set('sort', 'created_at');
-    params.set('direction', 'desc');
-    return API_LIST + '?' + params.toString();
+    const u = new URL(API, window.location.origin);
+    u.searchParams.set('page', String(state.page));
+    u.searchParams.set('per_page', String(state.perPage));
+    u.searchParams.set('status', 'active');
+    u.searchParams.set('sort', 'created_at');
+    u.searchParams.set('direction', 'desc');
+
+    // ✅ pass dept_uuid to backend (no client-side guessing)
+    if (state.deptUuid) u.searchParams.set('dept_uuid', String(state.deptUuid));
+else u.searchParams.delete('dept_uuid');
+
+    if (state.q.trim()) u.searchParams.set('q', state.q.trim());
+    return u.toString();
+  }
+
+  function cardHtml(it){
+    const userUuid = pick(it, ['user_uuid','uuid']);
+    const name = pick(it, ['name','user_name']) || 'Faculty';
+
+    const desig =
+      pick(it, ['designation']) ||
+      (decodeMaybeJson(it?.metadata)?.designation || '') ||
+      (decodeMaybeJson(it?.metadata)?.role_title || '') ||
+      'Faculty Member';
+
+    const qualification = formatQualification(it?.qualification);
+    const specification = (pick(it, ['specification']) || '').toString().trim();
+    const experience    = (pick(it, ['experience']) || '').toString().trim();
+    const interest      = (pick(it, ['interest']) || '').toString().trim();
+    const administration= (pick(it, ['administration']) || '').toString().trim();
+    const research      = (pick(it, ['research_project']) || '').toString().trim();
+
+    const meta = decodeMaybeJson(it?.metadata) || {};
+    const email = (pick(it, ['email']) || meta.email || '').toString().trim();
+    const website = (pick(it, ['website']) || meta.website || '').toString().trim();
+
+    const imgRaw = pick(it, ['image_full_url','image']);
+    const img = normalizeUrl(imgRaw);
+
+    const href = getProfileUrl(userUuid);
+    const ini = initials(name);
+
+    return `
+      <article class="fmx-card" tabindex="0" role="link"
+               data-href="${escAttr(href)}"
+               aria-label="${escAttr(name)} profile">
+        <div class="fmx-body">
+          <div class="fmx-top">
+            <div class="fmx-avatar">
+              <div class="fmx-initial">${esc(ini)}</div>
+              ${img ? `<img class="fmx-img" src="${escAttr(img)}" alt="${escAttr(name)}" loading="lazy">` : ``}
+            </div>
+
+            <div style="min-width:0;flex:1;">
+              <h3 class="fmx-name">${esc(name)}</h3>
+              <div class="fmx-desig">${esc(desig)}</div>
+            </div>
+          </div>
+
+          <div class="fmx-meta">
+            ${metaLine('Qualification', qualification)}
+            ${metaLine('Specification', specification)}
+            ${metaLine('Experience', experience)}
+            ${metaLine('Interest', interest)}
+            ${metaLine('Administration', administration)}
+            ${metaLine('Research Project', research)}
+          </div>
+
+          <div class="fmx-links">
+            ${email ? `<div><b>Email:</b> <a data-stop-card="1" href="mailto:${escAttr(email)}">${esc(email)}</a></div>` : ``}
+            ${website ? `<div><b>Website:</b> <a data-stop-card="1" href="${escAttr(normalizeUrl(website))}" target="_blank" rel="noopener">${esc(website)}</a></div>` : ``}
+          </div>
+
+          ${buildSocialFromItem(it)}
+        </div>
+      </article>
+    `;
   }
 
   function render(items){
-    const list = $('facList');
-    const st = $('facState');
-    const count = $('facCount');
-    const sub = $('facSub');
-
-    if (!list || !st) return;
+    if (!els.grid || !els.state) return;
 
     if (!items.length){
-      list.style.display = 'none';
-      st.style.display = '';
-      st.innerHTML = `
-        <div style="font-size:34px;opacity:.6;margin-bottom:6px;"><i class="fa-regular fa-face-frown"></i></div>
-        No faculty found.
+      els.grid.style.display = 'none';
+      els.state.style.display = '';
+      els.state.innerHTML = `
+        <div style="font-size:34px;opacity:.6;margin-bottom:6px;">
+          <i class="fa-regular fa-face-frown"></i>
+        </div>
+        No faculty found for this department.
       `;
-      if (count) count.textContent = '0';
-      if (sub) sub.textContent = 'No records match your search.';
       return;
     }
 
-    if (count) count.textContent = String(state.total || items.length);
-    if (sub) sub.textContent = 'Click any faculty card to view the profile.';
-
-    st.style.display = 'none';
-    list.style.display = '';
-
-    list.innerHTML = items.map(it => {
-      const userUuid = pick(it, ['user_uuid','uuid']); // from your API normalizer
-      const name = pick(it, ['name','user_name']) || 'Faculty';
-
-      const desig =
-        pick(it, ['designation']) ||
-        (decodeMaybeJson(it?.metadata)?.designation || '') ||
-        (decodeMaybeJson(it?.metadata)?.role_title || '') ||
-        'Faculty Member';
-
-      const qualification = formatQualification(it?.qualification);
-      const specification = truncate(pick(it, ['specification']), 160);
-      const experience    = truncate(pick(it, ['experience']), 160);
-
-      // optional extra details (auto-hide if empty)
-      const interest       = truncate(pick(it, ['interest']), 160);
-      const administration = truncate(pick(it, ['administration']), 160);
-      const research       = truncate(pick(it, ['research_project']), 160);
-
-      // image
-      const imgRaw = pick(it, ['image_full_url','image']);
-      const img = normalizeUrl(imgRaw);
-
-      // email/website can come from API OR metadata
-      const meta = decodeMaybeJson(it?.metadata) || {};
-      const email = pick(it, ['email']) || (meta.email || '');
-      const website = pick(it, ['website']) || (meta.website || '');
-
-      const href = getProfileUrl(userUuid);
-      const ini = initials(name);
-
-      return `
-        <article class="fac-card" tabindex="0" role="link"
-                 data-href="${esc(href)}"
-                 aria-label="${esc(name)} profile">
-          <div class="fac-row">
-            <div class="fac-avatar">
-              <div class="fac-initial">${esc(ini)}</div>
-              ${img ? `
-                <img src="${esc(img)}" alt="${esc(name)}"
-                     onload="this.parentElement.classList.add('has-img')"
-                     onerror="this.remove(); this.parentElement.classList.remove('has-img')">
-              ` : ``}
-            </div>
-
-            <div class="fac-main">
-              <h3 class="fac-name">${esc(name)}</h3>
-              <div class="fac-desig">${esc(desig)}</div>
-
-              <div class="fac-meta">
-                ${metaLine('Qualification', qualification)}
-                ${metaLine('Specification', specification)}
-                ${metaLine('Experience', experience)}
-                ${metaLine('Interest', interest)}
-                ${metaLine('Administration', administration)}
-                ${metaLine('Research Project', research)}
-              </div>
-
-              <div class="fac-links">
-                ${email ? `<div><b>Email:</b> <a data-stop-card="1" href="mailto:${esc(email)}">${esc(email)}</a></div>` : ``}
-                ${website ? `<div><b>Website:</b> <a data-stop-card="1" href="${esc(normalizeUrl(website))}" target="_blank" rel="noopener">${esc(website)}</a></div>` : ``}
-              </div>
-
-${buildSocialFromItem(it)}
-            </div>
-          </div>
-        </article>
-      `;
-    }).join('');
+    els.state.style.display = 'none';
+    els.grid.style.display = '';
+    els.grid.innerHTML = items.map(cardHtml).join('');
+    bindAvatarImages(els.grid);
   }
 
   function renderPager(){
-    const pager = $('facPager');
+    const pager = els.pager;
     if (!pager) return;
 
     const last = state.lastPage || 1;
@@ -742,7 +767,7 @@ ${buildSocialFromItem(it)}
 
     const btn = (label, page, {disabled=false, active=false}={}) => {
       const dis = disabled ? 'disabled' : '';
-      const cls = active ? 'fac-pagebtn active' : 'fac-pagebtn';
+      const cls = active ? 'fmx-pagebtn active' : 'fmx-pagebtn';
       return `<button class="${cls}" ${dis} data-page="${page}">${label}</button>`;
     };
 
@@ -774,95 +799,140 @@ ${buildSocialFromItem(it)}
   }
 
   async function load(){
+
     showSkeleton();
 
     try{
       const js = await fetchJson(buildListUrl());
       const items = Array.isArray(js?.data) ? js.data : [];
       const p = js?.pagination || {};
+
       state.total = parseInt(p.total ?? items.length, 10) || items.length;
       state.lastPage = parseInt(p.last_page ?? 1, 10) || 1;
       state.page = parseInt(p.page ?? state.page, 10) || state.page;
 
       hideSkeleton();
+
+      if (els.count) els.count.textContent = String(state.total || 0);
       render(items);
       renderPager();
 
-    }catch(e){
+    } catch (e){
       hideSkeleton();
-      const st = $('facState');
-      const list = $('facList');
-      const pager = $('facPager');
+      if (els.grid) els.grid.style.display = 'none';
+      if (els.pager) els.pager.style.display = 'none';
 
-      if (list) list.style.display = 'none';
-      if (pager) pager.style.display = 'none';
-
-      if (st){
-        st.style.display = '';
-        st.innerHTML = `
+      if (els.state){
+        els.state.style.display = '';
+        els.state.innerHTML = `
           <div style="font-size:34px;opacity:.6;margin-bottom:6px;">
             <i class="fa-solid fa-triangle-exclamation"></i>
           </div>
           Could not load faculty.
           <div style="margin-top:8px;font-size:12.5px;opacity:.9;">
-            API: <b>${esc(API_LIST)}</b>
+            API: <b>${esc(API)}</b>
           </div>
         `;
       }
     }
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
-    const search = $('facSearch');
+  document.addEventListener('DOMContentLoaded', async () => {
+    showSelectDeptState();
 
-    // Search (debounced)
+    await loadDepartments();
+
+    // deep-link ?d-{uuid}
+    const deep = extractDeptUuidFromUrl();
+    if (deep && deptByUuid.has(deep)){
+      els.dept.value = deep;
+      state.deptUuid = deep;
+      state.deptName = deptByUuid.get(deep)?.title || '';
+      if (els.sub) els.sub.textContent = state.deptName ? ('Faculty members of ' + state.deptName) : 'Faculty members';
+
+      els.search.disabled = false;
+      els.search.placeholder = 'Search faculty (name/designation/qualification)…';
+      await load();
+    }
+
+    // dept change
+    els.dept && els.dept.addEventListener('change', async () => {
+      const v = (els.dept.value || '').toString().trim();
+
+      state.page = 1;
+      state.q = '';
+      if (els.search) els.search.value = '';
+
+      if (!v){
+        state.deptUuid = '';
+        state.deptName = '';
+        if (els.sub) els.sub.textContent = 'Select a department to view its faculty members.';
+        if (els.search){
+          els.search.disabled = true;
+          els.search.placeholder = 'Select a department to search…';
+        }
+        await load();   // ✅ load all
+        return;
+      }
+
+      state.deptUuid = v;
+      state.deptName = deptByUuid.get(v)?.title || '';
+
+      if (els.sub){
+        els.sub.textContent = state.deptName ? ('Faculty members of ' + state.deptName) : 'Faculty members';
+      }
+
+      if (els.search){
+        els.search.disabled = false;
+        els.search.placeholder = 'Search faculty (name/designation/qualification)…';
+      }
+
+      await load();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    // search (debounced)
     let t = null;
-    search && search.addEventListener('input', () => {
+    els.search && els.search.addEventListener('input', () => {
       clearTimeout(t);
-      t = setTimeout(() => {
-        state.q = (search.value || '').trim();
+      t = setTimeout(async () => {
+        state.q = (els.search.value || '').trim();
         state.page = 1;
-        load();
+        await load();
       }, 260);
     });
 
-    // Pagination click
-    document.addEventListener('click', (e) => {
-      const b = e.target.closest('button.fac-pagebtn[data-page]');
+    // pagination
+    document.addEventListener('click', async (e) => {
+      const b = e.target.closest('button.fmx-pagebtn[data-page]');
       if (!b) return;
       const p = parseInt(b.dataset.page, 10);
       if (!p || Number.isNaN(p) || p === state.page) return;
       state.page = p;
-      load();
+      await load();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
 
-    // Card click -> profile (robust)
+    // card click -> profile
     document.addEventListener('click', (e) => {
       if (e.target.closest('[data-stop-card="1"]')) return;
-
-      const card = e.target.closest('.fac-card[data-href]');
+      const card = e.target.closest('.fmx-card[data-href]');
       if (!card) return;
-
       const href = card.getAttribute('data-href') || '#';
       if (!href || href === '#') return;
-
       window.location.href = href;
     });
 
-    // Keyboard open (Enter/Space)
+    // keyboard open
     document.addEventListener('keydown', (e) => {
-      const card = e.target.closest?.('.fac-card[data-href]');
+      const card = e.target.closest?.('.fmx-card[data-href]');
       if (!card) return;
-
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         const href = card.getAttribute('data-href') || '#';
         if (href && href !== '#') window.location.href = href;
       }
     });
-
-    load();
   });
 
 })();

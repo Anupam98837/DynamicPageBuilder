@@ -245,9 +245,17 @@ td .fw-semibold{color:var(--ink)}
           <button id="btnExportStudents" class="btn btn-outline-success">
             <i class="fa fa-file-csv me-1"></i>Export CSV
           </button>
+
+          {{-- ✅ NEW: Import CSV (role-gated via JS) --}}
+          <button id="btnImportStudents" class="btn btn-outline-primary" style="display:none;">
+            <i class="fa fa-file-import me-1"></i>Import CSV
+          </button>
+          <input type="file" id="importStudentsFile" class="d-none" accept=".csv,text/csv" />
+
         </div>
 
         <div class="col-12 col-lg-auto ms-lg-auto d-flex justify-content-lg-end">
+          
           <div id="writeControls" style="display:none;" class="toolbar-buttons">
             <button type="button" class="btn btn-primary" id="btnAddStudent">
               <i class="fa fa-plus me-1"></i> Add Student
@@ -372,7 +380,6 @@ td .fw-semibold{color:var(--ink)}
     </div>
   </div>
 </div>
-
 {{-- ✅ Student Wizard Modal (Step-up form: Basic -> Academic) --}}
 <div class="modal fade" id="userModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
@@ -746,6 +753,22 @@ document.addEventListener('DOMContentLoaded', function () {
   const btnAddStudent = document.getElementById('btnAddStudent');
   const btnExportStudents = document.getElementById('btnExportStudents');
 
+  // ✅ NEW: Import refs
+  const btnImportStudents = document.getElementById('btnImportStudents');
+  const importModalEl = document.getElementById('importModal');
+  const importModal = importModalEl ? new bootstrap.Modal(importModalEl) : null;
+  const importFile = document.getElementById('importCsvFile');
+  const importMode = document.getElementById('importMode');
+  const btnDoImport = document.getElementById('btnDoImport');
+  const btnDownloadTemplate = document.getElementById('btnDownloadTemplate');
+  const btnDownloadTemplateWithAcademic = document.getElementById('btnDownloadTemplateWithAcademic');
+  const importApiHint = document.getElementById('importApiHint');
+
+const importStudentsFile = document.getElementById('importStudentsFile');
+  // ✅ CHANGE THIS if your backend route differs
+  const IMPORT_API = '/api/users/import-csv';
+  if (importApiHint) importApiHint.textContent = IMPORT_API;
+
   // Wizard modal refs
   const userModalEl = document.getElementById('userModal');
   const userModal = new bootstrap.Modal(userModalEl);
@@ -843,16 +866,19 @@ document.addEventListener('DOMContentLoaded', function () {
   };
 
   function computePermissions() {
-    const r = (ACTOR.role || '').toLowerCase();
-    const createDeleteRoles = ['admin', 'director', 'principal'];
-    const writeRoles = ['admin', 'director', 'principal', 'hod'];
+  const r = (ACTOR.role || '').toLowerCase();
+  const createDeleteRoles = ['admin', 'director', 'principal'];
+  const writeRoles = ['admin', 'director', 'principal', 'hod'];
 
-    canCreate = createDeleteRoles.includes(r);
-    canDelete = createDeleteRoles.includes(r);
-    canEdit = writeRoles.includes(r);
+  canCreate = createDeleteRoles.includes(r);
+  canDelete = createDeleteRoles.includes(r);
+  canEdit = writeRoles.includes(r);
 
-    if (writeControls) writeControls.style.display = canCreate ? 'flex' : 'none';
-  }
+  if (writeControls) writeControls.style.display = canCreate ? 'flex' : 'none';
+
+  // ✅ Import button visibility (same gating as create)
+  if (btnImportStudents) btnImportStudents.style.display = canCreate ? '' : 'none';
+}
 
   async function fetchMe() {
     try {
@@ -882,6 +908,284 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
   document.addEventListener('hidden.bs.modal', () => setTimeout(cleanupModalBackdrops, 80));
+
+  // ==========================
+  // ✅ NEW: Import helpers
+  // ==========================
+  function downloadCsv(filename, csvText) {
+    const blob = new Blob([csvText], { type: 'text/csv;charset=UTF-8' });
+    const a = document.createElement('a');
+    const u = URL.createObjectURL(blob);
+    a.href = u;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(u);
+  }
+
+  function templateCsvBasic() {
+    const headers = [
+      'name','email','phone_number','department_id','status','password',
+      'alternative_email','alternative_phone_number','whatsapp_number','address','image'
+    ];
+    const sample = [
+      'John Doe','john.doe@example.com','+91 99999 99999','1','active','Pass@1234',
+      'alt@example.com','+91 88888 88888','+91 77777 77777','Kolkata, WB','/storage/users/john.jpg'
+    ];
+    return headers.join(',') + '\n' + sample.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',');
+  }
+
+  function templateCsvWithAcademic() {
+    const headers = [
+      // user
+      'name','email','phone_number','department_id','status','password',
+      'alternative_email','alternative_phone_number','whatsapp_number','address','image',
+      // academic (optional, if your backend supports)
+      'course_id','semester_id','section_id','academic_year','year','acad_status',
+      'roll_no','registration_no','admission_no','admission_date','batch','session','metadata'
+    ];
+    const sample = [
+      // user
+      'John Doe','john.doe@example.com','+91 99999 99999','1','active','Pass@1234',
+      'alt@example.com','+91 88888 88888','+91 77777 77777','Kolkata, WB','/storage/users/john.jpg',
+      // academic
+      '2','', '','2025-26','2026','active','BCA-12','REG-123','ADM-456','2025-08-01','2025','2025-2029','{"note":"optional"}'
+    ];
+    return headers.join(',') + '\n' + sample.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',');
+  }
+
+  async function runImportCsv(file, mode) {
+    if (!file) throw new Error('Please choose a CSV file.');
+
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('role', 'student');          // stays consistent with this page
+    fd.append('mode', mode || 'create');   // create | upsert
+
+    const res = await fetch(IMPORT_API, {
+      method: 'POST',
+      headers: authHeaders(), // DO NOT set Content-Type for FormData
+      body: fd
+    });
+
+    if (handleAuthStatus(res, 'You are not allowed to import students.')) return null;
+
+    const ct = (res.headers.get('content-type') || '').toLowerCase();
+    let js = null;
+
+    if (ct.includes('application/json')) {
+      js = await res.json().catch(() => null);
+    } else {
+      // non-json fallback
+      const txt = await res.text().catch(() => '');
+      if (!res.ok) throw new Error(txt || 'Import failed');
+      return { success: true, message: txt || 'Imported' };
+    }
+
+    if (!res.ok || js?.success === false) {
+      let msg = js?.error || js?.message || 'Import failed';
+      if (js?.errors) {
+        const k = Object.keys(js.errors)[0];
+        if (k && js.errors[k] && js.errors[k][0]) msg = js.errors[k][0];
+      }
+      throw new Error(msg);
+    }
+
+    return js;
+  }
+// ✅ Import CSV (students only) - With Swal dialog before file picker
+// ✅ Import CSV (students only) - Safe
+btnImportStudents?.addEventListener('click', async () => {
+  if (!canCreate) return;
+
+  if (!importStudentsFile) {
+    err('Import input is missing. Add: <input type="file" id="importStudentsFile" class="d-none" accept=".csv">');
+    return;
+  }
+
+  const swalRes = await Swal.fire({
+    title: 'Import Students (CSV)',
+    html: `
+      <div class="text-start" style="font-size:13px;line-height:1.4">
+        <div class="mb-2">Upload a <b>.csv</b> file to create/update student users.</div>
+        <div class="mb-2 text-muted">All imported users will have role <code>student</code>.</div>
+        <div class="form-check mt-2">
+          <input class="form-check-input" type="checkbox" id="swUpdateExisting" checked>
+          <label class="form-check-label" for="swUpdateExisting">
+            Update existing users (match by email/uuid if supported)
+          </label>
+        </div>
+      </div>
+    `,
+    icon: 'info',
+    showCancelButton: true,
+    confirmButtonText: 'Choose CSV',
+    cancelButtonText: 'Cancel',
+    // ✅ IMPORTANT: read checkbox BEFORE swal closes
+    preConfirm: () => {
+      const checked = document.getElementById('swUpdateExisting')?.checked;
+      return { updateExisting: checked ? '1' : '0' };
+    }
+  });
+
+  if (!swalRes.isConfirmed) return;
+
+  // stash preference for the next file selection
+  importStudentsFile.dataset.update_existing = swalRes.value?.updateExisting ?? '1';
+
+  importStudentsFile.value = '';
+  importStudentsFile.click();
+});
+
+importStudentsFile?.addEventListener('change', async () => {
+  const file = importStudentsFile.files?.[0];
+  if (!file) return;
+
+  const isCsv = (file.type || '').includes('csv') || (file.name || '').toLowerCase().endsWith('.csv');
+  if (!isCsv) {
+    err('Please select a CSV file.');
+    importStudentsFile.value = '';
+    return;
+  }
+
+  const updateExisting = importStudentsFile.dataset.update_existing || '1';
+
+  const prettySize = (bytes) => {
+    const n = Number(bytes || 0);
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(n / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  };
+
+  const confirm = await Swal.fire({
+    title: 'Upload Students CSV?',
+    html: `
+      <div class="text-start small">
+        <div><b>File:</b> ${escapeHtml(file.name)}</div>
+        <div><b>Size:</b> ${escapeHtml(prettySize(file.size))}</div>
+        <div><b>Update existing:</b> ${updateExisting === '1' ? 'Yes' : 'No'}</div>
+        <div class="mt-2 text-muted">This will import student users based on the CSV rows.</div>
+      </div>
+    `,
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Yes, Upload',
+    cancelButtonText: 'Cancel'
+  });
+
+  if (!confirm.isConfirmed) {
+    importStudentsFile.value = '';
+    return;
+  }
+
+  try {
+    showGlobalLoading(true);
+
+    const fd = new FormData();
+    fd.append('file', file);
+
+    // optional hints (backend can ignore safely)
+    fd.append('scope', 'students');
+    fd.append('allowed_roles', 'student');
+    fd.append('update_existing', updateExisting);
+
+    const res = await fetch(IMPORT_API, {   // ✅ use your constant
+      method: 'POST',
+      headers: authHeaders(),               // ✅ no manual content-type
+      body: fd
+    });
+
+    if (handleAuthStatus(res, 'You are not allowed to import students.')) return;
+
+    const ct = (res.headers.get('content-type') || '').toLowerCase();
+    let js = null, txt = '';
+    if (ct.includes('application/json')) js = await res.json().catch(() => null);
+    else txt = await res.text().catch(() => '');
+
+    if (!res.ok || (js && js.success === false)) {
+      let msg = (js?.error || js?.message || txt || 'Import failed').toString();
+      if (js?.errors && typeof js.errors === 'object') {
+        const k = Object.keys(js.errors)[0];
+        if (k && Array.isArray(js.errors[k]) && js.errors[k][0]) msg = js.errors[k][0];
+      }
+      throw new Error(msg);
+    }
+
+    let msg = js?.message || js?.msg || 'Import completed';
+    if (js?.data) {
+      const ins = js.data.inserted ?? js.data.created ?? null;
+      const upd = js.data.updated ?? null;
+      const skp = js.data.skipped ?? null;
+      const errc = js.data.errors_count ?? js.data.failed ?? null;
+      const parts = [];
+      if (ins !== null) parts.push(`Inserted: ${ins}`);
+      if (upd !== null) parts.push(`Updated: ${upd}`);
+      if (skp !== null) parts.push(`Skipped: ${skp}`);
+      if (errc !== null) parts.push(`Errors: ${errc}`);
+      if (parts.length) msg = `${msg} (${parts.join(', ')})`;
+    }
+
+    ok(msg);
+    await loadUsers(false);
+  } catch (ex) {
+    err(ex.message);
+  } finally {
+    showGlobalLoading(false);
+    importStudentsFile.value = '';
+  }
+});
+
+  btnDownloadTemplate?.addEventListener('click', () => {
+    downloadCsv('students_import_template.csv', templateCsvBasic());
+  });
+
+  btnDownloadTemplateWithAcademic?.addEventListener('click', () => {
+    downloadCsv('students_import_template_with_academic.csv', templateCsvWithAcademic());
+  });
+
+  btnDoImport?.addEventListener('click', async () => {
+    if (!canCreate) return;
+    try {
+      const file = importFile?.files?.[0] || null;
+      const mode = importMode?.value || 'create';
+
+      showGlobalLoading(true);
+      const js = await runImportCsv(file, mode);
+
+      // If backend returns counts/errors, show nicely
+      const msg =
+        js?.message ||
+        (js?.data?.message) ||
+        'Import completed';
+
+      ok(msg);
+
+      // Optional: show failed rows if provided by backend
+      const failed = js?.data?.failed || js?.failed || null;
+      if (Array.isArray(failed) && failed.length) {
+        const preview = failed.slice(0, 8).map((x, i) => {
+          const row = x?.row ?? (i + 1);
+          const reason = x?.error || x?.message || 'Failed';
+          return `Row ${row}: ${reason}`;
+        }).join('\n');
+        await Swal.fire({
+          title: 'Imported with some issues',
+          icon: 'warning',
+          text: preview + (failed.length > 8 ? `\n… and ${failed.length - 8} more` : ''),
+        });
+      }
+
+      try { importModal?.hide(); } catch (_) {}
+
+      await loadUsers(false);
+    } catch (ex) {
+      err(ex.message);
+    } finally {
+      showGlobalLoading(false);
+    }
+  });
 
   // ==========================
   // Departments
@@ -1028,9 +1332,7 @@ document.addEventListener('DOMContentLoaded', function () {
       return cached;
     }
     const arr = await fetchListFromAny([
-      
       `/api/courses/${encodeURIComponent(courseId)}/semesters`,
- 
     ]);
     state.semestersByCourse.set(key, arr || []);
     renderSemesters(arr || []);
@@ -1526,8 +1828,8 @@ document.addEventListener('DOMContentLoaded', function () {
       modalSub.textContent = 'Add/Update student academic details';
       return;
     }
-const isCreate = !uuidInput.value; // if no uuid yet, it's a create
-if (isCreate) {
+    const isCreate = !uuidInput.value; // if no uuid yet, it's a create
+    if (isCreate) {
       modalTitle.textContent = 'Add Student';
       modalSub.textContent = 'Step-up form: Basic Details → Academic Details';
     } else if (wizard.mode === 'edit') {
@@ -1552,9 +1854,7 @@ if (isCreate) {
 
     if (!nameInput.value.trim()) { nameInput.classList.add('is-invalid'); okk = false; }
     if (!emailInput.value.trim() || !emailInput.checkValidity()) { emailInput.classList.add('is-invalid'); okk = false; }
-    // if (!deptInput.value) { deptInput.classList.add('is-invalid'); okk = false; }
 
-    // IMPORTANT: re-read password fields every time (prevents "password required" bug in step modals)
     const pwdEl = document.getElementById('userPassword');
     const pwd2El = document.getElementById('userPasswordConfirmation');
     const password = (pwdEl?.value || '').trim();
@@ -1565,7 +1865,6 @@ if (isCreate) {
       if (password && password2 && password !== password2) { pwd2El?.classList.add('is-invalid'); okk = false; }
       if (password && !password2) { pwd2El?.classList.add('is-invalid'); okk = false; }
     } else {
-      // edit/view: password optional
       if (password && password2 && password !== password2) { pwd2El?.classList.add('is-invalid'); okk = false; }
     }
 
@@ -1605,7 +1904,6 @@ if (isCreate) {
     const js = await res.json().catch(() => ({}));
     if (!res.ok || js.success === false) return null;
 
-    // controller returns paginator in data
     const data = js.data || {};
     const rows = Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []);
     const uid = parseInt(userId || 0, 10);
@@ -1629,15 +1927,12 @@ if (isCreate) {
     acadAdmDate.value = rec?.admission_date ? String(rec.admission_date).slice(0,10) : '';
     acadBatch.value = rec?.batch || '';
     acadSession.value = rec?.session || '';
-    // metadata: could be object
     if (rec?.metadata && typeof rec.metadata === 'object') acadMeta.value = JSON.stringify(rec.metadata);
     else acadMeta.value = rec?.metadata ? String(rec.metadata) : '';
 
-    // semester/section: load dependent lists then set values
     const semId = rec?.semester_id ? String(rec.semester_id) : '';
     const secId = rec?.section_id ? String(rec.section_id) : '';
 
-    // set after lists load
     (async () => {
       try {
         showGlobalLoading(true);
@@ -1659,69 +1954,98 @@ if (isCreate) {
 
   function setWizardReadOnly(viewOnly) {
     setDisabledAll(form, !!viewOnly);
-    // in view mode, keep cancel/back/next available
   }
 
   // ==========================
   // Save basic (create/update) + optional password patch
   // ==========================
   async function saveBasicStep() {
-  // re-read password inputs ALWAYS
-  const pwdEl  = document.getElementById('userPassword');
-  const pwd2El = document.getElementById('userPasswordConfirmation');
-  const password  = (pwdEl?.value || '').trim();
-  const password2 = (pwd2El?.value || '').trim();
+    const pwdEl  = document.getElementById('userPassword');
+    const pwd2El = document.getElementById('userPasswordConfirmation');
+    const password  = (pwdEl?.value || '').trim();
+    const password2 = (pwd2El?.value || '').trim();
 
-  const payload = {
-    name:  nameInput.value.trim(),
-    email: emailInput.value.trim(),
-    role:  'student',
-    status: statusInput.value || 'active'
-  };
+    const payload = {
+      name:  nameInput.value.trim(),
+      email: emailInput.value.trim(),
+      role:  'student',
+      status: statusInput.value || 'active'
+    };
 
-  if (phoneInput.value.trim())     payload.phone_number = phoneInput.value.trim();
-  if (altEmailInput.value.trim())  payload.alternative_email = altEmailInput.value.trim();
-  if (altPhoneInput.value.trim())  payload.alternative_phone_number = altPhoneInput.value.trim();
-  if (waInput.value.trim())        payload.whatsapp_number = waInput.value.trim();
-  if (addrInput.value.trim())      payload.address = addrInput.value.trim();
-  if (imageInput.value.trim())     payload.image = imageInput.value.trim();
-const depVal = (deptInput.value || '').toString().trim();
-if (depVal) {
-  const depId = Number(depVal);
-  if (!Number.isInteger(depId) || depId <= 0) {
-    throw new Error('Invalid Department selected. Please refresh and select again.');
-  }
-  payload.department_id = depId;
-}
-// else: do not send department_id at all (optional)
+    if (phoneInput.value.trim())     payload.phone_number = phoneInput.value.trim();
+    if (altEmailInput.value.trim())  payload.alternative_email = altEmailInput.value.trim();
+    if (altPhoneInput.value.trim())  payload.alternative_phone_number = altPhoneInput.value.trim();
+    if (waInput.value.trim())        payload.whatsapp_number = waInput.value.trim();
+    if (addrInput.value.trim())      payload.address = addrInput.value.trim();
+    if (imageInput.value.trim())     payload.image = imageInput.value.trim();
 
+    const depVal = (deptInput.value || '').toString().trim();
+    if (depVal) {
+      const depId = Number(depVal);
+      if (!Number.isInteger(depId) || depId <= 0) {
+        throw new Error('Invalid Department selected. Please refresh and select again.');
+      }
+      payload.department_id = depId;
+    }
 
+    const isCreate = !uuidInput.value;
 
-  // ✅ Decide create vs update based on whether uuid already exists
-  const isCreate = !uuidInput.value;
+    if (isCreate) {
+      if (!password) throw new Error('Password is required for new student');
+      if (!password2) throw new Error('Confirm password is required for new student');
+      if (password !== password2) throw new Error('Passwords do not match');
+      payload.password = password;
+    }
 
-  // ✅ Create requires password
-  if (isCreate) {
-    if (!password) throw new Error('Password is required for new student');
-    if (!password2) throw new Error('Confirm password is required for new student');
-    if (password !== password2) throw new Error('Passwords do not match');
-    payload.password = password; // REQUIRED by backend for create
-  }
+    if (isCreate) {
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { ...authHeaders({ 'Content-Type': 'application/json' }) },
+        body: JSON.stringify(payload)
+      });
+      if (handleAuthStatus(res, 'You are not allowed to create students.')) return null;
 
-  // ==========================
-  // CREATE
-  // ==========================
-  if (isCreate) {
-    const res = await fetch('/api/users', {
-      method: 'POST',
+      const js = await res.json().catch(() => ({}));
+      if (!res.ok || js.success === false) {
+        let msg = js.error || js.message || 'Create failed';
+        if (js.errors) {
+          const k = Object.keys(js.errors)[0];
+          if (k && js.errors[k] && js.errors[k][0]) msg = js.errors[k][0];
+        }
+        throw new Error(msg);
+      }
+
+      const created = js.data || null;
+
+      if (created?.uuid) uuidInput.value = created.uuid;
+      if (created?.id) editingUserIdInput.value = String(created.id);
+
+      wizard.mode = 'edit';
+      wizard.user.id = created?.id || wizard.user.id;
+      wizard.user.uuid = created?.uuid || wizard.user.uuid;
+      wizard.user.email = created?.email || wizard.user.email;
+
+      if (created?.id) acadUserId.value = String(created.id);
+
+      if (pwdReq) pwdReq.style.display = 'none';
+      if (pwdHelp) pwdHelp.textContent = 'Leave blank to keep current password';
+
+      return created;
+    }
+
+    const uUuid = uuidInput.value;
+    if (!uUuid) throw new Error('User UUID missing. Please close and re-open the modal.');
+
+    const res = await fetch(`/api/users/${encodeURIComponent(uUuid)}`, {
+      method: 'PUT',
       headers: { ...authHeaders({ 'Content-Type': 'application/json' }) },
       body: JSON.stringify(payload)
     });
-    if (handleAuthStatus(res, 'You are not allowed to create students.')) return null;
+    if (handleAuthStatus(res, 'You are not allowed to update students.')) return null;
 
     const js = await res.json().catch(() => ({}));
     if (!res.ok || js.success === false) {
-      let msg = js.error || js.message || 'Create failed';
+      let msg = js.error || js.message || 'Update failed';
       if (js.errors) {
         const k = Object.keys(js.errors)[0];
         if (k && js.errors[k] && js.errors[k][0]) msg = js.errors[k][0];
@@ -1729,102 +2053,53 @@ if (depVal) {
       throw new Error(msg);
     }
 
-    const created = js.data || null;
+    if (password) {
+      if (!password2) throw new Error('Confirm password is required');
+      if (password !== password2) throw new Error('Passwords do not match');
 
-    // ✅ CRITICAL: persist identifiers so next "Continue" becomes UPDATE not CREATE
-    if (created?.uuid) uuidInput.value = created.uuid;
-    if (created?.id) editingUserIdInput.value = String(created.id);
+      const pwPayload = { password, password_confirmation: password2 };
 
-    // ✅ update wizard state
+      const isSelf =
+        ACTOR.id &&
+        (parseInt(ACTOR.id, 10) === parseInt(editingUserIdInput.value || '0', 10));
+
+      if (isSelf) {
+        if (!currentPwdInput.value.trim()) {
+          throw new Error('Current password is required to change your own password');
+        }
+        pwPayload.current_password = currentPwdInput.value.trim();
+      }
+
+      const res2 = await fetch(`/api/users/${encodeURIComponent(uUuid)}/password`, {
+        method: 'PATCH',
+        headers: { ...authHeaders({ 'Content-Type': 'application/json' }) },
+        body: JSON.stringify(pwPayload)
+      });
+      if (handleAuthStatus(res2, 'You are not allowed to change passwords.')) return null;
+
+      const js2 = await res2.json().catch(() => ({}));
+      if (!res2.ok || js2.success === false) {
+        let msg2 = js2.error || js2.message || 'Password update failed';
+        if (js2.errors) {
+          const k2 = Object.keys(js2.errors)[0];
+          if (k2 && js2.errors[k2] && js2.errors[k2][0]) msg2 = js2.errors[k2][0];
+        }
+        throw new Error(msg2);
+      }
+    }
+
+    const updated = js.data || null;
+    if (updated?.id) editingUserIdInput.value = String(updated.id);
+    if (updated?.uuid) uuidInput.value = updated.uuid;
+    if (updated?.id) acadUserId.value = String(updated.id);
+
     wizard.mode = 'edit';
-    wizard.user.id = created?.id || wizard.user.id;
-    wizard.user.uuid = created?.uuid || wizard.user.uuid;
-    wizard.user.email = created?.email || wizard.user.email;
+    wizard.user.id = updated?.id || wizard.user.id;
+    wizard.user.uuid = updated?.uuid || wizard.user.uuid;
+    wizard.user.email = updated?.email || wizard.user.email;
 
-    // ✅ prepare academic step linkage
-    if (created?.id) acadUserId.value = String(created.id);
-
-    // ✅ password no longer required after create
-    if (pwdReq) pwdReq.style.display = 'none';
-    if (pwdHelp) pwdHelp.textContent = 'Leave blank to keep current password';
-
-    return created;
+    return updated;
   }
-
-  // ==========================
-  // UPDATE
-  // ==========================
-  const uUuid = uuidInput.value;
-  if (!uUuid) throw new Error('User UUID missing. Please close and re-open the modal.');
-
-  const res = await fetch(`/api/users/${encodeURIComponent(uUuid)}`, {
-    method: 'PUT',
-    headers: { ...authHeaders({ 'Content-Type': 'application/json' }) },
-    body: JSON.stringify(payload)
-  });
-  if (handleAuthStatus(res, 'You are not allowed to update students.')) return null;
-
-  const js = await res.json().catch(() => ({}));
-  if (!res.ok || js.success === false) {
-    let msg = js.error || js.message || 'Update failed';
-    if (js.errors) {
-      const k = Object.keys(js.errors)[0];
-      if (k && js.errors[k] && js.errors[k][0]) msg = js.errors[k][0];
-    }
-    throw new Error(msg);
-  }
-
-  // ==========================
-  // OPTIONAL PASSWORD PATCH (only if user typed password)
-  // ==========================
-  if (password) {
-    if (!password2) throw new Error('Confirm password is required');
-    if (password !== password2) throw new Error('Passwords do not match');
-
-    const pwPayload = { password, password_confirmation: password2 };
-
-    const isSelf =
-      ACTOR.id &&
-      (parseInt(ACTOR.id, 10) === parseInt(editingUserIdInput.value || '0', 10));
-
-    if (isSelf) {
-      if (!currentPwdInput.value.trim()) {
-        throw new Error('Current password is required to change your own password');
-      }
-      pwPayload.current_password = currentPwdInput.value.trim();
-    }
-
-    const res2 = await fetch(`/api/users/${encodeURIComponent(uUuid)}/password`, {
-      method: 'PATCH',
-      headers: { ...authHeaders({ 'Content-Type': 'application/json' }) },
-      body: JSON.stringify(pwPayload)
-    });
-    if (handleAuthStatus(res2, 'You are not allowed to change passwords.')) return null;
-
-    const js2 = await res2.json().catch(() => ({}));
-    if (!res2.ok || js2.success === false) {
-      let msg2 = js2.error || js2.message || 'Password update failed';
-      if (js2.errors) {
-        const k2 = Object.keys(js2.errors)[0];
-        if (k2 && js2.errors[k2] && js2.errors[k2][0]) msg2 = js2.errors[k2][0];
-      }
-      throw new Error(msg2);
-    }
-  }
-
-  // ✅ keep wizard/user ids in sync after update too
-  const updated = js.data || null;
-  if (updated?.id) editingUserIdInput.value = String(updated.id);
-  if (updated?.uuid) uuidInput.value = updated.uuid;
-  if (updated?.id) acadUserId.value = String(updated.id);
-
-  wizard.mode = 'edit';
-  wizard.user.id = updated?.id || wizard.user.id;
-  wizard.user.uuid = updated?.uuid || wizard.user.uuid;
-  wizard.user.email = updated?.email || wizard.user.email;
-
-  return updated;
-}
 
   // ==========================
   // Save academic (create/update)
@@ -1852,7 +2127,6 @@ if (depVal) {
     if (!payload.department_id) throw new Error('Academic Department is required.');
     if (!payload.course_id) throw new Error('Course is required.');
 
-    // decide create or update
     const recId = acadRecordId.value ? parseInt(acadRecordId.value, 10) : 0;
     const isUpdate = !!recId;
 
@@ -1884,7 +2158,6 @@ if (depVal) {
     wizard.mode = 'create';
     wizard.academicOnly = false;
 
-    // password required
     pwdReq.style.display = 'inline';
     pwdHelp.textContent = 'Enter password for new student';
     currentPwdRow.style.display = 'none';
@@ -1892,10 +2165,8 @@ if (depVal) {
     setModalTitle();
     setWizardReadOnly(false);
 
-    // force role student
     roleInput.value = 'student';
 
-    // ensure departments + courses
     if (!state.departmentsLoaded) await loadDepartments(false);
     await loadCourses();
 
@@ -1910,11 +2181,9 @@ if (depVal) {
 
     setModalTitle();
 
-    // password optional on edit/view
-    pwdReq.style.display = viewOnly ? 'none' : 'none';
+    pwdReq.style.display = 'none';
     pwdHelp.textContent = viewOnly ? '—' : 'Leave blank to keep current password';
 
-    // ensure deps/courses
     if (!state.departmentsLoaded) await loadDepartments(false);
     await loadCourses();
 
@@ -1944,11 +2213,9 @@ if (depVal) {
       imageInput.value = u.image || '';
       if (u.image) { imgPrev.src = fixImageUrl(u.image) || u.image; imgPrev.style.display = 'block'; }
 
-      // self password row
       const isSelf = ACTOR.id && (parseInt(ACTOR.id, 10) === parseInt(u.id || 0, 10));
       currentPwdRow.style.display = (!viewOnly && isSelf) ? '' : 'none';
 
-      // Prefill academic label
       acadForStudentLabel.textContent = u.email ? `For: ${u.email}` : '—';
 
       setWizardReadOnly(viewOnly);
@@ -1962,7 +2229,7 @@ if (depVal) {
 
   async function openAcademicOnlyWizard(uuid, userId, email) {
     resetWizard();
-    wizard.mode = 'edit'; // academic save allowed (permissions depend on backend role middleware)
+    wizard.mode = 'edit';
     wizard.academicOnly = true;
     wizard.step = 2;
 
@@ -1973,37 +2240,30 @@ if (depVal) {
     uuidInput.value = uuid || '';
     editingUserIdInput.value = wizard.user.id || '';
 
-    // password area irrelevant
     pwdReq.style.display = 'none';
     pwdHelp.textContent = '—';
     currentPwdRow.style.display = 'none';
 
     setModalTitle();
 
-    // ensure deps/courses
     if (!state.departmentsLoaded) await loadDepartments(false);
     await loadCourses();
 
     showGlobalLoading(true);
     try {
-      // fetch user to fill dept (and basic label)
       const u = await fetchUser(uuid);
       if (u) {
         wizard.user.id = u.id || wizard.user.id;
         wizard.user.email = u.email || wizard.user.email;
 
-        // show label
         acadForStudentLabel.textContent = wizard.user.email ? `For: ${wizard.user.email}` : `User #${wizard.user.id}`;
 
-        // set department in academic from user department
         deptInput.value = (u.department_id !== undefined && u.department_id !== null) ? String(u.department_id) : '';
         fillAcademicFromUserDept();
 
-        // also set acadUserId
         acadUserId.value = wizard.user.id ? String(wizard.user.id) : '';
       }
 
-      // find existing academic record
       const rec = await findAcademicRecordByEmail(wizard.user.id, wizard.user.email);
       if (rec) {
         wizard.academic.mode = 'update';
@@ -2014,17 +2274,14 @@ if (depVal) {
         wizard.academic.mode = 'create';
         wizard.academic.id = null;
         acadModeBadge.innerHTML = `<i class="fa fa-plus me-1"></i>Add Academic Details`;
-        // start blank but keep dept/user_id
         acadRecordId.value = '';
         acadUserId.value = wizard.user.id ? String(wizard.user.id) : '';
         fillAcademicFromUserDept();
       }
 
-      // show step 2 directly
       userModal.show();
       setStepActive(2);
 
-      // lock step indicator click in academicOnly
       setWizardReadOnly(false);
       setDisabledAll(wizPane1, true);
     } finally {
@@ -2032,7 +2289,6 @@ if (depVal) {
     }
   }
 
-  // Step indicator clicks (only when not academicOnly)
   wizStep1?.addEventListener('click', () => {
     if (wizard.academicOnly) return;
     if (wizard.step === 1) return;
@@ -2044,7 +2300,6 @@ if (depVal) {
     if (wizard.step === 2) return;
 
     if (wizard.mode === 'create' || wizard.mode === 'edit') {
-      // do not allow jumping without saving basic
       const okk = validateStep1();
       if (!okk) return;
       try {
@@ -2054,7 +2309,6 @@ if (depVal) {
         const u = await saveBasicStep();
         if (!u) return;
 
-        // store saved user
         wizard.user.id = u.id || wizard.user.id;
         wizard.user.uuid = u.uuid || uuidInput.value;
         wizard.user.email = u.email || emailInput.value.trim();
@@ -2062,12 +2316,10 @@ if (depVal) {
         uuidInput.value = wizard.user.uuid || '';
         editingUserIdInput.value = wizard.user.id || '';
 
-        // fill academic user id & dept
         acadUserId.value = wizard.user.id ? String(wizard.user.id) : '';
         fillAcademicFromUserDept();
         acadForStudentLabel.textContent = wizard.user.email ? `For: ${wizard.user.email}` : '—';
 
-        // check existing academic record (optional) to auto-switch to update
         const rec = await findAcademicRecordByEmail(wizard.user.id, wizard.user.email);
         if (rec) {
           wizard.academic.mode = 'update';
@@ -2089,12 +2341,10 @@ if (depVal) {
         showGlobalLoading(false);
       }
     } else {
-      // view mode: allow step2 view
       setStepActive(2);
     }
   });
 
-  // Wizard buttons
   btnWizardBack?.addEventListener('click', () => setStepActive(1));
 
   btnWizardNext?.addEventListener('click', async () => {
@@ -2123,12 +2373,10 @@ if (depVal) {
       uuidInput.value = wizard.user.uuid || '';
       editingUserIdInput.value = wizard.user.id || '';
 
-      // Fill academic default values
       acadUserId.value = wizard.user.id ? String(wizard.user.id) : '';
       fillAcademicFromUserDept();
       acadForStudentLabel.textContent = wizard.user.email ? `For: ${wizard.user.email}` : '—';
 
-      // auto-detect existing academic record
       const rec = await findAcademicRecordByEmail(wizard.user.id, wizard.user.email);
       if (rec) {
         wizard.academic.mode = 'update';
@@ -2181,7 +2429,6 @@ if (depVal) {
     }
   });
 
-  // Add student
   btnAddStudent?.addEventListener('click', async () => {
     if (!canCreate) return;
     try {
@@ -2282,12 +2529,10 @@ if (depVal) {
       return;
     }
 
-    // close dropdown
     const toggle = btn.closest('.dropdown')?.querySelector('.dd-toggle');
     if (toggle) { try { bootstrap.Dropdown.getOrCreateInstance(toggle).hide(); } catch (_) {} }
   });
 
-  // academic dept auto-sync when basic dept changes (useful after back)
   deptInput?.addEventListener('change', () => {
     if (wizard.step === 2) fillAcademicFromUserDept();
   });

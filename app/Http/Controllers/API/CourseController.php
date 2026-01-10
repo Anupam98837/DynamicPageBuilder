@@ -165,17 +165,26 @@ class CourseController extends Controller
 private function applyVisibleWindow($q): void
 {
     $now = now();
-
-    // ✅ must be active for public
-    $q->where('c.status', 'active');
-
+ 
+    // ✅ public should never show trashed
+    $q->whereNull('c.deleted_at');
+ 
+    // ✅ must be published for public
+    $q->where('c.status', 'published');
+ 
     // ✅ visible start: publish_at is NULL OR publish_at <= now
     $q->where(function ($w) use ($now) {
         $w->whereNull('c.publish_at')
           ->orWhere('c.publish_at', '<=', $now);
     });
-
-    // ✅ optional visible end: publish_end_at is NULL OR publish_end_at >= now
+ 
+    // ✅ visible end: expire_at is NULL OR expire_at > now  (matches publicShow)
+    $q->where(function ($w) use ($now) {
+        $w->whereNull('c.expire_at')
+          ->orWhere('c.expire_at', '>', $now);
+    });
+ 
+    // Optional support if you ever add publish_end_at later
     if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'publish_end_at')) {
         $q->where(function ($w) use ($now) {
             $w->whereNull('c.publish_end_at')
@@ -183,6 +192,7 @@ private function applyVisibleWindow($q): void
         });
     }
 }
+ 
 
 
     protected function baseQuery(Request $request, bool $includeDeleted = false)
@@ -799,31 +809,30 @@ private function applyVisibleWindow($q): void
     /* ============================================
      | Public (no auth)
      |============================================ */
-
-    public function publicIndex(Request $request)
-    {
-        $perPage = max(1, min(200, (int) $request->query('per_page', 10)));
-
-        $q = $this->baseQuery($request, true);
-        $this->applyVisibleWindow($q);
-
-        // public default sort
-        $q->orderByRaw('COALESCE(c.publish_at, c.created_at) desc');
-
-        $paginator = $q->paginate($perPage);
-        $items = array_map(fn($r) => $this->normalizeRow($r), $paginator->items());
-
-        return response()->json([
-            'success' => true,
-            'data'    => $items,
-            'pagination' => [
-                'page'      => $paginator->currentPage(),
-                'per_page'  => $paginator->perPage(),
-                'total'     => $paginator->total(),
-                'last_page' => $paginator->lastPage(),
-            ],
-        ]);
-    }
+ 
+public function publicIndex(Request $request)
+{
+    $perPage = max(1, min(200, (int) $request->query('per_page', 10)));
+ 
+    $q = $this->baseQuery($request, false); // ✅ don't include deleted in public
+    $this->applyVisibleWindow($q);
+ 
+    $q->orderByRaw('COALESCE(c.publish_at, c.created_at) desc');
+ 
+    $paginator = $q->paginate($perPage);
+    $items = array_map(fn($r) => $this->normalizeRow($r), $paginator->items());
+ 
+    return response()->json([
+        'success' => true,
+        'data'    => $items,
+        'pagination' => [
+            'page'      => $paginator->currentPage(),
+            'per_page'  => $paginator->perPage(),
+            'total'     => $paginator->total(),
+            'last_page' => $paginator->lastPage(),
+        ],
+    ]);
+}
 
     public function publicIndexByDepartment(Request $request, $department)
     {

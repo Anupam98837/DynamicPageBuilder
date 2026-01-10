@@ -876,18 +876,36 @@ td.col-slug code{
     // Permissions
     const ACTOR = { role: '' };
     let canCreate=false, canEdit=false, canDelete=false;
+// Add publishing permissions
+let canPublish = false;
 
-    function computePermissions(){
-      const r = (ACTOR.role || '').toLowerCase();
-      const createDeleteRoles = ['admin','super_admin','director','principal'];
-      const writeRoles = ['admin','super_admin','director','principal','hod','faculty','technical_assistant','it_person'];
+function computePermissions(){
+  const r = (ACTOR.role || '').toLowerCase();
+  const createDeleteRoles = ['admin','super_admin','director','principal'];
+  const writeRoles = ['admin','super_admin','director','principal','hod','faculty','technical_assistant','it_person'];
 
-      canCreate = createDeleteRoles.includes(r);
-      canDelete = createDeleteRoles.includes(r);
-      canEdit   = writeRoles.includes(r);
+  canCreate = createDeleteRoles.includes(r);
+  canDelete = createDeleteRoles.includes(r);
+  canEdit   = writeRoles.includes(r);
+  canPublish = createDeleteRoles.includes(r);  // Only these roles can publish
 
-      if (writeControls) writeControls.style.display = canCreate ? 'flex' : 'none';
+  if (writeControls) writeControls.style.display = canCreate ? 'flex' : 'none';
+  
+  // Update publish option visibility in status dropdown
+  updatePublishOption();
+}
+
+function updatePublishOption(){
+  if (!fStatus) return;
+  const publishOption = fStatus.querySelector('option[value="published"]');
+  if (publishOption){
+    publishOption.style.display = canPublish ? '' : 'none';
+    // If current value is published but user can't publish, change to draft
+    if (!canPublish && fStatus.value === 'published'){
+      fStatus.value = 'draft';
     }
+  }
+}
 
     async function fetchMe(){
       try{
@@ -972,56 +990,46 @@ td.col-slug code{
       return out;
     }
 
-    async function loadDepartments(){
-      if (departmentsLoaded) return;
-      if (!fDepartmentId) { departmentsLoaded = true; return; }
+    async function loadDepartments(selected=''){
+  if (!fDepartmentId) return;
 
-      // keep UI stable
-      fDepartmentId.innerHTML = `<option value="">Loading departments…</option>`;
-      fDepartmentId.disabled = true;
+  fDepartmentId.innerHTML = `<option value="">Loading departments…</option>`;
+  fDepartmentId.disabled = true;
 
-      const urls = [
-        '/api/departments?per_page=500&page=1',
-        '/api/departments',
-      ];
-
-      for (const url of urls){
-        try{
-          const res = await fetchWithTimeout(url, { headers: authHeaders() }, 12000);
-          if (res.status === 401 || res.status === 403) { window.location.href = '/'; return; }
-          if (!res.ok) continue;
-
-          const js = await res.json().catch(()=> ({}));
-          const list = extractDepartmentsFromResponse(js);
-          if (list.length){
-            departments = list;
-            departmentsLoaded = true;
-            setDeptSelectOptions(departments);
-            fDepartmentId.disabled = false;
-            return;
-          }
-        }catch(_){
-          // try next url
-        }
+  try{
+    const res = await fetchWithTimeout('/api/departments', {
+      headers: {
+        ...authHeaders(),
+        'X-UI-Mode': 'dropdown',
+        'X-Dropdown': '1'
       }
+    }, 15000);
 
-      // failed
-      departmentsLoaded = true;
-      departments = [];
-      setDeptSelectOptions([]);
-      fDepartmentId.disabled = false; // keep selectable (shows fallback option)
+    const js = await res.json().catch(()=> ({}));
+    if (!res.ok) throw new Error(js?.message || 'Failed to load departments');
+
+    const list = Array.isArray(js.data) ? js.data : [];
+
+    let html = `<option value="">Select department</option>`;
+    html += list.map(d => {
+      const id = (d.id ?? '').toString();
+      const label = (d.title || d.name || d.slug || d.uuid || ('Dept #' + id)).toString();
+      return `<option value="${esc(id)}">${esc(label)}</option>`;
+    }).join('');
+
+    fDepartmentId.innerHTML = html;
+    fDepartmentId.disabled = false;
+
+    if (selected){
+      const opt = fDepartmentId.querySelector(`option[value="${CSS.escape(String(selected))}"]`);
+      if (opt) fDepartmentId.value = String(selected);
     }
-
-    function setDepartmentValue(id){
-      if (!fDepartmentId) return;
-      const v = (id === 0 || id === '0' || id) ? String(id) : '';
-      if (departmentsLoaded){
-        fDepartmentId.value = v;
-      } else {
-        pendingDeptId = v;
-      }
-    }
-
+  }catch(ex){
+    fDepartmentId.innerHTML = `<option value="">Select department</option>`;
+    fDepartmentId.disabled = false;
+    err(ex?.name === 'AbortError' ? 'Department load timed out' : (ex.message || 'Failed to load departments'));
+  }
+}
     // State
     const state = {
       filters: { q:'', status:'', featured:'', sort:'-created_at' },
@@ -1111,46 +1119,50 @@ td.col-slug code{
 
     // ✅ Same pattern as reference (Contact Info):
     // action toggle has NO data-bs-toggle; we manually open with Popper strategy:fixed
-    function rowActions(tabKey, status){
-      let menu = `
-        <div class="dropdown text-end">
-          <button type="button"
-            class="btn btn-light btn-sm sa-dd-toggle"
-            aria-expanded="false" title="Actions">
-            <i class="fa fa-ellipsis-vertical"></i>
-          </button>
-          <ul class="dropdown-menu dropdown-menu-end">
-            <li><button type="button" class="dropdown-item" data-action="view"><i class="fa fa-eye"></i> View</button></li>`;
+    function rowActions(tabKey, status, featured){
+  let menu = `
+    <div class="dropdown text-end">
+      <button type="button"
+        class="btn btn-light btn-sm sa-dd-toggle"
+        aria-expanded="false" title="Actions">
+        <i class="fa fa-ellipsis-vertical"></i>
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li><button type="button" class="dropdown-item" data-action="view"><i class="fa fa-eye"></i> View</button></li>`;
 
-      if (tabKey !== 'trash' && canEdit){
-        menu += `<li><button type="button" class="dropdown-item" data-action="edit"><i class="fa fa-pen-to-square"></i> Edit</button></li>`;
-        menu += `<li><button type="button" class="dropdown-item" data-action="toggleFeatured"><i class="fa fa-star"></i> Toggle Featured</button></li>`;
+  if (tabKey !== 'trash' && canEdit){
+    menu += `<li><button type="button" class="dropdown-item" data-action="edit"><i class="fa fa-pen-to-square"></i> Edit</button></li>`;
+    
+    // Toggle Featured option
+    const featuredLabel = featured ? 'Unfeature' : 'Feature';
+    const featuredIcon = featured ? 'fa-star-half-stroke' : 'fa-star';
+    menu += `<li><button type="button" class="dropdown-item" data-action="toggleFeatured"><i class="fa ${featuredIcon}"></i> ${featuredLabel}</button></li>`;
 
-        const s = (status || '').toLowerCase();
-        if (s !== 'published'){
-          menu += `<li><button type="button" class="dropdown-item" data-action="markPublished"><i class="fa fa-circle-check"></i> Mark Published</button></li>`;
-        } else {
-          menu += `<li><button type="button" class="dropdown-item" data-action="markDraft"><i class="fa fa-circle-pause"></i> Mark Draft</button></li>`;
-        }
-      }
-
-      if (tabKey !== 'trash'){
-        if (canDelete){
-          menu += `<li><hr class="dropdown-divider"></li>
-            <li><button type="button" class="dropdown-item text-danger" data-action="delete"><i class="fa fa-trash"></i> Delete</button></li>`;
-        }
-      } else {
-        menu += `<li><hr class="dropdown-divider"></li>
-          <li><button type="button" class="dropdown-item" data-action="restore"><i class="fa fa-rotate-left"></i> Restore</button></li>`;
-        if (canDelete){
-          menu += `<li><button type="button" class="dropdown-item text-danger" data-action="force"><i class="fa fa-skull-crossbones"></i> Delete Permanently</button></li>`;
-        }
-      }
-
-      menu += `</ul></div>`;
-      return menu;
+    // Add "Make Published" option ONLY for publishers when status is not published
+    const statusLower = (status || '').toString().toLowerCase();
+    if (canPublish && statusLower !== 'published'){
+      menu += `<li><button type="button" class="dropdown-item" data-action="make-publish"><i class="fa fa-circle-check"></i> Make Published</button></li>`;
+    } else if (statusLower === 'published' && canPublish) {
+      menu += `<li><button type="button" class="dropdown-item" data-action="mark-draft"><i class="fa fa-circle-pause"></i> Mark as Draft</button></li>`;
     }
+  }
 
+  if (tabKey !== 'trash'){
+    if (canDelete){
+      menu += `<li><hr class="dropdown-divider"></li>
+        <li><button type="button" class="dropdown-item text-danger" data-action="delete"><i class="fa fa-trash"></i> Delete</button></li>`;
+    }
+  } else {
+    menu += `<li><hr class="dropdown-divider"></li>
+      <li><button type="button" class="dropdown-item" data-action="restore"><i class="fa fa-rotate-left"></i> Restore</button></li>`;
+    if (canDelete){
+      menu += `<li><button type="button" class="dropdown-item text-danger" data-action="force"><i class="fa fa-skull-crossbones"></i> Delete Permanently</button></li>`;
+    }
+  }
+
+  menu += `</ul></div>`;
+  return menu;
+}
     function renderTable(tabKey){
       const tbody = tabKey==='active' ? tbodyActive : (tabKey==='inactive' ? tbodyInactive : tbodyTrash);
       const rows = state.tabs[tabKey].items || [];
@@ -1176,8 +1188,7 @@ td.col-slug code{
         const views = (r.views_count ?? 0);
         const deleted = r.deleted_at || '—';
 
-        const menu = rowActions(tabKey, status);
-
+const menu = rowActions(tabKey, status, featured);
         if (tabKey === 'trash'){
           return `
             <tr data-uuid="${esc(uuid)}">
@@ -1561,47 +1572,42 @@ td.col-slug code{
     }
 
     function resetForm(){
-      itemForm?.reset();
-      fUuid.value = '';
-      fId.value = '';
-      if (fCoverRemove) fCoverRemove.value = '0';
+  itemForm?.reset();
+  fUuid.value = '';
+  fId.value = '';
+  if (fCoverRemove) fCoverRemove.value = '0';
 
-      // ✅ reset department (added)
-      if (fDepartmentId){
-        if (!departmentsLoaded){
-          pendingDeptId = '';
-          fDepartmentId.innerHTML = `<option value="">Loading departments…</option>`;
-        } else {
-          setDeptSelectOptions(departments);
-        }
-        fDepartmentId.value = '';
-      }
+  // Reset department dropdown
+  if (fDepartmentId){
+    fDepartmentId.innerHTML = `<option value="">Loading departments…</option>`;
+    fDepartmentId.value = '';
+  }
 
-      slugDirty = false;
-      settingSlug = false;
+  slugDirty = false;
+  settingSlug = false;
 
-      if (rte.editor) rte.editor.innerHTML = '';
-      if (rte.code) rte.code.value = '';
-      if (rte.hidden) rte.hidden.value = '';
-      setRteMode('text');
-      setRteEnabled(true);
+  if (rte.editor) rte.editor.innerHTML = '';
+  if (rte.code) rte.code.value = '';
+  if (rte.hidden) rte.hidden.value = '';
+  setRteMode('text');
+  setRteEnabled(true);
 
-      if (currentAttachmentsInfo) currentAttachmentsInfo.style.display = 'none';
-      if (currentAttachmentsText) currentAttachmentsText.textContent = '—';
+  if (currentAttachmentsInfo) currentAttachmentsInfo.style.display = 'none';
+  if (currentAttachmentsText) currentAttachmentsText.textContent = '—';
 
-      clearCoverPreview(true);
+  clearCoverPreview(true);
 
-      itemForm?.querySelectorAll('input,select,textarea').forEach(el => {
-        if (el.id === 'saUuid' || el.id === 'saId' || el.id === 'saCoverRemove') return;
-        if (el.type === 'file') el.disabled = false;
-        else if (el.tagName === 'SELECT') el.disabled = false;
-        else el.readOnly = false;
-      });
+  itemForm?.querySelectorAll('input,select,textarea').forEach(el => {
+    if (el.id === 'saUuid' || el.id === 'saId' || el.id === 'saCoverRemove') return;
+    if (el.type === 'file') el.disabled = false;
+    else if (el.tagName === 'SELECT') el.disabled = false;
+    else el.readOnly = false;
+  });
 
-      if (saveBtn) saveBtn.style.display = '';
-      itemForm.dataset.mode = 'edit';
-      itemForm.dataset.intent = 'create';
-    }
+  if (saveBtn) saveBtn.style.display = '';
+  itemForm.dataset.mode = 'edit';
+  itemForm.dataset.intent = 'create';
+}
 
     function normalizeAttachments(r){
       let a = r?.attachments || r?.attachments_json || null;
@@ -1610,68 +1616,74 @@ td.col-slug code{
     }
 
     function fillFormFromRow(r, viewOnly=false){
-      fUuid.value = r.uuid || '';
-      fId.value = r.id || '';
-      if (fCoverRemove) fCoverRemove.value = '0';
+  fUuid.value = r.uuid || '';
+  fId.value = r.id || '';
+  if (fCoverRemove) fCoverRemove.value = '0';
 
-      fTitle.value = r.title || '';
-      fSlug.value = r.slug || '';
+  fTitle.value = r.title || '';
+  fSlug.value = r.slug || '';
 
-      // ✅ set department (added)
-      const deptId = r.department_id || r?.department?.id || r?.departmentId || '';
-      setDepartmentValue(deptId);
+  // Set department value (will be applied when dropdown loads)
+  const deptId = r.department_id || r?.department?.id || r?.departmentId || '';
+  
+  fStatus.value = (r.status || 'draft');
+  fFeatured.value = String((r.is_featured_home ?? 0) ? 1 : 0);
 
-      fStatus.value = (r.status || 'draft');
-      fFeatured.value = String((r.is_featured_home ?? 0) ? 1 : 0);
+  fPublishAt.value = toLocal(r.publish_at);
+  fExpireAt.value = toLocal(r.expire_at);
 
-      fPublishAt.value = toLocal(r.publish_at);
-      fExpireAt.value = toLocal(r.expire_at);
+  const bodyHtml = (r.body ?? '') || '';
+  if (rte.editor) rte.editor.innerHTML = ensurePreHasCode(bodyHtml);
+  syncEditorToCode();
+  setRteMode('text');
 
-      const bodyHtml = (r.body ?? '') || '';
-      if (rte.editor) rte.editor.innerHTML = ensurePreHasCode(bodyHtml);
-      syncEditorToCode();
-      setRteMode('text');
+  const coverUrl = r.cover_image_url || r.cover_image || '';
+  if (coverUrl){
+    clearCoverPreview(true);
+    setCoverPreview(coverUrl, '');
+    if (btnRemoveCover) btnRemoveCover.style.display = viewOnly ? 'none' : '';
+  } else {
+    clearCoverPreview(true);
+  }
 
-      const coverUrl = r.cover_image_url || r.cover_image || '';
-      if (coverUrl){
-        clearCoverPreview(true);
-        setCoverPreview(coverUrl, '');
-        if (btnRemoveCover) btnRemoveCover.style.display = viewOnly ? 'none' : '';
-      } else {
-        clearCoverPreview(true);
-      }
+  const atts = normalizeAttachments(r);
+  if (atts.length){
+    if (currentAttachmentsInfo) currentAttachmentsInfo.style.display = '';
+    if (currentAttachmentsText) currentAttachmentsText.textContent = `${atts.length} file(s) attached`;
+  } else {
+    if (currentAttachmentsInfo) currentAttachmentsInfo.style.display = 'none';
+    if (currentAttachmentsText) currentAttachmentsText.textContent = '—';
+  }
 
-      const atts = normalizeAttachments(r);
-      if (atts.length){
-        if (currentAttachmentsInfo) currentAttachmentsInfo.style.display = '';
-        if (currentAttachmentsText) currentAttachmentsText.textContent = `${atts.length} file(s) attached`;
-      } else {
-        if (currentAttachmentsInfo) currentAttachmentsInfo.style.display = 'none';
-        if (currentAttachmentsText) currentAttachmentsText.textContent = '—';
-      }
+  slugDirty = true;
 
-      slugDirty = true;
+  // Load departments and set the selected one
+  loadDepartments(deptId);
 
-      if (viewOnly){
-        itemForm?.querySelectorAll('input,select,textarea').forEach(el => {
-          if (el.id === 'saUuid' || el.id === 'saId' || el.id === 'saCoverRemove') return;
-          if (el.type === 'file') el.disabled = true;
-          else if (el.tagName === 'SELECT') el.disabled = true;
-          else el.readOnly = true;
-        });
-        setRteEnabled(false);
-        if (saveBtn) saveBtn.style.display = 'none';
-        if (btnRemoveCover) btnRemoveCover.style.display = 'none';
-        itemForm.dataset.mode = 'view';
-        itemForm.dataset.intent = 'view';
-      } else {
-        setRteEnabled(true);
-        if (saveBtn) saveBtn.style.display = '';
-        itemForm.dataset.mode = 'edit';
-        itemForm.dataset.intent = 'edit';
-      }
-    }
+  // Update publish option visibility
+  if (!viewOnly) {
+    setTimeout(() => updatePublishOption(), 50);
+  }
 
+  if (viewOnly){
+    itemForm?.querySelectorAll('input,select,textarea').forEach(el => {
+      if (el.id === 'saUuid' || el.id === 'saId' || el.id === 'saCoverRemove') return;
+      if (el.type === 'file') el.disabled = true;
+      else if (el.tagName === 'SELECT') el.disabled = true;
+      else el.readOnly = true;
+    });
+    setRteEnabled(false);
+    if (saveBtn) saveBtn.style.display = 'none';
+    if (btnRemoveCover) btnRemoveCover.style.display = 'none';
+    itemForm.dataset.mode = 'view';
+    itemForm.dataset.intent = 'view';
+  } else {
+    setRteEnabled(true);
+    if (saveBtn) saveBtn.style.display = '';
+    itemForm.dataset.mode = 'edit';
+    itemForm.dataset.intent = 'edit';
+  }
+}
     fTitle?.addEventListener('input', debounce(() => {
       if (itemForm?.dataset.mode === 'view') return;
       if (fUuid.value) return;
@@ -1784,7 +1796,81 @@ td.col-slug code{
 
       if (act === 'markPublished'){ if (!canEdit) return; await updateStatus(uuid, 'published'); return; }
       if (act === 'markDraft'){ if (!canEdit) return; await updateStatus(uuid, 'draft'); return; }
+if (act === 'make-publish'){
+  if (!canPublish) return;
+  
+  const conf = await Swal.fire({
+    title: 'Publish this student activity?',
+    text: 'This will make the student activity visible to the public.',
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Publish',
+    confirmButtonColor: '#10b981'
+  });
+  if (!conf.isConfirmed) return;
 
+  showLoading(true);
+  try{
+    const fd = new FormData();
+    fd.append('status', 'published');
+    fd.append('_method', 'PUT');
+
+    const res = await fetchWithTimeout(`/api/student-activities/${encodeURIComponent(uuid)}`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: fd
+    }, 15000);
+
+    const js = await res.json().catch(()=> ({}));
+    if (!res.ok || js.success === false) throw new Error(js?.message || 'Publish failed');
+
+    ok('Student activity published successfully');
+    await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
+  }catch(ex){
+    err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
+  }finally{
+    showLoading(false);
+  }
+  return;
+}
+
+if (act === 'mark-draft'){
+  if (!canPublish) return;
+  
+  const conf = await Swal.fire({
+    title: 'Mark as Draft?',
+    text: 'This will hide the student activity from the public.',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'Mark as Draft',
+    confirmButtonColor: '#f59e0b'
+  });
+  if (!conf.isConfirmed) return;
+
+  showLoading(true);
+  try{
+    const fd = new FormData();
+    fd.append('status', 'draft');
+    fd.append('_method', 'PUT');
+
+    const res = await fetchWithTimeout(`/api/student-activities/${encodeURIComponent(uuid)}`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: fd
+    }, 15000);
+
+    const js = await res.json().catch(()=> ({}));
+    if (!res.ok || js.success === false) throw new Error(js?.message || 'Update failed');
+
+    ok('Marked as draft');
+    await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
+  }catch(ex){
+    err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
+  }finally{
+    showLoading(false);
+  }
+  return;
+}
       if (act === 'delete'){
         if (!canDelete) return;
         const conf = await Swal.fire({

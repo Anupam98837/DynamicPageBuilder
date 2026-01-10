@@ -194,14 +194,23 @@ td .fw-semibold{color:var(--ink)}
             <i class="fa fa-rotate-left me-1"></i>Reset
           </button>
 
-          {{-- ✅ EXPORT (client-side, respects exclusion + current filters) --}}
+          
+
+        <div class="col-12 col-lg-auto ms-lg-auto d-flex justify-content-lg-end">
+          <div class="col mb-6 g-3">
+  {{-- ✅ EXPORT (client-side, respects exclusion + current filters) --}}
           <button id="btnExportOtherRoles" class="btn btn-outline-success">
             <i class="fa fa-file-csv me-1"></i>Export CSV
           </button>
         </div>
+  <button id="btnImportOtherRoles" class="btn btn-outline-primary" style="display:none;">
+  <i class="fa fa-file-import me-1"></i>Import CSV
+</button>
 
-        <div class="col-12 col-lg-auto ms-lg-auto d-flex justify-content-lg-end">
+<input id="importOtherRolesFile" type="file" accept=".csv" class="d-none">
+</div>
           <div id="writeControls" style="display:none;">
+            
             <button type="button" class="btn btn-primary" id="btnAddUser">
               <i class="fa fa-plus me-1"></i> Add User
             </button>
@@ -459,7 +468,6 @@ td .fw-semibold{color:var(--ink)}
   </div>
 </div>
 @endsection
-
 @push('scripts')
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
@@ -472,7 +480,7 @@ document.addEventListener('click', (e) => {
   if (!btn) return;
   try {
     const inst = bootstrap.Dropdown.getOrCreateInstance(btn, {
-      autoClose: btn.getAttribute('data-bs-auto-close') || undefined,
+      autoClose: btn.getAttribute('data-bs-auto-close') || 'outside',
       boundary: btn.getAttribute('data-bs-boundary') || 'viewport'
     });
     inst.toggle();
@@ -519,21 +527,13 @@ document.addEventListener('DOMContentLoaded', function () {
   // ✅ Excluded roles for this manage page
   const EXCLUDED = new Set([
     'student',
-
-    // admins
     'admin',
     'super_admin','superadmin','super-admin',
     'director',
     'principal',
-
-    // faculty group
     'faculty',
     'hod',
-
-    // technical assistant variants
     'technical_assistant','technical_assisstant','technical assistant',
-
-    // placement officer variants
     'tpo','placement_officer','placement-officer','placement officer',
   ]);
 
@@ -590,6 +590,11 @@ document.addEventListener('DOMContentLoaded', function () {
   const btnAdd = document.getElementById('btnAddUser');
   const btnExportOtherRoles = document.getElementById('btnExportOtherRoles');
 
+  // ✅ Import (NO MODAL)
+  const btnImportOtherRoles = document.getElementById('btnImportOtherRoles');
+  const importOtherRolesFile = document.getElementById('importOtherRolesFile');
+  const IMPORT_API = '/api/users/import-csv'; // change if your backend differs
+
   // Modal + form
   const userModalEl = document.getElementById('userModal');
   const userModal = new bootstrap.Modal(userModalEl);
@@ -623,16 +628,15 @@ document.addEventListener('DOMContentLoaded', function () {
   let canCreate = false, canEdit = false, canDelete = false;
 
   const state = {
-    items: [],             // filtered (allowed roles only)
-    allRoles: [],          // unique allowed roles from current dataset
+    items: [],
+    allRoles: [],
     q: '',
-    roleFilter: '',        // '' => All other roles
+    roleFilter: '',
     sort: '-created_at',
     perPage: 10,
     page: { active: 1, inactive: 1 },
     total: { active: 0, inactive: 0 },
     totalPages: { active: 1, inactive: 1 },
-
     departments: [],
     departmentsLoaded: false,
   };
@@ -647,6 +651,7 @@ document.addEventListener('DOMContentLoaded', function () {
     canEdit = writeRoles.includes(r);
 
     if (writeControls) writeControls.style.display = canCreate ? 'flex' : 'none';
+    if (btnImportOtherRoles) btnImportOtherRoles.style.display = canCreate ? '' : 'none';
   }
 
   async function fetchMe() {
@@ -667,7 +672,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
-  // Cleanup modal backdrops
+  // Cleanup backdrops
   function cleanupModalBackdrops() {
     if (!document.querySelector('.modal.show')) {
       document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
@@ -725,23 +730,20 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
-  // ✅ Dynamic role options (allowed roles only)
+  // Roles from dataset
   function computeRoleOptionsFromItems(items) {
     const set = new Set();
     (items || []).forEach(u => {
       const rr = (u?.role || '').toString().trim().toLowerCase();
       if (isAllowedRole(rr)) set.add(rr);
     });
-    // Ensure it_person is present as requested
-    set.add('it_person');
-
+    set.add('it_person'); // ensure
     const arr = Array.from(set).filter(Boolean);
     arr.sort((a,b) => titleizeRole(a).localeCompare(titleizeRole(b)));
     return arr;
   }
 
   function renderRoleSelects() {
-    // Filter modal roles
     if (modalRole) {
       const current = (state.roleFilter || '').toString();
       let html = `<option value="">All (Other Roles)</option>`;
@@ -752,7 +754,6 @@ document.addEventListener('DOMContentLoaded', function () {
       modalRole.value = current;
     }
 
-    // Form role select
     if (roleInput) {
       const current = (roleInput.value || 'it_person').toString();
       let html = '';
@@ -764,14 +765,13 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
+  // Load users
   async function loadUsers(showOverlay = true) {
     try {
       if (showOverlay) showGlobalLoading(true);
 
       const params = new URLSearchParams();
       if (state.q) params.set('q', state.q);
-
-      // ✅ If user selected a specific role, we can use server-side roles param
       if (state.roleFilter) params.set('roles', state.roleFilter);
 
       const url = '/api/users' + (params.toString() ? ('?' + params.toString()) : '');
@@ -783,18 +783,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
       const all = Array.isArray(js.data) ? js.data : [];
 
-      // ✅ Exclude the roles you listed (and variants)
       let filtered = all.filter(u => isAllowedRole((u?.role || '').toString()));
-
-      // ✅ Apply role filter locally too (safety)
       if (state.roleFilter) {
         const rf = state.roleFilter.toLowerCase();
         filtered = filtered.filter(u => ((u?.role || '').toString().trim().toLowerCase() === rf));
       }
 
       state.items = filtered;
-
-      // ✅ Build role options from currently available allowed roles (plus it_person)
       state.allRoles = computeRoleOptionsFromItems(filtered);
       renderRoleSelects();
 
@@ -812,12 +807,13 @@ document.addEventListener('DOMContentLoaded', function () {
   function sortUsers(arr) {
     const sortKey = state.sort.startsWith('-') ? state.sort.slice(1) : state.sort;
     const dir = state.sort.startsWith('-') ? -1 : 1;
+
     return arr.slice().sort((a, b) => {
       let av = a[sortKey], bv = b[sortKey];
       if (sortKey === 'name' || sortKey === 'email' || sortKey === 'role') {
         av = (av || '').toString().toLowerCase();
         bv = (bv || '').toString().toLowerCase();
-      } else if (sortKey === 'created_at') {
+      } else {
         av = (av || '').toString();
         bv = (bv || '').toString();
       }
@@ -832,7 +828,6 @@ document.addEventListener('DOMContentLoaded', function () {
     state.items.forEach(u => {
       const rr = (u?.role || '').toString().trim().toLowerCase();
       if (!isAllowedRole(rr)) return;
-
       const st = (u.status || 'active').toLowerCase();
       if (st === 'inactive') lists.inactive.push(u);
       else lists.active.push(u);
@@ -841,11 +836,12 @@ document.addEventListener('DOMContentLoaded', function () {
     const activeSorted = sortUsers(lists.active);
     const inactiveSorted = sortUsers(lists.inactive);
 
-    ['active', 'inactive'].forEach(tab => {
+    ['active','inactive'].forEach(tab => {
       const full = tab === 'active' ? activeSorted : inactiveSorted;
       const total = full.length;
       const per = state.perPage || 10;
       const pages = Math.max(1, Math.ceil(total / per));
+
       state.total[tab] = total;
       state.totalPages[tab] = pages;
       if (state.page[tab] > pages) state.page[tab] = pages;
@@ -902,16 +898,12 @@ document.addEventListener('DOMContentLoaded', function () {
             <i class="fa fa-ellipsis-vertical"></i>
           </button>
           <ul class="dropdown-menu dropdown-menu-end">
-            <li>
-              <button type="button" class="dropdown-item" data-action="profile">
-                <i class="fa fa-user"></i> Profile
-              </button>
-            </li>
-            <li>
-              <button type="button" class="dropdown-item" data-action="assign_privilege">
-                <i class="fa fa-key"></i> Assign Privilege
-              </button>
-            </li>
+            <li><button type="button" class="dropdown-item" data-action="profile">
+              <i class="fa fa-user"></i> Profile
+            </button></li>
+            <li><button type="button" class="dropdown-item" data-action="assign_privilege">
+              <i class="fa fa-key"></i> Assign Privilege
+            </button></li>
             <li><button type="button" class="dropdown-item" data-action="view">
               <i class="fa fa-eye"></i> View
             </button></li>`;
@@ -922,8 +914,7 @@ document.addEventListener('DOMContentLoaded', function () {
         </button></li>`;
       }
       if (canDelete) {
-        actionHtml += `
-          <li><hr class="dropdown-divider"></li>
+        actionHtml += `<li><hr class="dropdown-divider"></li>
           <li><button type="button" class="dropdown-item text-danger" data-action="delete">
             <i class="fa fa-trash"></i> Delete
           </button></li>`;
@@ -985,15 +976,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Search
   const onSearch = debounce(() => {
-    state.q = searchInput.value.trim();
+    state.q = (searchInput?.value || '').trim();
     state.page.active = 1;
     state.page.inactive = 1;
     loadUsers();
   }, 320);
-  searchInput.addEventListener('input', onSearch);
+  searchInput?.addEventListener('input', onSearch);
 
   // Per page
-  perPageSel.addEventListener('change', () => {
+  perPageSel?.addEventListener('change', () => {
     state.perPage = parseInt(perPageSel.value, 10) || 10;
     state.page.active = 1;
     state.page.inactive = 1;
@@ -1001,15 +992,15 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   // Filter modal show
-  filterModalEl.addEventListener('show.bs.modal', () => {
-    modalRole.value = state.roleFilter || '';
-    modalSort.value = state.sort || '-created_at';
+  filterModalEl?.addEventListener('show.bs.modal', () => {
+    if (modalRole) modalRole.value = state.roleFilter || '';
+    if (modalSort) modalSort.value = state.sort || '-created_at';
   });
 
   // Apply filters
-  btnApplyFilters.addEventListener('click', () => {
-    state.roleFilter = (modalRole.value || '').trim();
-    state.sort = modalSort.value || '-created_at';
+  btnApplyFilters?.addEventListener('click', () => {
+    state.roleFilter = (modalRole?.value || '').trim();
+    state.sort = modalSort?.value || '-created_at';
     state.page.active = 1;
     state.page.inactive = 1;
     filterModal.hide();
@@ -1017,7 +1008,7 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   // Reset
-  btnReset.addEventListener('click', () => {
+  btnReset?.addEventListener('click', () => {
     state.q = '';
     state.roleFilter = '';
     state.sort = '-created_at';
@@ -1025,15 +1016,15 @@ document.addEventListener('DOMContentLoaded', function () {
     state.page.active = 1;
     state.page.inactive = 1;
 
-    searchInput.value = '';
-    perPageSel.value = '10';
-    modalRole.value = '';
-    modalSort.value = '-created_at';
+    if (searchInput) searchInput.value = '';
+    if (perPageSel) perPageSel.value = '10';
+    if (modalRole) modalRole.value = '';
+    if (modalSort) modalSort.value = '-created_at';
 
     loadUsers();
   });
 
-  // ✅ Export CSV (client-side, exports ALL matching other roles (active+inactive) per current search+role filter)
+  // Export CSV (client-side)
   btnExportOtherRoles?.addEventListener('click', async () => {
     try {
       showGlobalLoading(true);
@@ -1063,8 +1054,7 @@ document.addEventListener('DOMContentLoaded', function () {
         ].join(','));
       });
 
-      // BOM for Excel
-      const csv = '\uFEFF' + lines.join('\n');
+      const csv = '\uFEFF' + lines.join('\n'); // BOM for Excel
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
 
       const filename = 'other_roles_export_' + new Date().toISOString().slice(0,19).replace(/[:T]/g,'-') + '.csv';
@@ -1085,6 +1075,191 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 
+  // ==========================
+  // ✅ IMPORT (NO MODAL)
+  // ==========================
+  async function runImportCsv(file, mode) {
+    if (!file) throw new Error('Please choose a CSV file.');
+
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('mode', mode || 'create');     // create | upsert
+    fd.append('scope', 'other_roles');       // safe extra param (ignored if backend doesn’t use it)
+
+    const res = await fetch(IMPORT_API, {
+      method: 'POST',
+      headers: authHeaders(),               // DO NOT set Content-Type for FormData
+      body: fd
+    });
+
+    if (handleAuthStatus(res, 'You are not allowed to import users.')) return null;
+
+    const ct = (res.headers.get('content-type') || '').toLowerCase();
+    let js = null;
+
+    if (ct.includes('application/json')) {
+      js = await res.json().catch(() => null);
+    } else {
+      const txt = await res.text().catch(() => '');
+      if (!res.ok) throw new Error(txt || 'Import failed');
+      return { success: true, message: txt || 'Imported' };
+    }
+
+    if (!res.ok || js?.success === false) {
+      let msg = js?.error || js?.message || 'Import failed';
+      if (js?.errors) {
+        const k = Object.keys(js.errors)[0];
+        if (k && js.errors[k] && js.errors[k][0]) msg = js.errors[k][0];
+      }
+      throw new Error(msg);
+    }
+
+    return js;
+  }
+// ✅ Import CSV (Other Roles) - With Swal dialog before file picker
+btnImportOtherRoles?.addEventListener('click', async () => {
+  if (!canCreate) return;
+
+  const { isConfirmed } = await Swal.fire({
+    title: 'Import Other Roles (CSV)',
+    html: `
+      <div class="text-start" style="font-size:13px;line-height:1.4">
+        <div class="mb-2">
+          Upload a <b>.csv</b> file to create/update users with other roles.
+        </div>
+        <div class="mb-2 text-muted">
+          Tip: role values must be from allowed "other" roles (excludes: student, admin, director, principal, faculty, HOD, TA, TPO).
+        </div>
+        <div class="form-check mt-2">
+          <input class="form-check-input" type="checkbox" id="swUpdateExisting" checked>
+          <label class="form-check-label" for="swUpdateExisting">Update existing users (match by email/uuid if supported)</label>
+        </div>
+      </div>
+    `,
+    icon: 'info',
+    showCancelButton: true,
+    confirmButtonText: 'Choose CSV',
+    cancelButtonText: 'Cancel'
+  });
+
+  if (!isConfirmed) return;
+
+  // stash updateExisting preference for this selection
+  const updateExisting = document.getElementById('swUpdateExisting')?.checked ? '1' : '0';
+  importOtherRolesFile.dataset.update_existing = updateExisting;
+
+  importOtherRolesFile.value = '';
+  importOtherRolesFile.click();
+});
+  importOtherRolesFile?.addEventListener('change', async () => {
+  const file = importOtherRolesFile.files?.[0];
+  if (!file) return;
+
+  const isCsv = (file.type || '').includes('csv') || (file.name || '').toLowerCase().endsWith('.csv');
+  if (!isCsv) {
+    err('Please select a CSV file.');
+    importOtherRolesFile.value = '';
+    return;
+  }
+
+  const updateExisting = importOtherRolesFile.dataset.update_existing || '1';
+
+  // Show confirmation dialog with file details
+  const prettySize = (bytes) => {
+    const n = Number(bytes || 0);
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(n / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  };
+
+  const confirm = await Swal.fire({
+    title: 'Upload CSV?',
+    html: `
+      <div class="text-start small">
+        <div><b>File:</b> ${escapeHtml(file.name)}</div>
+        <div><b>Size:</b> ${escapeHtml(prettySize(file.size))}</div>
+        <div><b>Update existing:</b> ${updateExisting === '1' ? 'Yes' : 'No'}</div>
+        <div class="mt-2 text-muted">
+          This will import users with other roles based on the CSV rows.
+        </div>
+      </div>
+    `,
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Yes, Upload',
+    cancelButtonText: 'Cancel'
+  });
+
+  if (!confirm.isConfirmed) {
+    importOtherRolesFile.value = '';
+    return;
+  }
+
+  try {
+    showGlobalLoading(true);
+
+    const fd = new FormData();
+    fd.append('file', file);
+
+    // Build allowed roles list (all "other" roles currently available)
+    const allowedRoles = state.allRoles && state.allRoles.length > 0 
+      ? state.allRoles.join(',') 
+      : 'it_person';
+
+    // optional hints (backend can ignore safely)
+    fd.append('scope', 'other_roles');
+    fd.append('allowed_roles', allowedRoles);
+    fd.append('update_existing', updateExisting);
+
+    const res = await fetch('/api/users/import-csv', {
+      method: 'POST',
+      headers: authHeaders(), // ✅ no manual content-type for FormData
+      body: fd
+    });
+
+    if (handleAuthStatus(res, 'You are not allowed to import users.')) return;
+
+    const ct = (res.headers.get('content-type') || '').toLowerCase();
+    let js = null, txt = '';
+    if (ct.includes('application/json')) js = await res.json().catch(() => null);
+    else txt = await res.text().catch(() => '');
+
+    if (!res.ok || (js && js.success === false)) {
+      let msg = (js?.error || js?.message || txt || 'Import failed').toString();
+
+      // show first validation error nicely (422)
+      if (js?.errors && typeof js.errors === 'object') {
+        const k = Object.keys(js.errors)[0];
+        if (k && Array.isArray(js.errors[k]) && js.errors[k][0]) msg = js.errors[k][0];
+      }
+
+      throw new Error(msg);
+    }
+
+    let msg = js?.message || js?.msg || 'Import completed';
+    if (js?.data) {
+      const ins = js.data.inserted ?? js.data.created ?? null;
+      const upd = js.data.updated ?? null;
+      const skp = js.data.skipped ?? null;
+      const errc = js.data.errors_count ?? js.data.failed ?? null;
+      const parts = [];
+      if (ins !== null) parts.push(`Inserted: ${ins}`);
+      if (upd !== null) parts.push(`Updated: ${upd}`);
+      if (skp !== null) parts.push(`Skipped: ${skp}`);
+      if (errc !== null) parts.push(`Errors: ${errc}`);
+      if (parts.length) msg = `${msg} (${parts.join(', ')})`;
+    }
+
+    ok(msg);
+    await loadUsers(false);
+  } catch (ex) {
+    err(ex.message);
+  } finally {
+    showGlobalLoading(false);
+    importOtherRolesFile.value = '';
+  }
+});
   // Toggle active/inactive
   document.addEventListener('change', async (e) => {
     const sw = e.target.closest('.js-toggle');
@@ -1213,16 +1388,16 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!canCreate) return;
     resetForm();
     modalTitle.textContent = 'Add User';
-    pwdReq.style.display = 'inline';
-    pwdHelp.textContent = 'Enter password for new user';
-    currentPwdRow.style.display = 'none';
+    if (pwdReq) pwdReq.style.display = 'inline';
+    if (pwdHelp) pwdHelp.textContent = 'Enter password for new user';
+    if (currentPwdRow) currentPwdRow.style.display = 'none';
     form.dataset.mode = 'edit';
     userModal.show();
   });
 
   // Image preview
-  imageInput.addEventListener('input', () => {
-    const url = imageInput.value.trim();
+  imageInput?.addEventListener('input', () => {
+    const url = (imageInput.value || '').trim();
     if (!url) { imgPrev.style.display = 'none'; imgPrev.src = ''; return; }
     imgPrev.src = fixImageUrl(url) || url;
     imgPrev.style.display = 'block';
@@ -1242,10 +1417,10 @@ document.addEventListener('DOMContentLoaded', function () {
     statusInput.value = 'active';
     if (deptInput) deptInput.value = '';
     if (roleInput) roleInput.value = 'it_person';
-    pwdReq.style.display = 'inline';
-    pwdHelp.textContent = 'Enter password for new user';
-    currentPwdRow.style.display = 'none';
-    currentPwdInput.value = '';
+    if (pwdReq) pwdReq.style.display = 'inline';
+    if (pwdHelp) pwdHelp.textContent = 'Enter password for new user';
+    if (currentPwdRow) currentPwdRow.style.display = 'none';
+    if (currentPwdInput) currentPwdInput.value = '';
     form.dataset.mode = 'edit';
   }
 
@@ -1264,11 +1439,8 @@ document.addEventListener('DOMContentLoaded', function () {
       resetForm();
 
       const rr = (u.role || '').toString().trim().toLowerCase();
-      if (!isAllowedRole(rr)) {
-        throw new Error('This user role is not managed from this page.');
-      }
+      if (!isAllowedRole(rr)) throw new Error('This user role is not managed from this page.');
 
-      // Ensure role option exists
       if (!state.allRoles.includes(rr)) {
         state.allRoles = computeRoleOptionsFromItems([ ...state.items, u ]);
         renderRoleSelects();
@@ -1329,7 +1501,6 @@ document.addEventListener('DOMContentLoaded', function () {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (form.dataset.mode === 'view') return;
-    if (!canEdit && !uuidInput.value) return;
 
     const isEdit = !!uuidInput.value;
 
@@ -1346,18 +1517,18 @@ document.addEventListener('DOMContentLoaded', function () {
       if (pwdInput.value.trim() && pwdInput.value.trim() !== pwd2Input.value.trim()) { err('Passwords do not match'); pwd2Input.focus(); return; }
     }
 
-    const payload = {};
-    payload.name = nameInput.value.trim();
-    payload.email = emailInput.value.trim();
+    const payload = {
+      name: nameInput.value.trim(),
+      email: emailInput.value.trim(),
+      role: roleVal,
+      status: statusInput.value || 'active',
+    };
+
     if (phoneInput.value.trim()) payload.phone_number = phoneInput.value.trim();
     if (altEmailInput.value.trim()) payload.alternative_email = altEmailInput.value.trim();
     if (altPhoneInput.value.trim()) payload.alternative_phone_number = altPhoneInput.value.trim();
     if (waInput.value.trim()) payload.whatsapp_number = waInput.value.trim();
     if (addrInput.value.trim()) payload.address = addrInput.value.trim();
-
-    payload.role = roleVal;
-
-    if (statusInput.value) payload.status = statusInput.value;
     if (imageInput.value.trim()) payload.image = imageInput.value.trim();
 
     if (deptInput) {
@@ -1427,9 +1598,6 @@ document.addEventListener('DOMContentLoaded', function () {
       showGlobalLoading(false);
     }
   });
-
-  document.querySelector('a[href="#tab-active"]')?.addEventListener('shown.bs.tab', () => recomputeAndRender());
-  document.querySelector('a[href="#tab-inactive"]')?.addEventListener('shown.bs.tab', () => recomputeAndRender());
 
   // Init
   (async () => {

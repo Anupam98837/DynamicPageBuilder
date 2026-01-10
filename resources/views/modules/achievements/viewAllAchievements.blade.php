@@ -14,134 +14,257 @@
   <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}">
 
   <style>
-    :root{
-      --ac-accent: var(--primary-color, #9E363A);
-      --ac-border: rgba(0,0,0,.08);
-      --ac-shadow: 0 10px 24px rgba(0,0,0,.08);
-      --ac-radius: 10px;
+    /* =========================================================
+      ✅ Achievements (Scoped / No :root / No global body rules)
+      - UI structure matches reference (announcements index)
+      - Dept dropdown UI improved (pill, icon, caret)
+      - Dept filtering (frontend filter by department_id / department_uuid)
+      - Deep-link ?d-{uuid} auto-selects dept and filters
+    ========================================================= */
 
-      --ac-card-w: 381.5px;
-      --ac-card-h: 426.4px;
-      --ac-media-h: 240px;
+    .achx-wrap{
+      /* scoped tokens */
+      --achx-brand: var(--primary-color, #9E363A);
+      --achx-ink: #0f172a;
+      --achx-muted: #64748b;
+      --achx-bg: var(--page-bg, #ffffff);
+      --achx-card: var(--surface, #ffffff);
+      --achx-line: var(--line-soft, rgba(15,23,42,.10));
+      --achx-shadow: 0 10px 24px rgba(2,6,23,.08);
+
+      /* card sizing (match reference) */
+      --achx-card-h: 426.4px;
+      --achx-media-h: 240px;
+
+      max-width: 1320px;
+      margin: 18px auto 54px;
+      padding: 0 12px;
+      background: transparent;
+      position: relative;
+      overflow: visible;
     }
-    body{background:#f6f7fb}
 
-    .ac-wrap{max-width:1140px;margin:24px auto 56px;padding:0 12px;}
-    .ac-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;}
-    .ac-title{font-weight:800;letter-spacing:.2px;margin:0;}
+    /* Header */
+    .achx-head{
+      background: var(--achx-card);
+      border: 1px solid var(--achx-line);
+      border-radius: 16px;
+      box-shadow: var(--achx-shadow);
+      padding: 14px 16px;
+      margin-bottom: 16px;
 
-    .ac-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
-    .ac-toolbar .form-control{
-      height:42px;border-radius:10px;border:1px solid var(--ac-border);
-      box-shadow:none;min-width:280px;
+      display:flex;
+      gap: 12px;
+      align-items: flex-end;
+      justify-content: space-between;
+      flex-wrap: wrap;
     }
-    @media (max-width:576px){
-      .ac-toolbar .form-control{min-width:100%}
-      .ac-head{flex-direction:column;align-items:stretch}
+    .achx-title{
+      margin: 0;
+      font-weight: 950;
+      letter-spacing: .2px;
+      color: var(--achx-ink);
+      font-size: 28px;
+      display:flex;
+      align-items:center;
+      gap: 10px;
+    }
+    .achx-title i{ color: var(--achx-brand); }
+    .achx-sub{
+      margin: 6px 0 0;
+      color: var(--achx-muted);
+      font-size: 14px;
+    }
+
+    .achx-tools{
+      display:flex;
+      gap: 10px;
+      align-items:center;
+      flex-wrap: wrap;
+    }
+
+    /* Search */
+    .achx-search{
+      position: relative;
+      min-width: 260px;
+      max-width: 520px;
+      flex: 1 1 320px;
+    }
+    .achx-search i{
+      position:absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      opacity: .65;
+      color: var(--achx-muted);
+      pointer-events:none;
+    }
+    .achx-search input{
+      width:100%;
+      height: 42px;
+      border-radius: 999px;
+      padding: 11px 12px 11px 42px;
+      border: 1px solid var(--achx-line);
+      background: var(--achx-card);
+      color: var(--achx-ink);
+      outline: none;
+    }
+    .achx-search input:focus{
+      border-color: rgba(201,75,80,.55);
+      box-shadow: 0 0 0 4px rgba(201,75,80,.18);
+    }
+
+    /* ✅ Dept dropdown (nicer UI) */
+    .achx-select{
+      position: relative;
+      min-width: 260px;
+      max-width: 360px;
+      flex: 0 1 320px;
+    }
+    .achx-select__icon{
+      position:absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      opacity: .70;
+      color: var(--achx-muted);
+      pointer-events:none;
+      font-size: 14px;
+    }
+    .achx-select__caret{
+      position:absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      opacity: .70;
+      color: var(--achx-muted);
+      pointer-events:none;
+      font-size: 12px;
+    }
+    .achx-select select{
+      width: 100%;
+      height: 42px;
+      border-radius: 999px;
+      padding: 10px 38px 10px 42px; /* left icon + right caret */
+      border: 1px solid var(--achx-line);
+      background: var(--achx-card);
+      color: var(--achx-ink);
+      outline: none;
+
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+    }
+    .achx-select select:focus{
+      border-color: rgba(201,75,80,.55);
+      box-shadow: 0 0 0 4px rgba(201,75,80,.18);
+    }
+
+    /* Chip */
+    .achx-chip{
+      display:flex;
+      align-items:center;
+      gap: 8px;
+      height: 42px;
+      padding: 0 12px;
+      border-radius: 999px;
+      border: 1px solid var(--achx-line);
+      background: var(--achx-card);
+      box-shadow: 0 8px 18px rgba(2,6,23,.06);
+      color: var(--achx-ink);
+      font-size: 13px;
+      font-weight: 900;
+      white-space: nowrap;
     }
 
     /* Grid */
-   /* Grid (3 / 2 / 1) */
-.ac-grid{
-  display:grid;
-  grid-template-columns:repeat(3, minmax(0, 1fr));
-  gap:25px;
-  align-items:stretch;
-}
-
-/* Tablet -> 2 cards */
-@media (max-width: 992px){
-  .ac-grid{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
-}
-
-/* Mobile -> 1 card */
-@media (max-width: 576px){
-  .ac-grid{ grid-template-columns:1fr; }
-}
+    .achx-grid{
+      display:grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 18px;
+      align-items: stretch;
+    }
 
     /* Card */
-    .ac-card{
-      width: 100%;
-      height:var(--ac-card-h);
+    .achx-card{
+      width:100%;
+      height: var(--achx-card-h);
       position:relative;
       display:flex;
       flex-direction:column;
-      border:1px solid var(--ac-border);
-      border-radius:var(--ac-radius);
-      background:#fff;
-      box-shadow:var(--ac-shadow);
+      border: 1px solid rgba(2,6,23,.08);
+      border-radius: 16px;
+      background: #fff;
+      box-shadow: var(--achx-shadow);
       overflow:hidden;
-      transition:transform .18s ease, box-shadow .18s ease;
+      transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+      will-change: transform;
     }
-    .ac-card:hover{transform:translateY(-2px);box-shadow:0 14px 30px rgba(0,0,0,.10);}
+    .achx-card:hover{
+      transform: translateY(-2px);
+      box-shadow: 0 16px 34px rgba(2,6,23,.12);
+      border-color: rgba(158,54,58,.22);
+    }
 
-    /* ✅ robust media fallback (prevents broken image icon + big title in media) */
-    .ac-media{
+    .achx-media{
       width:100%;
-      height:var(--ac-media-h);
-      flex:0 0 auto;
-      background:var(--ac-accent);
+      height: var(--achx-media-h);
+      flex: 0 0 auto;
+      background: var(--achx-brand);
       position:relative;
       overflow:hidden;
       user-select:none;
     }
-    .ac-media .ac-fallback{
+    .achx-media .achx-fallback{
       position:absolute;
       inset:0;
       display:flex;
       align-items:center;
       justify-content:center;
       color:#fff;
-      font-weight:800;
-      font-size:28px;
-      letter-spacing:.3px;
-      z-index:0;
+      font-weight:950;
+      font-size: 26px;
+      letter-spacing:.2px;
+      z-index: 0;
     }
-    .ac-media img{
+    .achx-media img{
       position:absolute;
       inset:0;
       width:100%;
       height:100%;
       object-fit:cover;
       display:block;
-      z-index:1;
-    }
-    @media (max-width:576px){
-      .ac-media .ac-fallback{font-size:24px;}
+      z-index: 1;
     }
 
-    .ac-body{
-      padding:18px 18px 16px;
+    .achx-body{
+      padding: 16px 16px 14px;
       display:flex;
       flex-direction:column;
-      flex:1 1 auto;
-      min-height:0;
+      flex: 1 1 auto;
+      min-height: 0;
     }
+    .achx-h{
+      font-size: 20px;
+      line-height: 1.25;
+      font-weight: 950;
+      margin: 0 0 10px 0;
+      color: var(--achx-ink);
 
-    .ac-h{
-      font-size:22px;
-      line-height:1.25;
-      font-weight:800;
-      margin:0 0 10px 0;
-      color:#0f172a;
-
-      /* ✅ clamp big titles */
       display:-webkit-box;
       -webkit-line-clamp:2;
       -webkit-box-orient:vertical;
+      overflow:hidden;
 
       overflow-wrap:anywhere;
       word-break:break-word;
-      min-height:0;
     }
-
-    .ac-p{
+    .achx-p{
       margin:0;
       color:#475569;
-      font-size:15px;
-      line-height:1.7;
+      font-size: 14.5px;
+      line-height: 1.7;
 
-      /* ✅ if description is big only fitting portion show rest */
       display:-webkit-box;
       -webkit-line-clamp:3;
       -webkit-box-orient:vertical;
@@ -152,322 +275,616 @@
       hyphens:auto;
     }
 
-    .ac-date{
+    .achx-date{
       margin-top:auto;
       color:#94a3b8;
-      font-size:13px;
-      padding-top:12px;
+      font-size: 13px;
+      padding-top: 12px;
       display:flex;
       align-items:center;
-      gap:6px;
+      gap: 6px;
     }
 
-    .ac-link{position:absolute;inset:0;z-index:2;border-radius:var(--ac-radius);}
+    .achx-link{
+      position:absolute;
+      inset:0;
+      z-index:2;
+      border-radius: 16px;
+    }
 
-    /* Skeletons */
-    .ac-skel{
-      width: 100%;
-      height:var(--ac-card-h);
-      border:1px solid var(--ac-border);
-      border-radius:var(--ac-radius);
-      background:#fff;
-      box-shadow:var(--ac-shadow);
+    /* State / empty */
+    .achx-state{
+      background: var(--achx-card);
+      border: 1px solid var(--achx-line);
+      border-radius: 16px;
+      box-shadow: var(--achx-shadow);
+      padding: 18px;
+      color: var(--achx-muted);
+      text-align:center;
+    }
+
+    /* Skeleton */
+    .achx-skeleton{
+      display:grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 18px;
+    }
+    .achx-sk{
+      border-radius: 16px;
+      border: 1px solid var(--achx-line);
+      background: #fff;
       overflow:hidden;
+      position:relative;
+      box-shadow: 0 10px 24px rgba(2,6,23,.08);
+      height: var(--achx-card-h);
+    }
+    .achx-sk:before{
+      content:'';
+      position:absolute; inset:0;
+      transform: translateX(-60%);
+      background: linear-gradient(90deg, transparent, rgba(148,163,184,.22), transparent);
+      animation: achxSkMove 1.15s ease-in-out infinite;
+    }
+    @keyframes achxSkMove{ to{ transform: translateX(60%);} }
+
+    /* Pagination */
+    .achx-pagination{
       display:flex;
-      flex-direction:column;
+      justify-content:center;
+      margin-top: 18px;
     }
-    .ac-skel .m{
-      height:var(--ac-media-h);
-      background:linear-gradient(90deg,#eee,#f6f6f6,#eee);
-      background-size:200% 100%;
-      animation:sk 1.1s infinite;
+    .achx-pagination .achx-pager{
+      display:flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items:center;
+      justify-content:center;
+      padding: 10px;
     }
-    .ac-skel .b{padding:18px;flex:1}
-    .ac-skel .l{
-      height:16px;margin:10px 0;border-radius:8px;
-      background:linear-gradient(90deg,#eee,#f6f6f6,#eee);
-      background-size:200% 100%;
-      animation:sk 1.1s infinite;
+    .achx-pagebtn{
+      border:1px solid var(--achx-line);
+      background: var(--achx-card);
+      color: var(--achx-ink);
+      border-radius: 12px;
+      padding: 9px 12px;
+      font-size: 13px;
+      font-weight: 950;
+      box-shadow: 0 8px 18px rgba(2,6,23,.06);
+      cursor:pointer;
+      user-select:none;
     }
-    .ac-skel .l.w70{width:70%}
-    .ac-skel .l.w95{width:95%}
-    .ac-skel .l.w85{width:85%}
-    @keyframes sk{0%{background-position:0 0}100%{background-position:200% 0}}
+    .achx-pagebtn:hover{ background: rgba(2,6,23,.03); }
+    .achx-pagebtn[disabled]{ opacity:.55; cursor:not-allowed; }
+    .achx-pagebtn.active{
+      background: rgba(201,75,80,.12);
+      border-color: rgba(201,75,80,.35);
+      color: var(--achx-brand);
+    }
 
-    .ac-footer{display:flex;justify-content:center;margin-top:22px;}
-    .btn-ac{
-      border-radius:12px;padding:10px 16px;border:1px solid var(--ac-border);
-      background:#fff;font-weight:700;
+    @media (max-width: 640px){
+      .achx-title{ font-size: 24px; }
+      .achx-search{ min-width: 220px; flex: 1 1 240px; }
+      .achx-select{ min-width: 220px; flex: 1 1 240px; }
+      .achx-wrap{ --achx-media-h: 210px; }
+      .achx-media .achx-fallback{ font-size: 22px; }
     }
-    .btn-ac:hover{border-color:rgba(0,0,0,.14);background:#fff;}
 
-    .ac-empty{text-align:center;color:#64748b;padding:40px 10px;}
-
-    .ac-title i{color:var(--ac-accent)}
+    /* ✅ Guard against Bootstrap overriding mega menu dropdown positioning */
+    .dynamic-navbar .navbar-nav .dropdown-menu{
+      position: absolute !important;
+      inset: auto !important;
+    }
+    .dynamic-navbar .dropdown-menu.is-portaled{
+      position: fixed !important;
+    }
   </style>
 </head>
 <body>
 
-  <div class="ac-wrap">
-    <div class="ac-head">
+  <div
+    class="achx-wrap"
+    data-api="{{ url('/api/public/achievements') }}"
+    data-view-base="{{ url('/achievements/view') }}"
+    data-dept-api="{{ url('/api/public/departments') }}"
+  >
+    <div class="achx-head">
       <div>
-        <h2 class="ac-title"><i class="fa-solid fa-bullhorn"></i> Achievements</h2>
-        <div class="text-muted" style="font-size:13px;">Awards, recognitions, and proud moments.</div>
+        <h1 class="achx-title"><i class="fa-solid fa-trophy"></i>Achievements</h1>
+        <div class="achx-sub" id="achxSub">Awards, recognitions, and proud moments.</div>
       </div>
 
-      <div class="ac-toolbar">
-        <input id="acSearch" class="form-control" type="search" placeholder="Search achievements (title/body)..." />
-      </div>
-    </div>
-
-    <div class="ac-grid" id="acGrid">
-      {{-- skeletons --}}
-      @for($i=0; $i<4; $i++)
-        <div class="ac-skel">
-          <div class="m"></div>
-          <div class="b">
-            <div class="l w70"></div>
-            <div class="l w95"></div>
-            <div class="l w85"></div>
-            <div class="l w70" style="margin-top:16px;"></div>
-          </div>
+      <div class="achx-tools">
+        <div class="achx-search">
+          <i class="fa fa-magnifying-glass"></i>
+          <input id="achxSearch" type="search" placeholder="Search achievements (title/body)…">
         </div>
-      @endfor
+
+        <div class="achx-select" title="Filter by department">
+          <i class="fa-solid fa-building-columns achx-select__icon"></i>
+          <select id="achxDept" aria-label="Filter by department">
+            <option value="">All Departments</option>
+          </select>
+          <i class="fa-solid fa-chevron-down achx-select__caret"></i>
+        </div>
+
+        <div class="achx-chip" title="Total results">
+          <i class="fa-regular fa-rectangle-list" style="opacity:.85"></i>
+          <span id="achxCount">—</span>
+        </div>
+      </div>
     </div>
 
-    <div class="ac-footer">
-      <button id="acLoadMore" class="btn btn-ac d-none">
-        <i class="fa-solid fa-rotate me-2"></i>Load more
-      </button>
-    </div>
+    <div id="achxGrid" class="achx-grid" style="display:none;"></div>
 
-    <div id="acEmpty" class="ac-empty d-none">
-      <div style="font-size:34px; line-height:1;">🏆</div>
-      <div class="mt-2" style="font-weight:800; font-size:18px;">No achievements found</div>
-      <div class="mt-1">Try a different search term.</div>
+    <div id="achxSkeleton" class="achx-skeleton"></div>
+    <div id="achxState" class="achx-state" style="display:none;"></div>
+
+    <div class="achx-pagination">
+      <div id="achxPager" class="achx-pager" style="display:none;"></div>
     </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
   <script>
-    (function(){
-      // ✅ must match your API route that calls AchievementController@publicIndex
-      const API_INDEX = @json(url('/api/public/achievements'));
+  (() => {
+    if (window.__PUBLIC_ACHIEVEMENTS_ALL__) return;
+    window.__PUBLIC_ACHIEVEMENTS_ALL__ = true;
 
-      // ✅ web route: /achievements/view/{uuid}
-      const VIEW_BASE = @json(url('/achievements/view'));
+    const root = document.querySelector('.achx-wrap');
+    if (!root) return;
 
-      const grid     = document.getElementById('acGrid');
-      const btnMore  = document.getElementById('acLoadMore');
-      const emptyBox = document.getElementById('acEmpty');
-      const qInput   = document.getElementById('acSearch');
+    const API = root.getAttribute('data-api') || '/api/public/achievements';
+    const VIEW_BASE = root.getAttribute('data-view-base') || '/achievements/view';
+    const DEPT_API = root.getAttribute('data-dept-api') || '/api/public/departments';
 
-      let page = 1;
-      let lastPage = 1;
-      let loading = false;
-      let q = '';
+    const $ = (id) => document.getElementById(id);
 
-      // ✅ safe HTML output
-      const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({
+    const els = {
+      grid: $('achxGrid'),
+      skel: $('achxSkeleton'),
+      state: $('achxState'),
+      pager: $('achxPager'),
+      search: $('achxSearch'),
+      dept: $('achxDept'),
+      count: $('achxCount'),
+      sub: $('achxSub'),
+    };
+
+    const state = {
+      page: 1,
+      perPage: 9,
+      lastPage: 1,
+      total: 0,
+      q: '',
+      deptUuid: '',
+      deptId: null,
+      deptName: '',
+    };
+
+    let activeController = null;
+
+    // cache
+    let allAchievements = null;
+    let deptByUuid = new Map(); // uuid -> {id, title, uuid}
+
+    function esc(str){
+      return (str ?? '').toString().replace(/[&<>"']/g, s => ({
         '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-      }[m]));
+      }[s]));
+    }
+    function escAttr(str){
+      return (str ?? '').toString().replace(/"/g, '&quot;');
+    }
 
-      const escAttr = (s) => String(s || '').replace(/"/g, '&quot;');
+    function stripHtml(html){
+      const raw = String(html || '')
+        .replace(/<\s*br\s*\/?>/gi, ' ')
+        .replace(/<\/\s*(p|div|li|h[1-6]|tr|td|th|section|article)\s*>/gi, '$& ')
+        .replace(/<\s*(p|div|li|h[1-6]|tr|td|th|section|article)\b[^>]*>/gi, ' ');
+      const div = document.createElement('div');
+      div.innerHTML = raw;
+      return (div.textContent || div.innerText || '').replace(/\s+/g, ' ').trim();
+    }
 
-      // ✅ better HTML->text so words don't join (DeskOur issue)
-      const stripHtml = (html) => {
-        const raw = String(html || '')
-          .replace(/<\s*br\s*\/?>/gi, ' ')
-          .replace(/<\/\s*(p|div|li|h[1-6]|tr|td|th|section|article)\s*>/gi, '$& ')
-          .replace(/<\s*(p|div|li|h[1-6]|tr|td|th|section|article)\b[^>]*>/gi, ' ');
+    function fmtDate(iso){
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return '';
+      return new Intl.DateTimeFormat('en-IN', { day:'2-digit', month:'short', year:'numeric' }).format(d);
+    }
 
-        const div = document.createElement('div');
-        div.innerHTML = raw;
-        return (div.textContent || div.innerText || '').replace(/\s+/g, ' ').trim();
-      };
+    function normalizeUrl(url){
+      const u = (url || '').toString().trim();
+      if (!u) return '';
+      if (/^(data:|blob:|https?:\/\/)/i.test(u)) return u;
+      if (u.startsWith('/')) return window.location.origin + u;
+      return window.location.origin + '/' + u;
+    }
 
-      const fmtDate = (iso) => {
-        if (!iso) return '';
-        const d = new Date(iso);
-        if (isNaN(d.getTime())) return '';
-        return new Intl.DateTimeFormat('en-IN', { day:'2-digit', month:'short', year:'numeric' }).format(d);
-      };
+    // ✅ handle image load/error without inline JS
+    function bindCardImages(rootEl){
+      rootEl.querySelectorAll('img.achx-img').forEach(img => {
+        const media = img.closest('.achx-media');
+        const fallback = media ? media.querySelector('.achx-fallback') : null;
 
-      const cardHtml = (item) => {
-  const titleRaw = item.title || 'Untitled';
-  const title = escapeHtml(titleRaw);
+        if (img.complete && img.naturalWidth > 0) {
+          if (fallback) fallback.style.display = 'none';
+          return;
+        }
 
-  const bodyText = stripHtml(item.body || '');
+        img.addEventListener('load', () => {
+          if (fallback) fallback.style.display = 'none';
+        }, { once: true });
 
-  // ✅ force dots after "few characters"
-  const MAX_CHARS = 90; // change to 70/100/120 as you want
-  let excerptText = bodyText;
+        img.addEventListener('error', () => {
+          img.remove();
+          if (fallback) fallback.style.display = 'flex';
+        }, { once: true });
+      });
+    }
 
-  if (bodyText.length > MAX_CHARS) {
-    excerptText = bodyText
-      .slice(0, MAX_CHARS)
-      .trim()
-      .replace(/[,\.;:\-\s]+$/g, ''); // remove ending punctuation/spaces
-    excerptText += '......';
-  }
+    function cardHtml(item){
+      const titleRaw = item?.title || 'Untitled';
+      const title = esc(titleRaw);
 
-  const excerpt = escapeHtml(excerptText || '');
+      const bodyText = stripHtml(item?.body || item?.description || '');
+      const MAX_CHARS = 90;
 
-  const created = fmtDate(item.created_at || null);
-
-  const uuid = item.uuid ? String(item.uuid) : '';
-  const href = uuid ? (VIEW_BASE + '/' + encodeURIComponent(uuid)) : '#';
-
-  const cover = item.cover_image_url ? String(item.cover_image_url).trim() : '';
-
-  return `
-    <div class="ac-card">
-      <div class="ac-media">
-        <div class="ac-fallback">Achievement</div>
-
-        ${cover ? `
-          <img
-            src="${escAttr(cover)}"
-            alt=""
-            loading="lazy"
-            style="display:none"
-            onload="this.style.display='block'"
-            onerror="this.remove()"
-          />
-        ` : ``}
-      </div>
-
-      <div class="ac-body">
-        <div class="ac-h">${title}</div>
-        <p class="ac-p">${excerpt}</p>
-
-        <div class="ac-date">
-          <i class="fa-regular fa-calendar"></i>
-          <span>Created: ${escapeHtml(created || '—')}</span>
-        </div>
-      </div>
-
-      ${uuid
-        ? `<a class="ac-link" href="${href}" aria-label="Open ${escAttr(titleRaw)}"></a>`
-        : `<div class="ac-link" title="Missing UUID"></div>`
+      let excerptText = bodyText;
+      if (bodyText.length > MAX_CHARS){
+        excerptText = bodyText
+          .slice(0, MAX_CHARS)
+          .trim()
+          .replace(/[,\.;:\-\s]+$/g, '');
+        excerptText += '......';
       }
-    </div>
-  `;
-};
 
-      const setSkeletons = (n=4) => {
-        const s = [];
-        for (let i=0;i<n;i++){
-          s.push(`
-            <div class="ac-skel">
-              <div class="m"></div>
-              <div class="b">
-                <div class="l w70"></div>
-                <div class="l w95"></div>
-                <div class="l w85"></div>
-                <div class="l w70" style="margin-top:16px;"></div>
-              </div>
+      const excerpt = esc(excerptText || '');
+      const created = fmtDate(item?.created_at || null);
+
+      const uuid = item?.uuid ? String(item.uuid) : '';
+      const href = uuid ? (VIEW_BASE + '/' + encodeURIComponent(uuid)) : '#';
+
+      const cover = item?.cover_image_url || item?.cover_image || item?.image_url || '';
+      const coverNorm = cover ? normalizeUrl(String(cover).trim()) : '';
+
+      return `
+        <div class="achx-card">
+          <div class="achx-media">
+            <div class="achx-fallback">Achievement</div>
+            ${coverNorm ? `
+              <img class="achx-img"
+                   src="${escAttr(coverNorm)}"
+                   alt="${escAttr(titleRaw)}"
+                   loading="lazy" />
+            ` : ``}
+          </div>
+
+          <div class="achx-body">
+            <div class="achx-h">${title}</div>
+            <p class="achx-p">${excerpt}</p>
+
+            <div class="achx-date">
+              <i class="fa-regular fa-calendar"></i>
+              <span>Created: ${esc(created || '—')}</span>
             </div>
-          `);
-        }
-        grid.innerHTML = s.join('');
-      };
+          </div>
 
-      const removeSkeletons = () => {
-        grid.querySelectorAll('.ac-skel').forEach(el => el.remove());
-      };
-
-      const setEmpty = (isEmpty) => emptyBox.classList.toggle('d-none', !isEmpty);
-
-      const setMore = () => {
-        const show = page < lastPage;
-        btnMore.classList.toggle('d-none', !show);
-        btnMore.disabled = loading;
-      };
-
-      const fetchPage = async (reset=false) => {
-        if (loading) return;
-        loading = true;
-
-        if (reset) {
-          page = 1;
-          lastPage = 1;
-          setSkeletons(4);
-          setEmpty(false);
-        }
-
-        setMore();
-
-        try{
-          const url = new URL(API_INDEX, window.location.origin);
-          url.searchParams.set('per_page', '10');
-          url.searchParams.set('page', String(page));
-          if (q) url.searchParams.set('q', q);
-
-          // ✅ only published + in visible window (your controller supports this)
-          url.searchParams.set('visible_now', '1');
-
-          const res = await fetch(url.toString(), { headers: { 'Accept': 'application/json' } });
-          if (!res.ok) throw new Error('HTTP ' + res.status);
-
-          const json = await res.json();
-          const items = Array.isArray(json.data) ? json.data : [];
-          const pg = json.pagination || {};
-          lastPage = Number(pg.last_page || 1);
-
-          removeSkeletons();
-          if (reset) grid.innerHTML = '';
-
-          if (!items.length && page === 1) {
-            setEmpty(true);
-            btnMore.classList.add('d-none');
-            loading = false;
-            return;
+          ${uuid
+            ? `<a class="achx-link" href="${href}" aria-label="Open ${escAttr(titleRaw)}"></a>`
+            : `<div class="achx-link" title="Missing UUID"></div>`
           }
+        </div>
+      `;
+    }
 
-          const frag = document.createElement('div');
-          frag.innerHTML = items.map(cardHtml).join('');
-          while (frag.firstChild) grid.appendChild(frag.firstChild);
+    function showSkeleton(){
+      const sk = els.skel, st = els.state, grid = els.grid, pager = els.pager;
+      if (grid) grid.style.display = 'none';
+      if (pager) pager.style.display = 'none';
+      if (st) st.style.display = 'none';
 
-          setEmpty(false);
-          setMore();
-        } catch (e) {
-          console.error('Achievements load error:', e);
-          removeSkeletons();
-          if (!grid.children.length) {
-            grid.innerHTML = `
-              <div class="ac-empty">
-                <div style="font-size:34px; line-height:1;">⚠️</div>
-                <div class="mt-2" style="font-weight:800; font-size:18px;">Failed to load achievements</div>
-                <div class="mt-1">Please try again.</div>
-              </div>
-            `;
-          }
-          btnMore.classList.add('d-none');
-        } finally {
-          loading = false;
-          setMore();
-        }
-      };
+      if (!sk) return;
+      sk.style.display = '';
+      sk.innerHTML = Array.from({length: 6}).map(() => `<div class="achx-sk"></div>`).join('');
+    }
 
-      btnMore.addEventListener('click', () => {
-        if (page >= lastPage) return;
-        page += 1;
-        fetchPage(false);
+    function hideSkeleton(){
+      const sk = els.skel;
+      if (!sk) return;
+      sk.style.display = 'none';
+      sk.innerHTML = '';
+    }
+
+    async function fetchJson(url){
+      if (activeController) activeController.abort();
+      activeController = new AbortController();
+
+      const res = await fetch(url, {
+        headers: { 'Accept':'application/json' },
+        signal: activeController.signal
       });
 
+      const js = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(js?.message || ('Request failed: ' + res.status));
+      return js;
+    }
+
+    function extractDeptUuidFromUrl(){
+      // matches "?d-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" anywhere (query OR full url)
+      const hay = (window.location.search || '') + ' ' + (window.location.href || '');
+      const m = hay.match(/d-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+      return m ? m[1] : '';
+    }
+
+    function setDeptSelection(uuid){
+      const sel = els.dept;
+      uuid = (uuid || '').toString().trim();
+
+      if (!sel) return;
+
+      if (!uuid){
+        sel.value = '';
+        state.deptUuid = '';
+        state.deptId = null;
+        state.deptName = '';
+        if (els.sub) els.sub.textContent = 'Awards, recognitions, and proud moments.';
+        return;
+      }
+
+      const meta = deptByUuid.get(uuid);
+      if (!meta) return;
+
+      sel.value = uuid;
+      state.deptUuid = uuid;
+      state.deptId = meta.id ?? null;
+      state.deptName = meta.title ?? '';
+
+      if (els.sub){
+        els.sub.textContent = state.deptName
+          ? ('Achievements for ' + state.deptName)
+          : 'Achievements (filtered)';
+      }
+    }
+
+    async function loadDepartments(){
+      const sel = els.dept;
+      if (!sel) return;
+
+      sel.innerHTML = `
+        <option value="">All Departments</option>
+        <option value="__loading" disabled>Loading departments…</option>
+      `;
+      sel.value = '__loading';
+
+      try{
+        const res = await fetch(DEPT_API, { headers: { 'Accept':'application/json' } });
+        const js = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(js?.message || ('HTTP ' + res.status));
+
+        const items = Array.isArray(js?.data) ? js.data : [];
+        const depts = items
+          .map(d => ({
+            id: d?.id ?? null,
+            uuid: (d?.uuid ?? '').toString().trim(),
+            title: (d?.title ?? d?.name ?? '').toString().trim(),
+            active: (d?.active ?? 1),
+          }))
+          .filter(x => x.uuid && x.title && String(x.active) === '1'); // ✅ only active
+
+        deptByUuid = new Map(depts.map(d => [d.uuid, d]));
+
+        // sort A-Z
+        depts.sort((a,b) => a.title.localeCompare(b.title));
+
+        sel.innerHTML = `<option value="">All Departments</option>` + depts
+          .map(d => `<option value="${escAttr(d.uuid)}" data-id="${escAttr(d.id ?? '')}">${esc(d.title)}</option>`)
+          .join('');
+
+        sel.value = '';
+      } catch (e){
+        console.warn('Departments load failed:', e);
+        sel.innerHTML = `<option value="">All Departments</option>`;
+        sel.value = '';
+      }
+    }
+
+    async function ensureAchievementsLoaded(force=false){
+      if (allAchievements && !force) return;
+
+      showSkeleton();
+
+      try{
+        // fetch big page so frontend filtering always works
+        const u = new URL(API, window.location.origin);
+        u.searchParams.set('page', '1');
+        u.searchParams.set('per_page', '200');
+        u.searchParams.set('visible_now', '1');
+        u.searchParams.set('sort', 'created_at');
+        u.searchParams.set('direction', 'desc');
+
+        const js = await fetchJson(u.toString());
+        const items = Array.isArray(js?.data) ? js.data : [];
+        allAchievements = items;
+      } finally {
+        hideSkeleton();
+      }
+    }
+
+    function applyFilterAndSearch(){
+      const q = (state.q || '').toString().trim().toLowerCase();
+      let items = Array.isArray(allAchievements) ? allAchievements.slice() : [];
+
+      // ✅ Dept filter: when dept selected, show ONLY items that match it (and have department id/uuid)
+      if (state.deptUuid && (state.deptId !== null && state.deptId !== undefined && String(state.deptId) !== '')){
+        const deptIdStr = String(state.deptId);
+        const deptUuidStr = String(state.deptUuid);
+
+        items = items.filter(it => {
+          const did = (it?.department_id === null || it?.department_id === undefined) ? '' : String(it.department_id);
+          const duu = (it?.department_uuid === null || it?.department_uuid === undefined) ? '' : String(it.department_uuid);
+          return (did === deptIdStr) || (duu && duu === deptUuidStr);
+        });
+      } else if (state.deptUuid) {
+        // if somehow deptId missing, try uuid-only
+        const deptUuidStr = String(state.deptUuid);
+        items = items.filter(it => String(it?.department_uuid || '') === deptUuidStr);
+      }
+
+      // search on title + stripped body
+      if (q){
+        items = items.filter(it => {
+          const t = String(it?.title || '').toLowerCase();
+          const b = stripHtml(it?.body || it?.description || '').toLowerCase();
+          return (t.includes(q) || b.includes(q));
+        });
+      }
+
+      return items;
+    }
+
+    function render(items){
+      const grid = els.grid, st = els.state, count = els.count;
+      if (!grid || !st) return;
+
+      if (count) count.textContent = String(state.total || 0);
+
+      if (!items.length){
+        grid.style.display = 'none';
+        st.style.display = '';
+        const deptLine = state.deptName ? `<div style="margin-top:6px;font-size:12.5px;opacity:.95;">Department: <b>${esc(state.deptName)}</b></div>` : '';
+        st.innerHTML = `
+          <div style="font-size:34px;opacity:.6;margin-bottom:6px;">
+            <i class="fa-regular fa-face-frown"></i>
+          </div>
+          No achievements found.
+          ${deptLine}
+        `;
+        return;
+      }
+
+      st.style.display = 'none';
+      grid.style.display = '';
+      grid.innerHTML = items.map(cardHtml).join('');
+      bindCardImages(grid);
+    }
+
+    function renderPager(){
+      const pager = els.pager;
+      if (!pager) return;
+
+      const last = state.lastPage || 1;
+      const cur  = state.page || 1;
+
+      if (last <= 1){
+        pager.style.display = 'none';
+        pager.innerHTML = '';
+        return;
+      }
+
+      const btn = (label, page, {disabled=false, active=false}={}) => {
+        const dis = disabled ? 'disabled' : '';
+        const cls = active ? 'achx-pagebtn active' : 'achx-pagebtn';
+        return `<button class="${cls}" ${dis} data-page="${page}">${label}</button>`;
+      };
+
+      let html = '';
+      html += btn('Previous', Math.max(1, cur-1), { disabled: cur<=1 });
+
+      const win = 2;
+      const start = Math.max(1, cur - win);
+      const end   = Math.min(last, cur + win);
+
+      if (start > 1){
+        html += btn('1', 1, { active: cur===1 });
+        if (start > 2) html += `<span style="opacity:.6;padding:0 4px;">…</span>`;
+      }
+
+      for (let p=start; p<=end; p++){
+        html += btn(String(p), p, { active: p===cur });
+      }
+
+      if (end < last){
+        if (end < last - 1) html += `<span style="opacity:.6;padding:0 4px;">…</span>`;
+        html += btn(String(last), last, { active: cur===last });
+      }
+
+      html += btn('Next', Math.min(last, cur+1), { disabled: cur>=last });
+
+      pager.innerHTML = html;
+      pager.style.display = 'flex';
+    }
+
+    function repaint(){
+      const filtered = applyFilterAndSearch();
+
+      state.total = filtered.length;
+      state.lastPage = Math.max(1, Math.ceil(filtered.length / state.perPage));
+      if (state.page > state.lastPage) state.page = state.lastPage;
+
+      const start = (state.page - 1) * state.perPage;
+      const pageItems = filtered.slice(start, start + state.perPage);
+
+      render(pageItems);
+      renderPager();
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadDepartments();
+
+      // ✅ deep-link (?d-{uuid} anywhere)
+      const deepDeptUuid = extractDeptUuidFromUrl();
+      if (deepDeptUuid && deptByUuid.has(deepDeptUuid)){
+        setDeptSelection(deepDeptUuid);
+      } else {
+        setDeptSelection('');
+      }
+
+      // ✅ load achievements once, then filter client-side (dept + search)
+      await ensureAchievementsLoaded(false);
+      repaint();
+
+      // search (debounced)
       let t = null;
-      qInput.addEventListener('input', () => {
+      els.search && els.search.addEventListener('input', () => {
         clearTimeout(t);
         t = setTimeout(() => {
-          q = (qInput.value || '').trim();
-          fetchPage(true);
-        }, 350);
+          state.q = (els.search.value || '').trim();
+          state.page = 1;
+          repaint();
+        }, 260);
       });
 
-      fetchPage(true);
-    })();
+      // dept change
+      els.dept && els.dept.addEventListener('change', () => {
+        const v = (els.dept.value || '').toString();
+        if (v === '__loading') return;
+
+        if (!v){
+          setDeptSelection('');
+        } else {
+          setDeptSelection(v);
+        }
+
+        state.page = 1;
+        repaint();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+
+      // pagination click
+      document.addEventListener('click', (e) => {
+        const b = e.target.closest('button.achx-pagebtn[data-page]');
+        if (!b) return;
+        const p = parseInt(b.dataset.page, 10);
+        if (!p || Number.isNaN(p) || p === state.page) return;
+        state.page = p;
+        repaint();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    });
+
+  })();
   </script>
 </body>
 </html>

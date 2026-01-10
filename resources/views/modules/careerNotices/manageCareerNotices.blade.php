@@ -912,18 +912,36 @@ td.col-slug code{
     const coverMeta = $('coverMeta');
     const btnOpenCover = $('btnOpenCover');
 
-    // ---------- permissions ----------
+    // ---------- permissions (updated with publish control) ----------
     const ACTOR = { role: '' };
-    let canCreate=false, canEdit=false, canDelete=false;
+    let canCreate=false, canEdit=false, canDelete=false, canPublish=false;
 
     function computePermissions(){
       const r = (ACTOR.role || '').toLowerCase();
       const createDeleteRoles = ['admin','super_admin','director','principal'];
       const writeRoles = ['admin','super_admin','director','principal','hod','faculty','technical_assistant','it_person'];
+      
       canCreate = createDeleteRoles.includes(r);
       canDelete = createDeleteRoles.includes(r);
       canEdit   = writeRoles.includes(r);
+      canPublish = createDeleteRoles.includes(r); // Only specific roles can publish
+      
       if (writeControls) writeControls.style.display = canCreate ? 'flex' : 'none';
+      
+      // Update publish option visibility
+      updatePublishOption();
+    }
+
+    function updatePublishOption(){
+      if (!statusSel) return;
+      const publishOption = statusSel.querySelector('option[value="published"]');
+      if (publishOption){
+        publishOption.style.display = canPublish ? '' : 'none';
+        // If current value is published but user can't publish, change to draft
+        if (!canPublish && statusSel.value === 'published'){
+          statusSel.value = 'draft';
+        }
+      }
     }
 
     async function fetchMe(){
@@ -1054,8 +1072,7 @@ td.col-slug code{
         const deleted = r.deleted_at || '—';
         const sortOrder = (r.sort_order ?? 0);
 
-        // ✅ FIX (same as reference): DO NOT rely on data-bs-toggle in scroll/overflow tables.
-        // We'll manually toggle with Popper "fixed" strategy (see JS below).
+        // ✅ UPDATED: Added "Make Published" button
         let actions = `
           <div class="dropdown text-end">
             <button type="button"
@@ -1068,6 +1085,12 @@ td.col-slug code{
 
         if (canEdit && tabKey !== 'trash'){
           actions += `<li><button type="button" class="dropdown-item" data-action="edit"><i class="fa fa-pen-to-square"></i> Edit</button></li>`;
+          
+          // ✅ ADDED: "Make Published" option ONLY for publishers when status is not published
+          const statusLower = (status || 'draft').toString().toLowerCase();
+          if (canPublish && statusLower !== 'published'){
+            actions += `<li><button type="button" class="dropdown-item" data-action="make-publish"><i class="fa fa-circle-check"></i> Make Published</button></li>`;
+          }
         }
 
         if (tabKey !== 'trash'){
@@ -1521,6 +1544,9 @@ td.col-slug code{
         itemForm.dataset.mode = 'edit';
         itemForm.dataset.intent = 'create';
       }
+      
+      // ✅ ADD THIS: Update publish option for new items
+      setTimeout(() => updatePublishOption(), 50);
     }
 
     function toLocal(s){
@@ -1590,6 +1616,11 @@ td.col-slug code{
         itemForm.dataset.mode = 'edit';
         itemForm.dataset.intent = 'edit';
       }
+      
+      // ✅ ADD THIS: Update publish option visibility when opening form
+      if (!viewOnly) {
+        setTimeout(() => updatePublishOption(), 50);
+      }
     }
 
     function findRowByUuid(uuid){
@@ -1629,7 +1660,7 @@ td.col-slug code{
       if (coverObjectUrl){ try{ URL.revokeObjectURL(coverObjectUrl); }catch(_){ } coverObjectUrl=null; }
     });
 
-    // ---------- row actions ----------
+    // ---------- row actions (updated with "make-publish") ----------
     document.addEventListener('click', async (e) => {
       const btn = e.target.closest('button[data-action]');
       if (!btn) return;
@@ -1651,6 +1682,45 @@ td.col-slug code{
         if (itemModalTitle) itemModalTitle.textContent = act === 'view' ? 'View Career Notice' : 'Edit Career Notice';
         fillFormFromRow(row || {}, act === 'view');
         itemModal && itemModal.show();
+        return;
+      }
+
+      // ✅ ADDED: "Make Published" action
+      if (act === 'make-publish'){
+        if (!canPublish) return;
+        
+        const conf = await Swal.fire({
+          title: 'Publish this career notice?',
+          text: 'This will make the notice visible to the public.',
+          icon: 'question',
+          showCancelButton: true,
+          confirmButtonText: 'Publish',
+          confirmButtonColor: '#10b981'
+        });
+        if (!conf.isConfirmed) return;
+
+        showLoading(true);
+        try{
+          const fd = new FormData();
+          fd.append('status', 'published');
+          fd.append('_method', 'PATCH');
+
+          const res = await fetchWithTimeout(API.update(uuid), {
+            method: 'POST',
+            headers: authHeaders(),
+            body: fd
+          }, 15000);
+
+          const js = await res.json().catch(() => ({}));
+          if (!res.ok || js.success === false) throw new Error(js?.message || 'Publish failed');
+
+          ok('Career notice published successfully');
+          await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
+        }catch(ex){
+          err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
+        }finally{
+          showLoading(false);
+        }
         return;
       }
 

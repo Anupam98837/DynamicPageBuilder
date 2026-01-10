@@ -5,11 +5,13 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
+use App\Models\User;
 use Carbon\Carbon;
 
 class UserController extends Controller
@@ -533,183 +535,159 @@ private function normalizeRole(?string $role): array
      * High roles can view anyone; others can only see themselves.
      */
     public function show(Request $request, string $uuid)
-    {
-        if ($resp = $this->requireRole($request, self::ALLOWED_ROLES)) {
-            return $resp;
-        }
+{
+    // if ($resp = $this->requireRole($request, self::ALLOWED_ROLES)) {
+    //     return $resp;
+    // }
 
-        $user = DB::table('users')
-            ->select(self::SELECT_COLUMNS)
-            ->where('uuid', $uuid)
-            ->whereNull('deleted_at')
-            ->first();
+    $user = DB::table('users')
+        ->select(self::SELECT_COLUMNS)
+        ->where('uuid', $uuid)
+        ->whereNull('deleted_at')
+        ->first();
 
-        if (!$user) {
-            return response()->json([
-                'success' => false,
-                'error'   => 'User not found',
-            ], 404);
-        }
-
-        $actor      = $this->actor($request);
-        $highRoles  = ['director', 'principal', 'hod', 'technical_assistant', 'it_person'];
-
-        if (!in_array($actor['role'], $highRoles, true) && $actor['id'] !== (int) $user->id) {
-            return response()->json([
-                'success' => false,
-                'error'   => 'Unauthorized Access',
-            ], 403);
-        }
-
+    if (!$user) {
         return response()->json([
-            'success' => true,
-            'data'    => $user,
-        ]);
+            'success' => false,
+            'error'   => 'User not found',
+        ], 404);
     }
+
+    return response()->json([
+        'success' => true,
+        'data'    => $user,
+    ]);
+}
 
     /**
      * PUT/PATCH /api/users/{uuid}
      * Update profile (name, contact, image, address, role/status for high roles).
      */
     public function update(Request $request, string $uuid)
-    {
-        if ($resp = $this->requireRole($request, self::ALLOWED_ROLES)) {
-            return $resp;
-        }
+{
+    // if ($resp = $this->requireRole($request, self::ALLOWED_ROLES)) {
+    //     return $resp;
+    // }
 
-        $user = DB::table('users')
-            ->where('uuid', $uuid)
-            ->whereNull('deleted_at')
-            ->first();
+    $user = DB::table('users')
+        ->where('uuid', $uuid)
+        ->whereNull('deleted_at')
+        ->first();
 
-        if (!$user) {
-            return response()->json([
-                'success' => false,
-                'error'   => 'User not found',
-            ], 404);
-        }
+    if (!$user) {
+        return response()->json([
+            'success' => false,
+            'error'   => 'User not found',
+        ], 404);
+    }
 
-        $actor     = $this->actor($request);
-        $highRoles = ['director', 'principal', 'hod', 'technical_assistant', 'it_person'];
+    $v = Validator::make($request->all(), [
+        'name'                     => ['sometimes', 'required', 'string', 'max:190'],
+        'email'                    => [
+            'sometimes', 'required', 'email', 'max:255',
+            Rule::unique('users', 'email')->ignore($user->id),
+        ],
+        'password'                 => ['sometimes', 'nullable', 'string', 'min:8'],
+        'phone_number'             => [
+            'sometimes', 'nullable', 'string', 'max:32',
+            Rule::unique('users', 'phone_number')->ignore($user->id),
+        ],
+        'alternative_email'        => ['sometimes', 'nullable', 'email', 'max:255'],
+        'alternative_phone_number' => ['sometimes', 'nullable', 'string', 'max:32'],
+        'whatsapp_number'          => ['sometimes', 'nullable', 'string', 'max:32'],
+        'image'                    => ['sometimes', 'nullable', 'string', 'max:255'],
+        'address'                  => ['sometimes', 'nullable', 'string'],
+        'role'                     => ['sometimes', 'nullable', 'string'],
+        'status'                   => ['sometimes', 'nullable', 'string', 'max:20'],
+        'metadata'                 => ['sometimes', 'nullable', 'array'],
+    ]);
 
-        $isSelf = $actor['id'] === (int) $user->id;
-        $isHigh = in_array($actor['role'], $highRoles, true);
+    if ($v->fails()) {
+        return response()->json([
+            'success' => false,
+            'errors'  => $v->errors(),
+        ], 422);
+    }
 
-        if (!$isHigh && !$isSelf) {
-            return response()->json([
-                'success' => false,
-                'error'   => 'Unauthorized Access',
-            ], 403);
-        }
+    $data   = $v->validated();
+    $update = [];
+    $now    = Carbon::now();
 
-        $v = Validator::make($request->all(), [
-            'name'                     => ['sometimes', 'required', 'string', 'max:190'],
-            'email'                    => [
-                'sometimes', 'required', 'email', 'max:255',
-                Rule::unique('users', 'email')->ignore($user->id),
-            ],
-            'password'                 => ['sometimes', 'nullable', 'string', 'min:8'],
-            'phone_number'             => [
-                'sometimes', 'nullable', 'string', 'max:32',
-                Rule::unique('users', 'phone_number')->ignore($user->id),
-            ],
-            'alternative_email'        => ['sometimes', 'nullable', 'email', 'max:255'],
-            'alternative_phone_number' => ['sometimes', 'nullable', 'string', 'max:32'],
-            'whatsapp_number'          => ['sometimes', 'nullable', 'string', 'max:32'],
-            'image'                    => ['sometimes', 'nullable', 'string', 'max:255'],
-            'address'                  => ['sometimes', 'nullable', 'string'],
-            'role'                     => ['sometimes', 'nullable', 'string'],
-            'status'                   => ['sometimes', 'nullable', 'string', 'max:20'],
-            'metadata'                 => ['sometimes', 'nullable', 'array'],
-        ]);
+    if (array_key_exists('name', $data)) {
+        $update['name'] = $data['name'];
+        $update['slug'] = $this->generateUniqueSlug($data['name'], (int) $user->id);
+    }
 
-        if ($v->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors'  => $v->errors(),
-            ], 422);
-        }
+    if (array_key_exists('email', $data)) {
+        $update['email'] = $data['email'];
+    }
 
-        $data   = $v->validated();
-        $update = [];
-        $now    = Carbon::now();
+    if (array_key_exists('password', $data) && $data['password']) {
+        $update['password'] = Hash::make($data['password']);
+    }
 
-        if (array_key_exists('name', $data)) {
-            $update['name'] = $data['name'];
-            $update['slug'] = $this->generateUniqueSlug($data['name'], (int) $user->id);
-        }
+    if (array_key_exists('phone_number', $data)) {
+        $update['phone_number'] = $data['phone_number'] ?? null;
+    }
+    if (array_key_exists('alternative_email', $data)) {
+        $update['alternative_email'] = $data['alternative_email'] ?? null;
+    }
+    if (array_key_exists('alternative_phone_number', $data)) {
+        $update['alternative_phone_number'] = $data['alternative_phone_number'] ?? null;
+    }
+    if (array_key_exists('whatsapp_number', $data)) {
+        $update['whatsapp_number'] = $data['whatsapp_number'] ?? null;
+    }
+    if (array_key_exists('image', $data)) {
+        $update['image'] = $data['image'] ?? null;
+    }
+    if (array_key_exists('address', $data)) {
+        $update['address'] = $data['address'] ?? null;
+    }
 
-        if (array_key_exists('email', $data)) {
-            $update['email'] = $data['email'];
-        }
+    if (array_key_exists('role', $data)) {
+        [$role, $short] = $this->normalizeRole($data['role']);
+        $update['role']            = $role;
+        $update['role_short_form'] = $short;
+    }
 
-        if ($isHigh && array_key_exists('password', $data) && $data['password']) {
-            $update['password'] = Hash::make($data['password']);
-        }
+    if (array_key_exists('status', $data)) {
+        $update['status'] = $data['status'] ?? 'active';
+    }
 
-        if (array_key_exists('phone_number', $data)) {
-            $update['phone_number'] = $data['phone_number'] ?? null;
-        }
-        if (array_key_exists('alternative_email', $data)) {
-            $update['alternative_email'] = $data['alternative_email'] ?? null;
-        }
-        if (array_key_exists('alternative_phone_number', $data)) {
-            $update['alternative_phone_number'] = $data['alternative_phone_number'] ?? null;
-        }
-        if (array_key_exists('whatsapp_number', $data)) {
-            $update['whatsapp_number'] = $data['whatsapp_number'] ?? null;
-        }
-        if (array_key_exists('image', $data)) {
-            $update['image'] = $data['image'] ?? null;
-        }
-        if (array_key_exists('address', $data)) {
-            $update['address'] = $data['address'] ?? null;
-        }
+    if (array_key_exists('metadata', $data)) {
+        $update['metadata'] = $data['metadata'] !== null
+            ? json_encode($data['metadata'])
+            : null;
+    }
 
-        // Only high roles can change role/status
-        if ($isHigh && array_key_exists('role', $data)) {
-            [$role, $short] = $this->normalizeRole($data['role']);
-            $update['role']            = $role;
-            $update['role_short_form'] = $short;
-        }
-
-        if ($isHigh && array_key_exists('status', $data)) {
-            $update['status'] = $data['status'] ?? 'active';
-        }
-
-        if (array_key_exists('metadata', $data)) {
-            $update['metadata'] = $data['metadata'] !== null
-                ? json_encode($data['metadata'])
-                : null;
-        }
-
-        if (empty($update)) {
-            return response()->json([
-                'success' => true,
-                'data'    => $user, // nothing changed
-            ]);
-        }
-
-        $update['updated_at'] = $now;
-
-        DB::table('users')
-            ->where('id', $user->id)
-            ->update($update);
-
-        $this->logWithActor('msit.users.update', $request, [
-            'user_id' => $user->id,
-        ]);
-
-        $fresh = DB::table('users')
-            ->select(self::SELECT_COLUMNS)
-            ->where('id', $user->id)
-            ->first();
-
+    if (empty($update)) {
         return response()->json([
             'success' => true,
-            'data'    => $fresh,
+            'data'    => $user,
         ]);
     }
+
+    $update['updated_at'] = $now;
+
+    DB::table('users')
+        ->where('id', $user->id)
+        ->update($update);
+
+    $this->logWithActor('msit.users.update', $request, [
+        'user_id' => $user->id,
+    ]);
+
+    $fresh = DB::table('users')
+        ->select(self::SELECT_COLUMNS)
+        ->where('id', $user->id)
+        ->first();
+
+    return response()->json([
+        'success' => true,
+        'data'    => $fresh,
+    ]);
+}
 
     /**
      * PATCH /api/users/{uuid}/password
@@ -734,7 +712,7 @@ private function normalizeRole(?string $role): array
         }
 
         $actor     = $this->actor($request);
-        $highRoles = ['director', 'principal', 'hod', 'technical_assistant', 'it_person'];
+        $highRoles = ['director', 'principal', 'hod', 'technical_assistant', 'it_person','admin'];
 
         $isSelf = $actor['id'] === (int) $user->id;
         $isHigh = in_array($actor['role'], $highRoles, true);
@@ -816,7 +794,7 @@ private function normalizeRole(?string $role): array
         }
 
         $actor     = $this->actor($request);
-        $highRoles = ['director', 'principal', 'hod', 'technical_assistant', 'it_person'];
+        $highRoles = ['director', 'principal', 'hod', 'technical_assistant', 'it_person','admin'];
 
         $isSelf = $actor['id'] === (int) $user->id;
         $isHigh = in_array($actor['role'], $highRoles, true);
@@ -870,13 +848,13 @@ private function normalizeRole(?string $role): array
      */
     public function destroy(Request $request, string $uuid)
     {
-        if ($resp = $this->requireRole($request, [
-            'director',
-            'principal',
-            'it_person',
-        ])) {
-            return $resp;
-        }
+        // if ($resp = $this->requireRole($request, [
+        //     'director',
+        //     'principal',
+        //     'it_person',
+        // ])) {
+        //     return $resp;
+        // }
 
         $user = DB::table('users')
             ->where('uuid', $uuid)
@@ -954,128 +932,308 @@ private function normalizeRole(?string $role): array
  | GET /api/public/faculty
  |============================================ */
 public function facultyindex(Request $request)
+
 {
+
     $page    = max(1, (int)$request->query('page', 1));
+
     $perPage = (int)$request->query('per_page', 12);
+
     $perPage = max(6, min(60, $perPage));
+ 
+    $qText    = trim((string)$request->query('q', ''));
 
-    $qText  = trim((string)$request->query('q', ''));
-    $status = trim((string)$request->query('status', 'active')) ?: 'active';
+    $status   = trim((string)$request->query('status', 'active')) ?: 'active';
 
+    $deptUuid = trim((string)$request->query('dept_uuid', '')); // ✅ new
+ 
     $sort = (string)$request->query('sort', 'created_at');
+
     $dir  = strtolower((string)$request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+
     $allowedSort = ['created_at','updated_at','name','id'];
+
     if (!in_array($sort, $allowedSort, true)) $sort = 'created_at';
-
+ 
     // ✅ exclude roles
+
     $excludedRoles = ['super_admin', 'admin', 'student', 'students'];
+ 
+    // ✅ detect where dept mapping exists
 
+    $upiHasDept  = Schema::hasColumn('user_personal_information', 'department_id');
+
+    $userHasDept = Schema::hasColumn('users', 'department_id');
+ 
     $base = DB::table('users as u')
+
         ->leftJoin('user_personal_information as upi', 'upi.user_id', '=', 'u.id')
+
         ->whereNull('u.deleted_at')
+
         ->whereNotIn('u.role', $excludedRoles)
+
         ->where('u.status', $status)
+
         ->where(function ($w) {
+
             $w->whereNull('upi.id')->orWhereNull('upi.deleted_at');
-        });
 
-    if ($qText !== '') {
-        $term = '%' . $qText . '%';
-        $base->where(function ($w) use ($term) {
-            $w->where('u.name', 'like', $term)
-              ->orWhere('u.email', 'like', $term)
-              ->orWhere('upi.affiliation', 'like', $term)
-              ->orWhere('upi.specification', 'like', $term)
-              ->orWhere('upi.experience', 'like', $term)
-              ->orWhere('upi.interest', 'like', $term)
-              ->orWhere('upi.administration', 'like', $term)
-              ->orWhere('upi.research_project', 'like', $term);
         });
+ 
+    // ✅ join departments if possible (so we can return uuid/title)
+
+    // priority: upi.department_id -> else users.department_id
+
+    if ($upiHasDept) {
+
+        $base->leftJoin('departments as d', 'd.id', '=', 'upi.department_id');
+
+    } elseif ($userHasDept) {
+
+        $base->leftJoin('departments as d', 'd.id', '=', 'u.department_id');
+
     }
+ 
+    // ✅ dept filter by dept_uuid (works like announcements deep-link)
 
-    $total    = (clone $base)->distinct('u.id')->count('u.id');
-    $lastPage = max(1, (int)ceil($total / $perPage));
+    if ($deptUuid !== '') {
 
-    $rows = (clone $base)
-        ->select([
-            'u.id',
-            'u.uuid',
-            'u.slug',
-            'u.name',
-            'u.email',            // ✅ include email
-            'u.image',
-            'u.role',
-            'u.role_short_form',
-            'u.status',
-            'u.created_at',
-            'u.updated_at',
+        $dept = DB::table('departments')
 
-            'upi.uuid as personal_info_uuid',
-            'upi.qualification',
-            'upi.affiliation',
-            'upi.specification',
-            'upi.experience',
-            'upi.interest',
-            'upi.administration',
-            'upi.research_project',
-        ])
-        ->orderBy($sort === 'name' ? 'u.name' : 'u.' . $sort, $dir)
-        ->orderBy('u.id', 'desc')
-        ->forPage($page, $perPage)
-        ->get();
+            ->select(['id','uuid','title'])
 
-    // ✅ fetch socials for these users
-    $ids = $rows->pluck('id')->filter()->values()->all();
-    $socialsByUserId = [];
+            ->where('uuid', $deptUuid)
 
-    if (!empty($ids)) {
-        $socialRows = DB::table('user_social_media as usm')
-            ->select([
-                'usm.user_id',
-                'usm.platform',
-                'usm.icon',
-                'usm.link',
-                'usm.sort_order',
-                'usm.metadata',
-            ])
-            ->whereIn('usm.user_id', $ids)
-            ->whereNull('usm.deleted_at')
-            ->where('usm.active', 1)
-            ->orderBy('usm.sort_order', 'asc')
-            ->orderBy('usm.id', 'asc')
-            ->get();
+            ->whereNull('deleted_at')
 
-        foreach ($socialRows as $s) {
-            $platform = strtolower(trim((string)$s->platform));
-            $socialsByUserId[(int)$s->user_id][] = [
-                'platform'   => $platform,
-                'icon'       => (string)($s->icon ?? ''),
-                'url'        => (string)($s->link ?? ''),
-                'sort_order' => (int)($s->sort_order ?? 0),
-                'metadata'   => $this->maybeJson($s->metadata),
-            ];
+            ->first();
+ 
+        if (!$dept) {
+
+            // no such dept -> return empty but valid payload
+
+            return response()->json([
+
+                'success' => true,
+
+                'data' => [],
+
+                'pagination' => [
+
+                    'page' => $page,
+
+                    'per_page' => $perPage,
+
+                    'total' => 0,
+
+                    'last_page' => 1,
+
+                ],
+
+            ]);
+
         }
+ 
+        $deptId = (int)$dept->id;
+ 
+        // apply filter where mapping exists
+
+        $base->where(function ($w) use ($deptId, $upiHasDept, $userHasDept) {
+
+            // if both exist, accept either
+
+            if ($upiHasDept)  $w->orWhere('upi.department_id', $deptId);
+
+            if ($userHasDept) $w->orWhere('u.department_id', $deptId);
+
+        });
+
     }
+ 
+    if ($qText !== '') {
 
-    // attach socials onto each row object
+        $term = '%' . $qText . '%';
+
+        $base->where(function ($w) use ($term) {
+
+            $w->where('u.name', 'like', $term)
+
+              ->orWhere('u.email', 'like', $term)
+
+              ->orWhere('upi.affiliation', 'like', $term)
+
+              ->orWhere('upi.specification', 'like', $term)
+
+              ->orWhere('upi.experience', 'like', $term)
+
+              ->orWhere('upi.interest', 'like', $term)
+
+              ->orWhere('upi.administration', 'like', $term)
+
+              ->orWhere('upi.research_project', 'like', $term);
+
+        });
+
+    }
+ 
+    $total    = (clone $base)->distinct('u.id')->count('u.id');
+
+    $lastPage = max(1, (int)ceil($total / $perPage));
+ 
+    $deptIdSelect = $upiHasDept ? 'upi.department_id' : ($userHasDept ? 'u.department_id' : null);
+ 
+    $rows = (clone $base)
+
+        ->select(array_filter([
+
+            'u.id',
+
+            'u.uuid',
+
+            'u.slug',
+
+            'u.name',
+
+            'u.email',
+
+            'u.image',
+
+            'u.role',
+
+            'u.role_short_form',
+
+            'u.status',
+
+            'u.created_at',
+
+            'u.updated_at',
+ 
+            'upi.uuid as personal_info_uuid',
+
+            'upi.qualification',
+
+            'upi.affiliation',
+
+            'upi.specification',
+
+            'upi.experience',
+
+            'upi.interest',
+
+            'upi.administration',
+
+            'upi.research_project',
+ 
+            // ✅ department fields
+
+            $deptIdSelect ? DB::raw($deptIdSelect . ' as department_id') : null,
+
+            ($upiHasDept || $userHasDept) ? 'd.uuid as department_uuid' : null,
+
+            ($upiHasDept || $userHasDept) ? 'd.title as department_title' : null,
+
+        ]))
+
+        ->orderBy($sort === 'name' ? 'u.name' : 'u.' . $sort, $dir)
+
+        ->orderBy('u.id', 'desc')
+
+        ->forPage($page, $perPage)
+
+        ->get();
+ 
+    // socials (same as your code)
+
+    $ids = $rows->pluck('id')->filter()->values()->all();
+
+    $socialsByUserId = [];
+ 
+    if (!empty($ids)) {
+
+        $socialRows = DB::table('user_social_media as usm')
+
+            ->select([
+
+                'usm.user_id',
+
+                'usm.platform',
+
+                'usm.icon',
+
+                'usm.link',
+
+                'usm.sort_order',
+
+                'usm.metadata',
+
+            ])
+
+            ->whereIn('usm.user_id', $ids)
+
+            ->whereNull('usm.deleted_at')
+
+            ->where('usm.active', 1)
+
+            ->orderBy('usm.sort_order', 'asc')
+
+            ->orderBy('usm.id', 'asc')
+
+            ->get();
+ 
+        foreach ($socialRows as $s) {
+
+            $platform = strtolower(trim((string)$s->platform));
+
+            $socialsByUserId[(int)$s->user_id][] = [
+
+                'platform'   => $platform,
+
+                'icon'       => (string)($s->icon ?? ''),
+
+                'url'        => (string)($s->link ?? ''),
+
+                'sort_order' => (int)($s->sort_order ?? 0),
+
+                'metadata'   => $this->maybeJson($s->metadata),
+
+            ];
+
+        }
+
+    }
+ 
     $rows->each(function ($r) use ($socialsByUserId) {
+
         $r->socials = $socialsByUserId[(int)$r->id] ?? [];
+
     });
-
+ 
     $items = $rows->map(fn($r) => $this->normalizeRow($r))->values()->all();
-
+ 
     return response()->json([
+
         'success' => true,
+
         'data' => $items,
+
         'pagination' => [
+
             'page'      => $page,
+
             'per_page'  => $perPage,
+
             'total'     => $total,
+
             'last_page' => $lastPage,
+
         ],
+
     ]);
+
 }
 
+ 
 /* =========================
  | Helpers for Faculty API
  * ========================= */
@@ -1103,7 +1261,6 @@ protected function toUrl(?string $path): ?string
 
     return rtrim(config('app.url'), '/') . $path;
 }
-
 protected function normalizeRow($r): array
 {
     $qualification = $this->maybeJson($r->qualification);
@@ -1114,21 +1271,21 @@ protected function normalizeRow($r): array
     } else {
         $qualification = (string)$qualification;
     }
-
+ 
     // website can also be stored as a "website" platform row (optional)
     $website = null;
     $socials = [];
     $rawSocials = is_array($r->socials ?? null) ? $r->socials : [];
-
+ 
     foreach ($rawSocials as $s) {
         $plat = strtolower(trim((string)($s['platform'] ?? '')));
         $url  = trim((string)($s['url'] ?? ''));
-
+ 
         if ($plat === 'website' || $plat === 'site' || $plat === 'web' || $plat === 'personal_website') {
             if ($website === null && $url !== '') $website = $url;
             continue; // don’t show website as icon
         }
-
+ 
         $socials[] = [
             'platform'   => $plat,
             'icon'       => (string)($s['icon'] ?? ''),
@@ -1136,31 +1293,36 @@ protected function normalizeRow($r): array
             'sort_order' => (int)($s['sort_order'] ?? 0),
         ];
     }
-
+ 
     return [
         'id' => (int)$r->id,
         'uuid' => (string)$r->uuid,
         'slug' => (string)($r->slug ?? ''),
         'name' => (string)($r->name ?? ''),
         'email' => (string)($r->email ?? ''),
-
+ 
         'image' => (string)($r->image ?? ''),
         'image_full_url' => $this->toUrl($r->image),
-
+ 
         // this line in your screenshot is basically "designation"
         'designation' => (string)($r->affiliation ?? ''),
-
+ 
         'qualification' => $qualification,
         'specification' => (string)($r->specification ?? ''),
         'experience' => (string)($r->experience ?? ''),
-
+ 
         'website' => $website,
-
+ 
+        'department_id'    => isset($r->department_id) ? (int)$r->department_id : null,
+'department_uuid'  => (string)($r->department_uuid ?? ''),
+'department_title' => (string)($r->department_title ?? ''),
+ 
+ 
         // ✅ socials come from user_social_media
         'socials' => $socials,
     ];
 }
-
+ 
 /* ============================================
  | PUBLIC: Placement Officer Index
  | GET /api/public/placement-officers
@@ -1293,5 +1455,311 @@ public function placementOfficerIndex(Request $request)
             'last_page' => $lastPage,
         ],
     ]);
+}public function exportUsersCsv(Request $request)
+{
+    $filename = 'users_export_' . now()->format('Y-m-d_His') . '.csv';
+
+    $query = DB::table('users')
+        ->select(['name', 'email', 'phone_number', 'role'])
+        ->whereNull('deleted_at')
+        ->orderBy('id', 'asc');
+
+    // ✅ optional filter: /api/users/export-csv?role=student
+    if ($request->filled('role')) {
+        $query->where('role', $request->query('role'));
+    }
+
+    $headers = [
+        'Content-Type'        => 'text/csv; charset=UTF-8',
+        'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+        'Cache-Control'       => 'no-store, no-cache, must-revalidate',
+        'Pragma'              => 'no-cache',
+    ];
+
+    return response()->stream(function () use ($query) {
+        $out = fopen('php://output', 'w');
+
+        // (Optional but helpful for Excel UTF-8)
+        // fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF));
+
+        fputcsv($out, ['name', 'email', 'phno', 'role']);
+
+        $seenEmail = [];
+        $seenPhone = [];
+
+        foreach ($query->cursor() as $u) {
+            $name  = trim((string)($u->name ?? ''));
+            $email = strtolower(trim((string)($u->email ?? '')));
+            $phno  = trim((string)($u->phone_number ?? ''));
+            $role  = trim((string)($u->role ?? ''));
+
+            if ($name === '' && $email === '' && $phno === '' && $role === '') continue;
+
+            if ($email !== '') {
+                if (isset($seenEmail[$email])) continue;
+                $seenEmail[$email] = true;
+            }
+
+            if ($phno !== '') {
+                if (isset($seenPhone[$phno])) continue;
+                $seenPhone[$phno] = true;
+            }
+
+            fputcsv($out, [$name, $email, $phno, $role]);
+        }
+
+        fclose($out);
+    }, 200, $headers);
 }
+
+public function importUsersCsv(Request $request)
+{
+    $request->validate([
+        'file' => 'required|file|mimes:csv,txt',
+        'update_existing' => 'nullable|boolean',
+        'create_missing'  => 'nullable|boolean',
+    ]);
+
+    $updateExisting = (bool) $request->input('update_existing', true);
+    $createMissing  = (bool) $request->input('create_missing', true);
+
+    // ✅ default password if CSV password is missing
+    $DEFAULT_PASSWORD = '12345678';
+
+    $file = $request->file('file');
+    $path = $file->getRealPath();
+
+    $imported = 0;
+    $updated  = 0;
+    $skipped  = 0;
+    $errors   = [];
+
+    $handle = fopen($path, 'r');
+    if (!$handle) {
+        return response()->json(['success' => false, 'error' => 'Failed to read uploaded CSV.'], 422);
+    }
+
+    $header = fgetcsv($handle);
+    if (!$header) {
+        fclose($handle);
+        return response()->json(['success' => false, 'error' => 'CSV header missing.'], 422);
+    }
+
+    // normalize header (remove BOM on first column too)
+    $cols = array_map(function ($h) {
+        $h = trim((string)$h);
+        $h = preg_replace('/^\xEF\xBB\xBF/', '', $h); // BOM
+        return strtolower($h);
+    }, $header);
+
+    $idx = array_flip($cols);
+
+    foreach (['name', 'email'] as $c) {
+        if (!array_key_exists($c, $idx)) {
+            fclose($handle);
+            return response()->json(['success' => false, 'error' => "Missing required column: {$c}"], 422);
+        }
+    }
+
+    // small helpers
+    $get = function(array $row, string $key) use ($idx) {
+        if (!isset($idx[$key])) return null;
+        $v = $row[$idx[$key]] ?? null;
+        $v = is_string($v) ? trim($v) : $v;
+        return ($v === '' ? null : $v);
+    };
+
+    $getAny = function(array $row, array $keys) use ($get) {
+        foreach ($keys as $k) {
+            $v = $get($row, $k);
+            if ($v !== null) return $v;
+        }
+        return null;
+    };
+
+    $makeUniqueSlug = function(string $base, ?int $ignoreId = null) {
+        $base = Str::slug($base) ?: 'user';
+        $try = $base;
+
+        $i = 0;
+        while (true) {
+            $q = DB::table('users')->where('slug', $try);
+            if ($ignoreId) $q->where('id', '!=', $ignoreId);
+            if (!$q->exists()) break;
+
+            $i++;
+            $try = $base . '-' . Str::lower(Str::random(6));
+            if ($i > 30) break;
+        }
+        return $try;
+    };
+
+    $roleShort = function(string $role) {
+        $role = strtolower(trim($role));
+        $map = [
+            'faculty' => 'FAC',
+            'hod' => 'HOD',
+            'tpo' => 'TPO',
+            'placement_officer' => 'TPO',
+            'technical_assistant' => 'TA',
+            'technical_assisstant' => 'TA',
+            'student' => 'STU',
+        ];
+        return $map[$role] ?? strtoupper(substr($role ?: 'FAC', 0, 3));
+    };
+
+    $rowNum = 1;
+
+    DB::beginTransaction();
+    try {
+        while (($row = fgetcsv($handle)) !== false) {
+            $rowNum++;
+
+            // skip blank row
+            if (count(array_filter($row, fn($v) => trim((string)$v) !== '')) === 0) {
+                continue;
+            }
+
+            $name  = $get($row, 'name');
+            $email = $get($row, 'email');
+
+            if (!$email) { $skipped++; $errors[] = ['row' => $rowNum, 'error' => 'Email missing']; continue; }
+            if (!$name)  { $skipped++; $errors[] = ['row' => $rowNum, 'error' => 'Name missing']; continue; }
+
+            $email = strtolower(trim($email));
+
+            // role (no constraints)
+            $role = strtolower((string)($getAny($row, ['role']) ?? 'faculty'));
+
+            // status
+            $stRaw = strtolower((string)($getAny($row, ['status']) ?? 'active'));
+            $status = ($stRaw === 'inactive') ? 'inactive' : 'active';
+
+            // department_id (optional)
+            $dep = $getAny($row, ['department_id', 'dept_id']);
+            $departmentId = null;
+            if ($dep !== null) {
+                $depInt = (int)$dep;
+                $departmentId = $depInt > 0 ? $depInt : null;
+            }
+
+            // uuid/slug from csv if present, else generate
+            $uuid = $getAny($row, ['uuid']);
+            if (!$uuid || strlen((string)$uuid) < 10) $uuid = (string) Str::uuid();
+
+            $slugInCsv = $getAny($row, ['slug']);
+            $slugBase = $slugInCsv ?: $name;
+
+            // password: use CSV password if present, else default 12345678
+            $csvPassword = $getAny($row, ['password', 'pass']);
+            $finalPassword = ($csvPassword !== null && trim((string)$csvPassword) !== '')
+                ? trim((string)$csvPassword)
+                : $DEFAULT_PASSWORD;
+
+            // optional fields (accept common aliases too)
+            $phone = $getAny($row, ['phone_number','phone','mobile']);
+            $altEmail = $getAny($row, ['alternative_email','alt_email']);
+            $altPhone = $getAny($row, ['alternative_phone_number','alt_phone']);
+            $wa = $getAny($row, ['whatsapp_number','whatsapp']);
+            $image = $getAny($row, ['image','image_url']);
+            $address = $getAny($row, ['address']);
+            $meta = $getAny($row, ['metadata']);
+
+            // find existing even if soft deleted
+            $existing = DB::table('users')->where('email', $email)->first();
+
+            $now = now();
+
+            if ($existing) {
+                if (!$updateExisting) { $skipped++; continue; }
+
+                // if slug provided, use it; else keep existing slug
+                $newSlug = $existing->slug;
+                if ($slugInCsv) {
+                    $newSlug = $makeUniqueSlug($slugBase, (int)$existing->id);
+                }
+
+                $updateData = [
+                    'name' => $name,
+                    'email' => $email,
+                    'role' => $role ?: ($existing->role ?? 'faculty'),
+                    'role_short_form' => $roleShort($role ?: ($existing->role ?? 'faculty')),
+                    'status' => $status ?: ($existing->status ?? 'active'),
+                    'department_id' => $departmentId,
+                    'slug' => $newSlug ?: $existing->slug,
+                    'uuid' => $existing->uuid ?: $uuid,
+                    'updated_at' => $now,
+                    'deleted_at' => null, // ✅ restore if was soft deleted
+                ];
+
+                if ($phone !== null) $updateData['phone_number'] = $phone;
+                if ($altEmail !== null) $updateData['alternative_email'] = $altEmail;
+                if ($altPhone !== null) $updateData['alternative_phone_number'] = $altPhone;
+                if ($wa !== null) $updateData['whatsapp_number'] = $wa;
+                if ($image !== null) $updateData['image'] = $image;
+                if ($address !== null) $updateData['address'] = $address;
+                if ($meta !== null) $updateData['metadata'] = $meta;
+
+                // ✅ only update password if CSV password column is provided & non-empty
+                if ($csvPassword !== null && trim((string)$csvPassword) !== '') {
+                    $updateData['password'] = Hash::make($finalPassword);
+                }
+
+                DB::table('users')->where('id', $existing->id)->update($updateData);
+                $updated++;
+            } else {
+                if (!$createMissing) { $skipped++; continue; }
+
+                $newSlug = $makeUniqueSlug($slugBase, null);
+
+                $insertData = [
+                    'uuid' => $uuid,
+                    'name' => $name,
+                    'slug' => $newSlug,
+                    'email' => $email,
+                    'password' => Hash::make($finalPassword),
+                    'role' => $role ?: 'faculty',
+                    'role_short_form' => $roleShort($role ?: 'faculty'),
+                    'status' => $status ?: 'active',
+                    'department_id' => $departmentId,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+
+                if ($phone !== null) $insertData['phone_number'] = $phone;
+                if ($altEmail !== null) $insertData['alternative_email'] = $altEmail;
+                if ($altPhone !== null) $insertData['alternative_phone_number'] = $altPhone;
+                if ($wa !== null) $insertData['whatsapp_number'] = $wa;
+                if ($image !== null) $insertData['image'] = $image;
+                if ($address !== null) $insertData['address'] = $address;
+                if ($meta !== null) $insertData['metadata'] = $meta;
+
+                DB::table('users')->insert($insertData);
+                $imported++;
+            }
+        }
+
+        DB::commit();
+    } catch (\Throwable $e) {
+        DB::rollBack();
+        fclose($handle);
+
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage(),
+            'row' => $rowNum,
+        ], 500);
+    }
+
+    fclose($handle);
+
+    return response()->json([
+        'success' => true,
+        'imported' => $imported,
+        'updated' => $updated,
+        'skipped' => $skipped,
+        'errors' => $errors,
+    ]);
+}
+
 }

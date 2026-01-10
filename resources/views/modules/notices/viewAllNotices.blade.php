@@ -10,520 +10,901 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet"/>
 
-  {{-- Common UI --}}
+  {{-- Common UI tokens --}}
   <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}">
 
   <style>
-    :root{
-      --nt-accent: var(--primary-color, #9E363A);
-      --nt-border: rgba(0,0,0,.08);
-      --nt-shadow: 0 10px 24px rgba(0,0,0,.08);
-      --nt-radius: 10px;
+    /* =========================================================
+      ✅ Notices (Public) — SAME UI STRUCTURE as Announcements reference
+      - Scoped CSS (no :root / no global body)
+      - Dept dropdown UI added (pill + icon + caret)
+      - Dept filtering FIXED (client-side filter by department_id / department_uuid)
+      - Deep-link ?d-{uuid} auto-selects dept + filters
+    ========================================================= */
 
-      /* Same fixed card sizing (like your courses page) */
-      --nt-card-w: 381.5px;
-      --nt-card-h: 426.4px;
-      --nt-media-h: 240px;
+    .ntx-wrap{
+      /* scoped tokens */
+      --ntx-brand: var(--primary-color, #9E363A);
+      --ntx-ink: #0f172a;
+      --ntx-muted: #64748b;
+      --ntx-bg: var(--page-bg, #ffffff);
+      --ntx-card: var(--surface, #ffffff);
+      --ntx-line: var(--line-soft, rgba(15,23,42,.10));
+      --ntx-shadow: 0 10px 24px rgba(2,6,23,.08);
+
+      /* card sizing (match ref height) */
+      --ntx-card-h: 426.4px;
+      --ntx-media-h: 240px;
+
+      max-width: 1320px;
+      margin: 18px auto 54px;
+      padding: 0 12px;
+      background: transparent;
+      position: relative;
+      overflow: visible;
     }
-    body{background:#f6f7fb}
 
-    .nt-wrap{max-width:1140px;margin:24px auto 56px;padding:0 12px;}
-    .nt-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;}
-    .nt-title{font-weight:900;letter-spacing:.2px;margin:0;display:flex;align-items:center;gap:10px;}
-    .nt-title i{color:var(--nt-accent)}
+    /* Header */
+    .ntx-head{
+      background: var(--ntx-card);
+      border: 1px solid var(--ntx-line);
+      border-radius: 16px;
+      box-shadow: var(--ntx-shadow);
+      padding: 14px 16px;
+      margin-bottom: 16px;
 
-    .nt-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
-    .nt-toolbar .form-control{
-      height:42px;border-radius:10px;border:1px solid var(--nt-border);
-      box-shadow:none;min-width:280px;
+      display:flex;
+      gap: 12px;
+      align-items: flex-end;
+      justify-content: space-between;
+      flex-wrap: wrap;
     }
-    @media (max-width:576px){
-      .nt-toolbar .form-control{min-width:100%}
-      .nt-head{flex-direction:column;align-items:stretch}
+    .ntx-title{
+      margin: 0;
+      font-weight: 950;
+      letter-spacing: .2px;
+      color: var(--ntx-ink);
+      font-size: 28px;
+      display:flex;
+      align-items:center;
+      gap: 10px;
+    }
+    .ntx-title i{ color: var(--ntx-brand); }
+    .ntx-sub{
+      margin: 6px 0 0;
+      color: var(--ntx-muted);
+      font-size: 14px;
+    }
+
+    .ntx-tools{
+      display:flex;
+      gap: 10px;
+      align-items:center;
+      flex-wrap: wrap;
+    }
+
+    /* Search */
+    .ntx-search{
+      position: relative;
+      min-width: 260px;
+      max-width: 520px;
+      flex: 1 1 320px;
+    }
+    .ntx-search i{
+      position:absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      opacity: .65;
+      color: var(--ntx-muted);
+      pointer-events:none;
+    }
+    .ntx-search input{
+      width:100%;
+      height: 42px;
+      border-radius: 999px;
+      padding: 11px 12px 11px 42px;
+      border: 1px solid var(--ntx-line);
+      background: var(--ntx-card);
+      color: var(--ntx-ink);
+      outline: none;
+    }
+    .ntx-search input:focus{
+      border-color: rgba(201,75,80,.55);
+      box-shadow: 0 0 0 4px rgba(201,75,80,.18);
+    }
+
+    /* ✅ Dept dropdown (same nice UI as ref) */
+    .ntx-select{
+      position: relative;
+      min-width: 260px;
+      max-width: 360px;
+      flex: 0 1 320px;
+    }
+    .ntx-select__icon{
+      position:absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      opacity: .70;
+      color: var(--ntx-muted);
+      pointer-events:none;
+      font-size: 14px;
+    }
+    .ntx-select__caret{
+      position:absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      opacity: .70;
+      color: var(--ntx-muted);
+      pointer-events:none;
+      font-size: 12px;
+    }
+    .ntx-select select{
+      width: 100%;
+      height: 42px;
+      border-radius: 999px;
+      padding: 10px 38px 10px 42px;
+      border: 1px solid var(--ntx-line);
+      background: var(--ntx-card);
+      color: var(--ntx-ink);
+      outline: none;
+
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+    }
+    .ntx-select select:focus{
+      border-color: rgba(201,75,80,.55);
+      box-shadow: 0 0 0 4px rgba(201,75,80,.18);
+    }
+
+    /* Chip */
+    .ntx-chip{
+      display:flex;
+      align-items:center;
+      gap: 8px;
+      height: 42px;
+      padding: 0 12px;
+      border-radius: 999px;
+      border: 1px solid var(--ntx-line);
+      background: var(--ntx-card);
+      box-shadow: 0 8px 18px rgba(2,6,23,.06);
+      color: var(--ntx-ink);
+      font-size: 13px;
+      font-weight: 900;
+      white-space: nowrap;
     }
 
     /* Grid */
-    /* Grid (3 / 2 / 1) */
-.nt-grid{
-  display:grid;
-  grid-template-columns:repeat(3, minmax(0, 1fr));
-  gap:25px;
-  align-items:stretch;
-}
-
-/* Tablet -> 2 cards */
-@media (max-width: 992px){
-  .nt-grid{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
-}
-
-/* Mobile -> 1 card */
-@media (max-width: 576px){
-  .nt-grid{ grid-template-columns:1fr; }
-}
-
+    .ntx-grid{
+      display:grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 18px;
+      align-items: stretch;
+    }
 
     /* Card */
-    .nt-card{
-      width: 100%;
-      height:var(--nt-card-h);
+    .ntx-card{
+      width:100%;
+      height: var(--ntx-card-h);
       position:relative;
       display:flex;
       flex-direction:column;
-      border:1px solid var(--nt-border);
-      border-radius:var(--nt-radius);
-      background:#fff;
-      box-shadow:var(--nt-shadow);
+      border: 1px solid rgba(2,6,23,.08);
+      border-radius: 16px;
+      background: #fff;
+      box-shadow: var(--ntx-shadow);
       overflow:hidden;
-      transition:transform .18s ease, box-shadow .18s ease;
+      transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+      will-change: transform;
     }
-    .nt-card:hover{transform:translateY(-2px);box-shadow:0 14px 30px rgba(0,0,0,.10);}
+    .ntx-card:hover{
+      transform: translateY(-2px);
+      box-shadow: 0 16px 34px rgba(2,6,23,.12);
+      border-color: rgba(158,54,58,.22);
+    }
 
-    /* ✅ robust media fallback (prevents broken image icon + big alt text) */
-    .nt-media{
-  width:100%;
-  height:var(--nt-media-h);
-  flex:0 0 auto;
-  background:var(--nt-accent);
-  position:relative;
-  overflow:hidden;
-  user-select:none;
-
-  /* ✅ cover image support */
-  background-size:cover;
-  background-position:center;
-  background-repeat:no-repeat;
-}
-
-/* ✅ when cover exists, hide fallback text */
-.nt-media.has-cover .nt-fallback{ display:none; }
-
-    .nt-media img{
+    .ntx-media{
+      width:100%;
+      height: var(--ntx-media-h);
+      flex: 0 0 auto;
+      background: var(--ntx-brand);
+      position:relative;
+      overflow:hidden;
+      user-select:none;
+    }
+    .ntx-media .ntx-fallback{
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:#fff;
+      font-weight:950;
+      font-size: 26px;
+      letter-spacing:.2px;
+      z-index: 0;
+      padding: 0 14px;
+      text-align:center;
+    }
+    .ntx-media img{
       position:absolute;
       inset:0;
       width:100%;
       height:100%;
       object-fit:cover;
       display:block;
-      z-index:1;
+      z-index: 1;
     }
-    .nt-media .nt-fallback{
-      position:absolute;
-      inset:0;
-      z-index:0;
+
+    .ntx-body{
+      padding: 16px 16px 14px;
       display:flex;
-      align-items:center;
-      justify-content:center;
-      padding:0 18px;
-      text-align:center;
-      line-height:1.15;
-      color:#fff;
-      font-weight:900;
-      font-size:28px;
-      letter-spacing:.3px;
+      flex-direction:column;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+    .ntx-h{
+      font-size: 20px;
+      line-height: 1.25;
+      font-weight: 950;
+      margin: 0 0 10px 0;
+      color: var(--ntx-ink);
+
+      display:-webkit-box;
+      -webkit-line-clamp:2;
+      -webkit-box-orient:vertical;
+      overflow:hidden;
+
+      overflow-wrap:anywhere;
+      word-break:break-word;
+    }
+    .ntx-p{
+      margin:0;
+      color:#475569;
+      font-size: 14.5px;
+      line-height: 1.7;
+
       display:-webkit-box;
       -webkit-line-clamp:3;
       -webkit-box-orient:vertical;
       overflow:hidden;
+
+      overflow-wrap:anywhere;
+      word-break:break-word;
+      hyphens:auto;
     }
 
-    .nt-body{
-      padding:18px 18px 16px;
-      display:flex;
-      flex-direction:column;
-      flex:1 1 auto;
-      min-height:0;
-    }
-
-    .nt-h{
-      font-size:20px;line-height:1.25;font-weight:900;margin:0 0 10px 0;color:#0f172a;
-      display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
-      overflow-wrap:anywhere;word-break:break-word;
-    }
-
-    .nt-meta{
-      display:flex;flex-direction:column;gap:6px;
-      margin-bottom:10px;color:#334155;font-weight:800;font-size:13px;
-    }
-    .nt-meta .rowx{display:flex;align-items:center;gap:8px;min-height:18px;}
-    .nt-meta i{width:16px;text-align:center;color:#64748b;}
-
-    .nt-p{
-      margin:0;color:#475569;font-size:15px;line-height:1.7;
-      display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
-      overflow-wrap:anywhere;word-break:break-word;hyphens:auto;
-    }
-
-    .nt-date{
+    .ntx-date{
       margin-top:auto;
       color:#94a3b8;
-      font-size:13px;
-      padding-top:12px;
+      font-size: 13px;
+      padding-top: 12px;
       display:flex;
       align-items:center;
-      gap:6px;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .ntx-date .sep{ opacity:.55; padding: 0 2px; }
+
+    .ntx-link{
+      position:absolute;
+      inset:0;
+      z-index:2;
+      border-radius: 16px;
     }
 
-    .nt-pill{
-      position:absolute;left:12px;top:12px;z-index:3; /* ✅ above image */
-      padding:6px 10px;border-radius:999px;
-      font-size:12px;font-weight:900;
-      background:rgba(0,0,0,.55);color:#fff;
-      backdrop-filter: blur(6px);
+    /* State / empty */
+    .ntx-state{
+      background: var(--ntx-card);
+      border: 1px solid var(--ntx-line);
+      border-radius: 16px;
+      box-shadow: var(--ntx-shadow);
+      padding: 18px;
+      color: var(--ntx-muted);
+      text-align:center;
     }
 
-    .nt-link{position:absolute;inset:0;z-index:4;border-radius:var(--nt-radius);}
-
-    /* Skeletons */
-    .nt-skel{
-      width: 100%;
-      height:var(--nt-card-h);
-      border:1px solid var(--nt-border);
-      border-radius:var(--nt-radius);
-      background:#fff;
-      box-shadow:var(--nt-shadow);
+    /* Skeleton */
+    .ntx-skeleton{
+      display:grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 18px;
+    }
+    .ntx-sk{
+      border-radius: 16px;
+      border: 1px solid var(--ntx-line);
+      background: #fff;
       overflow:hidden;
+      position:relative;
+      box-shadow: 0 10px 24px rgba(2,6,23,.08);
+      height: var(--ntx-card-h);
+    }
+    .ntx-sk:before{
+      content:'';
+      position:absolute; inset:0;
+      transform: translateX(-60%);
+      background: linear-gradient(90deg, transparent, rgba(148,163,184,.22), transparent);
+      animation: ntxSkMove 1.15s ease-in-out infinite;
+    }
+    @keyframes ntxSkMove{ to{ transform: translateX(60%);} }
+
+    /* Pagination */
+    .ntx-pagination{
       display:flex;
-      flex-direction:column;
+      justify-content:center;
+      margin-top: 18px;
     }
-    .nt-skel .m{
-      height:var(--nt-media-h);
-      background:linear-gradient(90deg,#eee,#f6f6f6,#eee);
-      background-size:200% 100%;
-      animation:sk 1.1s infinite;
+    .ntx-pagination .ntx-pager{
+      display:flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items:center;
+      justify-content:center;
+      padding: 10px;
     }
-    .nt-skel .b{padding:18px;flex:1}
-    .nt-skel .l{
-      height:16px;margin:10px 0;border-radius:8px;
-      background:linear-gradient(90deg,#eee,#f6f6f6,#eee);
-      background-size:200% 100%;
-      animation:sk 1.1s infinite;
+    .ntx-pagebtn{
+      border:1px solid var(--ntx-line);
+      background: var(--ntx-card);
+      color: var(--ntx-ink);
+      border-radius: 12px;
+      padding: 9px 12px;
+      font-size: 13px;
+      font-weight: 950;
+      box-shadow: 0 8px 18px rgba(2,6,23,.06);
+      cursor:pointer;
+      user-select:none;
     }
-    .nt-skel .l.w70{width:70%}
-    .nt-skel .l.w95{width:95%}
-    .nt-skel .l.w85{width:85%}
-    @keyframes sk{0%{background-position:0 0}100%{background-position:200% 0}}
+    .ntx-pagebtn:hover{ background: rgba(2,6,23,.03); }
+    .ntx-pagebtn[disabled]{ opacity:.55; cursor:not-allowed; }
+    .ntx-pagebtn.active{
+      background: rgba(201,75,80,.12);
+      border-color: rgba(201,75,80,.35);
+      color: var(--ntx-brand);
+    }
 
-    .nt-footer{display:flex;justify-content:center;margin-top:22px;}
-    .btn-nt{
-      border-radius:12px;padding:10px 16px;border:1px solid var(--nt-border);
-      background:#fff;font-weight:900;
+    @media (max-width: 640px){
+      .ntx-title{ font-size: 24px; }
+      .ntx-search{ min-width: 220px; flex: 1 1 240px; }
+      .ntx-select{ min-width: 220px; flex: 1 1 240px; }
+      .ntx-wrap{ --ntx-media-h: 210px; }
+      .ntx-media .ntx-fallback{ font-size: 22px; }
     }
-    .btn-nt:hover{border-color:rgba(0,0,0,.14);background:#fff;}
 
-    .nt-empty{text-align:center;color:#64748b;padding:40px 10px;}
+    /* ✅ Guard against Bootstrap overriding mega menu dropdown positioning */
+    .dynamic-navbar .navbar-nav .dropdown-menu{
+      position: absolute !important;
+      inset: auto !important;
+    }
+    .dynamic-navbar .dropdown-menu.is-portaled{
+      position: fixed !important;
+    }
   </style>
 </head>
 <body>
 
-  <div class="nt-wrap">
-    <div class="nt-head">
+  <div
+    class="ntx-wrap"
+    data-api="{{ url('/api/public/notices') }}"
+    data-view-base="{{ url('/notices/view') }}"
+    data-dept-api="{{ url('/api/public/departments') }}"
+  >
+    <div class="ntx-head">
       <div>
-        {{-- ✅ Icon before heading --}}
-        <h2 class="nt-title"><i class="fa-solid fa-bullhorn"></i> Notices</h2>
-        <div class="text-muted" style="font-size:13px;">Browse all published notices.</div>
+        <h1 class="ntx-title"><i class="fa-solid fa-bullhorn"></i>Notices</h1>
+        <div class="ntx-sub" id="ntxSub">Browse all published notices.</div>
       </div>
 
-      <div class="nt-toolbar">
-        <input id="ntSearch" class="form-control" type="search" placeholder="Search notices (title/slug/body)..." />
-      </div>
-    </div>
-
-    <div class="nt-grid" id="ntGrid">
-      {{-- skeletons --}}
-      @for($i=0; $i<4; $i++)
-        <div class="nt-skel">
-          <div class="m"></div>
-          <div class="b">
-            <div class="l w70"></div>
-            <div class="l w95"></div>
-            <div class="l w85"></div>
-            <div class="l w70" style="margin-top:16px;"></div>
-          </div>
+      <div class="ntx-tools">
+        <div class="ntx-search">
+          <i class="fa fa-magnifying-glass"></i>
+          <input id="ntxSearch" type="search" placeholder="Search notices (title/body/slug)…">
         </div>
-      @endfor
+
+        <div class="ntx-select" title="Filter by department">
+          <i class="fa-solid fa-building-columns ntx-select__icon"></i>
+          <select id="ntxDept" aria-label="Filter by department">
+            <option value="">All Departments</option>
+          </select>
+          <i class="fa-solid fa-chevron-down ntx-select__caret"></i>
+        </div>
+
+        <div class="ntx-chip" title="Total results">
+          <i class="fa-regular fa-rectangle-list" style="opacity:.85"></i>
+          <span id="ntxCount">—</span>
+        </div>
+      </div>
     </div>
 
-    <div class="nt-footer">
-      <button id="ntLoadMore" class="btn btn-nt d-none">
-        <i class="fa-solid fa-rotate me-2"></i>Load more
-      </button>
-    </div>
+    <div id="ntxGrid" class="ntx-grid" style="display:none;"></div>
 
-    <div id="ntEmpty" class="nt-empty d-none">
-      <div style="font-size:34px; line-height:1;">📢</div>
-      <div class="mt-2" style="font-weight:900; font-size:18px;">No notices found</div>
-      <div class="mt-1">Try a different search term.</div>
+    <div id="ntxSkeleton" class="ntx-skeleton"></div>
+    <div id="ntxState" class="ntx-state" style="display:none;"></div>
+
+    <div class="ntx-pagination">
+      <div id="ntxPager" class="ntx-pager" style="display:none;"></div>
     </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
   <script>
-    (function(){
-      // ✅ API -> NoticeController@publicIndex
-      const API_INDEX = @json(url('/api/public/notices'));
+  (() => {
+    if (window.__PUBLIC_NOTICES_ALL__) return;
+    window.__PUBLIC_NOTICES_ALL__ = true;
 
-      // ✅ Your route is: /notices/view/{uuid}
-      const VIEW_BASE = @json(url('/notices/view'));
+    const root = document.querySelector('.ntx-wrap');
+    if (!root) return;
 
-      const grid     = document.getElementById('ntGrid');
-      const btnMore  = document.getElementById('ntLoadMore');
-      const emptyBox = document.getElementById('ntEmpty');
-      const qInput   = document.getElementById('ntSearch');
+    const API = root.getAttribute('data-api') || '/api/public/notices';
+    const VIEW_BASE = root.getAttribute('data-view-base') || '/notices/view';
+    const DEPT_API = root.getAttribute('data-dept-api') || '/api/public/departments';
 
-      let page = 1;
-      let lastPage = 1;
-      let loading = false;
-      let q = '';
+    const $ = (id) => document.getElementById(id);
 
-      // ✅ safe HTML output (for text nodes)
-      const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({
+    const els = {
+      grid: $('ntxGrid'),
+      skel: $('ntxSkeleton'),
+      state: $('ntxState'),
+      pager: $('ntxPager'),
+      search: $('ntxSearch'),
+      dept: $('ntxDept'),
+      count: $('ntxCount'),
+      sub: $('ntxSub'),
+    };
+
+    const state = {
+      page: 1,
+      perPage: 9,
+      lastPage: 1,
+      total: 0,
+      q: '',
+      deptUuid: '',
+      deptId: null,
+      deptName: '',
+    };
+
+    let activeController = null;
+
+    // cache
+    let allNotices = null;
+    let deptByUuid = new Map(); // uuid -> {id, title, uuid}
+
+    function esc(str){
+      return (str ?? '').toString().replace(/[&<>"']/g, s => ({
         '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-      }[m]));
+      }[s]));
+    }
+    function escAttr(str){
+      return (str ?? '').toString().replace(/"/g, '&quot;');
+    }
 
-      // for attributes
-      const escAttr = (s) => String(s || '').replace(/"/g, '&quot;');
+    function stripHtml(html){
+      const raw = String(html || '')
+        .replace(/<\s*br\s*\/?>/gi, ' ')
+        .replace(/<\/\s*(p|div|li|h[1-6]|tr|td|th|section|article)\s*>/gi, '$& ')
+        .replace(/<\s*(p|div|li|h[1-6]|tr|td|th|section|article)\b[^>]*>/gi, ' ');
+      const div = document.createElement('div');
+      div.innerHTML = raw;
+      return (div.textContent || div.innerText || '').replace(/\s+/g, ' ').trim();
+    }
 
-      // ✅ better HTML->text so words don't join (DeskOur issue)
-      const stripHtml = (html) => {
-        const raw = String(html || '')
-          .replace(/<\s*br\s*\/?>/gi, ' ')
-          .replace(/<\/\s*(p|div|li|h[1-6]|tr|td|th|section|article)\s*>/gi, '$& ')
-          .replace(/<\s*(p|div|li|h[1-6]|tr|td|th|section|article)\b[^>]*>/gi, ' ');
+    function fmtDate(iso){
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return '';
+      return new Intl.DateTimeFormat('en-IN', { day:'2-digit', month:'short', year:'numeric' }).format(d);
+    }
 
-        const div = document.createElement('div');
-        div.innerHTML = raw;
-        return (div.textContent || div.innerText || '').replace(/\s+/g, ' ').trim();
-      };
+    function normalizeUrl(url){
+      const u = (url || '').toString().trim();
+      if (!u) return '';
+      if (/^(data:|blob:|https?:\/\/)/i.test(u)) return u;
+      if (u.startsWith('/')) return window.location.origin + u;
+      return window.location.origin + '/' + u;
+    }
 
-      const fmtDate = (iso) => {
-        if (!iso) return '';
-        const d = new Date(iso);
-        if (isNaN(d.getTime())) return '';
-        return new Intl.DateTimeFormat('en-IN', { day:'2-digit', month:'short', year:'numeric' }).format(d);
-      };
+    // ✅ handle image load/error without inline JS
+    function bindCardImages(rootEl){
+      rootEl.querySelectorAll('img.ntx-img').forEach(img => {
+        const media = img.closest('.ntx-media');
+        const fallback = media ? media.querySelector('.ntx-fallback') : null;
 
-      const setSkeletons = (n=4) => {
-        const s = [];
-        for (let i=0;i<n;i++){
-          s.push(`
-            <div class="nt-skel">
-              <div class="m"></div>
-              <div class="b">
-                <div class="l w70"></div>
-                <div class="l w95"></div>
-                <div class="l w85"></div>
-                <div class="l w70" style="margin-top:16px;"></div>
-              </div>
-            </div>
-          `);
+        if (img.complete && img.naturalWidth > 0) {
+          if (fallback) fallback.style.display = 'none';
+          return;
         }
-        grid.innerHTML = s.join('');
-      };
 
-      const removeSkeletons = () => {
-        grid.querySelectorAll('.nt-skel').forEach(el => el.remove());
-      };
+        img.addEventListener('load', () => {
+          if (fallback) fallback.style.display = 'none';
+        }, { once: true });
 
-      const setEmpty = (isEmpty) => emptyBox.classList.toggle('d-none', !isEmpty);
+        img.addEventListener('error', () => {
+          img.remove();
+          if (fallback) fallback.style.display = 'flex';
+        }, { once: true });
+      });
+    }
 
-      const setMore = () => {
-        const show = page < lastPage;
-        btnMore.classList.toggle('d-none', !show);
-        btnMore.disabled = loading;
-      };
+    function cardHtml(item){
+      const titleRaw = item?.title || 'Untitled';
+      const title = esc(titleRaw);
 
-      const pillText = (it) => {
-        if (Number(it.is_featured_home || 0) === 1) return 'Featured';
-        const dept = (it.department_title || '').toString().trim();
-        return dept ? dept : 'Notice';
-      };
+      const bodyText = stripHtml(item?.body || '');
+      const MAX_CHARS = 90;
 
-      const attachmentsCount = (it) => {
-        if (Array.isArray(it.attachments)) return it.attachments.length;
-        if (Array.isArray(it.attachments_json)) return it.attachments_json.length;
-        return 0;
-      };
-
-      // ✅ force "......" after fixed characters
-      const excerptText = (it) => {
-        const body = it.body ? stripHtml(it.body) : '';
-        const MAX_CHARS = 95; // tune as you like
-
-        if (!body) return '';
-        if (body.length <= MAX_CHARS) return body;
-
-        let cut = body.slice(0, MAX_CHARS).trim().replace(/[,\.;:\-\s]+$/g, '');
-        return cut + '......';
-      };
-const escCssUrl = (u) => {
-  u = String(u || '').trim();
-  if (!u) return '';
-  return encodeURI(u)
-    .replace(/'/g, '%27')
-    .replace(/"/g, '%22')
-    .replace(/\(/g, '%28')
-    .replace(/\)/g, '%29')
-    .replace(/#/g, '%23');
-};
-
-      const cardHtml = (item) => {
-  const titleRaw = item.title || 'Notice';
-
-  // ✅ redirect to /notices/view/{uuid}
-  const uuid = item.uuid ? String(item.uuid) : '';
-
-  // fallback to slug/id if uuid missing (still goes into {uuid} param)
-  const slug = item.slug ? String(item.slug) : '';
-  const id   = (item.id !== null && item.id !== undefined) ? String(item.id) : '';
-  const identifier = uuid || slug || id;
-
-  const href = identifier ? (VIEW_BASE + '/' + encodeURIComponent(identifier)) : '#';
-
-  const cover = item.cover_image_url ? String(item.cover_image_url).trim() : '';
-  const coverCss = escCssUrl(cover);
-
-  const dept = (item.department_title || '').toString().trim();
-  const created = fmtDate(item.publish_at || item.created_at || null);
-  const att = attachmentsCount(item);
-
-  const excerpt = excerptText(item); // your function already adds "......" in the updated version
-
-  const mediaClass = coverCss ? 'has-cover' : '';
-  const mediaStyle = coverCss ? `style="background-image:url('${coverCss}');"` : '';
-
-  return `
-    <div class="nt-card">
-      <div class="nt-pill">${escapeHtml(pillText(item))}</div>
-
-      <div class="nt-media ${mediaClass}" ${mediaStyle}>
-        <div class="nt-fallback">Notice</div>
-      </div>
-
-      <div class="nt-body">
-        <div class="nt-h">${escapeHtml(titleRaw)}</div>
-
-        <div class="nt-meta">
-          <div class="rowx">
-            <i class="fa-solid fa-building-columns"></i>
-            <span>${dept ? escapeHtml(dept) : 'General'}</span>
-          </div>
-
-          <div class="rowx">
-            <i class="fa-regular fa-calendar"></i>
-            <span>${created ? escapeHtml(created) : '—'}</span>
-          </div>
-
-          <div class="rowx">
-            <i class="fa-solid fa-paperclip"></i>
-            <span>${att ? ('Attachments: ' + att) : 'No attachments'}</span>
-          </div>
-
-          <div class="rowx">
-            <i class="fa-regular fa-eye"></i>
-            <span>${(item.views_count !== null && item.views_count !== undefined) ? ('Views: ' + item.views_count) : '—'}</span>
-          </div>
-        </div>
-
-        <p class="nt-p">${excerpt ? escapeHtml(excerpt) : ''}</p>
-
-        <div class="nt-date">
-          <i class="fa-solid fa-arrow-up-right-from-square"></i>
-          <span>Open notice</span>
-        </div>
-      </div>
-
-      ${identifier
-        ? `<a class="nt-link" href="${href}" aria-label="Open ${escAttr(titleRaw)}"></a>`
-        : `<div class="nt-link" title="Missing identifier"></div>`
+      let excerptText = bodyText;
+      if (bodyText.length > MAX_CHARS){
+        excerptText = bodyText
+          .slice(0, MAX_CHARS)
+          .trim()
+          .replace(/[,\.;:\-\s]+$/g, '');
+        excerptText += '......';
       }
-    </div>
-  `;
-};
 
+      const excerpt = esc(excerptText || '');
 
-      const fetchPage = async (reset=false) => {
-        if (loading) return;
-        loading = true;
+      // Prefer publish date; fallback created_at
+      const created = fmtDate(item?.publish_at || item?.created_at || null);
 
-        if (reset) {
-          page = 1;
-          lastPage = 1;
-          setSkeletons(4);
-          setEmpty(false);
-        }
+      // dept (optional – shown on date line to keep same structure)
+      const deptTitle = (item?.department_title || item?.department?.title || '').toString().trim();
 
-        setMore();
+      // open
+      const uuid = item?.uuid ? String(item.uuid) : '';
+      const slug = item?.slug ? String(item.slug) : '';
+      const id   = (item?.id !== null && item?.id !== undefined) ? String(item.id) : '';
+      const identifier = uuid || slug || id;
 
-        try{
-          const url = new URL(API_INDEX, window.location.origin);
-          url.searchParams.set('per_page', '10');
-          url.searchParams.set('page', String(page));
-          if (q) url.searchParams.set('q', q);
+      const href = identifier ? (VIEW_BASE + '/' + encodeURIComponent(identifier)) : '#';
 
-          // ✅ only published & visible window
-          url.searchParams.set('visible_now', '1');
+      // cover image
+      const cover = item?.cover_image_url || item?.cover_image || '';
+      const coverNorm = cover ? normalizeUrl(String(cover).trim()) : '';
 
-          const res = await fetch(url.toString(), { headers: { 'Accept': 'application/json' } });
-          if (!res.ok) throw new Error('HTTP ' + res.status);
+      return `
+        <div class="ntx-card">
+          <div class="ntx-media">
+            <div class="ntx-fallback">Notice</div>
+            ${coverNorm ? `
+              <img class="ntx-img"
+                   src="${escAttr(coverNorm)}"
+                   alt="${escAttr(titleRaw)}"
+                   loading="lazy" />
+            ` : ``}
+          </div>
 
-          const json = await res.json();
-          const items = Array.isArray(json.data) ? json.data : [];
-          const pg = json.pagination || {};
-          lastPage = Number(pg.last_page || 1);
+          <div class="ntx-body">
+            <div class="ntx-h">${title}</div>
+            <p class="ntx-p">${excerpt}</p>
 
-          removeSkeletons();
-          if (reset) grid.innerHTML = '';
+            <div class="ntx-date">
+              <i class="fa-regular fa-calendar"></i>
+              <span>Published: ${esc(created || '—')}</span>
+              ${deptTitle ? `<span class="sep">•</span><span>${esc(deptTitle)}</span>` : ``}
+            </div>
+          </div>
 
-          if (!items.length && page === 1) {
-            setEmpty(true);
-            btnMore.classList.add('d-none');
-            loading = false;
-            return;
+          ${identifier
+            ? `<a class="ntx-link" href="${href}" aria-label="Open ${escAttr(titleRaw)}"></a>`
+            : `<div class="ntx-link" title="Missing identifier"></div>`
           }
+        </div>
+      `;
+    }
 
-          const frag = document.createElement('div');
-          frag.innerHTML = items.map(cardHtml).join('');
-          while (frag.firstChild) grid.appendChild(frag.firstChild);
+    function showSkeleton(){
+      const sk = els.skel, st = els.state, grid = els.grid, pager = els.pager;
+      if (grid) grid.style.display = 'none';
+      if (pager) pager.style.display = 'none';
+      if (st) st.style.display = 'none';
 
-          setEmpty(false);
-          setMore();
-        } catch (e) {
-          console.error('Notices load error:', e);
-          removeSkeletons();
-          if (!grid.children.length) {
-            grid.innerHTML = `
-              <div class="nt-empty">
-                <div style="font-size:34px; line-height:1;">⚠️</div>
-                <div class="mt-2" style="font-weight:900; font-size:18px;">Failed to load notices</div>
-                <div class="mt-1">Please try again.</div>
-              </div>
-            `;
-          }
-          btnMore.classList.add('d-none');
-        } finally {
-          loading = false;
-          setMore();
-        }
-      };
+      if (!sk) return;
+      sk.style.display = '';
+      sk.innerHTML = Array.from({length: 6}).map(() => `<div class="ntx-sk"></div>`).join('');
+    }
 
-      btnMore.addEventListener('click', () => {
-        if (page >= lastPage) return;
-        page += 1;
-        fetchPage(false);
+    function hideSkeleton(){
+      const sk = els.skel;
+      if (!sk) return;
+      sk.style.display = 'none';
+      sk.innerHTML = '';
+    }
+
+    async function fetchJson(url){
+      if (activeController) activeController.abort();
+      activeController = new AbortController();
+
+      const res = await fetch(url, {
+        headers: { 'Accept':'application/json' },
+        signal: activeController.signal
       });
 
+      const js = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(js?.message || ('Request failed: ' + res.status));
+      return js;
+    }
+
+    function extractDeptUuidFromUrl(){
+      // matches "?d-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" anywhere
+      const hay = (window.location.search || '') + ' ' + (window.location.href || '');
+      const m = hay.match(/d-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+      return m ? m[1] : '';
+    }
+
+    function setDeptSelection(uuid){
+      const sel = els.dept;
+      uuid = (uuid || '').toString().trim();
+
+      if (!sel) return;
+
+      if (!uuid){
+        sel.value = '';
+        state.deptUuid = '';
+        state.deptId = null;
+        state.deptName = '';
+        if (els.sub) els.sub.textContent = 'Browse all published notices.';
+        return;
+      }
+
+      const meta = deptByUuid.get(uuid);
+      if (!meta) return;
+
+      sel.value = uuid;
+      state.deptUuid = uuid;
+      state.deptId = meta.id ?? null;
+      state.deptName = meta.title ?? '';
+
+      if (els.sub){
+        els.sub.textContent = state.deptName
+          ? ('Notices for ' + state.deptName)
+          : 'Notices (filtered)';
+      }
+    }
+
+    async function loadDepartments(){
+      const sel = els.dept;
+      if (!sel) return;
+
+      sel.innerHTML = `
+        <option value="">All Departments</option>
+        <option value="__loading" disabled>Loading departments…</option>
+      `;
+      sel.value = '__loading';
+
+      try{
+        const res = await fetch(DEPT_API, { headers: { 'Accept':'application/json' } });
+        const js = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(js?.message || ('HTTP ' + res.status));
+
+        const items = Array.isArray(js?.data) ? js.data : [];
+        const depts = items
+          .map(d => ({
+            id: d?.id ?? null,
+            uuid: (d?.uuid ?? '').toString().trim(),
+            title: (d?.title ?? d?.name ?? '').toString().trim(),
+            active: (d?.active ?? 1),
+          }))
+          .filter(x => x.uuid && x.title && String(x.active) === '1'); // ✅ only active
+
+        deptByUuid = new Map(depts.map(d => [d.uuid, d]));
+
+        // sort A-Z
+        depts.sort((a,b) => a.title.localeCompare(b.title));
+
+        sel.innerHTML = `<option value="">All Departments</option>` + depts
+          .map(d => `<option value="${escAttr(d.uuid)}" data-id="${escAttr(d.id ?? '')}">${esc(d.title)}</option>`)
+          .join('');
+
+        sel.value = '';
+      } catch (e){
+        console.warn('Departments load failed:', e);
+        sel.innerHTML = `<option value="">All Departments</option>`;
+        sel.value = '';
+      }
+    }
+
+    async function ensureNoticesLoaded(force=false){
+      if (allNotices && !force) return;
+
+      showSkeleton();
+
+      try{
+        // ask for a bigger page so frontend filtering always works
+        const u = new URL(API, window.location.origin);
+        u.searchParams.set('page', '1');
+        u.searchParams.set('per_page', '500');
+        u.searchParams.set('visible_now', '1');
+        u.searchParams.set('sort', 'created_at');
+        u.searchParams.set('direction', 'desc');
+
+        const js = await fetchJson(u.toString());
+        const items = Array.isArray(js?.data) ? js.data : [];
+        allNotices = items;
+      } finally {
+        hideSkeleton();
+      }
+    }
+
+    function applyFilterAndSearch(){
+      const q = (state.q || '').toString().trim().toLowerCase();
+
+      let items = Array.isArray(allNotices) ? allNotices.slice() : [];
+
+      // ✅ Dept filter: when a dept selected -> show ONLY those matching that dept
+      if (state.deptUuid && (state.deptId !== null && state.deptId !== undefined && String(state.deptId) !== '')){
+        const deptIdStr = String(state.deptId);
+        const deptUuidStr = String(state.deptUuid);
+
+        items = items.filter(it => {
+          const did = (it?.department_id === null || it?.department_id === undefined) ? '' : String(it.department_id);
+          const duu = (it?.department_uuid === null || it?.department_uuid === undefined) ? '' : String(it.department_uuid);
+          return (did === deptIdStr) || (duu && duu === deptUuidStr);
+        });
+      } else if (state.deptUuid) {
+        // if somehow deptId missing, try uuid-only
+        const deptUuidStr = String(state.deptUuid);
+        items = items.filter(it => String(it?.department_uuid || '') === deptUuidStr);
+      }
+
+      // search on title + slug + stripped body
+      if (q){
+        items = items.filter(it => {
+          const t = String(it?.title || '').toLowerCase();
+          const s = String(it?.slug || '').toLowerCase();
+          const b = stripHtml(it?.body || '').toLowerCase();
+          return (t.includes(q) || s.includes(q) || b.includes(q));
+        });
+      }
+
+      return items;
+    }
+
+    function render(items){
+      const grid = els.grid, st = els.state, count = els.count;
+      if (!grid || !st) return;
+
+      if (count) count.textContent = String(state.total || 0);
+
+      if (!items.length){
+        grid.style.display = 'none';
+        st.style.display = '';
+        const deptLine = state.deptName
+          ? `<div style="margin-top:6px;font-size:12.5px;opacity:.95;">Department: <b>${esc(state.deptName)}</b></div>`
+          : '';
+        st.innerHTML = `
+          <div style="font-size:34px;opacity:.6;margin-bottom:6px;">
+            <i class="fa-regular fa-face-frown"></i>
+          </div>
+          No notices found.
+          ${deptLine}
+        `;
+        return;
+      }
+
+      st.style.display = 'none';
+      grid.style.display = '';
+      grid.innerHTML = items.map(cardHtml).join('');
+      bindCardImages(grid);
+    }
+
+    function renderPager(){
+      const pager = els.pager;
+      if (!pager) return;
+
+      const last = state.lastPage || 1;
+      const cur  = state.page || 1;
+
+      if (last <= 1){
+        pager.style.display = 'none';
+        pager.innerHTML = '';
+        return;
+      }
+
+      const btn = (label, page, {disabled=false, active=false}={}) => {
+        const dis = disabled ? 'disabled' : '';
+        const cls = active ? 'ntx-pagebtn active' : 'ntx-pagebtn';
+        return `<button class="${cls}" ${dis} data-page="${page}">${label}</button>`;
+      };
+
+      let html = '';
+      html += btn('Previous', Math.max(1, cur-1), { disabled: cur<=1 });
+
+      const win = 2;
+      const start = Math.max(1, cur - win);
+      const end   = Math.min(last, cur + win);
+
+      if (start > 1){
+        html += btn('1', 1, { active: cur===1 });
+        if (start > 2) html += `<span style="opacity:.6;padding:0 4px;">…</span>`;
+      }
+
+      for (let p=start; p<=end; p++){
+        html += btn(String(p), p, { active: p===cur });
+      }
+
+      if (end < last){
+        if (end < last - 1) html += `<span style="opacity:.6;padding:0 4px;">…</span>`;
+        html += btn(String(last), last, { active: cur===last });
+      }
+
+      html += btn('Next', Math.min(last, cur+1), { disabled: cur>=last });
+
+      pager.innerHTML = html;
+      pager.style.display = 'flex';
+    }
+
+    function repaint(){
+      const filtered = applyFilterAndSearch();
+
+      state.total = filtered.length;
+      state.lastPage = Math.max(1, Math.ceil(filtered.length / state.perPage));
+      if (state.page > state.lastPage) state.page = state.lastPage;
+
+      const start = (state.page - 1) * state.perPage;
+      const pageItems = filtered.slice(start, start + state.perPage);
+
+      render(pageItems);
+      renderPager();
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadDepartments();
+
+      // deep-link: ?d-{uuid} anywhere
+      const deepDeptUuid = extractDeptUuidFromUrl();
+      if (deepDeptUuid && deptByUuid.has(deepDeptUuid)){
+        setDeptSelection(deepDeptUuid);
+      } else {
+        setDeptSelection('');
+      }
+
+      // load notices once, then filter client-side (keeps dept filter reliable)
+      await ensureNoticesLoaded(false);
+      repaint();
+
+      // search (debounced)
       let t = null;
-      qInput.addEventListener('input', () => {
+      els.search && els.search.addEventListener('input', () => {
         clearTimeout(t);
         t = setTimeout(() => {
-          q = (qInput.value || '').trim();
-          fetchPage(true);
-        }, 350);
+          state.q = (els.search.value || '').trim();
+          state.page = 1;
+          repaint();
+        }, 260);
       });
 
-      fetchPage(true);
-    })();
+      // dept change
+      els.dept && els.dept.addEventListener('change', () => {
+        const v = (els.dept.value || '').toString();
+        if (v === '__loading') return;
+
+        if (!v){
+          setDeptSelection('');
+        } else {
+          setDeptSelection(v);
+        }
+
+        state.page = 1;
+        repaint();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+
+      // pagination click
+      document.addEventListener('click', (e) => {
+        const b = e.target.closest('button.ntx-pagebtn[data-page]');
+        if (!b) return;
+        const p = parseInt(b.dataset.page, 10);
+        if (!p || Number.isNaN(p) || p === state.page) return;
+        state.page = p;
+        repaint();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    });
+
+  })();
   </script>
 </body>
 </html>

@@ -193,14 +193,23 @@ td .fw-semibold{color:var(--ink)}
           <button id="btnReset" class="btn btn-light">
             <i class="fa fa-rotate-left me-1"></i>Reset
           </button>
+  
+         
+        </div>
+
+        <div class="col-12 col-lg-auto ms-lg-auto d-flex justify-content-lg-end gap-3">
+          <div class="col mb-6 gap-3">
+ {{-- ✅ IMPORT --}}
+          <button id="btnImportFaculty" class="btn btn-outline-primary">
+            <i class="fa fa-file-arrow-up me-1"></i>Import CSV
+          </button>
+          <input type="file" id="importFacultyFile" accept=".csv,text/csv" class="d-none">
 
           {{-- ✅ EXPORT --}}
           <button id="btnExportFaculty" class="btn btn-outline-success">
             <i class="fa fa-file-csv me-1"></i>Export CSV
           </button>
-        </div>
-
-        <div class="col-12 col-lg-auto ms-lg-auto d-flex justify-content-lg-end">
+  </div>
           <div id="writeControls" style="display:none;">
             <button type="button" class="btn btn-primary" id="btnAddUser">
               <i class="fa fa-plus me-1"></i> Add Faculty
@@ -485,18 +494,44 @@ document.addEventListener('click', (e) => {
 });
 
 document.addEventListener('DOMContentLoaded', function () {
-  const token = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
-  if (!token) { window.location.href = '/'; return; }
+  // ✅ do NOT redirect to "/" if token missing; allow cookie-based auth too
 
   const globalLoading = document.getElementById('globalLoading');
   function showGlobalLoading(show) { if (globalLoading) globalLoading.style.display = show ? 'flex' : 'none'; }
 
-  function authHeaders(extra = {}) {
-    return Object.assign({ 'Authorization': 'Bearer ' + token, 'Accept': 'application/json' }, extra);
+  function getToken() {
+    return (sessionStorage.getItem('token') || localStorage.getItem('token') || '').trim();
+  }
+  function getCsrfToken() {
+    return (document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '').trim();
   }
 
+  function authHeaders(extra = {}) {
+    const h = Object.assign({ 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, extra);
+
+    const token = getToken();
+    if (token) h['Authorization'] = 'Bearer ' + token;
+
+    // ✅ helps if import endpoint is behind web/session middleware
+    const csrf = getCsrfToken();
+    if (csrf) h['X-CSRF-TOKEN'] = csrf;
+
+    return h;
+  }
+
+  let _authExpiredShown = false;
   function handleAuthStatus(res, forbiddenMessage) {
-    if (res.status === 401) { window.location.href = '/'; return true; }
+    if (res.status === 401) {
+      if (!_authExpiredShown) {
+        _authExpiredShown = true;
+        Swal.fire({
+          title: 'Session expired',
+          text: 'Please login again to continue.',
+          icon: 'warning'
+        });
+      }
+      return true;
+    }
     if (res.status === 403) { throw new Error(forbiddenMessage || 'You are not allowed to perform this action.'); }
     return false;
   }
@@ -569,6 +604,10 @@ document.addEventListener('DOMContentLoaded', function () {
   const btnAdd = document.getElementById('btnAddUser');
   const btnExportFaculty = document.getElementById('btnExportFaculty');
 
+  // ✅ Import controls
+  const btnImportFaculty = document.getElementById('btnImportFaculty');
+  const importFacultyFile = document.getElementById('importFacultyFile');
+
   // Modal + form
   const userModalEl = document.getElementById('userModal');
   const userModal = new bootstrap.Modal(userModalEl);
@@ -629,7 +668,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   async function fetchMe() {
     try {
-      const res = await fetch('/api/users/me', { headers: authHeaders() });
+      const res = await fetch('/api/users/me', { headers: authHeaders(), credentials: 'same-origin' });
       if (handleAuthStatus(res, 'You are not allowed to access your profile.')) return;
 
       const js = await res.json().catch(() => ({}));
@@ -678,7 +717,7 @@ document.addEventListener('DOMContentLoaded', function () {
     try {
       if (showOverlay) showGlobalLoading(true);
 
-      const res = await fetch('/api/departments', { headers: authHeaders() });
+      const res = await fetch('/api/departments', { headers: authHeaders(), credentials: 'same-origin' });
       if (handleAuthStatus(res, 'You are not allowed to load departments.')) return;
 
       const js = await res.json().catch(() => ({}));
@@ -728,7 +767,7 @@ document.addEventListener('DOMContentLoaded', function () {
       params.set('roles', rolesParamForFilter());
 
       const url = '/api/users' + (params.toString() ? ('?' + params.toString()) : '');
-      const res = await fetch(url, { headers: authHeaders() });
+      const res = await fetch(url, { headers: authHeaders(), credentials: 'same-origin' });
       if (handleAuthStatus(res, 'You are not allowed to view users.')) return;
 
       const js = await res.json().catch(() => ({}));
@@ -987,6 +1026,152 @@ document.addEventListener('DOMContentLoaded', function () {
     loadUsers();
   });
 
+  // ✅ Import CSV (Faculty) — FIXED:
+  // 1) Ask for Default Password (required by backend)
+  // 2) Send cookies too (credentials same-origin) to avoid "session expired" if route uses session middleware
+  // ✅ Import CSV (Faculty) - With Swal dialog before file picker
+btnImportFaculty?.addEventListener('click', async () => {
+  if (!canCreate && !canEdit) {
+    err('You are not allowed to import faculty.');
+    return;
+  }
+
+  const { isConfirmed } = await Swal.fire({
+    title: 'Import Faculty (CSV)',
+    html: `
+      <div class="text-start" style="font-size:13px;line-height:1.4">
+        <div class="mb-2">
+          Upload a <b>.csv</b> file to create/update faculty users.
+        </div>
+        <div class="mb-2 text-muted">
+          Tip: role values must be from: <code>faculty</code>, <code>hod</code>, <code>technical_assistant</code>, <code>tpo</code> (or <code>placement_officer</code>)
+        </div>
+        <div class="form-check mt-2">
+          <input class="form-check-input" type="checkbox" id="swUpdateExisting" checked>
+          <label class="form-check-label" for="swUpdateExisting">Update existing users (match by email/uuid if supported)</label>
+        </div>
+      </div>
+    `,
+    icon: 'info',
+    showCancelButton: true,
+    confirmButtonText: 'Choose CSV',
+    cancelButtonText: 'Cancel'
+  });
+
+  if (!isConfirmed) return;
+
+  // stash updateExisting preference for this selection
+  const updateExisting = document.getElementById('swUpdateExisting')?.checked ? '1' : '0';
+  importFacultyFile.dataset.update_existing = updateExisting;
+
+  importFacultyFile.value = '';
+  importFacultyFile.click();
+});
+  importFacultyFile?.addEventListener('change', async () => {
+  const file = importFacultyFile.files && importFacultyFile.files[0];
+  if (!file) return;
+
+  const isCsv = (file.type || '').includes('csv') || (file.name || '').toLowerCase().endsWith('.csv');
+  if (!isCsv) {
+    err('Please select a CSV file.');
+    importFacultyFile.value = '';
+    return;
+  }
+
+  const updateExisting = importFacultyFile.dataset.update_existing || '1';
+
+  // Show confirmation dialog with file details
+  const prettySize = (bytes) => {
+    const n = Number(bytes || 0);
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(n / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  };
+
+  const confirm = await Swal.fire({
+    title: 'Upload Faculty CSV?',
+    html: `
+      <div class="text-start small">
+        <div><b>File:</b> ${escapeHtml(file.name)}</div>
+        <div><b>Size:</b> ${escapeHtml(prettySize(file.size))}</div>
+        <div><b>Update existing:</b> ${updateExisting === '1' ? 'Yes' : 'No'}</div>
+        <div class="mt-2 text-muted">
+          This will import faculty users based on the CSV rows.
+        </div>
+      </div>
+    `,
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Yes, Upload',
+    cancelButtonText: 'Cancel'
+  });
+
+  if (!confirm.isConfirmed) {
+    importFacultyFile.value = '';
+    return;
+  }
+
+  try {
+    showGlobalLoading(true);
+
+    const fd = new FormData();
+    fd.append('file', file);
+
+    // optional hints (backend can ignore safely)
+    fd.append('scope', 'faculty');
+    fd.append('roles_allowed', rolesParamForFilter());
+    fd.append('update_existing', updateExisting);
+
+    const res = await fetch('/api/users/import-csv', {
+      method: 'POST',
+      headers: authHeaders(), // ✅ no manual content-type for FormData
+      body: fd,
+      credentials: 'same-origin'
+    });
+
+    if (handleAuthStatus(res, 'You are not allowed to import faculty.')) return;
+
+    const ct = (res.headers.get('content-type') || '').toLowerCase();
+    let js = null, txt = '';
+    if (ct.includes('application/json')) js = await res.json().catch(() => null);
+    else txt = await res.text().catch(() => '');
+
+    if (!res.ok || (js && js.success === false)) {
+      let msg = (js?.error || js?.message || txt || 'Import failed').toString();
+
+      // show first validation error nicely (422)
+      if (js?.errors && typeof js.errors === 'object') {
+        const k = Object.keys(js.errors)[0];
+        if (k && Array.isArray(js.errors[k]) && js.errors[k][0]) msg = js.errors[k][0];
+      }
+
+      throw new Error(msg);
+    }
+
+    let msg = js?.message || js?.msg || 'Import completed';
+    if (js?.data) {
+      const ins = js.data.inserted ?? js.data.created ?? null;
+      const upd = js.data.updated ?? null;
+      const skp = js.data.skipped ?? null;
+      const errc = js.data.errors_count ?? js.data.failed ?? null;
+      const parts = [];
+      if (ins !== null) parts.push(`Inserted: ${ins}`);
+      if (upd !== null) parts.push(`Updated: ${upd}`);
+      if (skp !== null) parts.push(`Skipped: ${skp}`);
+      if (errc !== null) parts.push(`Errors: ${errc}`);
+      if (parts.length) msg = `${msg} (${parts.join(', ')})`;
+    }
+
+    ok(msg);
+    await loadUsers(false);
+  } catch (ex) {
+    err(ex.message);
+  } finally {
+    showGlobalLoading(false);
+    importFacultyFile.value = '';
+  }
+});
   // ✅ Export CSV (respects current role filter + search)
   btnExportFaculty?.addEventListener('click', async () => {
     try {
@@ -999,7 +1184,7 @@ document.addEventListener('DOMContentLoaded', function () {
       params.set('roles', rolesParamForFilter());
 
       const url = '/api/users/export-csv' + (params.toString() ? ('?' + params.toString()) : '');
-      const res = await fetch(url, { headers: authHeaders() });
+      const res = await fetch(url, { headers: authHeaders(), credentials: 'same-origin' });
       if (handleAuthStatus(res, 'You are not allowed to export faculty.')) return;
       if (!res.ok) {
         const txt = await res.text().catch(() => '');
@@ -1053,7 +1238,8 @@ document.addEventListener('DOMContentLoaded', function () {
       const res = await fetch(`/api/users/${encodeURIComponent(uuid)}`, {
         method: 'PATCH',
         headers: { ...authHeaders({ 'Content-Type': 'application/json' }) },
-        body: JSON.stringify({ status: willActive ? 'active' : 'inactive' })
+        body: JSON.stringify({ status: willActive ? 'active' : 'inactive' }),
+        credentials: 'same-origin'
       });
       if (handleAuthStatus(res, 'You are not allowed to update user status.')) return;
 
@@ -1129,7 +1315,8 @@ document.addEventListener('DOMContentLoaded', function () {
           showGlobalLoading(true);
           const res = await fetch(`/api/users/${encodeURIComponent(uuid)}`, {
             method: 'DELETE',
-            headers: authHeaders()
+            headers: authHeaders(),
+            credentials: 'same-origin'
           });
           if (handleAuthStatus(res, 'You are not allowed to delete users.')) return;
 
@@ -1197,7 +1384,7 @@ document.addEventListener('DOMContentLoaded', function () {
     try {
       if (!state.departmentsLoaded) await loadDepartments(false);
 
-      const res = await fetch(`/api/users/${encodeURIComponent(uuid)}`, { headers: authHeaders() });
+      const res = await fetch(`/api/users/${encodeURIComponent(uuid)}`, { headers: authHeaders(), credentials: 'same-origin' });
       if (handleAuthStatus(res, 'You are not allowed to view this user.')) return;
 
       const js = await res.json().catch(() => ({}));
@@ -1316,7 +1503,8 @@ document.addEventListener('DOMContentLoaded', function () {
       const res = await fetch(url, {
         method,
         headers: { ...authHeaders({ 'Content-Type': 'application/json' }) },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        credentials: 'same-origin'
       });
       if (handleAuthStatus(res, 'You are not allowed to save users.')) return;
 
@@ -1341,7 +1529,8 @@ document.addEventListener('DOMContentLoaded', function () {
         const res2 = await fetch(`/api/users/${encodeURIComponent(uuidInput.value)}/password`, {
           method: 'PATCH',
           headers: { ...authHeaders({ 'Content-Type': 'application/json' }) },
-          body: JSON.stringify(pwPayload)
+          body: JSON.stringify(pwPayload),
+          credentials: 'same-origin'
         });
         if (handleAuthStatus(res2, 'You are not allowed to change passwords.')) return;
 
