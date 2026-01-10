@@ -21,7 +21,7 @@
     }
 
     /* Navbar Container */
-    .dynamic-navbar{
+    #thmNavbar{
         background: var(--primary-color, #9E363A);
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         position: sticky;
@@ -31,7 +31,7 @@
         overflow: visible;
     }
 
-    .navbar-container{
+    #thmNavbar .navbar-container{
         display:flex;
         align-items:stretch;
         justify-content:flex-start;
@@ -44,7 +44,7 @@
         padding: 0 10px;
     }
 
-    .menu-row{
+    #thmNavbar .menu-row{
         flex: 1 1 auto;
         display:flex;
         justify-content:flex-start;
@@ -171,7 +171,7 @@
     .burger::after{ bottom:0; }
 
     /* Menu List - single row */
-    .navbar-nav{
+    #thmNavbar .navbar-nav{
         display:flex;
         flex-direction:row;
         flex-wrap:nowrap;
@@ -192,7 +192,7 @@
         min-width: 0;
     }
 
-    .nav-link{
+    #thmNavbar .nav-link{
         display:flex;
         align-items:center;
         justify-content:center;
@@ -236,7 +236,7 @@
        MEGA DROPDOWN
        ========================================================= */
 
-    .dynamic-navbar .dropdown-menu{
+    #thmNavbar .dropdown-menu{
         display:block;
         position:absolute;
         top: 100%;
@@ -544,6 +544,16 @@
     }
     .menu-loading-text strong{ font-size: 1rem; }
     .menu-loading-text small{ opacity: .85; font-size: .85rem; }
+
+    /* Guard against Bootstrap overriding dropdown positioning */
+#thmNavbar .navbar-nav .dropdown-menu{
+  position: absolute !important;
+  inset: auto !important;
+}
+#thmNavbar .dropdown-menu.is-portaled{
+  position: fixed !important;
+}
+
 </style>
 
 <!-- LOADING OVERLAY -->

@@ -547,6 +547,18 @@
     }
     .menu-loading-text strong{ font-size: 1rem; }
     .menu-loading-text small{ opacity: .85; font-size: .85rem; }
+
+    /* ✅ Guard against Bootstrap overriding mega menu dropdown positioning */
+.dynamic-navbar .navbar-nav .dropdown-menu{
+  position: absolute !important;
+  inset: auto !important;
+}
+
+/* keep your portal mode working */
+.dynamic-navbar .dropdown-menu.is-portaled{
+  position: fixed !important;
+}
+
 </style>
 
 <!-- LOADING OVERLAY -->
