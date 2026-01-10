@@ -214,8 +214,6 @@
   </style>
 </head>
 <body>
-  @include('landing.components.header')
-  @include('landing.components.headerMenu')
 
   <div class="nt-wrap">
     <div class="nt-head">

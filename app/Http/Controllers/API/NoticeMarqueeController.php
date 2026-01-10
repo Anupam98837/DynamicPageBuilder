@@ -311,17 +311,22 @@ class NoticeMarqueeController extends Controller
     }
 
     public function current(Request $request)
-    {
-        $row = $this->visibleNowQuery()
-            ->orderByDesc('updated_at')
-            ->orderByDesc('id')
-            ->first();
+{
+    $row = $this->visibleNowQuery()
+        ->orderByDesc('updated_at')
+        ->orderByDesc('id')
+        ->first();
 
-        return response()->json([
-            'success' => true,
-            'item' => $row ? $this->normalizeRow($row) : null,
-        ]);
-    }
+    $item = $row ? $this->normalizeRow($row) : null;
+
+    return response()->json([
+        'success' => true,
+        'item' => $item,             // keep old
+        'data' => $item,             // ✅ add consistent key
+        'notice_marquee' => $item,   // ✅ convenient alias for frontend
+    ]);
+}
+
 
     public function show(Request $request, $identifier)
     {

@@ -202,16 +202,16 @@
     .btn-ac:hover{border-color:rgba(0,0,0,.14);background:#fff;}
 
     .ac-empty{text-align:center;color:#64748b;padding:40px 10px;}
+
+    .ac-title i{color:var(--ac-accent)}
   </style>
 </head>
 <body>
-  @include('landing.components.header')
-  @include('landing.components.headerMenu')
 
   <div class="ac-wrap">
     <div class="ac-head">
       <div>
-        <h2 class="ac-title">Achievements</h2>
+        <h2 class="ac-title"><i class="fa-solid fa-bullhorn"></i> Achievements</h2>
         <div class="text-muted" style="font-size:13px;">Awards, recognitions, and proud moments.</div>
       </div>
 

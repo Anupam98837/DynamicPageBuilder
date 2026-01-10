@@ -18,6 +18,9 @@
      * ✅ IMPORTANT:
      * Only use THESE APIs (as per your routes). No /full usage.
      * Page will load fast: above-fold loads sequentially; below-fold loads on scroll.
+     *
+     * ✅ NOTE:
+     * Recruiters dynamic API removed from this page because the full recruiters module is included below.
      */
     $homeApis = $homeApis ?? [
       // Above-fold (loads immediately one-by-one)
@@ -28,14 +31,13 @@
 
       // Lazy (loads on scroll)
       'stats'           => url('/api/public/grand-homepage/stats'),
-      'achvRow'          => url('/api/public/grand-homepage/activities'),
-      'placementNotices' => url('/api/public/grand-homepage/placement-notices'),
+      'achvRow'         => url('/api/public/grand-homepage/activities'),
+      'placementNotices'=> url('/api/public/grand-homepage/placement-notices'),
 
       'testimonials'   => url('/api/public/grand-homepage/successful-entrepreneurs'),
       'alumni'         => url('/api/public/grand-homepage/alumni-speak'),
       'success'        => url('/api/public/grand-homepage/success-stories'),
       'courses'        => url('/api/public/grand-homepage/courses'),
-      'recruiters'     => url('/api/public/grand-homepage/recruiters'),
     ];
   @endphp
 
@@ -57,503 +59,241 @@
     /* =========================
       ✅ Page Loader (better perceived performance)
     ========================= */
-    .page-loader{
-      position: fixed;
-      inset: 0;
-      z-index: 99999;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      padding: 18px;
-      background: rgba(246,247,251,.75);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      transition: opacity .35s ease, visibility .35s ease;
-    }
+    .page-loader{position: fixed;inset: 0;z-index: 99999;display:flex;align-items:center;justify-content:center;padding: 18px;background: rgba(246,247,251,.75);backdrop-filter: blur(8px);-webkit-backdrop-filter: blur(8px);transition: opacity .35s ease, visibility .35s ease;}
     .page-loader.is-done{ opacity:0; visibility:hidden; pointer-events:none; }
-    .loader-card{
-      width: min(520px, 92vw);
-      background: rgba(255,255,255,.92);
-      border: 1px solid rgba(158,54,58,.18);
-      border-radius: 20px;
-      box-shadow: 0 18px 44px rgba(2,6,23,.16);
-      padding: 18px 18px 16px;
-      overflow:hidden;
-      position: relative;
-    }
-    .loader-card::before{
-      content:"";
-      position:absolute; inset:-120px -120px auto auto;
-      width: 260px; height: 260px;
-      background: radial-gradient(circle at 30% 30%, rgba(201,75,80,.22), rgba(201,75,80,0));
-      transform: rotate(10deg);
-      pointer-events:none;
-    }
-    .loader-top{
-      display:flex;
-      align-items:center;
-      gap: 12px;
-      position: relative;
-    }
-    .loader-logo{
-      width: 42px; height: 42px;
-      border-radius: 14px;
-      display:inline-flex; align-items:center; justify-content:center;
-      background: linear-gradient(135deg, rgba(158,54,58,.16), rgba(201,75,80,.10));
-      border: 1px solid rgba(158,54,58,.18);
-      color: var(--brand);
-      flex: 0 0 auto;
-    }
-    .loader-title{
-      font-weight: 950;
-      margin: 0;
-      font-size: 16px;
-      color:#0f172a;
-      line-height: 1.15;
-    }
-    .loader-sub{
-      margin: 2px 0 0;
-      color: var(--muted);
-      font-weight: 800;
-      font-size: 13px;
-    }
-    .loader-bar{
-      margin-top: 14px;
-      height: 10px;
-      border-radius: 999px;
-      background: rgba(2,6,23,.06);
-      overflow:hidden;
-      border: 1px solid rgba(2,6,23,.06);
-      position: relative;
-    }
-    .loader-bar > span{
-      display:block;
-      height:100%;
-      width: 10%;
-      border-radius: 999px;
-      background: linear-gradient(90deg, var(--brand), var(--accent), var(--brand2));
-      transition: width .35s ease;
-      position: relative;
-    }
-    .loader-bar > span::after{
-      content:"";
-      position:absolute; inset:0;
-      background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.35), rgba(255,255,255,0));
-      transform: translateX(-60%);
-      animation: loaderShine 1.1s linear infinite;
-      mix-blend-mode: overlay;
-    }
+    .loader-card{width: min(520px, 92vw);background: rgba(255,255,255,.92);border: 1px solid rgba(158,54,58,.18);border-radius: 20px;box-shadow: 0 18px 44px rgba(2,6,23,.16);padding: 18px 18px 16px;overflow:hidden;position: relative;}
+    .loader-card::before{content:"";position:absolute; inset:-120px -120px auto auto;width: 260px; height: 260px;background: radial-gradient(circle at 30% 30%, rgba(201,75,80,.22), rgba(201,75,80,0));transform: rotate(10deg);pointer-events:none;}
+    .loader-top{display:flex;align-items:center;gap: 12px;position: relative;}
+    .loader-logo{width: 42px; height: 42px;border-radius: 14px;display:inline-flex; align-items:center; justify-content:center;background: linear-gradient(135deg, rgba(158,54,58,.16), rgba(201,75,80,.10));border: 1px solid rgba(158,54,58,.18);color: var(--brand);flex: 0 0 auto;}
+    .loader-title{font-weight: 950;margin: 0;font-size: 16px;color:#0f172a;line-height: 1.15;}
+    .loader-sub{margin: 2px 0 0;color: var(--muted);font-weight: 800;font-size: 13px;}
+    .loader-bar{margin-top: 14px;height: 10px;border-radius: 999px;background: rgba(2,6,23,.06);overflow:hidden;border: 1px solid rgba(2,6,23,.06);position: relative;}
+    .loader-bar > span{display:block;height:100%;width: 10%;border-radius: 999px;background: linear-gradient(90deg, var(--brand), var(--accent), var(--brand2));transition: width .35s ease;position: relative;}
+    .loader-bar > span::after{content:"";position:absolute; inset:0;background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.35), rgba(255,255,255,0));transform: translateX(-60%);animation: loaderShine 1.1s linear infinite;mix-blend-mode: overlay;}
     @keyframes loaderShine{
       to{ transform: translateX(160%); }
     }
-    .loader-row{
-      margin-top: 12px;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap: 12px;
-      position: relative;
-    }
-    .loader-step{
-      font-weight: 900;
-      color: #7a2626;
-      font-size: 13px;
-      white-space: nowrap;
-      overflow:hidden;
-      text-overflow: ellipsis;
-      max-width: 70%;
-    }
-    .loader-spinner{
-      width: 28px; height: 28px;
-      border-radius: 50%;
-      border: 3px solid rgba(158,54,58,.22);
-      border-top-color: var(--brand);
-      animation: spin .75s linear infinite;
-      flex: 0 0 auto;
-    }
+    .loader-row{margin-top: 12px;display:flex;align-items:center;justify-content:space-between;gap: 12px;position: relative;}
+    .loader-step{font-weight: 900;color: #7a2626;font-size: 13px;white-space: nowrap;overflow:hidden;text-overflow: ellipsis;max-width: 70%;}
+    .loader-spinner{width: 28px; height: 28px;border-radius: 50%;border: 3px solid rgba(158,54,58,.22);border-top-color: var(--brand);animation: spin .75s linear infinite;flex: 0 0 auto;}
     @keyframes spin{ to{ transform: rotate(360deg); } }
 
     /* =========================
       Motion / Reveal (loads one-by-one + on scroll)
     ========================= */
-    .reveal{
-      opacity: 0;
-      transform: translateY(22px);
-      transition: opacity .7s ease, transform .85s cubic-bezier(.2,.8,.2,1);
-      will-change: opacity, transform;
-    }
+    .reveal{opacity: 0;transform: translateY(22px);transition: opacity .7s ease, transform .85s cubic-bezier(.2,.8,.2,1);will-change: opacity, transform;}
     .reveal.reveal-left{ transform: translateX(-22px); }
     .reveal.reveal-right{ transform: translateX(22px); }
     .reveal.is-in{ opacity: 1; transform: translate3d(0,0,0); }
     @media (prefers-reduced-motion: reduce){
-      .reveal, .reveal.reveal-left, .reveal.reveal-right{
-        opacity: 1 !important;
-        transform: none !important;
-        transition: none !important;
+      .reveal, .reveal.reveal-left, .reveal.reveal-right{opacity: 1 !important;transform: none !important;transition: none !important;
       }
       .loader-spinner{ animation: none !important; }
       .loader-bar > span::after{ animation: none !important; }
     }
 
+    /* =========================
+      ✅ NEW: Home Sections Container
+    ========================= */
+    .home-sections-container {
+        display: flex;
+        flex-direction: column;
+        gap: 2.5rem;
+        margin-top: 1.5rem;
+    }
+
     /* ===== hero carousel ===== */
-    .hero-wrap{ position:relative; overflow:hidden; margin-top: 20px; }
-    .hero-card{
-      border-radius: var(--r-xl);
-      border: 1px solid var(--line);
-      background: var(--surface);
-      box-shadow: var(--shadow);
-      overflow:hidden;
-    }
-    .hero-slide{
-      min-height: 500px;
-      background-size: cover;
-      background-position: center;
-      position: relative;
-    }
-    .hero-slide::before{
-      content:"";
-      position:absolute; inset:0;
-      background: linear-gradient(90deg, rgba(0,0,0,.65), rgba(0,0,0,.20));
-    }
-    .hero-inner{
-      position:relative;
-      padding: 60px 40px;
-      max-width: 980px;
-      color:#fff;
-    }
-    .hero-kicker{
-      display:inline-flex; gap:10px; align-items:center;
-      padding: 8px 16px;
-      border-radius: 999px;
-      background: rgba(255,255,255,.16);
-      border: 1px solid rgba(255,255,255,.25);
-      font-weight: 700;
-      font-size: 13px;
-      letter-spacing:.4px;
-      margin-bottom: 20px;
-    }
-    .hero-title{
-      font-weight: 900;
-      line-height: 1.1;
-      margin: 0 0 16px;
-      font-size: clamp(28px, 4vw, 52px);
-    }
+    .hero-wrap{ position:relative; overflow:hidden; }
+    .hero-card{border-radius: var(--r-xl);border: 1px solid var(--line);background: var(--surface);box-shadow: var(--shadow);overflow:hidden;}
+    .hero-slide{min-height: 500px;background-size: cover;background-position: center;position: relative;}
+    .hero-slide::before{content:"";position:absolute; inset:0;background: linear-gradient(90deg, rgba(0,0,0,.65), rgba(0,0,0,.20));}
+    .hero-inner{position:relative;padding: 60px 40px;max-width: 980px;color:#fff;}
+    .hero-kicker{display:inline-flex; gap:10px; align-items:center;padding: 8px 16px;border-radius: 999px;background: rgba(255,255,255,.16);border: 1px solid rgba(255,255,255,.25);font-weight: 700;font-size: 13px;letter-spacing:.4px;margin-bottom: 20px;}
+    .hero-title{font-weight: 900;line-height: 1.1;margin: 0 0 16px;font-size: clamp(28px, 4vw, 52px);}
     .hero-actions{ display:flex; gap:12px; flex-wrap:wrap; margin-top: 20px; }
-    .btn-hero{
-      background: var(--accent);
-      border: 0;
-      color:#fff;
-      border-radius: 12px;
-      padding: 12px 24px;
-      font-weight: 800;
-      font-size: 15px;
-    }
+    .btn-hero{background: var(--accent);border: 0;color:#fff;border-radius: 12px;padding: 12px 24px;font-weight: 800;font-size: 15px;}
     .btn-hero:hover{ background: var(--brand); color:#fff; }
 
     /* =========================
-      Top strip (NOTICE MARQUEE ONLY)
-      - announcements marquee removed
-      ✅ clickable items only when URL exists
+      Hero carousel transition control (duration + fade)
+      JS will set --hero-transition-ms using API transition_ms
     ========================= */
-    .notice-strip{
-      background: linear-gradient(135deg, rgba(158,54,58,.12), rgba(201,75,80,.08));
-      border: 1px solid rgba(158,54,58,.18);
-      border-radius: 16px;
-      padding: 12px 14px;
-      margin-top: 18px;
-      box-shadow: 0 10px 22px rgba(2,6,23,.06);
-      overflow:hidden;
-    }
-    .notice-strip .strip-ico{
-      width: 34px; height: 34px;
-      display:inline-flex; align-items:center; justify-content:center;
-      border-radius: 999px;
-      background: rgba(158,54,58,.12);
-      color: var(--brand);
-      border: 1px solid rgba(158,54,58,.18);
-      flex: 0 0 auto;
-    }
-    .notice-strip marquee{
-      font-weight: 900;
-      color: #7a2626;
-      font-size: 14.5px;
-    }
-    .notice-strip marquee .nm-link{
-      color: #7a2626;
-      text-decoration: none;
-      font-weight: 950;
-      cursor: pointer;
-    }
-    .notice-strip marquee .nm-link:hover{
-      text-decoration: underline;
-      color: var(--brand);
-    }
-    .notice-strip marquee .nm-text{
-      color: #7a2626;
-      font-weight: 900;
-      cursor: default;
-    }
-    .notice-strip marquee .nm-sep{
-      opacity: .75;
-      padding: 0 10px;
-      user-select:none;
-    }
+    #homeHero{ --hero-transition-ms: 600ms; }
+    #homeHero .carousel-item{transition: transform var(--hero-transition-ms) ease-in-out;}
+    #homeHero.carousel-fade .carousel-item{transition-property: opacity;transition-duration: var(--hero-transition-ms);}
+    #homeHero.carousel-fade .active.carousel-item-start,
+    #homeHero.carousel-fade .active.carousel-item-end{transition: opacity 0s var(--hero-transition-ms);}
+
+    /* =========================
+      Top strip (NOTICE MARQUEE ONLY)
+      ✅ FIXED: marquee settings applied via API settings now
+    ========================= */
+    .notice-strip{background: linear-gradient(135deg, rgba(158,54,58,.12), rgba(201,75,80,.08));border: 1px solid rgba(158,54,58,.18);border-radius: 16px;padding: 12px 14px;box-shadow: 0 10px 22px rgba(2,6,23,.06);overflow:hidden;}
+    .notice-strip .strip-ico{width: 34px; height: 34px;display:inline-flex; align-items:center; justify-content:center;border-radius: 999px;background: rgba(158,54,58,.12);color: var(--brand);border: 1px solid rgba(158,54,58,.18);flex: 0 0 auto;}
+    .notice-strip marquee{font-weight: 900;color: #7a2626;font-size: 14.5px;}
+    .notice-strip marquee .nm-link{color: #7a2626;text-decoration: none;font-weight: 950;cursor: pointer;}
+    .notice-strip marquee .nm-link:hover{text-decoration: underline;color: var(--brand);}
+    .notice-strip marquee .nm-text{color: #7a2626;font-weight: 900;cursor: default;}
+    .notice-strip marquee .nm-sep{opacity: .75;padding: 0 10px;user-select:none;}
+    /* =========================
+  ✅ Smooth Notice Marquee (settings-driven)
+========================= */
+.nm-viewport{ overflow:hidden; width:100%; }
+.nm-track{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  white-space: nowrap;
+  will-change: transform;
+}
+.nm-run{ display:inline-flex; align-items:center; gap: 10px; }
+.nm-text{font-weight: 900;color:#7a2626;font-size:14.5px;}
+.nm-link{color:#7a2626;text-decoration:none;font-weight:950;}
+.nm-link:hover{text-decoration:underline;color:var(--brand);}
+.nm-sep{opacity:.75;padding:0 10px;user-select:none;}
+
 
     /* ===== three info boxes ===== */
-    .info-boxes{ margin-top: 26px; }
-    .info-box{
-      background: var(--brand);
-      color: #fff;
-      border-radius: 16px;
-      padding: 24px;
-      height: 100%;
-      box-shadow: var(--shadow);
-      position:relative;
-      overflow:hidden;
-    }
-    .info-box::after{
-      content:"";
-      position:absolute; inset:-40px -40px auto auto;
-      width: 160px; height: 160px;
-      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.18), rgba(255,255,255,0));
-      transform: rotate(18deg);
-      pointer-events:none;
-    }
-    .info-box h5{
-      font-weight: 900;
-      margin-bottom: 12px;
-      font-size: 18px;
-      display:flex; align-items:center; gap:10px;
-    }
-    .info-box ul{
-      list-style: none;
-      padding: 0;
-      margin: 0;
-    }
-    .info-box ul li{
-      padding: 8px 0;
-      border-bottom: 1px dashed rgba(255,255,255,.3);
-      font-size: 14px;
-      display:flex;
-      align-items:flex-start;
-      gap:10px;
-    }
+    .info-boxes{ }
+    .info-box{background: var(--brand);color: #fff;border-radius: 16px;padding: 24px;height: 100%;box-shadow: var(--shadow);position:relative;overflow:hidden;}
+    .info-box::after{content:"";position:absolute; inset:-40px -40px auto auto;width: 160px; height: 160px;background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.18), rgba(255,255,255,0));transform: rotate(18deg);pointer-events:none;}
+    .info-box h5{font-weight: 900;margin-bottom: 12px;font-size: 18px;display:flex; align-items:center; gap:10px;}
+    .info-box ul{list-style: none;padding: 0;margin: 0;}
+    .info-box ul li{padding: 8px 0;border-bottom: 1px dashed rgba(255,255,255,.3);font-size: 14px;display:flex;align-items:flex-start;gap:10px;}
     .info-box ul li:last-child{ border-bottom: 0; }
     .info-box i{ margin-top: 2px; opacity: .92; }
     .info-box a{ color:#fff; text-decoration:none; font-weight:800; }
     .info-box a:hover{ text-decoration:underline; }
 
+    /* ✅ FIXED: Smooth upward scroller styling - IMPROVED */
+    .info-box ul.autoscroll{
+      overflow: hidden;
+      scroll-behavior: auto;
+      position: relative;
+      height: 260px;
+    }
+    
+    /* ✅ FIXED: Create smooth scrolling animation */
+    .info-box ul.scrolling-upwards {
+      animation: scrollUp 20s linear infinite;
+      animation-play-state: running;
+    }
+    
+    .info-box ul.scrolling-upwards:hover {
+      animation-play-state: paused;
+    }
+    
+    @keyframes scrollUp {
+      0% {
+        transform: translateY(0);
+      }
+      100% {
+        transform: translateY(-50%);
+      }
+    }
+
     /* =========================
       Notice + Center Iframe + Announcements
-      - Placement box REMOVED here (because you have two)
     ========================= */
-    .nva-card{
-      background: var(--brand);
-      border-radius: 18px;
-      box-shadow: var(--shadow);
-      padding: 14px;
-      height: 100%;
-      border: 1px solid rgba(255,255,255,.10);
-      overflow:hidden;
-    }
-    .nva-head{
-      display:flex; align-items:center; justify-content:center;
-      gap: 10px;
-      color:#fff;
-      font-weight: 950;
-      letter-spacing:.3px;
-      padding: 6px 8px 12px;
-      font-size: 20px;
-      user-select:none;
-    }
-    .nva-head i{
-      opacity:.95;
-      filter: drop-shadow(0 6px 10px rgba(0,0,0,.12));
-    }
-    .nva-body{
-      background: #fff;
-      border-radius: 14px;
-      border: 1px solid rgba(17,17,17,.06);
-      padding: 12px;
-      color: var(--ink);
-    }
-    .nva-list{
-      list-style:none;
-      padding: 0;
-      margin: 0;
-      max-height: 260px;
-      overflow:auto;
-    }
-    .nva-list::-webkit-scrollbar{ width: 6px; }
-    .nva-list::-webkit-scrollbar-thumb{ background: rgba(17,17,17,.18); border-radius: 999px; }
-    .nva-list li{
-      display:flex;
-      align-items:flex-start;
-      gap: 10px;
-      padding: 9px 6px;
-      border-bottom: 1px dashed rgba(2,6,23,.12);
-      font-weight: 700;
-      color: #0f172a;
-    }
+    .nva-card{background: var(--surface);border-radius: 18px;box-shadow: var(--shadow);padding: 14px;height: 100%;border: 1px solid var(--line);overflow: hidden;}
+    .nva-head{display:flex; align-items:center; justify-content:center;gap: 10px;color:#fff;font-weight: 950;letter-spacing:.3px;padding: 10px 12px;font-size: 18px;user-select:none;border-radius: 14px;margin: 0 0 10px;background: linear-gradient(135deg, var(--brand), var(--brand2));}
+    .nva-head i{opacity:.95;filter: drop-shadow(0 6px 10px rgba(0,0,0,.12));}
+    .nva-body{background: #fff;border-radius: 14px;border: 1px solid rgba(17,17,17,.06);padding: 12px;color: var(--ink);position: relative;overflow: hidden;}
+    .nva-list{list-style:none;padding: 0;margin: 0;position: relative;}
+    .nva-list li{display:flex;align-items:flex-start;gap: 10px;padding: 9px 6px;border-bottom: 1px dashed rgba(2,6,23,.12);font-weight: 700;color: #0f172a;}
     .nva-list li:last-child{ border-bottom:0; }
     .nva-list li i{ margin-top: 3px; color: rgba(15,23,42,.55); }
-    .nva-list a{
-      color: #0f172a;
-      text-decoration:none;
-      font-weight: 800;
-      line-height: 1.25;
-    }
+    .nva-list a{color: #0f172a;text-decoration:none;font-weight: 800;line-height: 1.25;}
     .nva-list a:hover{ color: var(--brand); text-decoration: underline; }
 
-    /* center iframe card */
-    .center-video-card{
-      background: var(--surface);
-      border-radius: 18px;
-      border: 1px solid var(--line);
-      box-shadow: var(--shadow);
-      padding: 14px;
-      height: 100%;
-      overflow:hidden;
-    }
-    .center-video-title{
-      font-weight: 950;
-      color: #0f172a;
-      margin: 2px 0 12px;
-      text-align:center;
-      font-size: 22px;
-    }
-    .video-embed{
-      position: relative;
-      width: 100%;
-      padding-bottom: 56.25%;
-      border-radius: 16px;
+    /* ✅ FIXED: Auto-scroll list styling - IMPROVED */
+    .nva-list.autoscroll{
       overflow: hidden;
-      box-shadow: 0 10px 24px rgba(2,6,23,.12);
-      background: #111;
+      height: 260px;
+      position: relative;
     }
-    .video-embed iframe{
-      position:absolute; inset:0;
-      width:100%; height:100%;
-      border:0;
+    
+    /* ✅ FIXED: Create smooth scrolling animation for NVA cards */
+    .nva-list.scrolling-upwards {
+      animation: scrollUpList 25s linear infinite;
+      animation-play-state: running;
     }
-    .cta-section{
-      margin-top: 12px;
-      display:flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      justify-content:center;
+    
+    .nva-list.scrolling-upwards:hover {
+      animation-play-state: paused;
     }
-    .cta-btn{
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      background: #f59e0b;
-      color: #fff;
-      border: 0;
-      border-radius: 999px;
-      padding: 12px 18px;
-      font-weight: 950;
-      font-size: 15px;
-      box-shadow: 0 6px 14px rgba(245,158,11,.28);
-      transition: transform .15s ease, filter .15s ease, background .15s ease;
-      text-decoration:none;
-      min-width: 200px;
+    
+    @keyframes scrollUpList {
+      0% {
+        transform: translateY(0);
+      }
+      100% {
+        transform: translateY(-50%);
+      }
     }
+
+    .center-video-card{background: var(--surface);border-radius: 18px;border: 1px solid var(--line);box-shadow: var(--shadow);padding: 14px;height: 100%;overflow:hidden;}
+    .center-video-title{font-weight: 950;color: #0f172a;margin: 2px 0 12px;text-align:center;font-size: 22px;}
+    .video-embed{position: relative;width: 100%;padding-bottom: 56.25%;border-radius: 16px;overflow: hidden;box-shadow: 0 10px 24px rgba(2,6,23,.12);background: #111;}
+    .video-embed iframe{position:absolute; inset:0;width:100%; height:100%;border:0;}
+
+    /* =========================
+      ✅ CTA Buttons
+    ========================= */
+    .cta-section{padding-top: 13px;display:flex;flex-direction: column;gap: 10px;align-items: stretch;justify-content: center;max-width: 360px;margin-left: auto;margin-right: auto;}
+    .cta-btn{display: inline-flex;align-items: center;justify-content: center;gap: 10px;width: 100%;min-width: 0;background: #f59e0b;color: #fff;border: 0;border-radius: 14px;padding: 10px 14px;font-weight: 950;font-size: 14px;box-shadow: 0 6px 14px rgba(245,158,11,.28);transition: transform .15s ease, filter .15s ease, background .15s ease;text-decoration:none;}
     .cta-btn:hover{ background:#d97706; transform: translateY(-1px); color:#fff; }
     .cta-btn.btn-secondary{ background:#991b1b; box-shadow: 0 6px 14px rgba(153,27,27,.22); }
     .cta-btn.btn-secondary:hover{ background:#7f1d1d; color:#fff; }
 
     /* ===== stats counter ===== */
-    .stats-section{
-      margin-top: 40px;
-      background: linear-gradient(135deg, rgba(158,54,58,.08), rgba(201,75,80,.04));
-      border-radius: var(--r-xl);
-      padding: 50px 30px;
-      border: 1px solid rgba(158,54,58,.12);
-      position:relative;
-      overflow:hidden;
-    }
-    .stats-section.has-bg{
-      background-size: cover;
-      background-position: center;
-    }
+    .stats-section{background: linear-gradient(135deg, rgba(158,54,58,.08), rgba(201,75,80,.04));border-radius: var(--r-xl);padding: 50px 30px;border: 1px solid rgba(158,54,58,.12);position:relative;overflow:hidden;}
+    .stats-section.has-bg{background-size: cover;background-position: center;}
     .stats-section .stats-head{ text-align:center; margin-bottom: 26px; }
-    .stats-section .stats-head h2{
-      margin:0;
-      font-weight: 950;
-      color: var(--brand);
-      font-size: clamp(22px, 3vw, 34px);
-    }
+    .stats-section .stats-head h2{margin:0;font-weight: 950;color: var(--brand);font-size: clamp(22px, 3vw, 34px);}
     .stat-item{ text-align: center; }
-    .stat-num{
-      font-size: clamp(40px, 5vw, 64px);
-      font-weight: 950;
-      color: var(--brand);
-      line-height: 1;
-      margin-bottom: 8px;
-    }
+    .stat-num{font-size: clamp(40px, 5vw, 64px);font-weight: 950;color: var(--brand);line-height: 1;margin-bottom: 8px;}
     .stat-label{ font-size: 16px; color: var(--muted); font-weight: 800; }
-    .stat-icon{
-      display:inline-flex;
-      width: 42px; height: 42px;
-      align-items:center; justify-content:center;
-      border-radius: 999px;
-      background: rgba(158,54,58,.10);
-      color: var(--brand);
-      margin-bottom: 10px;
-      border: 1px solid rgba(158,54,58,.18);
+    .stat-icon{display:inline-flex;width: 42px; height: 42px;align-items:center; justify-content:center;border-radius: 999px;background: rgba(158,54,58,.10);color: var(--brand);margin-bottom: 10px;border: 1px solid rgba(158,54,58,.18);}
+
+    /* =========================
+      ✅ Carousel controls OUTSIDE content
+    ========================= */
+    .carousel.controls-out{ position: relative; }
+    .carousel.controls-out .carousel-inner{padding-left: 56px;padding-right: 56px;}
+    .carousel.controls-out .carousel-control-prev,
+    .carousel.controls-out .carousel-control-next{width: 46px;height: 46px;top: 50%;bottom: auto;transform: translateY(-50%);opacity: 1;background: rgba(255,255,255,.92);border: 1px solid rgba(158,54,58,.22);border-radius: 999px;box-shadow: 0 12px 24px rgba(2,6,23,.12);}
+    .carousel.controls-out .carousel-control-prev{ left: 0; }
+    .carousel.controls-out .carousel-control-next{ right: 0; }
+    .carousel.controls-out .carousel-control-prev-icon,
+    .carousel.controls-out .carousel-control-next-icon{filter: invert(1);width: 1.15rem;height: 1.15rem;}
+    .carousel.indicators-out .carousel-indicators{position: static;margin: 14px 0 0;justify-content: center;gap: 6px;}
+    .carousel.indicators-out .carousel-indicators [data-bs-target]{width: 8px;height: 8px;border-radius: 999px;}
+    @media (max-width: 576px){
+      .carousel.controls-out .carousel-inner{ padding-left: 44px; padding-right: 44px; }
+      .carousel.controls-out .carousel-control-prev,
+      .carousel.controls-out .carousel-control-next{ width: 40px; height: 40px; }
     }
 
+    /* ===== carousels controls on light surfaces ===== */
+    .stats-carousel .carousel-control-prev-icon,
+    .stats-carousel .carousel-control-next-icon,
+    .testimonial-carousel .carousel-control-prev-icon,
+    .testimonial-carousel .carousel-control-next-icon,
+    .alumni-carousel .carousel-control-prev-icon,
+    .alumni-carousel .carousel-control-next-icon{filter: invert(1);opacity: .9;}
+    .stats-carousel .carousel-indicators [data-bs-target],
+    .testimonial-carousel .carousel-indicators [data-bs-target]{background-color: rgba(158,54,58,.55);}
+    .stats-carousel .carousel-indicators .active,
+    .testimonial-carousel .carousel-indicators .active{background-color: var(--brand);}
+
     /* ===== testimonials ===== */
-    .testimonial-section{
-      margin-top: 50px;
-      background: var(--surface);
-      border-radius: var(--r-xl);
-      border: 1px solid var(--line);
-      padding: 40px;
-      box-shadow: var(--shadow);
-    }
-    .testimonial-section h2{
-      text-align: center;
-      font-weight: 950;
-      color: var(--brand);
-      margin-bottom: 30px;
-      font-size: clamp(22px, 3vw, 36px);
-    }
-    .testimonial-card{
-      background: linear-gradient(135deg, rgba(158,54,58,.06), rgba(201,75,80,.03));
-      border-radius: 16px;
-      padding: 30px;
-      height: 100%;
-      border: 1px solid var(--line);
-      transition: transform .18s ease, box-shadow .18s ease;
-    }
-    .testimonial-card:hover{
-      transform: translateY(-2px);
-      box-shadow: 0 14px 26px rgba(2,6,23,.10);
-    }
-    .testimonial-avatar{
-      width: 80px; height: 80px;
-      border-radius: 50%;
-      object-fit: cover;
-      border: 4px solid var(--brand);
-      margin-bottom: 16px;
-      background: #fff;
-    }
-    /* ✅ ensure it never looks like "code"; render rich text cleanly */
-    .testimonial-text{
-      font-style: italic;
-      color: var(--ink);
-      margin-bottom: 16px;
-      line-height: 1.6;
-      font-family: inherit;
-      background: transparent;
-      padding: 0;
-      border-radius: 0;
-      white-space: normal;
-      word-break: break-word;
-    }
+    .testimonial-section{background: var(--surface);border-radius: var(--r-xl);border: 1px solid var(--line);padding: 40px;box-shadow: var(--shadow);}
+    .testimonial-section h2{text-align: center;font-weight: 950;color: var(--brand);margin-bottom: 30px;font-size: clamp(22px, 3vw, 36px);}
+    .testimonial-card{background: linear-gradient(135deg, rgba(158,54,58,.06), rgba(201,75,80,.03));border-radius: 16px;padding: 30px;height: 100%;border: 1px solid var(--line);transition: transform .18s ease, box-shadow .18s ease;}
+    .testimonial-card:hover{box-shadow: 0 14px 26px rgba(2,6,23,.10);}
+    .testimonial-avatar{width: 80px; height: 80px;border-radius: 50%;object-fit: cover;border: 4px solid var(--brand);margin-bottom: 16px;background: #fff;}
+    .testimonial-text{font-style: italic;color: var(--ink);margin-bottom: 16px;line-height: 1.6;font-family: inherit;background: transparent;padding: 0;border-radius: 0;white-space: normal;word-break: break-word;}
     .testimonial-text p{ margin: 0 0 10px; }
     .testimonial-text p:last-child{ margin-bottom: 0; }
     .testimonial-text ul, .testimonial-text ol{ margin: 8px 0 0 18px; }
@@ -561,221 +301,95 @@
     .testimonial-role{ font-size: 13px; color: var(--muted); font-weight: 800; }
 
     /* ===== alumni videos ===== */
-    .alumni-section{
-      margin-top: 40px;
-      background: var(--surface);
-      border-radius: var(--r-xl);
-      border: 1px solid var(--line);
-      padding: 40px;
-      box-shadow: var(--shadow);
-    }
-    .alumni-section h2{
-      text-align: center;
-      font-weight: 950;
-      color: var(--brand);
-      margin-bottom: 30px;
-      font-size: clamp(22px, 3vw, 36px);
-    }
-    .alumni-video-card{
-      border-radius: 16px;
-      overflow: hidden;
-      box-shadow: 0 10px 22px rgba(2,6,23,.10);
-      height: 100%;
-      background:#111;
-    }
-    .alumni-video-card iframe{
-      width: 100%;
-      height: 240px;
-      display:block;
-      border:0;
-    }
+    .alumni-section{background: var(--surface);border-radius: var(--r-xl);border: 1px solid var(--line);padding: 40px;box-shadow: var(--shadow);}
+    .alumni-section h2{text-align: center;font-weight: 950;color: var(--brand);margin-bottom: 30px;font-size: clamp(22px, 3vw, 36px);}
+    .alumni-video-card{border-radius: 16px;overflow: hidden;box-shadow: 0 10px 22px rgba(2,6,23,.10);height: 100%;background:#111;}
+    .alumni-video-card iframe{width: 100%;height: 240px;display:block;border:0;}
 
     /* ===== success stories ===== */
-    .success-section{
-      margin-top: 40px;
-      background: #f9fafb;
-      border-radius: var(--r-xl);
-      padding: 40px;
-      border: 1px solid rgba(17,17,17,.06);
+    .success-section{background: #f9fafb;border-radius: var(--r-xl);padding: 40px;border: 1px solid rgba(17,17,17,.06);}
+    .success-section h2{text-align: center;font-weight: 950;color: var(--brand);margin-bottom: 30px;font-size: clamp(22px, 3vw, 36px);}
+
+    .success-scroller{--success-gap: 16px;--success-gap-2: 32px;--success-gap-3: 48px;display:flex;gap: var(--success-gap);overflow-x: auto;padding: 0;margin: 0;scroll-snap-type: x mandatory;-webkit-overflow-scrolling: touch;scrollbar-width: none;-ms-overflow-style: none;}
+    .success-scroller::-webkit-scrollbar{ height: 0; width: 0; display:none; }
+
+    .success-scroller-item{flex: 0 0 82%;max-width: 82%;scroll-snap-align: start;}
+    @media (min-width: 768px){
+      .success-scroller-item{flex: 0 0 calc((100% - var(--success-gap)) / 2);max-width: calc((100% - var(--success-gap)) / 2);}
     }
-    .success-section h2{
-      text-align: center;
-      font-weight: 950;
-      color: var(--brand);
-      margin-bottom: 30px;
-      font-size: clamp(22px, 3vw, 36px);
+    @media (min-width: 992px){
+      .success-scroller-item{flex: 0 0 calc((100% - var(--success-gap-2)) / 3);max-width: calc((100% - var(--success-gap-2)) / 3);}
     }
+    @media (min-width: 1200px){
+      .success-scroller-item{flex: 0 0 calc((100% - var(--success-gap-3)) / 4);max-width: calc((100% - var(--success-gap-3)) / 4);}
+    }
+
+    /* ✅ now can be <a> or <div> */
     .success-card{
+      display:block;
       background: var(--surface);
       border-radius: 16px;
       padding: 20px;
       height: 100%;
       border: 1px solid var(--line);
-      box-shadow: 0 10px 22px rgba(2,6,23,.08);
-      transition: transform .18s ease, box-shadow .18s ease;
+      box-shadow: none;
+      transition: transform .18s ease, border-color .18s ease;
+      text-decoration:none;
+      color: inherit;
     }
-    .success-card:hover{ transform: translateY(-3px); box-shadow: 0 16px 28px rgba(2,6,23,.10); }
-    .success-img{
-      width: 100%;
-      height: 200px;
-      object-fit: cover;
-      border-radius: 12px;
-      margin-bottom: 16px;
-      background:#eee;
-    }
-    .success-desc{ font-size: 14px; color: var(--muted); margin-bottom: 12px; line-height: 1.5; }
+    .success-card:hover{ transform: translateY(-2px); border-color: rgba(158,54,58,.35); }
+    .success-img{width: 100%;height: 200px;object-fit: cover;border-radius: 12px;margin-bottom: 16px;background:#eee;}
+    .success-desc{font-size: 14px;color: var(--muted);margin-bottom: 12px;line-height: 1.5;font-family: inherit;background: transparent;padding: 0;border-radius: 0;white-space: normal;word-break: break-word;}
+    .success-desc p{ margin: 0 0 10px; }
+    .success-desc p:last-child{ margin-bottom: 0; }
+    .success-desc ul, .success-desc ol{ margin: 8px 0 0 18px; }
     .success-name{ font-weight: 950; color: var(--brand); font-size: 16px; margin-bottom: 4px; }
     .success-role{ font-size: 13px; color: var(--muted); font-weight: 800; }
 
     /* ===== courses section ===== */
-    .courses-section{
-      margin-top: 50px;
-      background: var(--surface);
-      border-radius: var(--r-xl);
-      border: 1px solid var(--line);
-      padding: 40px;
-      box-shadow: var(--shadow);
-    }
-    .courses-section h2{
-      text-align: center;
-      font-weight: 950;
-      color: var(--brand);
-      margin-bottom: 30px;
-      font-size: clamp(22px, 3vw, 36px);
-    }
-    .course-card{
-      background: linear-gradient(135deg, rgba(158,54,58,.08), rgba(201,75,80,.04));
-      border-radius: 16px;
-      padding: 24px;
-      height: 100%;
-      border: 1px solid var(--line);
-      transition: transform .18s ease, box-shadow .18s ease;
-    }
-    .course-card:hover{
-      transform: translateY(-3px);
-      box-shadow: 0 16px 30px rgba(2,6,23,.12);
-    }
-    .course-img{
-      width: 100%;
-      height: 180px;
-      object-fit: cover;
-      border-radius: 12px;
-      margin-bottom: 16px;
-      background:#eee;
-    }
-    .course-title{
-      font-weight: 950;
-      color: var(--brand);
-      font-size: 20px;
-      margin-bottom: 10px;
-    }
+    .courses-section{background: var(--surface);border-radius: var(--r-xl);border: 1px solid var(--line);padding: 40px;box-shadow: var(--shadow);}
+    .courses-section h2{text-align: center;font-weight: 950;color: var(--brand);margin-bottom: 30px;font-size: clamp(22px, 3vw, 36px);}
+    .course-card{background: linear-gradient(135deg, rgba(158,54,58,.08), rgba(201,75,80,.04));border-radius: 16px;padding: 24px;height: 100%;border: 1px solid var(--line);transition: transform .18s ease, box-shadow .18s ease;}
+    .course-card:hover{transform: translateY(-3px);box-shadow: 0 16px 30px rgba(2,6,23,.12);}
+    .course-img{width: 100%;height: 180px;object-fit: cover;border-radius: 12px;margin-bottom: 16px;background:#eee;}
+    .course-title{font-weight: 950;color: var(--brand);font-size: 20px;margin-bottom: 10px;}
     .course-desc{ font-size: 14px; color: var(--muted); line-height: 1.6; margin-bottom: 14px; }
     .course-links{ display:flex; gap: 8px; flex-wrap: wrap; }
-    .course-link{
-      font-size: 12px;
-      padding: 6px 12px;
-      background: rgba(158,54,58,.15);
-      color: var(--brand);
-      border-radius: 999px;
-      text-decoration: none;
-      font-weight: 900;
-      transition: background .15s ease, color .15s ease, transform .15s ease;
-    }
+    .course-link{font-size: 12px;padding: 6px 12px;background: rgba(158,54,58,.15);color: var(--brand);border-radius: 999px;text-decoration: none;font-weight: 900;transition: background .15s ease, color .15s ease, transform .15s ease;}
     .course-link:hover{ background: var(--brand); color: #fff; transform: translateY(-1px); }
 
-    /* ===== recruiters ===== */
-    .recruiters-section{
-      margin-top: 50px;
-      background: var(--surface);
-      border-radius: var(--r-xl);
-      border: 1px solid var(--line);
-      padding: 40px;
-      box-shadow: var(--shadow);
-    }
-    .recruiters-section h2{
-      text-align: center;
-      font-weight: 950;
-      color: var(--brand);
-      margin-bottom: 30px;
-      font-size: clamp(22px, 3vw, 36px);
-    }
-    .recruiter-grid{
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-      gap: 16px;
-      margin-top: 24px;
-    }
-    .recruiter-logo{
-      background: #fff;
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 14px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      height: 84px;
-      transition: transform .16s ease, box-shadow .16s ease;
-      overflow:hidden;
-      text-decoration:none;
-    }
-    .recruiter-logo:hover{
-      box-shadow: 0 14px 26px rgba(2,6,23,.10);
-      transform: translateY(-2px);
-    }
-    .recruiter-logo img{
-      max-width: 100%;
-      max-height: 100%;
-      object-fit: contain;
-      display:block;
-    }
-
-    .muted-note{
-      color: var(--muted);
-      font-weight: 800;
-      text-align:center;
-      margin: 0;
-      padding: 10px 0 0;
-    }
+    .muted-note{color: var(--muted);font-weight: 800;text-align:center;margin: 0;padding: 10px 0 0;}
 
     /* small alert (for API error only) */
-    .home-alert{
-      margin-top: 18px;
-      border-radius: 14px;
-      border: 1px solid rgba(245,158,11,.35);
-      background: linear-gradient(135deg, rgba(254,243,199,.85), rgba(254,215,170,.65));
-      padding: 14px 16px;
-      color: #92400e;
-      font-weight: 900;
-      display:none;
-    }
-    .home-alert code{
-      font-weight: 950;
-      color:#7c2d12;
-      background: rgba(255,255,255,.55);
-      padding: 2px 6px;
-      border-radius: 8px;
-    }
-    .home-alert pre{
-      margin: 8px 0 0;
-      white-space: pre-wrap;
-      background: rgba(255,255,255,.55);
-      padding: 10px 12px;
-      border-radius: 12px;
-      font-size: 12.5px;
-      line-height: 1.4;
-      color: #7c2d12;
-    }
+    .home-alert{margin-top: 18px;border-radius: 14px;border: 1px solid rgba(245,158,11,.35);background: linear-gradient(135deg, rgba(254,243,199,.85), rgba(254,215,170,.65));padding: 14px 16px;color: #92400e;font-weight: 900;display:none;}
+    .home-alert code{font-weight: 950;color:#7c2d12;background: rgba(255,255,255,.55);padding: 2px 6px;border-radius: 8px;}
+    .home-alert pre{margin: 8px 0 0;white-space: pre-wrap;background: rgba(255,255,255,.55);padding: 10px 12px;border-radius: 12px;font-size: 12.5px;line-height: 1.4;color: #7c2d12;}
+
+    /* ✅ Recruiters wrapper like other sections */
+.recruiters-wrap{
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow);
+  padding: 22px 18px;
+  overflow: hidden;
+}
+
 
     @media (max-width: 768px){
       .hero-inner{ padding: 40px 24px; }
-      .info-boxes{ margin-top: 18px; }
+      .info-boxes{ margin-top: 0; }
       .stat-num{ font-size: 36px; }
-      .testimonial-section, .alumni-section, .courses-section, .recruiters-section{ padding: 26px; }
+      .testimonial-section, .alumni-section, .courses-section{ padding: 26px; }
       .success-section{ padding: 26px; }
       .center-video-title{ font-size: 18px; }
-      .cta-btn{ min-width: 160px; font-size: 14px; padding: 11px 14px; }
-      .nva-list{ max-height: 220px; }
+      .cta-section{ max-width: 100%; }
+      .cta-btn{ font-size: 14px; padding: 10px 12px; }
       .loader-card{ padding: 16px; border-radius: 18px; }
+      .home-sections-container {
+        gap: 1.5rem;
+        margin-top: 1rem;
+      }
     }
   </style>
 </head>
@@ -803,6 +417,9 @@
     </div>
   </div>
 
+  {{-- Top Header --}}
+  @include('landing.components.topHeaderMenu')
+
   {{-- Main Header --}}
   @include('landing.components.header')
 
@@ -811,264 +428,272 @@
 
   <main class="pb-5">
     <div class="container">
+      
+      {{-- ✅ NEW: Wrapped all sections in a container --}}
+      <div class="home-sections-container">
 
-      <div class="home-alert" id="homeApiAlert">
-        Home API error. Please verify section endpoints in <code>$homeApis</code>.
-      </div>
+        <div class="home-alert" id="homeApiAlert">
+          Home API error. Please verify section endpoints in <code>$homeApis</code>.
+        </div>
 
-      {{-- ================= HERO CAROUSEL ================= --}}
-      <section class="hero-wrap reveal is-in" data-anim="up">
-        <div class="hero-card">
-          <div id="homeHero" class="carousel slide">
-            <div class="carousel-indicators" id="heroIndicators">
-              {{-- Dynamic indicators --}}
-            </div>
+        {{-- ================= TOP NOTICE MARQUEE (NOTICE ONLY) ================= --}}
+        <section class="notice-strip reveal is-in" data-anim="up">
+          <div class="d-flex align-items-center gap-3">
+            <div class="strip-ico"><i class="fa-solid fa-bullhorn"></i></div>
+            <div class="flex-grow-1 nm-viewport" id="noticeMarqueeViewport">
+  <div class="nm-track" id="noticeMarqueeTrack">
+    <span class="nm-text">Loading notices…</span>
+  </div>
+</div>
+          </div>
+        </section>
 
-            <div class="carousel-inner" id="heroSlides">
-              {{-- Fallback slide (NO external image, so no 404) --}}
-              <div class="carousel-item active">
-                <div class="hero-slide" style="background-image:linear-gradient(135deg, rgba(158,54,58,.95), rgba(107,37,40,.92));">
-                  <div class="hero-inner">
-                    <div class="hero-kicker">
-                      <i class="fa-solid fa-graduation-cap"></i>
-                      <span>Loading…</span>
-                    </div>
-                    <h1 class="hero-title">{{ config('app.name','College Portal') }}</h1>
-                    <div class="hero-actions">
-                      <a href="{{ url('/admissions') }}" class="btn btn-hero">Apply Now</a>
-                      <a href="{{ url('/courses') }}" class="btn btn-hero">Explore Programs</a>
+        {{-- ================= HERO CAROUSEL ================= --}}
+        <section class="hero-wrap reveal is-in" data-anim="up">
+          <div class="hero-card">
+            <div id="homeHero" class="carousel slide">
+              <div class="carousel-indicators" id="heroIndicators">
+                {{-- Dynamic indicators --}}
+              </div>
+
+              <div class="carousel-inner" id="heroSlides">
+                {{-- Fallback slide (NO external image, so no 404) --}}
+                <div class="carousel-item active">
+                  <div class="hero-slide" style="background-image:linear-gradient(135deg, rgba(158,54,58,.95), rgba(107,37,40,.92));">
+                    <div class="hero-inner">
+                      <div class="hero-kicker">
+                        <i class="fa-solid fa-graduation-cap"></i>
+                        <span>Loading…</span>
+                      </div>
+                      <h1 class="hero-title">{{ config('app.name','College Portal') }}</h1>
+                      <div class="hero-actions">
+                        <a href="{{ url('/admissions') }}" class="btn btn-hero">Apply Now</a>
+                        <a href="{{ url('/courses') }}" class="btn btn-hero">Explore Programs</a>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            <button class="carousel-control-prev" type="button" data-bs-target="#homeHero" data-bs-slide="prev">
-              <span class="carousel-control-prev-icon"></span>
-            </button>
-            <button class="carousel-control-next" type="button" data-bs-target="#homeHero" data-bs-slide="next">
-              <span class="carousel-control-next-icon"></span>
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {{-- ================= TOP NOTICE MARQUEE (NOTICE ONLY) ================= --}}
-      <section class="notice-strip reveal is-in" data-anim="up">
-        <div class="d-flex align-items-center gap-3">
-          <div class="strip-ico"><i class="fa-solid fa-bullhorn"></i></div>
-          <div class="flex-grow-1" id="noticeMarquee">
-            <marquee behavior="scroll" direction="left" scrollamount="6" onmouseover="this.stop();" onmouseout="this.start();">
-              Loading notices…
-            </marquee>
-          </div>
-        </div>
-      </section>
-
-      {{-- ================= THREE INFO BOXES (Career / Why / Scholarship) ================= --}}
-      <section class="info-boxes reveal is-in" data-anim="up" data-immediate="1">
-        <div class="row g-3">
-          <div class="col-lg-4 col-md-4">
-            <div class="info-box">
-              <h5><i class="fa-solid fa-trophy"></i> Career At MSIT</h5>
-              <ul id="careerList">
-                <li><i class="fa-solid fa-chevron-right"></i> <span>Loading…</span></li>
-              </ul>
+              <button class="carousel-control-prev" type="button" data-bs-target="#homeHero" data-bs-slide="prev">
+                <span class="carousel-control-prev-icon"></span>
+              </button>
+              <button class="carousel-control-next" type="button" data-bs-target="#homeHero" data-bs-slide="next">
+                <span class="carousel-control-next-icon"></span>
+              </button>
             </div>
           </div>
-          <div class="col-lg-4 col-md-4">
-            <div class="info-box">
-              <h5><i class="fa-solid fa-star"></i> Why MSIT</h5>
-              <ul id="whyMsitList">
-                <li><i class="fa-solid fa-check"></i> <span>Loading…</span></li>
-              </ul>
-            </div>
-          </div>
-          <div class="col-lg-4 col-md-4">
-            <div class="info-box">
-              <h5><i class="fa-solid fa-award"></i> Scholarship</h5>
-              <ul id="scholarshipList">
-                <li><i class="fa-solid fa-gift"></i> <span>Loading…</span></li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </section>
+        </section>
 
-      {{-- ================= NOTICE (LEFT) + CENTER IFRAME (MIDDLE) + ANNOUNCEMENTS (RIGHT) ================= --}}
-      <section class="info-boxes">
-        <div class="row g-3 align-items-stretch">
-          <div class="col-lg-4">
-            <div class="nva-card reveal reveal-left" data-immediate="1" data-section="notice-left">
-              <div class="nva-head"><i class="fa-solid fa-bullhorn"></i> <span>Notice</span></div>
-              <div class="nva-body">
-                <ul class="nva-list" id="noticeList">
-                  <li><i class="fa-solid fa-file"></i> <span>Loading…</span></li>
+
+        {{-- ================= THREE INFO BOXES (Career / Why / Scholarship) ================= --}}
+        <section class="info-boxes reveal is-in" data-anim="up" data-immediate="1">
+          <div class="row g-3">
+            <div class="col-lg-4 col-md-4">
+              <div class="info-box">
+                <h5><i class="fa-solid fa-trophy"></i> Career At MSIT</h5>
+                <ul id="careerList">
+                  <li><i class="fa-solid fa-chevron-right"></i> <span>Loading…</span></li>
+                </ul>
+              </div>
+            </div>
+            <div class="col-lg-4 col-md-4">
+              <div class="info-box">
+                <h5><i class="fa-solid fa-star"></i> Why MSIT</h5>
+                <ul id="whyMsitList">
+                  <li><i class="fa-solid fa-check"></i> <span>Loading…</span></li>
+                </ul>
+              </div>
+            </div>
+            <div class="col-lg-4 col-md-4">
+              <div class="info-box">
+                <h5><i class="fa-solid fa-award"></i> Scholarship</h5>
+                <ul id="scholarshipList">
+                  <li><i class="fa-solid fa-gift"></i> <span>Loading…</span></li>
                 </ul>
               </div>
             </div>
           </div>
+        </section>
 
-          <div class="col-lg-4">
-            <div class="center-video-card reveal" data-immediate="1" data-section="center-iframe">
-              <div class="center-video-title" id="centerIframeTitle">Loading…</div>
+        {{-- ================= NOTICE (LEFT) + CENTER IFRAME (MIDDLE) + ANNOUNCEMENTS (RIGHT) ================= --}}
+        <section class="info-boxes">
+          <div class="row g-3 align-items-stretch">
+            <div class="col-lg-4">
+              <div class="nva-card reveal reveal-left" data-immediate="1" data-section="notice-left">
+                <div class="nva-head"><i class="fa-solid fa-bullhorn"></i> <span>Notice</span></div>
+                <div class="nva-body">
+                  <ul class="nva-list" id="noticeList">
+                    <li><i class="fa-solid fa-file"></i> <span>Loading…</span></li>
+                  </ul>
+                </div>
+              </div>
+            </div>
 
-              <div class="video-embed" id="mainVideoContainer">
+            <div class="col-lg-4">
+              <div class="center-video-card reveal" data-immediate="1" data-section="center-iframe">
+                <div class="center-video-title" id="centerIframeTitle">Loading…</div>
+
+                <div class="video-embed" id="mainVideoContainer">
+                  <iframe src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ" loading="lazy" allowfullscreen></iframe>
+                </div>
+
+                <div class="cta-section" id="centerIframeButtons">
+                  <a href="#" class="cta-btn"><i class="fa-solid fa-link"></i> Loading…</a>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-lg-4">
+              <div class="nva-card reveal reveal-right" data-immediate="1" data-section="announce-right">
+                <div class="nva-head"><i class="fa-solid fa-megaphone"></i> <span>Announcements</span></div>
+                <div class="nva-body">
+                  <ul class="nva-list" id="announcementList">
+                    <li><i class="fa-solid fa-bell"></i> <span>Loading…</span></li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {{-- ================= ACHIEVEMENTS, STUDENTS ACTIVITY, PLACEMENT (LAZY) ================= --}}
+        <section class="info-boxes reveal" data-lazy-key="achvRow">
+          <div class="row g-3">
+            <div class="col-lg-4">
+              <div class="info-box">
+                <h5><i class="fa-solid fa-trophy"></i> Achievements</h5>
+                <ul id="achievementList">
+                  <li><i class="fa-solid fa-medal"></i> <span>Loading…</span></li>
+                </ul>
+              </div>
+            </div>
+            <div class="col-lg-4">
+              <div class="info-box">
+                <h5><i class="fa-solid fa-users"></i> Students Activity</h5>
+                <ul id="activityList">
+                  <li><i class="fa-solid fa-calendar"></i> <span>Loading…</span></li>
+                </ul>
+              </div>
+            </div>
+            <div class="col-lg-4">
+              <div class="info-box">
+                <h5><i class="fa-solid fa-briefcase"></i> Placement Notice</h5>
+                <ul id="placementList2">
+                  <li><i class="fa-solid fa-building"></i> <span>Loading…</span></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </section>
+
+
+        {{-- ================= COURSES OFFERED (LAZY) ================= --}}
+        <section class="courses-section reveal" data-lazy-key="courses">
+          <h2>Courses Offered</h2>
+          <div class="row g-4" id="coursesContainer">
+            <div class="col-lg-3 col-md-6">
+              <div class="course-card">
+                <img id="courseFallbackImage" alt="Course" class="course-img">
+                <h3 class="course-title">Loading…</h3>
+                <p class="course-desc">Please wait…</p>
+                <div class="course-links">
+                  <a href="#" class="course-link">Vision & Mission</a>
+                  <a href="#" class="course-link">PEO, PSO, PO</a>
+                  <a href="#" class="course-link">Faculty</a>
+                  <a href="#" class="course-link">Department</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {{-- ================= STATISTICS (LAZY) ================= --}}
+        <section class="stats-section reveal" id="statsSection" data-lazy-key="stats">
+          <div class="stats-head">
+            <h2 id="statsTitle">Key Stats</h2>
+          </div>
+          <div class="row g-4" id="statsRow">
+            <div class="col-lg-3 col-6">
+              <div class="stat-item">
+                <div class="stat-icon"><i class="fa-solid fa-chart-column"></i></div>
+                <div class="stat-num" data-count="0">0</div>
+                <div class="stat-label">Loading…</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {{-- ================= TESTIMONIALS (LAZY) ================= --}}
+        <section class="testimonial-section reveal" data-lazy-key="testimonials">
+          <h2>Successful Entrepreneurs</h2>
+          <div class="row g-4" id="testimonialContainer">
+            <div class="col-lg-6">
+              <div class="testimonial-card">
+                <img id="testimonialFallbackAvatar" alt="Alumni" class="testimonial-avatar">
+                <div class="testimonial-text">Loading…</div>
+                <div class="testimonial-name">—</div>
+                <div class="testimonial-role">—</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {{-- ================= ALUMNI SPEAK (LAZY) ================= --}}
+        <section class="alumni-section reveal" data-lazy-key="alumni">
+          <h2 id="alumniSpeakTitle">Alumni Speak</h2>
+          <div class="row g-4" id="alumniVideoContainer">
+            <div class="col-lg-4 col-md-6">
+              <div class="alumni-video-card">
                 <iframe src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ" loading="lazy" allowfullscreen></iframe>
               </div>
+            </div>
+          </div>
+        </section>
 
-              <div class="cta-section" id="centerIframeButtons">
-                <a href="#" class="cta-btn"><i class="fa-solid fa-link"></i> Loading…</a>
+        {{-- ================= SUCCESS STORIES (LAZY) ================= --}}
+        <section class="success-section reveal" data-lazy-key="success">
+          <h2>Success Stories</h2>
+          <div class="success-scroller" id="successStoriesContainer">
+            <div class="success-scroller-item">
+              <div class="success-card">
+                <img id="successFallbackImage" alt="Success" class="success-img">
+                <div class="success-desc">Loading…</div>
+                <div class="success-name">—</div>
+                <div class="success-role">—</div>
               </div>
             </div>
           </div>
+        </section>
 
-          <div class="col-lg-4">
-            <div class="nva-card reveal reveal-right" data-immediate="1" data-section="announce-right">
-              <div class="nva-head"><i class="fa-solid fa-megaphone"></i> <span>Announcements</span></div>
-              <div class="nva-body">
-                <ul class="nva-list" id="announcementList">
-                  <li><i class="fa-solid fa-bell"></i> <span>Loading…</span></li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+        <section class="recruiters-section reveal" data-anim="up">
+  <div class="recruiters-wrap">
+    @include('modules.ourRecruiters.viewAllOurRecruiters')
+  </div>
+</section>
 
-      {{-- ================= STATISTICS (LAZY) ================= --}}
-      <section class="stats-section reveal" id="statsSection" data-lazy-key="stats">
-        <div class="stats-head">
-          <h2 id="statsTitle">Key Stats</h2>
-        </div>
-        <div class="row g-4" id="statsRow">
-          <div class="col-lg-3 col-6">
-            <div class="stat-item">
-              <div class="stat-icon"><i class="fa-solid fa-chart-column"></i></div>
-              <div class="stat-num" data-count="0">0</div>
-              <div class="stat-label">Loading…</div>
-            </div>
-          </div>
-        </div>
-      </section>
 
-      {{-- ================= ACHIEVEMENTS, STUDENTS ACTIVITY, PLACEMENT (LAZY) ================= --}}
-      <section class="info-boxes reveal" data-lazy-key="achvRow">
-        <div class="row g-3">
-          <div class="col-lg-4">
-            <div class="info-box">
-              <h5><i class="fa-solid fa-trophy"></i> Achievements</h5>
-              <ul id="achievementList">
-                <li><i class="fa-solid fa-medal"></i> <span>Loading…</span></li>
-              </ul>
-            </div>
-          </div>
-          <div class="col-lg-4">
-            <div class="info-box">
-              <h5><i class="fa-solid fa-users"></i> Students Activity</h5>
-              <ul id="activityList">
-                <li><i class="fa-solid fa-calendar"></i> <span>Loading…</span></li>
-              </ul>
-            </div>
-          </div>
-          <div class="col-lg-4">
-            <div class="info-box">
-              <h5><i class="fa-solid fa-briefcase"></i> Placement Notice</h5>
-              <ul id="placementList2">
-                <li><i class="fa-solid fa-building"></i> <span>Loading…</span></li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {{-- ================= TESTIMONIALS (LAZY) ================= --}}
-      <section class="testimonial-section reveal" data-lazy-key="testimonials">
-        <h2>Successful Entrepreneurs</h2>
-        <div class="row g-4" id="testimonialContainer">
-          <div class="col-lg-6">
-            <div class="testimonial-card">
-              <img id="testimonialFallbackAvatar" alt="Alumni" class="testimonial-avatar">
-              <div class="testimonial-text">Loading…</div>
-              <div class="testimonial-name">—</div>
-              <div class="testimonial-role">—</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {{-- ================= ALUMNI SPEAK (LAZY) ================= --}}
-      <section class="alumni-section reveal" data-lazy-key="alumni">
-        <h2 id="alumniSpeakTitle">Alumni Speak</h2>
-        <div class="row g-4" id="alumniVideoContainer">
-          <div class="col-lg-4 col-md-6">
-            <div class="alumni-video-card">
-              <iframe src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ" loading="lazy" allowfullscreen></iframe>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {{-- ================= SUCCESS STORIES (LAZY) ================= --}}
-      <section class="success-section reveal" data-lazy-key="success">
-        <h2>Success Stories</h2>
-        <div class="row g-4" id="successStoriesContainer">
-          <div class="col-lg-3 col-md-6">
-            <div class="success-card">
-              <img id="successFallbackImage" alt="Success" class="success-img">
-              <p class="success-desc">Loading…</p>
-              <div class="success-name">—</div>
-              <div class="success-role">—</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {{-- ================= COURSES OFFERED (LAZY) ================= --}}
-      <section class="courses-section reveal" data-lazy-key="courses">
-        <h2>Courses Offered</h2>
-        <div class="row g-4" id="coursesContainer">
-          <div class="col-lg-3 col-md-6">
-            <div class="course-card">
-              <img id="courseFallbackImage" alt="Course" class="course-img">
-              <h3 class="course-title">Loading…</h3>
-              <p class="course-desc">Please wait…</p>
-              <div class="course-links">
-                <a href="#" class="course-link">Vision & Mission</a>
-                <a href="#" class="course-link">PEO, PSO, PO</a>
-                <a href="#" class="course-link">Faculty</a>
-                <a href="#" class="course-link">Department</a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {{-- ================= TOP RECRUITERS (LAZY) ================= --}}
-      <section class="recruiters-section reveal" data-lazy-key="recruiters">
-        <h2>Top Recruiters</h2>
-        <div class="recruiter-grid" id="recruitersContainer"></div>
-        <p class="muted-note" id="recruitersNote"></p>
-      </section>
-
+      </div> {{-- End of home-sections-container --}}
+      
     </div>
   </main>
 
   {{-- Footer --}}
-@include('landing.components.footer')
+  @include('landing.components.footer')
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
   <script>
   /**
-   * ✅ FIXED: Your APIs were mismatched earlier.
-   * This file now calls ONLY the routes you listed:
+   * ✅ This file calls ONLY the routes listed in $homeApis:
    * - /notice-marquee, /hero-carousel, /quick-links, /notice-board
-   * - /activities, /placement-notices, /stats, /courses, /recruiters
+   * - /activities, /placement-notices, /stats, /courses
    * - /successful-entrepreneurs, /alumni-speak, /success-stories
    *
+   * ✅ Recruiters dynamic API removed (full recruiters module is included in Blade).
+   *
    * ✅ PERFORMANCE: below-fold loads only on scroll (IntersectionObserver)
-   * ✅ UX: added page-loader + richer animations
+   * ✅ UX: page-loader + richer animations
    */
 
   const HOME_APIS = @json($homeApis);
@@ -1179,11 +804,23 @@
       .replace(/'/g,'&#039;');
   }
 
+  function chunkArray(arr, size){
+    const out = [];
+    const a = Array.isArray(arr) ? arr : [];
+    const n = Math.max(1, parseInt(size || 1, 10) || 1);
+    for(let i = 0; i < a.length; i += n) out.push(a.slice(i, i + n));
+    return out;
+  }
+
   /**
    * URL normalize:
    * - keeps external URLs
    * - ensures leading /
-   * - converts placement_notices to placement-notices (required)
+   * - converts:
+   *   career_notices -> career-notices
+   *   why_us -> why-us
+   *   student_activities -> student-activities
+   *   placement_notices -> placement-notices
    */
   function safeHref(u){
     const s0 = String(u ?? '').trim();
@@ -1191,9 +828,130 @@
     if(/^https?:\/\//i.test(s0)) return s0;
 
     let s = s0.startsWith('/') ? s0 : ('/' + s0);
+
     s = s.replace(/\/placement_notices(?=\/|$)/gi, '/placement-notices');
+    s = s.replace(/\/career_notices(?=\/|$)/gi, '/career-notices');
+    s = s.replace(/\/why_us(?=\/|$)/gi, '/why-us');
+    s = s.replace(/\/student_activities(?=\/|$)/gi, '/student-activities');
+
     return s;
   }
+
+  function unwrapApi(json){
+  return (json && typeof json === 'object' && json.data && typeof json.data === 'object')
+    ? json.data
+    : json;
+}
+
+function pickNoticeMarqueePayload(j){
+  // supports BOTH shapes:
+  // 1) { notice_marquee: { items, settings } }  (GrandHomepageController)
+  // 2) { item: { notice_items_json, scroll_speed... } } (NoticeMarqueeController)
+  const root = unwrapApi(j || {});
+  return root.notice_marquee || root.item || root;
+}
+
+let nmAnim = null;
+
+function renderNoticeMarquee(apiJson){
+  const payload = pickNoticeMarqueePayload(apiJson);
+  const itemsRaw = payload?.items ?? payload?.notice_items_json ?? [];
+  const settings = payload?.settings ?? payload ?? {};
+
+  const viewport = document.getElementById('noticeMarqueeViewport');
+  const track = document.getElementById('noticeMarqueeTrack');
+  if(!viewport || !track) return;
+
+  const items = (Array.isArray(itemsRaw) ? itemsRaw : []).map(it => {
+    if(typeof it === 'string') return { text: it, url: '' };
+    if(it && typeof it === 'object'){
+      return {
+        text: (it.text ?? it.title ?? it.label ?? '').toString().trim(),
+        url:  (it.url  ?? it.link  ?? it.href  ?? '').toString().trim(),
+      };
+    }
+    return { text:'', url:'' };
+  }).filter(x => x.text);
+
+  // Build markup
+  const html = items.length
+    ? items.map((x, i) => {
+        const t = esc(x.text);
+        const u = x.url ? safeHref(x.url) : '';
+        const node = u
+          ? `<a class="nm-link" href="${esc(u)}">${t}</a>`
+          : `<span class="nm-text">${t}</span>`;
+        const sep = (i === items.length - 1) ? '' : `<span class="nm-sep">•</span>`;
+        return node + sep;
+      }).join('')
+    : `<span class="nm-text">No notices available.</span>`;
+
+  const loop = parseInt(settings.loop ?? 1, 10) === 1;
+  track.innerHTML = `
+    <div class="nm-run" data-run="1">${html}</div>
+    ${loop ? `<div class="nm-run" data-run="2" aria-hidden="true">${html}</div>` : ``}
+  `;
+
+  // Stop old animation
+  if(nmAnim){ try{ nmAnim.cancel(); }catch(e){} nmAnim = null; }
+  track.style.transform = 'translateX(0px)';
+
+  const auto = parseInt(settings.auto_scroll ?? 1, 10) === 1;
+  if(!auto) return;
+
+  const dir = String(settings.direction ?? 'left').toLowerCase() === 'right' ? 'right' : 'left';
+  const pxPerSec = Math.max(20, parseInt(settings.scroll_speed ?? 60, 10) || 60);
+  const latency = Math.max(0, parseInt(settings.scroll_latency_ms ?? 0, 10) || 0);
+  const pauseHover = parseInt(settings.pause_on_hover ?? 1, 10) === 1;
+
+  // Animate after layout
+  requestAnimationFrame(() => {
+    const run1 = track.querySelector('[data-run="1"]');
+    if(!run1) return;
+
+    const distance = run1.scrollWidth;
+    if(!distance) return;
+
+    const duration = Math.max(1200, Math.round((distance / pxPerSec) * 1000));
+    const from = (dir === 'left') ? 0 : -distance;
+    const to   = (dir === 'left') ? -distance : 0;
+
+    const playOnce = () => {
+      nmAnim = track.animate(
+        [{ transform: `translateX(${from}px)` }, { transform: `translateX(${to}px)` }],
+        { duration, iterations: 1, easing: 'linear', fill: 'forwards' }
+      );
+
+      nmAnim.onfinish = () => {
+        if(loop){
+          setTimeout(() => {
+            track.style.transform = `translateX(${from}px)`;
+            playOnce();
+          }, latency);
+        }
+      };
+    };
+
+    track.style.transform = `translateX(${from}px)`;
+    playOnce();
+
+    // Pause on hover (settings-driven)
+    viewport.onmouseenter = null;
+    viewport.onmouseleave = null;
+    if(pauseHover){
+      viewport.onmouseenter = () => nmAnim && nmAnim.pause();
+      viewport.onmouseleave = () => nmAnim && nmAnim.play();
+    }
+  });
+}
+
+async function loadNoticeMarquee(){
+  const url = withParams(HOME_APIS.noticeMarquee);
+  const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+  const json = await res.json();
+  renderNoticeMarquee(json);
+}
+
 
   function decodeHtmlEntities(str){
     const t = document.createElement('textarea');
@@ -1209,7 +967,6 @@
       const doc = parser.parseFromString(`<div>${input}</div>`, 'text/html');
       const root = doc.body.firstElementChild;
 
-      // ✅ allow safe formatting and paragraphs/lists for testimonials
       const ALLOW = new Set(['B','I','U','STRONG','EM','BR','SPAN','P','UL','OL','LI']);
       const walk = (node) => {
         [...node.children].forEach(el => {
@@ -1230,7 +987,6 @@
   }
 
   function normalizeRichText(v){
-    // handles both "<p>..</p>" and "&lt;p&gt;..&lt;/p&gt;"
     const decoded = decodeHtmlEntities(v);
     return safeInlineHtml(decoded);
   }
@@ -1252,9 +1008,56 @@
     return u;
   }
 
+  function initCarouselInstance(el, opts){
+    if(!el || !window.bootstrap?.Carousel) return;
+    try{
+      const existing = bootstrap.Carousel.getInstance(el);
+      if(existing) existing.dispose();
+    }catch(e){}
+    try{
+      new bootstrap.Carousel(el, opts || {});
+    }catch(e){}
+  }
+
+  /* =========================
+    ✅ FIXED: Smooth upward scroller (using CSS animations)
+    - Works for: Career/Why/Scholarship + Notice/Announcements + Achievements/Activities/Placement
+    - Uses CSS animations for smooth, consistent scrolling
+    - Pauses on hover
+  ========================= */
+  function initSmoothAutoScrollList(listId) {
+    const ul = document.getElementById(listId);
+    if(!ul) return;
+
+    // Remove any existing animations
+    ul.classList.remove('scrolling-upwards');
+    
+    const lis = Array.from(ul.querySelectorAll('li'));
+    if(lis.length <= 7) {
+      // Not enough items to scroll, remove autoscroll class
+      ul.classList.remove('autoscroll');
+      return;
+    }
+
+    // Add autoscroll class for styling
+    ul.classList.add('autoscroll');
+    
+    // Clone items for seamless looping
+    const children = Array.from(ul.children);
+    children.forEach(ch => {
+      const clone = ch.cloneNode(true);
+      clone.setAttribute('data-clone','1');
+      ul.appendChild(clone);
+    });
+
+    // Start scrolling animation
+    setTimeout(() => {
+      ul.classList.add('scrolling-upwards');
+    }, 100);
+  }
+
   /* =========================
     Reveal animation on view
-    NOTE: skip [data-lazy-key] here (lazy loader controls those)
   ========================= */
   function initRevealObservers(){
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
@@ -1281,6 +1084,8 @@
   function animateCounters(){
     const els = document.querySelectorAll('.stat-num[data-count]');
     els.forEach(el => {
+      if(el.dataset.animated === '1') return;
+
       const target = parseInt(String(el.getAttribute('data-count') || '0').replace(/[, ]/g,''), 10) || 0;
       const duration = 1200;
       const start = performance.now();
@@ -1290,7 +1095,9 @@
         const val = Math.floor(target * p);
         el.textContent = val.toLocaleString();
         if (p < 1) requestAnimationFrame(tick);
+        else el.dataset.animated = '1';
       }
+
       el.textContent = '0';
       requestAnimationFrame(tick);
     });
@@ -1320,7 +1127,6 @@
     return await res.json();
   }
   function unwrap(json){
-    // supports {success:true, data:{...}} OR {success:true, key:...} OR { ... }
     if(json && isObj(json.data)) return json.data;
     return json;
   }
@@ -1366,6 +1172,13 @@
 
     const autoplay = Number(settings.autoplay ?? 1) === 1;
     const interval = parseInt(settings.autoplay_delay_ms ?? 5000, 10) || 5000;
+
+    const transition = String(settings.transition || 'slide').toLowerCase();
+    const transitionMsRaw = parseInt(settings.transition_ms ?? 600, 10);
+    const transitionMs = Number.isFinite(transitionMsRaw) ? Math.max(0, transitionMsRaw) : 600;
+
+    heroRoot.classList.toggle('carousel-fade', transition === 'fade');
+    heroRoot.style.setProperty('--hero-transition-ms', `${transitionMs}ms`);
 
     if(autoplay){
       heroRoot.setAttribute('data-bs-ride', 'carousel');
@@ -1429,16 +1242,12 @@
     syncHeroBackgrounds();
     window.addEventListener('resize', syncHeroBackgrounds, { passive: true });
 
-    try{
-      const existing = bootstrap.Carousel.getInstance(heroRoot);
-      if(existing) existing.dispose();
-      new bootstrap.Carousel(heroRoot, {
-        interval: autoplay ? interval : false,
-        pause: (Number(settings.pause_on_hover ?? 1) === 1) ? 'hover' : false,
-        wrap: (Number(settings.loop ?? 1) === 1),
-        ride: autoplay ? 'carousel' : false
-      });
-    }catch(e){}
+    initCarouselInstance(heroRoot, {
+      interval: autoplay ? interval : false,
+      pause: (Number(settings.pause_on_hover ?? 1) === 1) ? 'hover' : false,
+      wrap: (Number(settings.loop ?? 1) === 1),
+      ride: autoplay ? 'carousel' : false
+    });
   }
 
   /* one-by-one list render (nice feel) */
@@ -1446,19 +1255,22 @@
     const el = document.getElementById(listId);
     if(!el) return;
 
+    // Remove any existing clones
+    el.querySelectorAll('[data-clone="1"]').forEach(n => n.remove());
+
     const arr = Array.isArray(items) ? items : [];
-    const max = Number(opts.max ?? 7);
+    const max = Number(opts.max ?? 50);
 
     if(!arr.length){
+      el.classList.remove('autoscroll', 'scrolling-upwards');
       el.innerHTML = `<li><i class="${esc(iconClass)}"></i> <span>${esc(emptyText || 'No items available')}</span></li>`;
       return;
     }
 
-    const slice = arr.slice(0, max).map(it => {
+    const sliced = arr.slice(0, max).map(it => {
       const title = it.title ?? it.text ?? it.name ?? '-';
 
       let url = it.url ?? it.href ?? it.link ?? '';
-      // Optional builder for cases where API doesn't return url
       if(!String(url || '').trim() && typeof opts.buildUrl === 'function'){
         try{ url = opts.buildUrl(it) || ''; }catch(e){ url = ''; }
       }
@@ -1469,18 +1281,27 @@
     });
 
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
-    if(reduce || opts.stagger === false){
-      el.innerHTML = slice.map(x => `
+
+    const renderAll = () => {
+      el.innerHTML = sliced.map(x => `
         <li>
           <i class="${esc(iconClass)}"></i>
           ${x.hasLink ? `<a href="${esc(x.href)}">${esc(x.title)}</a>` : `<span>${esc(x.title)}</span>`}
         </li>
       `).join('');
+
+      // ✅ FIXED: Init smooth upward scroller
+      setTimeout(() => initSmoothAutoScrollList(listId), 100);
+    };
+
+    if(reduce || opts.stagger === false){
+      renderAll();
       return;
     }
 
+    // stagger render
     el.innerHTML = '';
-    slice.forEach((x, i) => {
+    sliced.forEach((x, i) => {
       setTimeout(() => {
         const li = document.createElement('li');
         li.innerHTML = `
@@ -1488,54 +1309,16 @@
           ${x.hasLink ? `<a href="${esc(x.href)}">${esc(x.title)}</a>` : `<span>${esc(x.title)}</span>`}
         `;
         el.appendChild(li);
+
+        if(i === sliced.length - 1){
+          // ✅ FIXED: Init smooth upward scroller after all items are rendered
+          setTimeout(() => initSmoothAutoScrollList(listId), 150);
+        }
       }, i * 45);
     });
   }
 
-  /* =========================
-    ✅ Notice marquee: clickable only if URL exists
-  ========================= */
-  function renderNoticeMarquee(noticeMarquee){
-    const host = document.getElementById('noticeMarquee');
-    if(!host) return;
 
-    const items = Array.isArray(noticeMarquee?.items) ? noticeMarquee.items : [];
-
-    const nodes = items.map(it => {
-      let text = '';
-      let url  = '';
-
-      if(typeof it === 'string'){
-        text = it.trim();
-      }else if(isObj(it)){
-        text = String(it.text ?? it.label ?? it.title ?? '').trim();
-        url  = String(it.url ?? it.href ?? it.link ?? it.route ?? '').trim();
-      }
-
-      if(!text) return null;
-
-      if(url){
-        const href = safeHref(url);
-        return `<a class="nm-link" href="${esc(href)}">${esc(text)}</a>`;
-      }
-      return `<span class="nm-text">${esc(text)}</span>`;
-    }).filter(Boolean);
-
-    if(!nodes.length){
-      host.innerHTML = `
-        <marquee behavior="scroll" direction="left" scrollamount="6" onmouseover="this.stop();" onmouseout="this.start();">
-          <span class="nm-text">Welcome.</span>
-        </marquee>
-      `;
-      return;
-    }
-
-    host.innerHTML = `
-      <marquee behavior="scroll" direction="left" scrollamount="6" onmouseover="this.stop();" onmouseout="this.start();">
-        ${nodes.join('<span class="nm-sep">•</span>')}
-      </marquee>
-    `;
-  }
 
   function renderCenterIframe(center){
     const titleEl = document.getElementById('centerIframeTitle');
@@ -1588,13 +1371,20 @@
     }
   }
 
+  /* =========================
+    ✅ Stats: limit 4; if 5+ => carousel using DB settings
+  ========================= */
   function renderStats(stats){
     const section = document.getElementById('statsSection');
     const titleEl = document.getElementById('statsTitle');
     const rowEl   = document.getElementById('statsRow');
     if(!section || !rowEl) return;
 
-    const items = Array.isArray(stats?.stats_items_json) ? stats.stats_items_json : [];
+    const itemsRaw = Array.isArray(stats?.stats_items_json) ? stats.stats_items_json : [];
+    const items = itemsRaw
+      .slice()
+      .sort((a,b)=>(Number(a.sort_order||0)-Number(b.sort_order||0)));
+
     const title = stats?.metadata?.section_title || stats?.metadata?.title || 'Key Stats';
     if(titleEl) titleEl.textContent = String(title);
 
@@ -1612,34 +1402,90 @@
       return;
     }
 
-    const cols = (n) => {
-      if(n <= 4) return 'col-lg-3 col-6';
-      if(n <= 6) return 'col-lg-2 col-md-4 col-6';
-      return 'col-lg-2 col-md-3 col-6';
+    const toStatCard = (it) => {
+      const label = it.label || it.key || '—';
+      const value = String(it.value ?? '0').replace(/[^\d]/g,'') || '0';
+      const icon  = it.icon_class ? String(it.icon_class) : 'fa-solid fa-chart-column';
+
+      return `
+        <div class="col-lg-3 col-6">
+          <div class="stat-item">
+            <div class="stat-icon"><i class="${esc(icon)}"></i></div>
+            <div class="stat-num" data-count="${esc(value)}">0</div>
+            <div class="stat-label">${esc(label)}</div>
+          </div>
+        </div>
+      `;
     };
 
-    rowEl.innerHTML = items
-      .slice()
-      .sort((a,b)=>(Number(a.sort_order||0)-Number(b.sort_order||0)))
-      .map((it) => {
-        const label = it.label || it.key || '—';
-        const value = String(it.value ?? '0').replace(/[^\d]/g,'') || '0';
-        const icon  = it.icon_class ? String(it.icon_class) : 'fa-solid fa-chart-column';
+    if(items.length <= 4){
+      rowEl.innerHTML = items.slice(0,4).map(toStatCard).join('');
+      attachStatsObserver();
+      return;
+    }
 
-        return `
-          <div class="${cols(items.length)}">
-            <div class="stat-item">
-              <div class="stat-icon"><i class="${esc(icon)}"></i></div>
-              <div class="stat-num" data-count="${esc(value)}">0</div>
-              <div class="stat-label">${esc(label)}</div>
-            </div>
+    const settings = {
+      autoScroll: Boolean(stats?.auto_scroll ?? true),
+      interval: parseInt(stats?.scroll_latency_ms ?? 3000, 10) || 3000,
+      wrap: Boolean(stats?.loop ?? true),
+      showArrows: Boolean(stats?.show_arrows ?? true),
+      showDots: Boolean(stats?.show_dots ?? false),
+    };
+
+    const groups = chunkArray(items, 4);
+    const hasMulti = groups.length > 1;
+
+    rowEl.innerHTML = `
+      <div class="col-12">
+        <div id="statsCarousel" class="carousel slide stats-carousel controls-out indicators-out"
+             ${settings.autoScroll ? 'data-bs-ride="carousel"' : ''}
+             data-bs-interval="${settings.autoScroll ? esc(settings.interval) : 'false'}"
+             data-bs-wrap="${settings.wrap ? 'true' : 'false'}"
+             data-bs-pause="${settings.autoScroll ? 'hover' : 'false'}">
+
+          <div class="carousel-inner">
+            ${groups.map((chunk, idx) => `
+              <div class="carousel-item ${idx===0?'active':''}">
+                <div class="row g-4 justify-content-center">
+                  ${chunk.map(toStatCard).join('')}
+                </div>
+              </div>
+            `).join('')}
           </div>
-        `;
-      }).join('');
+
+          <div class="carousel-indicators" style="${(settings.showDots && hasMulti) ? '' : 'display:none'}">
+            ${groups.map((_, i) => `
+              <button type="button" data-bs-target="#statsCarousel" data-bs-slide-to="${i}"
+                      class="${i===0?'active':''}" ${i===0?'aria-current="true"':''} aria-label="Slide ${i+1}"></button>
+            `).join('')}
+          </div>
+
+          <button class="carousel-control-prev" type="button" data-bs-target="#statsCarousel" data-bs-slide="prev" style="${(settings.showArrows && hasMulti) ? '' : 'display:none'}">
+            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+            <span class="visually-hidden">Previous</span>
+          </button>
+          <button class="carousel-control-next" type="button" data-bs-target="#statsCarousel" data-bs-slide="next" style="${(settings.showArrows && hasMulti) ? '' : 'display:none'}">
+            <span class="carousel-control-next-icon" aria-hidden="true"></span>
+            <span class="visually-hidden">Next</span>
+          </button>
+        </div>
+      </div>
+    `;
+
+    const carouselEl = document.getElementById('statsCarousel');
+    initCarouselInstance(carouselEl, {
+      interval: settings.autoScroll ? settings.interval : false,
+      ride: settings.autoScroll ? 'carousel' : false,
+      pause: settings.autoScroll ? 'hover' : false,
+      wrap: settings.wrap
+    });
 
     attachStatsObserver();
   }
 
+  /* =========================
+    Testimonials
+  ========================= */
   function renderTestimonials(arr){
     const container = document.getElementById('testimonialContainer');
     if(!container) return;
@@ -1650,33 +1496,83 @@
       return;
     }
 
-    container.innerHTML = items.slice(0, 6).map(item => {
-      const avatar = item.avatar || item.photo_url || item.image_url || PLACEHOLDERS.avatar;
+    const cleaned = items.slice(0, 12);
+    const perSlide = 2;
+    const groups = chunkArray(cleaned, perSlide);
+    const hasMulti = groups.length > 1;
 
-      // ✅ Fix: show text normally (no “<p>..</p>” appearing as code)
-      const rawText = item.text || item.description || item.quote || '';
-      const richText = normalizeRichText(rawText);
+    container.innerHTML = `
+      <div class="col-12">
+        <div id="entrepreneursCarousel" class="carousel slide testimonial-carousel controls-out indicators-out"
+             data-bs-ride="carousel"
+             data-bs-interval="6000"
+             data-bs-wrap="true"
+             data-bs-pause="hover">
 
-      const name   = item.name || item.title || '—';
-      const company = item.company_name || item.company || '';
-      const ttl = item.title && item.title !== name ? item.title : '';
-      const role = item.role || [ttl, company].filter(Boolean).join(', ');
+          <div class="carousel-inner">
+            ${groups.map((chunk, idx) => `
+              <div class="carousel-item ${idx===0?'active':''}">
+                <div class="row g-4">
+                  ${chunk.map(item => {
+                    const avatar = item.avatar || item.photo_url || item.image_url || PLACEHOLDERS.avatar;
+                    const rawText = item.text || item.description || item.quote || '';
+                    const richText = normalizeRichText(rawText);
 
-      return `
-        <div class="col-lg-6">
-          <div class="testimonial-card">
-            <img src="${esc(avatar)}" loading="lazy" alt="${esc(name)}" class="testimonial-avatar">
-            <div class="testimonial-text">${richText || esc(rawText || '—')}</div>
-            <div class="testimonial-name">${esc(name)}</div>
-            <div class="testimonial-role">${esc(role || '—')}</div>
+                    const name   = item.name || item.title || '—';
+                    const company = item.company_name || item.company || '';
+                    const ttl = item.title && item.title !== name ? item.title : '';
+                    const role = item.role || [ttl, company].filter(Boolean).join(', ');
+
+                    return `
+                      <div class="col-lg-6">
+                        <div class="testimonial-card">
+                          <img src="${esc(avatar)}" loading="lazy" alt="${esc(name)}" class="testimonial-avatar">
+                          <div class="testimonial-text">${richText || esc(rawText || '—')}</div>
+                          <div class="testimonial-name">${esc(name)}</div>
+                          <div class="testimonial-role">${esc(role || '—')}</div>
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            `).join('')}
           </div>
+
+          <div class="carousel-indicators" style="${hasMulti ? '' : 'display:none'}">
+            ${groups.map((_, i) => `
+              <button type="button" data-bs-target="#entrepreneursCarousel" data-bs-slide-to="${i}"
+                      class="${i===0?'active':''}" ${i===0?'aria-current="true"':''} aria-label="Slide ${i+1}"></button>
+            `).join('')}
+          </div>
+
+          <button class="carousel-control-prev" type="button" data-bs-target="#entrepreneursCarousel" data-bs-slide="prev" style="${hasMulti ? '' : 'display:none'}">
+            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+            <span class="visually-hidden">Previous</span>
+          </button>
+          <button class="carousel-control-next" type="button" data-bs-target="#entrepreneursCarousel" data-bs-slide="next" style="${hasMulti ? '' : 'display:none'}">
+            <span class="carousel-control-next-icon" aria-hidden="true"></span>
+            <span class="visually-hidden">Next</span>
+          </button>
+
         </div>
-      `;
-    }).join('');
+      </div>
+    `;
 
     container.querySelectorAll('img.testimonial-avatar').forEach(img => attachImgFallback(img, 'avatar'));
+
+    const carouselEl = document.getElementById('entrepreneursCarousel');
+    initCarouselInstance(carouselEl, {
+      interval: 6000,
+      ride: 'carousel',
+      pause: 'hover',
+      wrap: true
+    });
   }
 
+  /* =========================
+    Alumni Speak
+  ========================= */
   function renderAlumniSpeak(alumni){
     const titleEl = document.getElementById('alumniSpeakTitle');
     const container = document.getElementById('alumniVideoContainer');
@@ -1684,22 +1580,24 @@
 
     if(titleEl) titleEl.textContent = alumni?.title ? String(alumni.title) : 'Alumni Speak';
 
-    const vids = Array.isArray(alumni?.iframe_urls_json) ? alumni.iframe_urls_json : [];
+    const vidsRaw = Array.isArray(alumni?.iframe_urls_json) ? alumni.iframe_urls_json : [];
+    const vids = vidsRaw
+      .slice()
+      .sort((a,b)=>(Number(a.sort_order||0)-Number(b.sort_order||0)))
+      .slice(0, 12);
+
     if(!vids.length){
       container.innerHTML = `<div class="col-12"><p class="muted-note">No alumni videos available.</p></div>`;
       return;
     }
 
-    container.innerHTML = vids
-      .slice()
-      .sort((a,b)=>(Number(a.sort_order||0)-Number(b.sort_order||0)))
-      .slice(0, 6)
-      .map(v => {
+    if(vids.length < 4){
+      container.innerHTML = vids.slice(0, 6).map(v => {
         const embed = v.video_id
           ? `https://www.youtube-nocookie.com/embed/${String(v.video_id)}`
           : toEmbedUrl(v.url || '');
-
         const ttl = v.title || 'Video';
+
         return `
           <div class="col-lg-4 col-md-6">
             <div class="alumni-video-card">
@@ -1714,32 +1612,101 @@
           </div>
         `;
       }).join('');
+      return;
+    }
+
+    const groups = chunkArray(vids, 3);
+    const hasMulti = groups.length > 1;
+
+    container.innerHTML = `
+      <div class="col-12">
+        <div id="alumniCarousel" class="carousel slide alumni-carousel controls-out"
+             data-bs-interval="false"
+             data-bs-wrap="false">
+          <div class="carousel-inner">
+            ${groups.map((chunk, idx) => `
+              <div class="carousel-item ${idx===0?'active':''}">
+                <div class="row g-4">
+                  ${chunk.map(v => {
+                    const embed = v.video_id
+                      ? `https://www.youtube-nocookie.com/embed/${String(v.video_id)}`
+                      : toEmbedUrl(v.url || '');
+                    const ttl = v.title || 'Video';
+                    return `
+                      <div class="col-lg-4 col-md-6">
+                        <div class="alumni-video-card">
+                          <iframe
+                            src="${esc(embed)}"
+                            title="${esc(ttl)}"
+                            loading="lazy"
+                            referrerpolicy="strict-origin-when-cross-origin"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                            allowfullscreen></iframe>
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+
+          <button class="carousel-control-prev" type="button" data-bs-target="#alumniCarousel" data-bs-slide="prev" style="${hasMulti ? '' : 'display:none'}">
+            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+            <span class="visually-hidden">Previous</span>
+          </button>
+          <button class="carousel-control-next" type="button" data-bs-target="#alumniCarousel" data-bs-slide="next" style="${hasMulti ? '' : 'display:none'}">
+            <span class="carousel-control-next-icon" aria-hidden="true"></span>
+            <span class="visually-hidden">Next</span>
+          </button>
+        </div>
+      </div>
+    `;
+
+    const carouselEl = document.getElementById('alumniCarousel');
+    initCarouselInstance(carouselEl, {
+      interval: false,
+      ride: false,
+      pause: false,
+      wrap: false
+    });
   }
 
+  /* =========================
+    ✅ Success Stories: clickable => /success-stories/view/{uuid}
+  ========================= */
   function renderSuccessStories(arr){
     const container = document.getElementById('successStoriesContainer');
     if(!container) return;
 
     const items = Array.isArray(arr) ? arr : [];
     if(!items.length){
-      container.innerHTML = `<div class="col-12"><p class="muted-note">No success stories available.</p></div>`;
+      container.innerHTML = `<p class="muted-note w-100">No success stories available.</p>`;
       return;
     }
 
-    container.innerHTML = items.slice(0, 8).map(story => {
+    container.innerHTML = items.slice(0, 12).map(story => {
       const img  = story.image_url || story.image || story.photo_url || PLACEHOLDERS.image;
-      const desc = story.description || story.text || '';
+
+      const rawDesc = story.description || story.text || '';
+      const descHtml = normalizeRichText(rawDesc);
+
       const name = story.name || story.title || '—';
       const role = story.role || story.year || story.subtitle || '';
 
+      const uuid = String(story.uuid || story.story_uuid || story.id || '').trim();
+      const href = uuid ? safeHref(`/success-stories/view/${uuid}`) : '#';
+      const tagOpen = uuid ? `<a class="success-card" href="${esc(href)}">` : `<div class="success-card">`;
+      const tagClose = uuid ? `</a>` : `</div>`;
+
       return `
-        <div class="col-lg-3 col-md-6">
-          <div class="success-card">
+        <div class="success-scroller-item">
+          ${tagOpen}
             <img src="${esc(img)}" loading="lazy" alt="${esc(name)}" class="success-img">
-            <p class="success-desc">${esc(desc || '—')}</p>
+            <div class="success-desc">${descHtml || esc(rawDesc || '—')}</div>
             <div class="success-name">${esc(name)}</div>
             <div class="success-role">${esc(role || '—')}</div>
-          </div>
+          ${tagClose}
         </div>
       `;
     }).join('');
@@ -1790,46 +1757,6 @@
     container.querySelectorAll('img.course-img').forEach(img => attachImgFallback(img, 'image'));
   }
 
-  function renderRecruiters(arr){
-    const container = document.getElementById('recruitersContainer');
-    const note = document.getElementById('recruitersNote');
-    if(!container) return;
-
-    const items = Array.isArray(arr) ? arr : [];
-    if(!items.length){
-      container.innerHTML = '';
-      if(note) note.textContent = 'No recruiters available.';
-      return;
-    }
-
-    const sorted = items.slice().sort((a,b)=>{
-      const fa = Number(a.is_featured_home||0), fb = Number(b.is_featured_home||0);
-      if(fa !== fb) return fb-fa;
-      return Number(a.sort_order||0) - Number(b.sort_order||0);
-    });
-
-    const shown = sorted.slice(0, 18);
-    container.innerHTML = shown.map(r => {
-      const logo  = r.logo_url || r.logo || PLACEHOLDERS.image;
-      const title = r.title || r.name || 'Recruiter';
-      const href  = r.url ? safeHref(r.url) : '#';
-
-      return `
-        <a class="recruiter-logo" href="${esc(href)}" ${href !== '#' ? 'target="_blank" rel="noopener"' : ''} title="${esc(title)}">
-          <img src="${esc(logo)}" loading="lazy" alt="${esc(title)}">
-        </a>
-      `;
-    }).join('');
-
-    container.querySelectorAll('.recruiter-logo img').forEach(img => attachImgFallback(img, 'image'));
-
-    if(note){
-      note.textContent = (items.length > shown.length)
-        ? `Showing ${shown.length} of ${items.length} recruiters.`
-        : '';
-    }
-  }
-
   /* =========================
     Error alert (show first failing API)
   ========================= */
@@ -1851,10 +1778,10 @@
   }
 
   /* =========================
-    Above-fold: load one-by-one (ONLY THESE APIs)
+    Above-fold: load one-by-one
   ========================= */
   async function loadImmediateSections(){
-    // A) HERO ( /hero-carousel )
+    // A) HERO
     LOADER.set(18, 'Loading hero carousel…');
     try{
       const p = await loadSection('hero');
@@ -1865,37 +1792,52 @@
       showApiAlert(e);
     }
 
-    // B) NOTICE MARQUEE ( /notice-marquee )
-    LOADER.set(36, 'Loading notice marquee…');
-    try{
-      const p = await loadSection('noticeMarquee');
-      const nm = p.notice_marquee || p;
-      renderNoticeMarquee(nm);
-    }catch(e){
-      console.warn(e);
-      showApiAlert(e);
-      renderNoticeMarquee({ items: ['Welcome.'] });
-    }
+    // B) NOTICE MARQUEE
+LOADER.set(36, 'Loading notice marquee…');
+try{
+  await loadNoticeMarquee(); // ✅ uses HOME_APIS.noticeMarquee and calls renderNoticeMarquee(json)
+}catch(e){
+  console.warn(e);
+  showApiAlert(e);
 
-    // C) THREE INFO BOXES ( /quick-links )
+  // ✅ fallback (still works with the smooth renderer)
+  renderNoticeMarquee({ items: ['Welcome.'], settings: { auto_scroll: 0 } });
+}
+
+
+    // C) THREE INFO BOXES
     LOADER.set(56, 'Loading quick links…');
     try{
       const p = await loadSection('infoBoxes');
-      setList('careerList',      p.career_notices, 'fa-solid fa-chevron-right', 'No career notices.', { stagger:true });
-      setList('whyMsitList',     p.why_us,         'fa-solid fa-check',         'No highlights.',     { stagger:true });
-      setList('scholarshipList', p.scholarships,   'fa-solid fa-gift',          'No scholarships.',   { stagger:true });
+
+      // ✅ FIXED: smooth upward scroller with CSS animations
+      setList('careerList',      p.career_notices, 'fa-solid fa-chevron-right', 'No career notices.', {
+        stagger:true, max: 60
+      });
+      setList('whyMsitList',     p.why_us,         'fa-solid fa-check',         'No highlights.',     {
+        stagger:true, max: 60
+      });
+      setList('scholarshipList', p.scholarships,   'fa-solid fa-gift',          'No scholarships.',   {
+        stagger:true, max: 60
+      });
     }catch(e){
       console.warn(e);
       showApiAlert(e);
     }
 
-    // D) NOTICE + CENTER IFRAME + ANNOUNCEMENTS ( /notice-board )
+    // D) NOTICE + CENTER IFRAME + ANNOUNCEMENTS
     LOADER.set(78, 'Loading notice board…');
     try{
       const p = await loadSection('nvaRow');
       renderCenterIframe(p.center_iframe || p.centerIframe || p.center || null);
-      setList('noticeList',       p.notices,       'fa-solid fa-caret-right', 'No notices.',       { max: 12, stagger:true });
-      setList('announcementList', p.announcements, 'fa-solid fa-caret-right', 'No announcements.', { max: 12, stagger:true });
+
+      // ✅ FIXED: smooth upward scroller with CSS animations
+      setList('noticeList',       p.notices,       'fa-solid fa-caret-right', 'No notices.', {
+        max: 80, stagger:true
+      });
+      setList('announcementList', p.announcements, 'fa-solid fa-caret-right', 'No announcements.', {
+        max: 80, stagger:true
+      });
     }catch(e){
       console.warn(e);
       showApiAlert(e);
@@ -1914,19 +1856,21 @@
       render: (payload) => renderStats(payload.stats || payload)
     },
     achvRow: {
-      // ✅ activities loads achievements + student_activities
-      // ✅ placement notices comes from a separate API (still loaded only when this row is visible)
       load: () => loadSection('achvRow'),
       render: (payload) => {
-        setList('achievementList', payload.achievements,       'fa-solid fa-medal',    'No achievements.', { stagger:true, max: 8 });
-        setList('activityList',    payload.student_activities, 'fa-solid fa-calendar', 'No activities.',   { stagger:true, max: 8 });
+        // ✅ FIXED: smooth upward scroller with CSS animations
+        setList('achievementList', payload.achievements,       'fa-solid fa-medal',    'No achievements.', {
+          stagger:true, max: 80
+        });
+        setList('activityList',    payload.student_activities, 'fa-solid fa-calendar', 'No activities.',   {
+          stagger:true, max: 80
+        });
 
         loadSection('placementNotices')
           .then(p2 => {
             const data = p2.placement_notices || p2.items || p2;
             setList('placementList2', data, 'fa-solid fa-building', 'No placements.', {
-              stagger:true, max: 8,
-              // if API doesn't provide url, try to build:
+              stagger:true, max: 80,
               buildUrl: (it) => {
                 const slug = it.slug || it.uuid || it.id;
                 if(!slug) return '';
@@ -1955,10 +1899,6 @@
     courses: {
       load: () => loadSection('courses'),
       render: (payload) => renderCourses(payload.courses || payload.items || payload)
-    },
-    recruiters: {
-      load: () => loadSection('recruiters'),
-      render: (payload) => renderRecruiters(payload.recruiters || payload.items || payload)
     }
   };
 
@@ -2004,7 +1944,6 @@
           return;
         }
 
-        // reveal animation while loading
         sec.classList.add('is-in');
         sec.dataset.rendered = '1';
         io.unobserve(sec);

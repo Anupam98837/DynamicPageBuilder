@@ -1,6 +1,4 @@
 {{-- resources/views/landing/placed-students.blade.php --}}
-@include('landing.components.header')
-@include('landing.components.headermenu')
 
 {{-- (optional) FontAwesome for icons used below; remove if already included in header --}}
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
@@ -28,6 +26,7 @@
   --psp-hover: var(--page-hover, rgba(2,6,23,.04));
   --psp-primary: var(--primary-color, #9E363A);
   --psp-shadow: var(--shadow-2, 0 10px 24px rgba(0,0,0,.08));
+  --psp-accent: var(--primary-color, #9E363A);
 }
 
 .psp-page{
@@ -271,13 +270,17 @@
   border-color: color-mix(in oklab, var(--psp-primary) 35%, var(--psp-line));
   color: var(--psp-primary);
 }
+
+    .psp-title i {
+color: var(--psp-accent);
+}
 </style>
 
 <div class="psp-page">
 
   <div class="psp-head">
     <div>
-      <h1 class="psp-title" id="pspTitle">Placed Students</h1>
+      <h1 class="psp-title" id="pspTitle"><i class="fa-solid fa-bullhorn"></i> Placed Students</h1>
       <div class="psp-sub" id="pspSub">Explore our recent placements.</div>
     </div>
 

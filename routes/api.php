@@ -58,6 +58,8 @@ use App\Http\Controllers\API\FeedbackQuestionController;
 use App\Http\Controllers\API\FeedbackPostController;
 use App\Http\Controllers\API\FeedbackSubmissionController;
 use App\Http\Controllers\API\FeedbackResultsController;
+use App\Http\Controllers\API\TopHeaderMenuController;
+
 /*
 |--------------------------------------------------------------------------
 | Base Authenticated User (Sanctum)
@@ -108,6 +110,7 @@ Route::middleware(['checkRole:admin,director,principal,hod'])
         Route::get('/',                  [UserController::class, 'index']);
         Route::post('/',                 [UserController::class, 'store']);
         Route::get('/me',                [UserController::class, 'me']);
+        Route::get('export-csv', [UserController::class, 'exportUsersCsv']);
         Route::get('/{uuid}',            [UserController::class, 'show']);
         Route::put('/{uuid}',            [UserController::class, 'update']);
         Route::patch('/{uuid}',          [UserController::class, 'update']);
@@ -1859,3 +1862,99 @@ Route::put('/contact-us/visibility', [ContactUsPageVisibilityController::class, 
 
  Route::get('/public/faculty',                  [UserController::class, 'facultyindex']);
 Route::get('/public/placement-officers', [UserController::class, 'placementOfficerIndex']);
+
+
+/*
+|--------------------------------------------------------------------------
+| Top Header Menu Routes
+|--------------------------------------------------------------------------
+*/
+Route::prefix('/top-header-menus')
+  ->middleware('checkRole:admin,super_admin,director')
+  ->group(function () {
+
+    // List + Trash + Resolve
+    Route::get('/',        [TopHeaderMenuController::class, 'index']);
+    Route::get('/trash',   [TopHeaderMenuController::class, 'indexTrash']);
+    Route::get('/resolve', [TopHeaderMenuController::class, 'resolve']);
+
+    // Contact infos list (for picking from)
+    Route::get('/contact-infos', [TopHeaderMenuController::class, 'contactInfos']);
+
+    // ✅ Contact selection (GLOBAL) - MUST be BEFORE "{id}" routes
+    Route::get('/contact-info',    [TopHeaderMenuController::class, 'getContactSelection']);
+    Route::put('/contact-info',    [TopHeaderMenuController::class, 'putContactSelection']);
+    Route::delete('/contact-info', [TopHeaderMenuController::class, 'deleteContactSelection']);
+
+    // CRUD
+    Route::post('/',      [TopHeaderMenuController::class, 'store']);
+
+    // ✅ Strongly recommended: constrain {id} so it never eats "contact-info"
+    Route::get('{id}',    [TopHeaderMenuController::class, 'show'])->whereNumber('id');
+    Route::put('{id}',    [TopHeaderMenuController::class, 'update'])->whereNumber('id');
+    Route::delete('{id}', [TopHeaderMenuController::class, 'destroy'])->whereNumber('id');
+
+    // Bin actions
+    Route::post('{id}/restore', [TopHeaderMenuController::class, 'restore'])->whereNumber('id');
+    Route::delete('{id}/force', [TopHeaderMenuController::class, 'forceDelete'])->whereNumber('id');
+    Route::post('{id}/toggle-active', [TopHeaderMenuController::class, 'toggleActive'])->whereNumber('id');
+
+    Route::post('/reorder', [TopHeaderMenuController::class, 'reorder']);
+});
+Route::prefix('/public/top-header-menus')
+  ->group(function () {
+
+    // List + Trash + Resolve
+    Route::get('/',        [TopHeaderMenuController::class, 'index']);
+    Route::get('/trash',   [TopHeaderMenuController::class, 'indexTrash']);
+    Route::get('/resolve', [TopHeaderMenuController::class, 'resolve']);
+
+    // Contact infos list (for picking from)
+    Route::get('/contact-infos', [TopHeaderMenuController::class, 'contactInfos']);
+
+    // ✅ Contact selection (GLOBAL) - MUST be BEFORE "{id}" routes
+    Route::get('/contact-info',    [TopHeaderMenuController::class, 'getContactSelection']);
+    Route::put('/contact-info',    [TopHeaderMenuController::class, 'putContactSelection']);
+    Route::delete('/contact-info', [TopHeaderMenuController::class, 'deleteContactSelection']);
+
+    // CRUD
+    Route::post('/',      [TopHeaderMenuController::class, 'store']);
+
+    // ✅ Strongly recommended: constrain {id} so it never eats "contact-info"
+    Route::get('{id}',    [TopHeaderMenuController::class, 'show'])->whereNumber('id');
+    Route::put('{id}',    [TopHeaderMenuController::class, 'update'])->whereNumber('id');
+    Route::delete('{id}', [TopHeaderMenuController::class, 'destroy'])->whereNumber('id');
+
+    // Bin actions
+    Route::post('{id}/restore', [TopHeaderMenuController::class, 'restore'])->whereNumber('id');
+    Route::delete('{id}/force', [TopHeaderMenuController::class, 'forceDelete'])->whereNumber('id');
+    Route::post('{id}/toggle-active', [TopHeaderMenuController::class, 'toggleActive'])->whereNumber('id');
+
+    Route::post('/reorder', [TopHeaderMenuController::class, 'reorder']);
+});
+
+
+ 
+/*
+|--------------------------------------------------------------------------
+| Student Academic Details Routes
+|--------------------------------------------------------------------------
+| Admin/Staff protected (adjust roles as you want)
+*/
+ 
+Route::prefix('student-academic-details')
+    ->middleware('checkRole:admin,super_admin,director,principal,hod,faculty,technical_assistant,it_person')
+    ->group(function () {
+ 
+        // CRUD
+        Route::get('/',        [StudentAcademicDetailsController::class, 'index']);
+        Route::post('/',       [StudentAcademicDetailsController::class, 'store']);
+        Route::get('{id}',     [StudentAcademicDetailsController::class, 'show']);
+        Route::put('{id}',     [StudentAcademicDetailsController::class, 'update']);
+        Route::delete('{id}',  [StudentAcademicDetailsController::class, 'destroy']);
+ 
+        // Soft-delete restore
+        Route::post('{id}/restore', [StudentAcademicDetailsController::class, 'restore']);
+    });
+ 
+ 

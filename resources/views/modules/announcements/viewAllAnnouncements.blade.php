@@ -196,16 +196,28 @@
     .btn-an:hover{border-color:rgba(0,0,0,.14);background:#fff;}
 
     .an-empty{text-align:center;color:#64748b;padding:40px 10px;}
+
+    .an-title i{color:var(--an-accent)}
+
+    /* ✅ Guard against Bootstrap overriding mega menu dropdown positioning */
+.dynamic-navbar .navbar-nav .dropdown-menu{
+  position: absolute !important;
+  inset: auto !important;
+}
+
+/* keep your portal mode working */
+.dynamic-navbar .dropdown-menu.is-portaled{
+  position: fixed !important;
+}
+
   </style>
 </head>
 <body>
-  @include('landing.components.header')
-  @include('landing.components.headerMenu')
 
   <div class="an-wrap">
     <div class="an-head">
       <div>
-        <h2 class="an-title">Announcements</h2>
+        <h2 class="an-title"><i class="fa-solid fa-bullhorn"></i> Announcements</h2>
         <div class="text-muted" style="font-size:13px;">Latest public notices and updates.</div>
       </div>
 

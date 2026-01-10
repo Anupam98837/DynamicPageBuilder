@@ -1,38 +1,33 @@
 {{-- resources/views/landing/our-recruiters.blade.php --}}
-@include('landing.components.header')
-@include('landing.components.headermenu')
-
 <style>
-  :root {
-    --brand: #8f2f2f;
-    --ink: #0f172a;
-    --muted: #64748b;
-    --bg: #ffffff;
-    --card: #ffffff;
-    --line: rgba(15, 23, 42, .10);
-    --shadow: 0 10px 24px rgba(2, 6, 23, .08);
+  /* =========================================================
+    ✅ Scoped-only variables (NO :root)
+    - prevents conflicts when this view is @included anywhere
+    - applied to BOTH wrapper + modal via .orc-scope class
+  ========================================================= */
+  .orc-scope{
+    --orc-brand:  var(--primary-color, #8f2f2f);
+    --orc-ink:    var(--ink, #0f172a);
+    --orc-muted:  var(--muted-color, #64748b);
+    --orc-bg:     var(--page-bg, #ffffff);
+    --orc-card:   var(--surface, #ffffff);
+    --orc-line:   var(--line-soft, rgba(15, 23, 42, .10));
+    --orc-shadow: var(--shadow-2, 0 10px 24px rgba(2, 6, 23, .08));
   }
 
-  :root {
-    --brand: var(--primary-color, var(--brand));
-    --bg: var(--page-bg, var(--bg));
-    --card: var(--surface, var(--card));
-    --line: var(--line-soft, var(--line));
-  }
-
-  body { background: var(--bg); }
-
-  .rec-wrap {
+  /* Wrapper */
+  .orc-wrap{
     max-width: 1180px;
     margin: 18px auto 54px;
     padding: 0 12px;
+    background: transparent; /* ✅ don't touch body/page background */
   }
 
-  .rec-head {
-    background: var(--card);
-    border: 1px solid var(--line);
+  .orc-head{
+    background: var(--orc-card);
+    border: 1px solid var(--orc-line);
     border-radius: 16px;
-    box-shadow: var(--shadow);
+    box-shadow: var(--orc-shadow);
     padding: 14px 16px;
     margin-bottom: 16px;
     display: flex;
@@ -42,199 +37,183 @@
     flex-wrap: wrap;
   }
 
-  .rec-title {
+  .orc-title{
     margin: 0;
     font-weight: 950;
     letter-spacing: .2px;
-    color: var(--ink);
+    color: var(--orc-ink);
     font-size: 28px;
   }
 
-  .rec-sub {
+  .orc-sub{
     margin: 6px 0 0;
-    color: var(--muted);
+    color: var(--orc-muted);
     font-size: 14px;
   }
 
-  .rec-tools {
+  .orc-tools{
     display: flex;
     gap: 10px;
     align-items: center;
     flex-wrap: wrap;
   }
 
-  .rec-search {
+  .orc-search{
     position: relative;
     min-width: 260px;
     max-width: 420px;
     flex: 1 1 260px;
   }
 
-  .rec-search i {
+  .orc-search i{
     position: absolute;
     left: 14px;
     top: 50%;
     transform: translateY(-50%);
     opacity: .65;
-    color: var(--muted);
+    color: var(--orc-muted);
   }
 
-  .rec-search input {
+  .orc-search input{
     width: 100%;
     border-radius: 14px;
     padding: 11px 12px 11px 42px;
-    border: 1px solid var(--line);
-    background: var(--card);
-    color: var(--ink);
+    border: 1px solid var(--orc-line);
+    background: var(--orc-card);
+    color: var(--orc-ink);
     outline: none;
   }
 
-  .rec-search input:focus {
+  .orc-search input:focus{
     border-color: rgba(201, 75, 80, .55);
     box-shadow: 0 0 0 4px rgba(201, 75, 80, .18);
   }
 
-  .rec-chip {
+  .orc-chip{
     display: flex;
     align-items: center;
     gap: 8px;
     padding: 10px 12px;
     border-radius: 999px;
-    border: 1px solid var(--line);
-    background: var(--card);
+    border: 1px solid var(--orc-line);
+    background: var(--orc-card);
     box-shadow: 0 8px 18px rgba(2, 6, 23, .06);
-    color: var(--ink);
+    color: var(--orc-ink);
     font-size: 13px;
     font-weight: 900;
     white-space: nowrap;
   }
 
   /* =========================================================
-   ✅ Masonry-style grid (like your reference collage)
-   - No fixed tile height / width ratio
-   - Items flow naturally with their image height
+     ✅ Masonry-style grid
   ========================================================= */
-  /* ✅ 12-fr width system: 12 equal columns */
-/* ✅ 6 items per row, widths behave like 1fr/2fr and CONTINUE across rows */
-.rec-grid{
-  display: grid;
-  gap: 14px;
-  grid-template-columns: repeat(9, minmax(0, 1fr)); /* total “fr” = 9 each row */
-  align-items: start;
-}
+  .orc-grid{
+    display: grid;
+    /* gap: 14px; */
+    grid-template-columns: repeat(9, minmax(0, 1fr));
+    align-items: start;
+  }
 
-/* Base tile */
-.rec-tile{
-  margin: 0;
-  border-radius: 12px;
-  overflow: hidden;
-  background: #fff;
-  border: 1px solid rgba(15, 23, 42, .06);
-  box-shadow: 0 1px 3px rgba(2, 6, 23, .06), 0 6px 12px rgba(2, 6, 23, .04);
-  cursor: pointer;
-  transition: all .2s cubic-bezier(0.4, 0, 0.2, 1);
+  .orc-tile{
+    margin: 0;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid rgba(15, 23, 42, .06);
+    box-shadow: 0 1px 3px rgba(2, 6, 23, .06), 0 6px 12px rgba(2, 6, 23, .04);
+    cursor: pointer;
+    transition: all .2s cubic-bezier(0.4, 0, 0.2, 1);
 
-  height: 110px; /* ✅ control card height here */
-  grid-column: span 1; /* default = 1fr */
-}
+    height: 110px;
+    grid-column: span 1;
+  }
 
-/* ✅ 12-item cycle:
-   1..6  = 1,2,1,2,1,2
-   7..12 = 2,1,2,1,2,1
-   => so 7th becomes 2fr (continues from 6th)
-*/
-.rec-tile:nth-child(12n + 2),
-.rec-tile:nth-child(12n + 4),
-.rec-tile:nth-child(12n + 6),
-.rec-tile:nth-child(12n + 7),
-.rec-tile:nth-child(12n + 9),
-.rec-tile:nth-child(12n + 11){
-  grid-column: span 2; /* ✅ 2fr */
-}
+  .orc-tile:nth-child(12n + 2),
+  .orc-tile:nth-child(12n + 4),
+  .orc-tile:nth-child(12n + 6),
+  .orc-tile:nth-child(12n + 7),
+  .orc-tile:nth-child(12n + 9),
+  .orc-tile:nth-child(12n + 11){
+    grid-column: span 2;
+  }
 
-.rec-tile:hover{
-  transform: translateY(-3px);
-  box-shadow: 0 4px 6px rgba(2, 6, 23, .08), 0 16px 28px rgba(2, 6, 23, .12);
-  border-color: rgba(143, 47, 47, .2);
-}
+  .orc-tile:hover{
+    transform: translateY(-3px);
+    box-shadow: 0 4px 6px rgba(2, 6, 23, .08), 0 16px 28px rgba(2, 6, 23, .12);
+    border-color: rgba(143, 47, 47, .2);
+  }
 
-/* ✅ image contain */
-.rec-tile__inner{ display:block; width:100%; height:100%; background:#fff; }
-.rec-tile img{
-  width: 100%;
-  height: 100%;
-  object-fit: contain;   /* ✅ contain */
-  object-position: center;
-  display: block;
-  padding: 8px;          /* reduce if you want bigger logo */
-}
+  .orc-tile__inner{ display:block; width:100%; height:100%; background:#fff; }
+  .orc-tile img{
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center;
+    display: block;
+    padding: 8px;
+  }
 
-/* fallback block centered */
-.rec-tile__fallback{
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 14px 12px;
-  color: #64748b;
-  font-weight: 900;
-  font-size: 14px;
-  text-align: center;
-}
+  .orc-tile__fallback{
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px 12px;
+    color: #64748b;
+    font-weight: 900;
+    font-size: 14px;
+    text-align: center;
+  }
 
-/* ✅ Skeleton grid matches width pattern */
-.rec-skeleton{
-  display: grid;
-  gap: 14px;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-}
+  /* Skeleton */
+  .orc-skeleton{
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
 
-.sk-tile{
-  --w: 2;
-  grid-column: span var(--w);
+  .orc-sk-tile{
+    --w: 2;
+    grid-column: span var(--w);
 
-  background: #fff;
-  border: 1px solid var(--line);
-  box-shadow: 0 10px 24px rgba(2, 6, 23, .08);
-  border-radius: 18px;
-  overflow: hidden;
-  position: relative;
-}
+    background: #fff;
+    border: 1px solid var(--orc-line);
+    box-shadow: var(--orc-shadow);
+    border-radius: 18px;
+    overflow: hidden;
+    position: relative;
+  }
 
-/* same width pattern on skeleton */
-.sk-tile:nth-child(6n + 1){ --w: 1; }
-.sk-tile:nth-child(6n + 2){ --w: 2; }
-.sk-tile:nth-child(6n + 3){ --w: 1; }
-.sk-tile:nth-child(6n + 4){ --w: 2; }
-.sk-tile:nth-child(6n + 5){ --w: 3; }
-.sk-tile:nth-child(6n + 6){ --w: 3; }
+  .orc-sk-tile:nth-child(6n + 1){ --w: 1; }
+  .orc-sk-tile:nth-child(6n + 2){ --w: 2; }
+  .orc-sk-tile:nth-child(6n + 3){ --w: 1; }
+  .orc-sk-tile:nth-child(6n + 4){ --w: 2; }
+  .orc-sk-tile:nth-child(6n + 5){ --w: 3; }
+  .orc-sk-tile:nth-child(6n + 6){ --w: 3; }
 
-/* ✅ responsive: simplify on smaller screens */
-@media (max-width: 992px){
-  .rec-grid, .rec-skeleton{ grid-template-columns: repeat(6, minmax(0,1fr)); }
-  .rec-tile, .sk-tile{ grid-column: span 3; } /* 2 per row */
-}
-@media (max-width: 520px){
-  .rec-grid, .rec-skeleton{ grid-template-columns: repeat(2, minmax(0,1fr)); }
-  .rec-tile, .sk-tile{ grid-column: span 2; } /* 1 per row */
-}
+  @media (max-width: 992px){
+    .orc-grid, .orc-skeleton{ grid-template-columns: repeat(6, minmax(0,1fr)); }
+    .orc-tile, .orc-sk-tile{ grid-column: span 3; }
+  }
+  @media (max-width: 520px){
+    .orc-grid, .orc-skeleton{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .orc-tile, .orc-sk-tile{ grid-column: span 2; }
+  }
 
-  @keyframes skMove { to { transform: translateX(60%); } }
-
-  /* Empty / error */
-  .rec-state {
-    background: var(--card);
-    border: 1px solid var(--line);
+  /* State */
+  .orc-state{
+    background: var(--orc-card);
+    border: 1px solid var(--orc-line);
     border-radius: 16px;
-    box-shadow: var(--shadow);
+    box-shadow: var(--orc-shadow);
     padding: 18px;
-    color: var(--muted);
+    color: var(--orc-muted);
     text-align: center;
   }
 
   /* Pagination */
-  .rec-pagination { display: flex; justify-content: center; margin-top: 18px; }
-  .rec-pagination .pager {
+  .orc-pagination{ display: flex; justify-content: center; margin-top: 18px; }
+  .orc-pagination .orc-pager{
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
@@ -243,10 +222,10 @@
     padding: 10px;
   }
 
-  .rec-pagebtn {
-    border: 1px solid var(--line);
-    background: var(--card);
-    color: var(--ink);
+  .orc-pagebtn{
+    border: 1px solid var(--orc-line);
+    background: var(--orc-card);
+    color: var(--orc-ink);
     border-radius: 12px;
     padding: 9px 12px;
     font-size: 13px;
@@ -255,24 +234,24 @@
     cursor: pointer;
     user-select: none;
   }
-  .rec-pagebtn:hover { background: rgba(2, 6, 23, .03); }
-  .rec-pagebtn[disabled] { opacity: .55; cursor: not-allowed; }
-  .rec-pagebtn.active {
+  .orc-pagebtn:hover{ background: rgba(2, 6, 23, .03); }
+  .orc-pagebtn[disabled]{ opacity: .55; cursor: not-allowed; }
+  .orc-pagebtn.active{
     background: rgba(201, 75, 80, .12);
     border-color: rgba(201, 75, 80, .35);
-    color: var(--brand);
+    color: var(--orc-brand);
   }
 
-  /* Responsive: reduce column count */
-  @media (max-width: 1200px){ .rec-grid{ grid-template-columns: repeat(5, minmax(0,1fr)); } }
-@media (max-width: 992px) { .rec-grid{ grid-template-columns: repeat(4, minmax(0,1fr)); } }
-@media (max-width: 768px) { .rec-grid{ grid-template-columns: repeat(3, minmax(0,1fr)); } }
-@media (max-width: 520px) { .rec-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); } }
+  /* Legacy responsive overrides (kept, but scoped) */
+  @media (max-width: 1200px){ .orc-grid{ grid-template-columns: repeat(5, minmax(0,1fr)); } }
+  @media (max-width: 992px) { .orc-grid{ grid-template-columns: repeat(4, minmax(0,1fr)); } }
+  @media (max-width: 768px) { .orc-grid{ grid-template-columns: repeat(3, minmax(0,1fr)); } }
+  @media (max-width: 520px) { .orc-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); } }
 
   /* =========================
-     ✅ Enhanced Modal UI
+     ✅ Enhanced Modal UI (scoped)
      ========================= */
-  .rec-modal {
+  .orc-modal{
     position: fixed;
     inset: 0;
     z-index: 9999;
@@ -283,42 +262,42 @@
     opacity: 0;
     transition: opacity 0.2s ease;
   }
-  .rec-modal.show { display: flex; animation: modalFadeIn 0.2s ease forwards; }
-  @keyframes modalFadeIn { to { opacity: 1; } }
+  .orc-modal.show{ display: flex; animation: orcModalFadeIn 0.2s ease forwards; }
+  @keyframes orcModalFadeIn{ to { opacity: 1; } }
 
-  .rec-modal__backdrop {
+  .orc-modal__backdrop{
     position: absolute;
     inset: 0;
     background: rgba(2, 6, 23, 0.88);
     backdrop-filter: blur(4px);
   }
 
-  .rec-modal__dialog {
+  .orc-modal__dialog{
     position: relative;
     width: min(800px, 100%);
     max-height: 90vh;
-    background: var(--card);
-    border: 1px solid var(--line);
+    background: var(--orc-card);
+    border: 1px solid var(--orc-line);
     border-radius: 20px;
     box-shadow: 0 24px 64px rgba(2, 6, 23, 0.35);
     overflow: hidden;
     transform: translateY(20px) scale(0.98);
-    animation: modalSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: orcModalSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     display: flex;
     flex-direction: column;
   }
 
-  @keyframes modalSlideUp {
+  @keyframes orcModalSlideUp{
     to { transform: translateY(0) scale(1); opacity: 1; }
   }
 
-  .rec-modal__header {
+  .orc-modal__header{
     padding: 18px 24px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid var(--orc-line);
     background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(8px);
     position: sticky;
@@ -326,11 +305,11 @@
     z-index: 10;
   }
 
-  .rec-modal__title {
+  .orc-modal__title{
     margin: 0;
     font-size: 20px;
     font-weight: 950;
-    color: var(--ink);
+    color: var(--orc-ink);
     letter-spacing: -0.2px;
     line-height: 1.3;
     display: -webkit-box;
@@ -340,7 +319,7 @@
     text-overflow: ellipsis;
   }
 
-  .rec-modal__close {
+  .orc-modal__close{
     border: none;
     background: rgba(2, 6, 23, 0.04);
     width: 40px;
@@ -350,29 +329,29 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--muted);
+    color: var(--orc-muted);
     transition: all 0.2s ease;
     flex-shrink: 0;
     position: relative;
     overflow: hidden;
   }
 
-  .rec-modal__close:hover {
+  .orc-modal__close:hover{
     background: rgba(201, 75, 80, 0.12);
-    color: var(--brand);
+    color: var(--orc-brand);
     transform: rotate(90deg);
   }
 
-  .rec-modal__close:hover::before {
+  .orc-modal__close:hover::before{
     content: '';
     position: absolute;
     inset: 0;
     background: rgba(201, 75, 80, 0.08);
   }
 
-  .rec-modal__close i { position: relative; z-index: 1; font-size: 16px; }
+  .orc-modal__close i{ position: relative; z-index: 1; font-size: 16px; }
 
-  .rec-modal__body {
+  .orc-modal__body{
     padding: 24px;
     display: grid;
     grid-template-columns: 140px 1fr;
@@ -382,12 +361,12 @@
     flex: 1;
   }
 
-  .rec-modal__logo-container { display: flex; flex-direction: column; gap: 12px; }
+  .orc-modal__logo-container{ display: flex; flex-direction: column; gap: 12px; }
 
-  .rec-modal__logo {
+  .orc-modal__logo{
     width: 140px;
     height: 140px;
-    border: 1px solid var(--line);
+    border: 1px solid var(--orc-line);
     border-radius: 20px;
     background: #fff;
     display: flex;
@@ -400,104 +379,104 @@
     position: relative;
   }
 
-  .rec-modal__logo:hover {
+  .orc-modal__logo:hover{
     transform: translateY(-2px);
     box-shadow: 0 20px 40px rgba(2, 6, 23, 0.15);
     border-color: rgba(201, 75, 80, 0.25);
   }
 
-  .rec-modal__logo img {
+  .orc-modal__logo img{
     max-width: 100%;
     max-height: 100%;
     object-fit: contain;
     display: block;
     transition: transform 0.3s ease;
   }
-  .rec-modal__logo:hover img { transform: scale(1.05); }
+  .orc-modal__logo:hover img{ transform: scale(1.05); }
 
-  .rec-modal__logo-fallback {
+  .orc-modal__logo-fallback{
     display: flex;
     align-items: center;
     justify-content: center;
     width: 100%;
     height: 100%;
-    color: var(--muted);
+    color: var(--orc-muted);
     font-weight: 900;
     font-size: 42px;
     opacity: 0.6;
   }
 
-  .rec-modal__details { display: flex; flex-direction: column; gap: 20px; }
-  .rec-modal__section { display: flex; flex-direction: column; gap: 8px; }
+  .orc-modal__details{ display: flex; flex-direction: column; gap: 20px; }
+  .orc-modal__section{ display: flex; flex-direction: column; gap: 8px; }
 
-  .rec-modal__section-title {
+  .orc-modal__section-title{
     font-size: 12px;
     font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: var(--brand);
+    color: var(--orc-brand);
     opacity: 0.8;
     display: flex;
     align-items: center;
     gap: 6px;
   }
-  .rec-modal__section-title i { font-size: 11px; }
+  .orc-modal__section-title i{ font-size: 11px; }
 
-  .rec-modal__description {
-    color: var(--ink);
+  .orc-modal__description{
+    color: var(--orc-ink);
     font-size: 15px;
     line-height: 1.6;
     max-height: 300px;
     overflow-y: auto;
     padding-right: 8px;
   }
-  .rec-modal__description::-webkit-scrollbar { width: 4px; }
-  .rec-modal__description::-webkit-scrollbar-track { background: rgba(2, 6, 23, 0.04); border-radius: 4px; }
-  .rec-modal__description::-webkit-scrollbar-thumb { background: rgba(2, 6, 23, 0.12); border-radius: 4px; }
-  .rec-modal__description p { margin: 0 0 12px 0; }
-  .rec-modal__description p:last-child { margin-bottom: 0; }
+  .orc-modal__description::-webkit-scrollbar{ width: 4px; }
+  .orc-modal__description::-webkit-scrollbar-track{ background: rgba(2, 6, 23, 0.04); border-radius: 4px; }
+  .orc-modal__description::-webkit-scrollbar-thumb{ background: rgba(2, 6, 23, 0.12); border-radius: 4px; }
+  .orc-modal__description p{ margin: 0 0 12px 0; }
+  .orc-modal__description p:last-child{ margin-bottom: 0; }
 
-  .rec-modal__info-grid {
+  .orc-modal__info-grid{
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 12px;
     margin-top: 4px;
   }
 
-  .rec-modal__info-item {
+  .orc-modal__info-item{
     display: flex;
     align-items: center;
     gap: 8px;
     padding: 8px 12px;
     background: rgba(2, 6, 23, 0.02);
     border-radius: 10px;
-    border: 1px solid var(--line);
+    border: 1px solid var(--orc-line);
   }
 
-  .rec-modal__info-item i {
-    color: var(--brand);
+  .orc-modal__info-item i{
+    color: var(--orc-brand);
     opacity: 0.8;
     font-size: 14px;
     width: 16px;
   }
 
-  .rec-modal__info-label {
+  .orc-modal__info-label{
     font-size: 13px;
     font-weight: 600;
-    color: var(--muted);
+    color: var(--orc-muted);
     white-space: nowrap;
   }
 
-  .rec-modal__info-value {
+  .orc-modal__info-value{
     font-size: 13px;
     font-weight: 700;
-    color: var(--ink);
+    color: var(--orc-ink);
     margin-left: auto;
   }
 
-  .rec-modal__footer {
+  .orc-modal__footer{
     padding: 18px 24px;
-    border-top: 1px solid var(--line);
+    border-top: 1px solid var(--orc-line);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -509,20 +488,20 @@
     bottom: 0;
   }
 
-  .rec-modal__footer-left {
+  .orc-modal__footer-left{
     display: flex;
     align-items: center;
     gap: 8px;
-    color: var(--muted);
+    color: var(--orc-muted);
     font-size: 13px;
   }
 
-  .rec-modal__footer-right { display: flex; align-items: center; gap: 10px; }
+  .orc-modal__footer-right{ display: flex; align-items: center; gap: 10px; }
 
-  .rec-modal__btn {
-    border: 1px solid var(--line);
-    background: var(--card);
-    color: var(--ink);
+  .orc-modal__btn{
+    border: 1px solid var(--orc-line);
+    background: var(--orc-card);
+    color: var(--orc-ink);
     border-radius: 12px;
     padding: 10px 16px;
     font-size: 14px;
@@ -537,38 +516,38 @@
     min-height: 42px;
   }
 
-  .rec-modal__btn:hover {
+  .orc-modal__btn:hover{
     background: rgba(2, 6, 23, 0.03);
     transform: translateY(-1px);
     box-shadow: 0 12px 24px rgba(2, 6, 23, 0.12);
   }
 
-  .rec-modal__btn.primary {
+  .orc-modal__btn.primary{
     background: linear-gradient(135deg, rgba(201, 75, 80, 0.15), rgba(201, 75, 80, 0.08));
     border-color: rgba(201, 75, 80, 0.35);
-    color: var(--brand);
+    color: var(--orc-brand);
     font-weight: 800;
   }
 
-  .rec-modal__btn.primary:hover {
+  .orc-modal__btn.primary:hover{
     background: linear-gradient(135deg, rgba(201, 75, 80, 0.22), rgba(201, 75, 80, 0.15));
     border-color: rgba(201, 75, 80, 0.5);
     box-shadow: 0 12px 24px rgba(201, 75, 80, 0.15);
   }
 
-  .rec-modal__btn.secondary {
+  .orc-modal__btn.secondary{
     background: rgba(2, 6, 23, 0.02);
     border-color: rgba(2, 6, 23, 0.08);
   }
 
-  .rec-modal__btn.secondary:hover {
+  .orc-modal__btn.secondary:hover{
     background: rgba(2, 6, 23, 0.05);
     border-color: rgba(2, 6, 23, 0.15);
   }
 
-  .rec-modal__btn i { font-size: 13px; }
+  .orc-modal__btn i{ font-size: 13px; }
 
-  .rec-modal__loading {
+  .orc-modal__loading{
     display: none;
     flex-direction: column;
     align-items: center;
@@ -576,141 +555,151 @@
     padding: 60px 24px;
     gap: 16px;
   }
-  .rec-modal__loading.show { display: flex; }
+  .orc-modal__loading.show{ display: flex; }
 
-  .rec-modal__loading-spinner {
+  .orc-modal__loading-spinner{
     width: 40px;
     height: 40px;
     border: 3px solid rgba(2, 6, 23, 0.08);
-    border-top-color: var(--brand);
+    border-top-color: var(--orc-brand);
     border-radius: 50%;
-    animation: modalSpinner 0.8s linear infinite;
+    animation: orcModalSpinner 0.8s linear infinite;
   }
 
-  @keyframes modalSpinner { to { transform: rotate(360deg); } }
+  @keyframes orcModalSpinner{ to { transform: rotate(360deg); } }
 
-  @media (max-width: 768px) {
-    .rec-modal__body { grid-template-columns: 1fr; gap: 20px; }
-    .rec-modal__logo-container { align-items: center; }
-    .rec-modal__logo { width: 160px; height: 160px; }
-    .rec-modal__footer { flex-direction: column; align-items: stretch; gap: 12px; }
-    .rec-modal__footer-right { width: 100%; }
-    .rec-modal__btn { flex: 1; justify-content: center; min-width: 0; }
+  @media (max-width: 768px){
+    .orc-modal__body{ grid-template-columns: 1fr; gap: 20px; }
+    .orc-modal__logo-container{ align-items: center; }
+    .orc-modal__logo{ width: 160px; height: 160px; }
+    .orc-modal__footer{ flex-direction: column; align-items: stretch; gap: 12px; }
+    .orc-modal__footer-right{ width: 100%; }
+    .orc-modal__btn{ flex: 1; justify-content: center; min-width: 0; }
   }
 
-  @media (max-width: 480px) {
-    .rec-modal__header { padding: 16px 20px; }
-    .rec-modal__body { padding: 20px; }
-    .rec-modal__footer { padding: 16px 20px; }
-    .rec-modal__btn { padding: 10px 14px; font-size: 13px; }
-    .rec-modal__info-grid { grid-template-columns: 1fr; }
+  @media (max-width: 480px){
+    .orc-modal__header{ padding: 16px 20px; }
+    .orc-modal__body{ padding: 20px; }
+    .orc-modal__footer{ padding: 16px 20px; }
+    .orc-modal__btn{ padding: 10px 14px; font-size: 13px; }
+    .orc-modal__info-grid{ grid-template-columns: 1fr; }
   }
 </style>
 
-<div class="rec-wrap" data-api="{{ url('/api/public/recruiters') }}">
-
-  <div class="rec-head">
+<div class="orc-wrap orc-scope" data-api="{{ url('/api/public/recruiters') }}">
+  <div class="orc-head">
     <div>
-      <h1 class="rec-title">Our Recruiters</h1>
-      <div class="rec-sub" id="recSub">Companies that recruit from our campus</div>
+      <h1 class="orc-title">Our Recruiters</h1>
+      <div class="orc-sub" id="recSub">Companies that recruit from our campus</div>
     </div>
 
-    <div class="rec-tools">
-      <div class="rec-search">
+    <div class="orc-tools">
+      <div class="orc-search">
         <i class="fa fa-magnifying-glass"></i>
         <input id="recSearch" type="search" placeholder="Search company…">
       </div>
-      <div class="rec-chip" title="Total results">
+      <div class="orc-chip" title="Total results">
         <i class="fa-solid fa-building" style="opacity:.85"></i>
         <span id="recCount">—</span>
       </div>
     </div>
   </div>
 
-  <div id="recGrid" class="rec-grid" style="display:none;"></div>
+  <div id="recGrid" class="orc-grid" style="display:none;"></div>
 
-  <div id="recSkeleton" class="rec-skeleton"></div>
-  <div id="recState" class="rec-state" style="display:none;"></div>
+  <div id="recSkeleton" class="orc-skeleton"></div>
+  <div id="recState" class="orc-state" style="display:none;"></div>
 
-  <div class="rec-pagination">
-    <div id="recPager" class="pager" style="display:none;"></div>
+  <div class="orc-pagination">
+    <div id="recPager" class="orc-pager" style="display:none;"></div>
   </div>
 </div>
 
 {{-- ✅ Enhanced Modal --}}
-<div id="recModal" class="rec-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="recModalTitle" aria-describedby="recModalDesc">
-  <div class="rec-modal__backdrop" data-close="1"></div>
+<div id="recModal"
+     class="orc-modal orc-scope"
+     aria-hidden="true"
+     role="dialog"
+     aria-modal="true"
+     aria-labelledby="recModalTitle"
+     aria-describedby="recModalDesc">
+  <div class="orc-modal__backdrop" data-close="1"></div>
 
-  <div class="rec-modal__dialog" role="document">
-    <div class="rec-modal__header">
-      <h3 id="recModalTitle" class="rec-modal__title">Company Details</h3>
-      <button type="button" class="rec-modal__close" id="recModalClose" aria-label="Close modal">
+  <div class="orc-modal__dialog" role="document">
+    <div class="orc-modal__header">
+      <h3 id="recModalTitle" class="orc-modal__title">Company Details</h3>
+      <button type="button" class="orc-modal__close" id="recModalClose" aria-label="Close modal">
         <i class="fa-solid fa-xmark"></i>
       </button>
     </div>
 
-    <div class="rec-modal__loading" id="recModalLoading">
-      <div class="rec-modal__loading-spinner"></div>
-      <div style="color: var(--muted); font-size: 14px;">Loading company details...</div>
+    <div class="orc-modal__loading" id="recModalLoading">
+      <div class="orc-modal__loading-spinner"></div>
+      <div style="color: var(--orc-muted); font-size: 14px;">Loading company details...</div>
     </div>
 
-    <div class="rec-modal__body" id="recModalBody">
-      <div class="rec-modal__logo-container">
-        <div class="rec-modal__logo">
+    <div class="orc-modal__body" id="recModalBody">
+      <div class="orc-modal__logo-container">
+        <div class="orc-modal__logo">
           <img id="recModalLogo" src="" alt="Company Logo" style="display: none;">
-          <div id="recModalLogoFallback" class="rec-modal__logo-fallback">
+          <div id="recModalLogoFallback" class="orc-modal__logo-fallback">
             <i class="fa-solid fa-building"></i>
           </div>
         </div>
-        <div class="rec-modal__info-item">
+        <div class="orc-modal__info-item">
           <i class="fa-solid fa-calendar"></i>
-          <span class="rec-modal__info-label">Added</span>
-          <span id="recModalDate" class="rec-modal__info-value">—</span>
+          <span class="orc-modal__info-label">Added</span>
+          <span id="recModalDate" class="orc-modal__info-value">—</span>
         </div>
       </div>
 
-      <div class="rec-modal__details">
-        <div class="rec-modal__section">
-          <div class="rec-modal__section-title">
+      <div class="orc-modal__details">
+        <div class="orc-modal__section">
+          <div class="orc-modal__section-title">
             <i class="fa-solid fa-circle-info"></i>
             About Company
           </div>
-          <div id="recModalDesc" class="rec-modal__description">
+          <div id="recModalDesc" class="orc-modal__description">
             <p>No description available.</p>
           </div>
         </div>
 
-        <div class="rec-modal__info-grid">
-          <div class="rec-modal__info-item">
+        <div class="orc-modal__info-grid">
+          <div class="orc-modal__info-item">
             <i class="fa-solid fa-industry"></i>
-            <span class="rec-modal__info-label">Industry</span>
-            <span id="recModalIndustry" class="rec-modal__info-value">—</span>
+            <span class="orc-modal__info-label">Industry</span>
+            <span id="recModalIndustry" class="orc-modal__info-value">—</span>
           </div>
-          <div class="rec-modal__info-item">
+          <div class="orc-modal__info-item">
             <i class="fa-solid fa-location-dot"></i>
-            <span class="rec-modal__info-label">Location</span>
-            <span id="recModalLocation" class="rec-modal__info-value">—</span>
+            <span class="orc-modal__info-label">Location</span>
+            <span id="recModalLocation" class="orc-modal__info-value">—</span>
           </div>
-          <div class="rec-modal__info-item">
+          <div class="orc-modal__info-item">
             <i class="fa-solid fa-users"></i>
-            <span class="rec-modal__info-label">Hired</span>
-            <span id="recModalHired" class="rec-modal__info-value">—</span>
+            <span class="orc-modal__info-label">Hired</span>
+            <span id="recModalHired" class="orc-modal__info-value">—</span>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="rec-modal__footer">
-      <div class="rec-modal__footer-left">
+    <div class="orc-modal__footer">
+      <div class="orc-modal__footer-left">
         <i class="fa-solid fa-clock"></i>
         <span>Last updated: <span id="recModalUpdated">—</span></span>
       </div>
-      <div class="rec-modal__footer-right">
-        <a id="recModalWebsite" class="rec-modal__btn primary" href="#" target="_blank" rel="noopener noreferrer" style="display: none;">
+      <div class="orc-modal__footer-right">
+        <a id="recModalWebsite"
+           class="orc-modal__btn primary"
+           href="#"
+           target="_blank"
+           rel="noopener noreferrer"
+           style="display: none;">
           <i class="fa-solid fa-external-link"></i>
           Visit Website
         </a>
-        <button type="button" class="rec-modal__btn secondary" style="display:none" data-close="1">
+        <button type="button" class="orc-modal__btn secondary" style="display:none" data-close="1">
           <i class="fa-solid fa-xmark"></i>
           Close
         </button>
@@ -726,7 +715,7 @@
     if (window.__PUBLIC_RECRUITERS__) return;
     window.__PUBLIC_RECRUITERS__ = true;
 
-    const root = document.querySelector('.rec-wrap');
+    const root = document.querySelector('.orc-wrap');
     if (!root) return;
 
     const API = root.getAttribute('data-api') || '/api/public/recruiters';
@@ -810,7 +799,7 @@
           const paragraphs = d.split('\n\n').filter(p => p.trim());
           modalDesc.innerHTML = paragraphs.map(p => `<p>${esc(p.replace(/\n/g, '<br>'))}</p>`).join('');
         } else {
-          modalDesc.innerHTML = '<p style="color: var(--muted); font-style: italic;">No description available.</p>';
+          modalDesc.innerHTML = '<p style="color: var(--orc-muted); font-style: italic;">No description available.</p>';
         }
       }
 
@@ -887,9 +876,8 @@
       if (!sk) return;
       sk.style.display = '';
 
-      // ✅ varied skeleton heights (masonry feel)
       const heights = [160, 190, 220, 170, 210, 180, 240, 165, 205, 175, 230, 185];
-      sk.innerHTML = heights.map(h => `<div class="sk-tile" style="height:${h}px"></div>`).join('');
+      sk.innerHTML = heights.map(h => `<div class="orc-sk-tile" style="height:${h}px"></div>`).join('');
     }
 
     function hideSkeleton() {
@@ -960,7 +948,7 @@
         const webHref = website ? normalizeUrl(website) : '';
 
         return `
-          <div class="rec-tile"
+          <div class="orc-tile"
                role="button"
                tabindex="0"
                data-name="${esc(name)}"
@@ -973,10 +961,10 @@
                data-date="${esc(date)}"
                data-updated="${esc(updated)}"
                aria-label="View ${esc(name)} details">
-            <span class="rec-tile__inner">
+            <span class="orc-tile__inner">
               ${fullLogo
                 ? `<img src="${esc(fullLogo)}" alt="${esc(name)}" loading="lazy">`
-                : `<div class="rec-tile__fallback">${esc(name)}</div>`
+                : `<div class="orc-tile__fallback">${esc(name)}</div>`
               }
             </span>
           </div>
@@ -999,7 +987,7 @@
 
       const btn = (label, page, { disabled = false, active = false } = {}) => {
         const dis = disabled ? 'disabled' : '';
-        const cls = active ? 'rec-pagebtn active' : 'rec-pagebtn';
+        const cls = active ? 'orc-pagebtn active' : 'orc-pagebtn';
         return `<button class="${cls}" ${dis} data-page="${page}">${label}</button>`;
       };
 
@@ -1080,7 +1068,7 @@
       });
 
       document.addEventListener('click', (e) => {
-        const b = e.target.closest('button.rec-pagebtn[data-page]');
+        const b = e.target.closest('button.orc-pagebtn[data-page]');
         if (!b) return;
         const p = parseInt(b.dataset.page, 10);
         if (!p || Number.isNaN(p) || p === state.page) return;
@@ -1090,7 +1078,7 @@
       });
 
       document.addEventListener('click', (e) => {
-        const tile = e.target.closest('.rec-tile');
+        const tile = e.target.closest('.orc-tile');
         if (!tile) return;
 
         openModal({
@@ -1108,7 +1096,7 @@
 
       document.addEventListener('keydown', (e) => {
         if (e.key !== 'Enter' && e.key !== ' ') return;
-        const tile = e.target.closest?.('.rec-tile');
+        const tile = e.target.closest?.('.orc-tile');
         if (!tile) return;
         e.preventDefault();
 

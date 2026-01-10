@@ -292,6 +292,7 @@
           <div id="sm-header-menu" class="w3-submenu" role="group" aria-label="Header Menu submenu">
             <a href="/header/menu/create" class="w3-link">Create Header Menu</a>
             <a href="/header/menu/manage" class="w3-link">Manage Header Menus</a>
+            <a href="/top-header/menu" class="w3-link">Top Header Menus</a>
           </div>
         </div>
 

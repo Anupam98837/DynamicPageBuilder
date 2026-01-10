@@ -1,7 +1,4 @@
 {{-- resources/views/landing/faculty-members.blade.php --}}
-@include('landing.components.header')
-@include('landing.components.headermenu')
-
 <style>
   :root{
     --brand:#8f2f2f;
@@ -24,6 +21,7 @@
     --bg: var(--page-bg, var(--bg));
     --card: var(--surface, var(--card));
     --line: var(--line-soft, var(--line));
+    --fac-accent: var(--primary-color, #9E363A);
   }
 
   body{ background: var(--bg); }
@@ -396,6 +394,10 @@
   filter: none !important;
 }
 
+    .fac-title i {
+color: var(--fac-accent);
+}
+
 </style>
 
 <div class="fac-page"
@@ -406,7 +408,7 @@
   <div class="fac-header">
     <div class="fac-header-top">
       <div>
-        <h1 class="fac-title">Faculty Members</h1>
+        <h1 class="fac-title"><i class="fa-solid fa-bullhorn"></i> Faculty Members</h1>
         <div class="fac-sub" id="facSub">Click any faculty card to view the profile.</div>
       </div>
 

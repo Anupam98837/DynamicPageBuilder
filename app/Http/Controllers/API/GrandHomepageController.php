@@ -295,7 +295,9 @@ class GrandHomepageController extends Controller
      | Fetchers (section data)
      |========================================================= */
 
-    private function fetchNoticeMarquee($now): ?array
+// GrandHomepageController.php
+
+private function fetchNoticeMarquee($now): ?array
 {
     $q = DB::table('notice_marquee');
 
@@ -303,7 +305,7 @@ class GrandHomepageController extends Controller
         $q->whereNull('deleted_at');
     }
 
-    // ✅ FIX: status in this table is usually "0"/"1"
+    // status is often "0"/"1" in this table
     $q->where(function ($w) {
         $w->where('status', '1')
           ->orWhere('status', 1)
@@ -322,7 +324,6 @@ class GrandHomepageController extends Controller
         });
     }
 
-    // ✅ closer to NoticeMarqueeController::current()
     if ($this->hasColumn('notice_marquee', 'updated_at')) {
         $q->orderByDesc('updated_at');
     } elseif ($this->hasColumn('notice_marquee', 'publish_at')) {
@@ -330,11 +331,45 @@ class GrandHomepageController extends Controller
     }
 
     $noticeMarqueeRow = $q->orderByDesc('id')->first();
-
     if (! $noticeMarqueeRow) return null;
 
+    // ✅ normalize items to consistent shape: {text,url} + backward aliases
+    $rawItems = $this->json($this->getVal($noticeMarqueeRow, 'notice_items_json'), []);
+    $normItems = [];
+
+    foreach ((array)$rawItems as $it) {
+        if (is_string($it)) {
+            $txt = trim($it);
+            if ($txt === '') continue;
+            $normItems[] = [
+                'text'  => $txt,
+                'url'   => '',
+                'title' => $txt,
+                'link'  => '',
+                'href'  => '',
+            ];
+            continue;
+        }
+
+        $arr = is_array($it) ? $it : (array)$it;
+
+        $text = trim((string)($arr['text'] ?? $arr['title'] ?? $arr['label'] ?? $arr['name'] ?? $arr['message'] ?? ''));
+        $url  = trim((string)($arr['url'] ?? $arr['link'] ?? $arr['href'] ?? ''));
+
+        if ($text === '' && $url === '') continue;
+
+        $normItems[] = [
+            'text'  => $text,
+            'url'   => $url,
+            'title' => $text,  // aliases for old frontends
+            'link'  => $url,
+            'href'  => $url,
+            'sort_order' => $arr['sort_order'] ?? null,
+        ];
+    }
+
     return [
-        'items' => $this->json($this->getVal($noticeMarqueeRow, 'notice_items_json'), []),
+        'items' => $normItems,
         'settings' => [
             'auto_scroll'       => (int) $this->getVal($noticeMarqueeRow, 'auto_scroll', 1),
             'scroll_speed'      => (int) $this->getVal($noticeMarqueeRow, 'scroll_speed', 60),
@@ -345,6 +380,7 @@ class GrandHomepageController extends Controller
         ],
     ];
 }
+
 
 
     private function fetchHeroCarousel($now, int $limit): array

@@ -188,16 +188,18 @@
     .btn-cs:hover{border-color:rgba(0,0,0,.14);background:#fff;}
 
     .cs-empty{text-align:center;color:#64748b;padding:40px 10px;}
+
+            .cs-title i {
+color: var(--cs-accent);
+}
   </style>
 </head>
 <body>
-  @include('landing.components.header')
-  @include('landing.components.headerMenu')
 
   <div class="cs-wrap">
     <div class="cs-head">
       <div>
-        <h2 class="cs-title">Courses</h2>
+        <h2 class="cs-title"><i class="fa-solid fa-bullhorn"></i> Courses</h2>
         <div class="text-muted" style="font-size:13px;">Browse all published programs & courses.</div>
       </div>
 

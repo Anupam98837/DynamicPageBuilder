@@ -165,8 +165,6 @@
 </head>
 
 <body>
-  @include('landing.components.header')
-  @include('landing.components.headerMenu')
 
   <div class="st-wrap">
 
@@ -177,7 +175,7 @@
           <div>
             <h2 class="hero-title">
               <span class="chip"><i class="fa-solid fa-chart-column"></i></span>
-              <span id="heroTitle">Statistics</span>
+              <span id="heroTitle"><i class="fa-solid fa-bullhorn"></i> Statistics</span>
             </h2>
             <div class="hero-sub" id="heroSub">Key numbers at a glance</div>
           </div>

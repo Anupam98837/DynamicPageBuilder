@@ -262,7 +262,8 @@
           <h5 class="m-0 fw-bold">Stats Settings</h5>
         </div>
         <div class="st-help mt-1">
-          Manage stats: <code>background_image_url</code> (required), <code>stats_items_json</code> and optional <code>metadata</code>.
+          Manage stats: <code>background_image_url</code> (required), <code>stats_items_json</code>, optional <code>metadata</code>,
+          plus display settings (<code>auto_scroll</code>, <code>scroll_latency_ms</code>, <code>loop</code>, <code>show_arrows</code>, <code>show_dots</code>) and schedule (<code>publish_at</code>, <code>expire_at</code>).
           <b>Slug is required</b> and will be auto-generated.
         </div>
       </div>
@@ -270,6 +271,7 @@
         <span class="st-chip"><i class="fa-solid fa-shield-halved"></i> Admin module</span>
         <span class="st-chip"><i class="fa-solid fa-image"></i> Background</span>
         <span class="st-chip"><i class="fa-solid fa-brackets-curly"></i> JSON</span>
+        <span class="st-chip"><i class="fa-solid fa-toggle-on"></i> Settings</span>
       </div>
     </div>
   </div>
@@ -377,6 +379,80 @@
                           <div id="stBgEmpty" class="st-preview-empty">No background image selected.</div>
                           <div class="st-preview-meta" id="stBgMeta" style="display:none;">—</div>
                         </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {{-- ✅ Remaining settings fields (from DB) --}}
+                <div class="col-12">
+                  <div class="st-repeater">
+                    <div class="st-repeater-top">
+                      <div class="fw-semibold">
+                        <i class="fa-solid fa-toggle-on me-2"></i>Display Settings (DB fields)
+                      </div>
+                      <div class="st-help">
+                        Controls for <code>auto_scroll</code>, <code>scroll_latency_ms</code>, <code>loop</code>, <code>show_arrows</code>, <code>show_dots</code>, and publish window.
+                      </div>
+                    </div>
+                    <div class="st-repeater-body">
+                      <div class="row g-3">
+                        <div class="col-lg-3 col-md-6">
+                          <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="st_auto_scroll">
+                            <label class="form-check-label" for="st_auto_scroll"><b>Auto Scroll</b></label>
+                          </div>
+                          <div class="st-help mt-1">DB: <code>auto_scroll</code></div>
+                        </div>
+
+                        <div class="col-lg-3 col-md-6">
+                          <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="st_loop">
+                            <label class="form-check-label" for="st_loop"><b>Loop</b></label>
+                          </div>
+                          <div class="st-help mt-1">DB: <code>loop</code></div>
+                        </div>
+
+                        <div class="col-lg-3 col-md-6">
+                          <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="st_show_arrows">
+                            <label class="form-check-label" for="st_show_arrows"><b>Show Arrows</b></label>
+                          </div>
+                          <div class="st-help mt-1">DB: <code>show_arrows</code></div>
+                        </div>
+
+                        <div class="col-lg-3 col-md-6">
+                          <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="st_show_dots">
+                            <label class="form-check-label" for="st_show_dots"><b>Show Dots</b></label>
+                          </div>
+                          <div class="st-help mt-1">DB: <code>show_dots</code></div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                          <label class="form-label">Scroll Latency (ms)</label>
+                          <input id="st_scroll_latency_ms" type="number" class="form-control" min="0" max="600000" step="50" placeholder="3000">
+                          <div class="st-help mt-1">DB: <code>scroll_latency_ms</code> (0–600000)</div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                          <label class="form-label">Publish At (optional)</label>
+                          <input id="st_publish_at" type="datetime-local" class="form-control">
+                          <div class="st-help mt-1">DB: <code>publish_at</code> (leave empty for immediate)</div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                          <label class="form-label">Expire At (optional)</label>
+                          <input id="st_expire_at" type="datetime-local" class="form-control">
+                          <div class="st-help mt-1">DB: <code>expire_at</code> (must be ≥ publish_at)</div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                          <label class="form-label">Views (read-only)</label>
+                          <input id="st_views_count" type="number" class="form-control" readonly>
+                          <div class="st-help mt-1">DB: <code>views_count</code></div>
+                        </div>
+
                       </div>
                     </div>
                   </div>
@@ -640,6 +716,7 @@
               <span class="st-chip"><i class="fa-regular fa-id-badge"></i><span id="stItemIdentity">—</span></span>
               <span class="st-chip"><i class="fa-regular fa-clock"></i><span id="stItemUpdated">—</span></span>
               <span class="st-chip"><i class="fa-regular fa-user"></i><span id="stItemBy">—</span></span>
+              <span class="st-chip"><i class="fa-regular fa-eye"></i><span id="stItemViews">—</span></span>
             </div>
           </div>
 
@@ -687,6 +764,75 @@
                     <img id="stBgPreviewModal" src="" alt="Preview" style="display:none;">
                     <div id="stBgEmptyModal" class="st-preview-empty">No background image selected.</div>
                     <div class="st-preview-meta" id="stBgMetaModal" style="display:none;">—</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {{-- ✅ Remaining settings fields (from DB) --}}
+          <div class="col-12">
+            <div class="st-repeater">
+              <div class="st-repeater-top">
+                <div class="fw-semibold"><i class="fa-solid fa-toggle-on me-2"></i>Display Settings (DB fields)</div>
+                <div class="st-help">Same settings as “Current”.</div>
+              </div>
+              <div class="st-repeater-body">
+                <div class="row g-3">
+                  <div class="col-lg-3 col-md-6">
+                    <div class="form-check form-switch">
+                      <input class="form-check-input" type="checkbox" id="st_m_auto_scroll">
+                      <label class="form-check-label" for="st_m_auto_scroll"><b>Auto Scroll</b></label>
+                    </div>
+                    <div class="st-help mt-1">DB: <code>auto_scroll</code></div>
+                  </div>
+
+                  <div class="col-lg-3 col-md-6">
+                    <div class="form-check form-switch">
+                      <input class="form-check-input" type="checkbox" id="st_m_loop">
+                      <label class="form-check-label" for="st_m_loop"><b>Loop</b></label>
+                    </div>
+                    <div class="st-help mt-1">DB: <code>loop</code></div>
+                  </div>
+
+                  <div class="col-lg-3 col-md-6">
+                    <div class="form-check form-switch">
+                      <input class="form-check-input" type="checkbox" id="st_m_show_arrows">
+                      <label class="form-check-label" for="st_m_show_arrows"><b>Show Arrows</b></label>
+                    </div>
+                    <div class="st-help mt-1">DB: <code>show_arrows</code></div>
+                  </div>
+
+                  <div class="col-lg-3 col-md-6">
+                    <div class="form-check form-switch">
+                      <input class="form-check-input" type="checkbox" id="st_m_show_dots">
+                      <label class="form-check-label" for="st_m_show_dots"><b>Show Dots</b></label>
+                    </div>
+                    <div class="st-help mt-1">DB: <code>show_dots</code></div>
+                  </div>
+
+                  <div class="col-lg-4 col-md-6">
+                    <label class="form-label">Scroll Latency (ms)</label>
+                    <input id="st_m_scroll_latency_ms" type="number" class="form-control" min="0" max="600000" step="50" placeholder="3000">
+                    <div class="st-help mt-1">DB: <code>scroll_latency_ms</code></div>
+                  </div>
+
+                  <div class="col-lg-4 col-md-6">
+                    <label class="form-label">Publish At (optional)</label>
+                    <input id="st_m_publish_at" type="datetime-local" class="form-control">
+                    <div class="st-help mt-1">DB: <code>publish_at</code></div>
+                  </div>
+
+                  <div class="col-lg-4 col-md-6">
+                    <label class="form-label">Expire At (optional)</label>
+                    <input id="st_m_expire_at" type="datetime-local" class="form-control">
+                    <div class="st-help mt-1">DB: <code>expire_at</code></div>
+                  </div>
+
+                  <div class="col-lg-4 col-md-6">
+                    <label class="form-label">Views (read-only)</label>
+                    <input id="st_m_views_count" type="number" class="form-control" readonly>
+                    <div class="st-help mt-1">DB: <code>views_count</code></div>
                   </div>
                 </div>
               </div>
@@ -815,6 +961,35 @@
       .replace(/\s+/g, '-')
       .replace(/-+/g, '-')
       .replace(/^-+|-+$/g, '');
+  }
+
+  function toChecked(v, fallback=false){
+    if (v === null || v === undefined || v === '') return !!fallback;
+    if (typeof v === 'boolean') return v;
+    const n = Number(v);
+    if (!Number.isNaN(n)) return n === 1;
+    return String(v).toLowerCase() === 'true';
+  }
+
+  function toInt(v, fallback=0){
+    const n = parseInt((v ?? '').toString(), 10);
+    return Number.isFinite(n) ? n : fallback;
+  }
+
+  function toDatetimeLocalString(val){
+    const s = (val ?? '').toString().trim();
+    if (!s) return '';
+    // already datetime-local
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s)) return s.slice(0,16);
+    // common DB "YYYY-MM-DD HH:mm:ss"
+    if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}/.test(s)) return s.replace(' ', 'T').slice(0,16);
+
+    const d = new Date(s);
+    if (!Number.isNaN(d.getTime())){
+      const pad = (n)=>String(n).padStart(2,'0');
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+    return '';
   }
 
   async function fetchWithTimeout(url, opts={}, ms=15000){
@@ -1142,6 +1317,16 @@
 
     const curMeta = $('st_metadata_json');
 
+    // ✅ Remaining settings fields
+    const curAutoScroll = $('st_auto_scroll');
+    const curLatency    = $('st_scroll_latency_ms');
+    const curLoop       = $('st_loop');
+    const curShowArrows = $('st_show_arrows');
+    const curShowDots   = $('st_show_dots');
+    const curPublishAt  = $('st_publish_at');
+    const curExpireAt   = $('st_expire_at');
+    const curViews      = $('st_views_count');
+
     const curItemsEditor = makeItemsEditor({
       listId: 'stItemsList',
       emptyId: 'stItemsEmpty',
@@ -1246,6 +1431,7 @@
     const itemIdentity = $('stItemIdentity');
     const itemUpdated = $('stItemUpdated');
     const itemBy = $('stItemBy');
+    const itemViewsChip = $('stItemViews');
 
     const mSectionTitle = $('st_m_section_title');
     const mSlug = $('st_m_slug');
@@ -1259,6 +1445,16 @@
     const mBgEmpty = $('stBgEmptyModal');
     const mBgMeta = $('stBgMetaModal');
     const mBtnOpen = $('stBtnOpenBgModal');
+
+    // ✅ Remaining settings fields (modal)
+    const mAutoScroll = $('st_m_auto_scroll');
+    const mLatency    = $('st_m_scroll_latency_ms');
+    const mLoop       = $('st_m_loop');
+    const mShowArrows = $('st_m_show_arrows');
+    const mShowDots   = $('st_m_show_dots');
+    const mPublishAt  = $('st_m_publish_at');
+    const mExpireAt   = $('st_m_expire_at');
+    const mViews      = $('st_m_views_count');
 
     const modalItemsEditor = makeItemsEditor({
       listId: 'stItemsListModal',
@@ -1494,6 +1690,15 @@
           if (curBgFile) curBgFile.value = '';
           clearBgPreview(true);
 
+          if (curAutoScroll) curAutoScroll.checked = true;
+          if (curLoop) curLoop.checked = true;
+          if (curShowArrows) curShowArrows.checked = true;
+          if (curShowDots) curShowDots.checked = false;
+          if (curLatency) curLatency.value = '3000';
+          if (curPublishAt) curPublishAt.value = '';
+          if (curExpireAt) curExpireAt.value = '';
+          if (curViews) curViews.value = '0';
+
           if (curActive) curActive.checked = false;
           if (curMeta) curMeta.value = '';
           curItemsEditor.setItems([]);
@@ -1521,7 +1726,18 @@
         if (bg) setBgPreview(bg, 'Current background');
         else clearBgPreview(true);
 
+        // status
         if (curActive) curActive.checked = (rowStatus(item) === 'published');
+
+        // ✅ settings fields
+        if (curAutoScroll) curAutoScroll.checked = toChecked(item?.auto_scroll, true);
+        if (curLoop) curLoop.checked = toChecked(item?.loop, true);
+        if (curShowArrows) curShowArrows.checked = toChecked(item?.show_arrows, true);
+        if (curShowDots) curShowDots.checked = toChecked(item?.show_dots, false);
+        if (curLatency) curLatency.value = String(toInt(item?.scroll_latency_ms, 3000));
+        if (curPublishAt) curPublishAt.value = toDatetimeLocalString(item?.publish_at);
+        if (curExpireAt) curExpireAt.value = toDatetimeLocalString(item?.expire_at);
+        if (curViews) curViews.value = String(toInt(item?.views_count, 0));
 
         const normalized = normalizeItems(
           item?.stats_items_json ??
@@ -1600,6 +1816,22 @@
 
       const sectionSubtitle = (curSectionSubtitle?.value || '').trim();
 
+      // ✅ settings
+      const latency = toInt(curLatency?.value, 3000);
+      if (latency < 0 || latency > 600000) return { ok:false, error:'Scroll Latency must be between 0 and 600000.' };
+
+      const publishAt = (curPublishAt?.value || '').trim() || null;
+      const expireAt  = (curExpireAt?.value || '').trim() || null;
+
+      // light client check (server validates too)
+      if (publishAt && expireAt){
+        const d1 = new Date(publishAt);
+        const d2 = new Date(expireAt);
+        if (!Number.isNaN(d1.getTime()) && !Number.isNaN(d2.getTime()) && d2.getTime() < d1.getTime()){
+          return { ok:false, error:'Expire At must be after or equal to Publish At.' };
+        }
+      }
+
       const items = curItemsEditor.readFromRows();
       const metaParsed = safeJsonParse(curMeta?.value || '', 'Metadata JSON');
       if (!metaParsed.ok) return { ok:false, error: metaParsed.error };
@@ -1618,6 +1850,16 @@
           background_image_url: bgUrl,
           status: statusFromSwitch(!!curActive?.checked),
           stats_items_json: items,
+
+          // ✅ include DB settings fields
+          auto_scroll: !!curAutoScroll?.checked ? 1 : 0,
+          scroll_latency_ms: latency,
+          loop: !!curLoop?.checked ? 1 : 0,
+          show_arrows: !!curShowArrows?.checked ? 1 : 0,
+          show_dots: !!curShowDots?.checked ? 1 : 0,
+          publish_at: publishAt,
+          expire_at: expireAt,
+
           metadata: Object.keys(meta).length ? meta : null
         },
         files: { background_image_file: bgFile }
@@ -1654,6 +1896,16 @@
           fd.append('background_image_url', rd.payload.background_image_url);
           fd.append('status', rd.payload.status);
           fd.append('stats_items_json', JSON.stringify(rd.payload.stats_items_json || []));
+
+          // ✅ settings fields
+          fd.append('auto_scroll', String(rd.payload.auto_scroll));
+          fd.append('scroll_latency_ms', String(rd.payload.scroll_latency_ms));
+          fd.append('loop', String(rd.payload.loop));
+          fd.append('show_arrows', String(rd.payload.show_arrows));
+          fd.append('show_dots', String(rd.payload.show_dots));
+          fd.append('publish_at', rd.payload.publish_at ?? '');
+          fd.append('expire_at', rd.payload.expire_at ?? '');
+
           if (rd.payload.metadata != null) fd.append('metadata', JSON.stringify(rd.payload.metadata));
           fd.append('background_image_file', rd.files.background_image_file);
 
@@ -1791,6 +2043,7 @@
       if (itemIdentity) itemIdentity.textContent = r.uuid ? `uuid: ${r.uuid}` : '—';
       if (itemUpdated) itemUpdated.textContent = r.updated_at ? `Updated: ${r.updated_at}` : 'Updated: —';
       if (itemBy) itemBy.textContent = (r.created_by_name || r.created_by_email || '—');
+      if (itemViewsChip) itemViewsChip.textContent = `views: ${toInt(r.views_count, 0)}`;
 
       const title = getRowTitle(r) === '—' ? '' : (getRowTitle(r) || '');
       mSectionTitle.value = title;
@@ -1807,7 +2060,18 @@
       if (bg) setBgPreviewModal(bg, 'Current background');
       else clearBgPreviewModal(true);
 
+      // status
       mActive.checked = (rowStatus(r) === 'published');
+
+      // ✅ settings fields
+      if (mAutoScroll) mAutoScroll.checked = toChecked(r?.auto_scroll, true);
+      if (mLoop) mLoop.checked = toChecked(r?.loop, true);
+      if (mShowArrows) mShowArrows.checked = toChecked(r?.show_arrows, true);
+      if (mShowDots) mShowDots.checked = toChecked(r?.show_dots, false);
+      if (mLatency) mLatency.value = String(toInt(r?.scroll_latency_ms, 3000));
+      if (mPublishAt) mPublishAt.value = toDatetimeLocalString(r?.publish_at);
+      if (mExpireAt) mExpireAt.value = toDatetimeLocalString(r?.expire_at);
+      if (mViews) mViews.value = String(toInt(r?.views_count, 0));
 
       const items = normalizeItems(
         r?.stats_items_json ??
@@ -1828,6 +2092,8 @@
         if (el.id === 'st_m_slug') { el.readOnly = true; return; }
         // file should be disabled in view
         if (el.type === 'file'){ el.disabled = disable; return; }
+        // keep readonly views always readonly
+        if (el.id === 'st_m_views_count'){ el.readOnly = true; el.disabled = true; return; }
         el.disabled = disable;
       });
       if (saveBtn) saveBtn.style.display = (!disable && !viewOnly) ? '' : 'none';
@@ -2029,11 +2295,36 @@
       const sub = (mSectionSubtitle.value || '').trim();
       if (sub) meta.section_subtitle = sub;
 
+      // ✅ settings values
+      const latency = toInt(mLatency?.value, 3000);
+      if (latency < 0 || latency > 600000){ err('Scroll Latency must be between 0 and 600000.'); return; }
+
+      const publishAt = (mPublishAt?.value || '').trim() || null;
+      const expireAt  = (mExpireAt?.value || '').trim() || null;
+      if (publishAt && expireAt){
+        const d1 = new Date(publishAt);
+        const d2 = new Date(expireAt);
+        if (!Number.isNaN(d1.getTime()) && !Number.isNaN(d2.getTime()) && d2.getTime() < d1.getTime()){
+          err('Expire At must be after or equal to Publish At.');
+          return;
+        }
+      }
+
       const payload = {
         slug: slug,
         background_image_url: bgUrl,
         status: statusFromSwitch(!!mActive.checked),
         stats_items_json: items,
+
+        // ✅ include DB settings fields
+        auto_scroll: !!mAutoScroll?.checked ? 1 : 0,
+        scroll_latency_ms: latency,
+        loop: !!mLoop?.checked ? 1 : 0,
+        show_arrows: !!mShowArrows?.checked ? 1 : 0,
+        show_dots: !!mShowDots?.checked ? 1 : 0,
+        publish_at: publishAt,
+        expire_at: expireAt,
+
         metadata: Object.keys(meta).length ? meta : null
       };
 
@@ -2049,6 +2340,16 @@
           fd.append('background_image_url', payload.background_image_url);
           fd.append('status', payload.status);
           fd.append('stats_items_json', JSON.stringify(payload.stats_items_json || []));
+
+          // ✅ settings fields
+          fd.append('auto_scroll', String(payload.auto_scroll));
+          fd.append('scroll_latency_ms', String(payload.scroll_latency_ms));
+          fd.append('loop', String(payload.loop));
+          fd.append('show_arrows', String(payload.show_arrows));
+          fd.append('show_dots', String(payload.show_dots));
+          fd.append('publish_at', payload.publish_at ?? '');
+          fd.append('expire_at', payload.expire_at ?? '');
+
           if (payload.metadata != null) fd.append('metadata', JSON.stringify(payload.metadata));
           fd.append('background_image_file', bgFile);
 

@@ -1,6 +1,4 @@
 {{-- resources/views/landing/placement-officers.blade.php --}}
-@include('landing.components.header')
-@include('landing.components.headermenu')
 
 {{-- (optional) FontAwesome for icons used below; remove if already included in header --}}
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
@@ -28,6 +26,7 @@
   --po-hover: var(--page-hover, rgba(2,6,23,.04));
   --po-primary: var(--primary-color, #9E363A);
   --po-shadow: var(--shadow-2, 0 10px 24px rgba(0,0,0,.08));
+  --po-accent: var(--primary-color, #9E363A);
 }
 
 .po-page{
@@ -278,13 +277,17 @@
   border-color: color-mix(in oklab, var(--po-primary) 35%, var(--po-line));
   color: var(--po-primary);
 }
+
+    .po-title i {
+color: var(--po-accent);
+}
 </style>
 
 <div class="po-page">
 
   <div class="po-head">
     <div>
-      <h1 class="po-title" id="poTitle">Placement Officers</h1>
+      <h1 class="po-title" id="poTitle"><i class="fa-solid fa-bullhorn"></i> Placement Officers</h1>
       <div class="po-sub" id="poSub">Meet our Placement & Training team.</div>
     </div>
 

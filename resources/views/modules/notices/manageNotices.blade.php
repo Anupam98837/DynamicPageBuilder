@@ -1151,7 +1151,11 @@ td.col-slug code{
 
       for (const url of candidates){
         try{
-          const res = await fetchWithTimeout(url, { headers: authHeaders() }, 12000);
+      const res = await fetchWithTimeout(url, {
+        headers: authHeaders({
+          'X-Dropdown': '1' // ✅ like Postman (no pagination)
+        })
+      }, 12000);
           if (res.status === 401 || res.status === 403) { window.location.href = '/'; return; }
           const js = await res.json().catch(()=> ({}));
           if (!res.ok) continue;

@@ -134,6 +134,9 @@
 </head>
 <body>
 
+{{-- Top Header --}}
+@include('landing.components.topHeaderMenu')
+
 {{-- Main Header --}}
 @include('landing.components.header')
 

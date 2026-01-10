@@ -162,6 +162,10 @@ Route::get('/scholarships/view/{uuid}', function () {
     return view('modules.scholarship.viewScholarships');
 });
 
+Route::get('/success-stories/view/{uuid}', function () {
+    return view('modules.successStory.viewSuccessStories');
+});
+
 
 // Course Manage
 
@@ -213,6 +217,9 @@ Route::get('/header/menu/create', function () {
 });
 Route::get('/header/menu/manage', function () {
     return view('pages.users.pages.headerMenus.manageHeaderMenu');
+});
+Route::get('/top-header/menu', function () {
+    return view('pages.users.pages.headerMenus.manageTopHeaderMenu');
 });
 Route::get('/page/submenu/create', function () {
     return view('pages.users.pages.pageSubmenus.createPageSubmenu');
@@ -305,49 +312,56 @@ Route::get('/footer-components/manage', function () {
 
 Route::get('/announcements', function () {
 
-    return view('modules.announcements.viewAllAnnouncements');
+    return view('landing.pages.announcements.viewAllAnnouncements');
 
 });
  
 Route::get('/achievements', function () {
 
-    return view('modules.achievements.viewAllAchievements');
+    return view('landing.pages.achievements.viewAllAchievements');
 
 });
  
 Route::get('/notices', function () {
 
-    return view('modules.notices.viewAllNotices');
+    return view('landing.pages.notices.viewAllNotices');
 
 });
  
 Route::get('/student-activities', function () {
 
-    return view('modules.studentActivities.viewAllStudentActivities');
+    return view('landing.pages.studentActivities.viewAllStudentActivities');
 
 });
  
 Route::get('/gallery', function () {
 
-    return view('modules.gallery.viewAllGallery');
+    return view('landing.pages.gallery.viewAllGallery');
+
+});
+
+// Without Headers & Footer
+Route::get('/gallery/all-images', function () {
+
+    return view('landing.pages.gallery.viewAllGallery');
 
 });
  
 Route::get('/our-recruiters', function () {
 
-    return view('modules.ourRecruiters.viewAllOurRecruiters');
+    return view('landing.pages.ourRecruiters.viewAllOurRecruiters');
 
 });
  
 Route::get('/success-stories', function () {
 
-    return view('modules.successStory.viewAllsuccessStory');
+    return view('landing.pages.successStory.viewAllsuccessStory');
 
 });
  
 Route::get('/courses', function () {
 
-    return view('modules.course.viewAllCourses');
+    return view('landing.pages.course.viewAllCourses');
 
 });
  
@@ -359,43 +373,43 @@ Route::get('/courses/view/{uuid}', function () {
  
 Route::get('/events', function () {
 
-    return view('modules.events.viewAllEvents');
+    return view('landing.pages.events.viewAllEvents');
 
 });
 
 Route::get('/faculty-members', function () {
 
-    return view('modules.faculty.viewAllFaculty');
+    return view('landing.pages.faculty.viewAllFaculty');
 
 });
 
 Route::get('/placed-students', function () {
 
-    return view('modules.placedStudents.viewAllPlacedStudents');
+    return view('landing.pages.placedStudents.viewAllPlacedStudents');
 
 });
  
 Route::get('/tp-cell', function () {
 
-    return view('modules.t&pCell.viewAllT&PCell');
+    return view('landing.pages.t&pCell.viewAllT&PCell');
 
 });
 
 Route::get('/placement-notices', function () {
 
-    return view('modules.placementNotices.viewAllPlacementNotices');
+    return view('landing.pages.placementNotices.viewAllPlacementNotices');
 
 });
  
 Route::get('/statistics', function () {
 
-    return view('modules.statistics.viewAllStatistics');
+    return view('landing.pages.statistics.viewAllStatistics');
 
 });
  
 Route::get('/contact-us', function () {
 
-    return view('modules.contactUs.viewContactUs');
+    return view('landing.pages.contactUs.viewContactUs');
 
 });
  
@@ -405,4 +419,23 @@ Route::get('/contact-us/manage', function () {
  
 Route::get('/contact-us-visibility/manage', function () {
     return view('pages.users.pages.contactUs.manageContactVisibility');
+});
+
+
+
+ 
+Route::get('/students/manage', function () {
+    return view('pages.users.pages.users.manageStudents');
+});
+ 
+Route::get('/senior-authority/manage', function () {
+    return view('pages.users.pages.users.manageSeniorAuthority');
+});
+ 
+Route::get('/other-roles/manage', function () {
+    return view('pages.users.pages.users.manageOtherRoles');
+});
+ 
+Route::get('/faculty/manage', function () {
+    return view('pages.users.pages.users.manageFaculty');
 });

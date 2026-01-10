@@ -58,7 +58,8 @@
 
   <style>
     /* =========================================================
-       Public Footer (Render) – UI exactly like screenshot
+       Public Footer (Render) – adjusted to match main.css + header menu
+       ✅ Section2: 4 departments in a row, child menus in a column
        ========================================================= */
 
     :root{
@@ -72,11 +73,15 @@
 
       --ft-max: 1280px;
 
-      --ft-link-size: 18px;
-      --ft-link-gap: 26px;
+      /* Match header-ish sizing (nav-link ~ .95rem, dropdown-item ~ .93rem) */
+      --ft-link-size: .95rem;
+      --ft-link-gap: 1.35rem;
 
-      --ft-social-size: 56px;
-      --ft-social-icon: 30px;
+      --ft-dept-title: 1.08rem;     /* dept title size */
+      --ft-dept-item:  .93rem;      /* child item size */
+
+      --ft-social-size: 35px;
+      --ft-social-icon: 17px;
     }
 
     .ft-wrap, .ft-wrap *{ box-sizing:border-box; }
@@ -85,6 +90,7 @@
       width:100%;
       background:var(--ft-bg);
       color:var(--ft-ink);
+      font-family: var(--font-sans, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Noto Sans', sans-serif);
     }
 
     .ft-inner{
@@ -96,7 +102,7 @@
     .ft-rule{
       height:0;
       border:none;
-      border-top:2px solid var(--ft-rule);
+      border-top:1px solid var(--ft-rule);
       margin:18px 0;
       opacity:1;
     }
@@ -106,7 +112,7 @@
       display:flex;
       flex-wrap:wrap;
       justify-content:center;
-      gap:12px var(--ft-link-gap);
+      gap:10px var(--ft-link-gap);
       padding:6px 0;
     }
     .ft-inline-links.ft-left{ justify-content:flex-start; }
@@ -122,50 +128,69 @@
       transition:opacity .12s ease, border-color .12s ease;
     }
     .ft-link:hover{
-      opacity:.95;
+      color:var(--ft-accent-2);
       border-color:var(--ft-accent);
       text-decoration:none;
     }
 
-    /* ===== Menu blocks ===== */
-    .ft-blocks{ display:flex; flex-direction:column; gap:22px; }
+    /* =========================================================
+       ✅ Section 2 (Departments)
+       - 4 columns in a row (desktop)
+       - each department has vertical child list (column)
+       ========================================================= */
+    .ft-blocks{
+      display:grid;
+      grid-template-columns:repeat(4, minmax(0, 1fr));
+      gap: 18px 34px; /* tuned to match main.css spacing */
+      align-items:start;
+    }
+
+    .ft-block{
+      min-width:0;
+    }
 
     .ft-block-title{
-      font-weight:800;
-      font-size:32px;
-      margin:0 0 14px 0;
-      letter-spacing:.2px;
+      font-family: var(--font-head, var(--font-sans, inherit));
+      font-weight:700;
+      font-size:var(--ft-dept-title);
+      margin:0 0 12px 0;
+      letter-spacing:.15px;
       position:relative;
       display:inline-block;
+      line-height:1.2;
     }
     .ft-block-title::after{
       content:"";
       position:absolute;
       left:0;
       bottom:-6px;
-      width:78px;
-      height:4px;
+      width:56px;
+      height:3px;
       background:var(--ft-accent);
       border-radius:6px;
     }
 
+    /* ✅ child menus in a column */
     .ft-block-grid{
-      display:grid;
-      grid-template-columns:repeat(5, minmax(0, 1fr));
-      gap:18px 40px;
+      display:flex;
+      flex-direction:column;
+      gap: 10px; /* column gap between children */
+      margin-top: 10px;
     }
 
     .ft-block-item{
       color:var(--ft-ink);
       text-decoration:none;
-      font-size:20px;
-      line-height:1.35;
+      font-size:var(--ft-dept-item);
+      line-height:1.25;
       opacity:.98;
       transition:opacity .12s ease, transform .12s ease;
+      white-space:normal;
+      word-break:break-word;
     }
     .ft-block-item:hover{
       opacity:1;
-      transform:translateY(-1px);
+      transform:translateX(2px);
       text-decoration:none;
     }
 
@@ -197,8 +222,9 @@
     .ft-brand-text{ min-width:0; display:flex; flex-direction:column; gap:4px; }
 
     .ft-brand-title{
+      font-family: var(--font-head, var(--font-sans, inherit));
       font-weight:800;
-      font-size:30px;
+      font-size:1.35rem; /* slightly smaller than before, closer to system */
       line-height:1.15;
       margin:0;
       white-space:nowrap;
@@ -208,7 +234,7 @@
 
     .ft-brand-rotate{
       color:var(--ft-ink-soft);
-      font-size:20px;
+      font-size:.98rem;
       line-height:1.25;
       margin:0;
       white-space:nowrap;
@@ -231,7 +257,7 @@
       display:inline-flex;
       align-items:center;
       justify-content:center;
-      border:2px solid var(--ft-accent);
+      border:2px solid var(--ft-accent-2);
       color:var(--ft-accent-2);
       text-decoration:none;
       background:transparent;
@@ -239,8 +265,7 @@
     }
     .ft-social-btn i{ font-size:var(--ft-social-icon); line-height:1; }
     .ft-social-btn:hover{
-      transform:translateY(-1px);
-      background:rgba(255,255,255,.08);
+      background:var(--ft-accent-2);
       filter:drop-shadow(0 8px 18px rgba(0,0,0,.12));
       text-decoration:none;
     }
@@ -256,13 +281,13 @@
     .ft-bottom-links{
       display:flex;
       flex-wrap:wrap;
-      gap:12px 22px;
+      gap:10px 18px;
       align-items:center;
     }
 
     .ft-copy{
       color:var(--ft-ink-soft);
-      font-size:18px;
+      font-size:.95rem;
       line-height:1.25;
       text-align:right;
       white-space:nowrap;
@@ -271,7 +296,7 @@
     .ft-address{
       margin-top:10px;
       color:var(--ft-ink);
-      font-size:18px;
+      font-size:.95rem;
       line-height:1.35;
       opacity:.98;
     }
@@ -284,16 +309,16 @@
       border-radius:10px;
     }
     @keyframes ft-skel{ 0%{ background-position:200% 0; } 100%{ background-position:-200% 0; } }
-    .ft-skel-title{ height:38px; width:220px; }
+    .ft-skel-title{ height:32px; width:220px; }
     .ft-skel-grid{ height:120px; width:100%; border-radius:14px; }
 
+    /* ✅ Responsive: still desktop shows 4 in a row */
     @media (max-width: 1100px){
-      .ft-block-grid{ grid-template-columns:repeat(3, minmax(0, 1fr)); }
+      .ft-blocks{ grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px 26px; }
     }
     @media (max-width: 780px){
       .ft-inline-links{ justify-content:flex-start; }
-      .ft-block-grid{ grid-template-columns:repeat(2, minmax(0, 1fr)); gap:14px 22px; }
-      .ft-block-title{ font-size:28px; }
+      .ft-blocks{ grid-template-columns:1fr; gap:14px; }
       .ft-brand-row{ flex-direction:column; align-items:flex-start; }
       .ft-copy{ text-align:left; white-space:normal; }
     }
@@ -319,8 +344,22 @@
 
     {{-- Section 2 (menu blocks: max 4) --}}
     <div id="ftBlocks" class="ft-blocks">
-      <div class="ft-skel ft-skel-title"></div>
-      <div class="ft-skel ft-skel-grid mt-2"></div>
+      <div class="ft-block">
+        <div class="ft-skel ft-skel-title"></div>
+        <div class="ft-skel ft-skel-grid mt-2"></div>
+      </div>
+      <div class="ft-block d-none d-md-block">
+        <div class="ft-skel ft-skel-title"></div>
+        <div class="ft-skel ft-skel-grid mt-2"></div>
+      </div>
+      <div class="ft-block d-none d-md-block">
+        <div class="ft-skel ft-skel-title"></div>
+        <div class="ft-skel ft-skel-grid mt-2"></div>
+      </div>
+      <div class="ft-block d-none d-md-block">
+        <div class="ft-skel ft-skel-title"></div>
+        <div class="ft-skel ft-skel-grid mt-2"></div>
+      </div>
     </div>
 
     <hr class="ft-rule" id="ftRule2">
@@ -639,7 +678,7 @@
 
     if (!normalized.length) return 0;
 
-    normalized.forEach((b, idx) => {
+    normalized.forEach((b) => {
       const menu = menuMap.get(b.headerMenuId) || null;
 
       // title priority:
@@ -673,6 +712,7 @@
       h.className = 'ft-block-title';
       h.textContent = resolvedTitle;
 
+      // ✅ now styled as vertical column list (CSS handles it)
       const grid = document.createElement('div');
       grid.className = 'ft-block-grid';
 
@@ -814,8 +854,10 @@
     const topCount = renderInlineLinks(els.topLinks, s1, false);
     toggleRule(els.rule1, true);
 
-    // ✅ SECTION 2 (FIXED: resolve header menu title + children via header menus endpoint)
+    // ✅ SECTION 2 (resolve header menu title + children via header menus endpoint)
     const s2blocks = safeArray(
+      item?.section2_header_menus_resolved ??
+      meta?.section2_header_menus_resolved ??
       item?.section2_header_menu_json ??
       item?.section2_header_menus ??
       meta?.section2_header_menu_json ??
@@ -854,7 +896,7 @@
     setText(els.brandTitle, brandTitle);
     startRotate(rotateLines);
 
-    // ✅ SOCIALS (FIXED: use API icon class, boxes dynamic)
+    // ✅ SOCIALS (use API icon class, boxes dynamic)
     const socials = safeArray(item?.social_links ?? item?.social_links_json ?? []);
     renderSocial(els.social, socials);
     toggleRule(els.rule4, true);
@@ -933,5 +975,4 @@
   });
 })();
 </script>
-
 @endonce

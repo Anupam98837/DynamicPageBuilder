@@ -192,16 +192,18 @@
     .btn-sa:hover{border-color:rgba(0,0,0,.14);background:#fff;}
 
     .sa-empty{text-align:center;color:#64748b;padding:40px 10px;}
+
+        .sa-title i {
+color: var(--sa-accent);
+}
   </style>
 </head>
 <body>
-  @include('landing.components.header')
-  @include('landing.components.headerMenu')
 
   <div class="sa-wrap">
     <div class="sa-head">
       <div>
-        <h2 class="sa-title">Student Activities</h2>
+        <h2 class="sa-title"><i class="fa-solid fa-bullhorn"></i> Student Activities</h2>
         <div class="text-muted" style="font-size:13px;">Latest updates, workshops, events, and campus highlights.</div>
       </div>
 

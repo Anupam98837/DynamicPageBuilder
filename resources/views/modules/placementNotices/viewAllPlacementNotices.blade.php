@@ -197,16 +197,18 @@
     .btn-pn:hover{border-color:rgba(0,0,0,.14);background:#fff;}
 
     .pn-empty{text-align:center;color:#64748b;padding:40px 10px;}
+
+    .pn-title i {
+color: var(--pn-accent);
+}
   </style>
 </head>
 <body>
-  @include('landing.components.header')
-  @include('landing.components.headerMenu')
 
   <div class="pn-wrap">
     <div class="pn-head">
       <div>
-        <h2 class="pn-title">Placement Notices</h2>
+        <h2 class="pn-title"><i class="fa-solid fa-bullhorn"></i> Placement Notices</h2>
         <div class="text-muted" style="font-size:13px;">Latest placement opportunities & updates.</div>
       </div>
 

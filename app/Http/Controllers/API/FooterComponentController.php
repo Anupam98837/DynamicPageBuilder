@@ -392,6 +392,154 @@ class FooterComponentController extends Controller
         return [$logo, $title, $rot];
     }
 
+        /* ============================================
+     | Section-2 resolver for PUBLIC render
+     | Converts saved "blocks config" into full tree
+     | so public footer does NOT need /api/header-menus
+     |============================================ */
+
+    protected function normalizeIdListSimple($value): array
+    {
+        $arr = $this->decodeJsonish($value, []);
+        $arr = $this->ensureArray($arr);
+
+        $out = [];
+        foreach ($arr as $v) {
+            if (is_int($v) || ctype_digit((string) $v)) {
+                $i = (int) $v;
+                if ($i > 0) $out[] = $i;
+            }
+        }
+        return array_values(array_unique($out));
+    }
+
+    protected function resolveSection2ForPublic($value): array
+    {
+        $blocks = $this->decodeJsonish($value, []);
+        $blocks = $this->ensureArray($blocks);
+
+        if (empty($blocks)) return [];
+
+        // If already a "tree" (has children/submenus), just normalize and return (max 4)
+        $looksTree = false;
+        foreach ($blocks as $b) {
+            if (!is_array($b)) continue;
+            if (
+                (isset($b['children']) && is_array($b['children'])) ||
+                (isset($b['submenus']) && is_array($b['submenus'])) ||
+                (isset($b['childs']) && is_array($b['childs']))
+            ) {
+                $looksTree = true;
+                break;
+            }
+        }
+
+        if ($looksTree) {
+            $out = [];
+            foreach ($blocks as $b) {
+                if (!is_array($b)) continue;
+
+                $title = trim((string) ($b['title'] ?? $b['menu_title'] ?? $b['name'] ?? $b['label'] ?? ''));
+                $mid   = (int) ($b['header_menu_id'] ?? $b['menu_id'] ?? $b['id'] ?? 0);
+
+                $kids = $this->ensureArray($b['children'] ?? $b['submenus'] ?? $b['childs'] ?? []);
+                $kidsOut = [];
+
+                foreach ($kids as $ch) {
+                    if (!is_array($ch)) continue;
+
+                    $t = trim((string) ($ch['title'] ?? $ch['name'] ?? $ch['label'] ?? ''));
+                    if ($t === '') continue;
+
+                    $url = $ch['url'] ?? $ch['link_url'] ?? $ch['href'] ?? null;
+                    $slug = (string) ($ch['slug'] ?? '');
+
+                    // build url_full if missing
+                    $urlFull = $ch['url_full'] ?? null;
+                    if (!$urlFull) {
+                        if ($url !== null && trim((string)$url) !== '') $urlFull = $this->toUrl((string)$url);
+                        elseif ($slug !== '') $urlFull = $this->toUrl('/' . ltrim($slug, '/'));
+                    }
+
+                    $kidsOut[] = [
+                        'id'       => (int) ($ch['id'] ?? 0),
+                        'uuid'     => (string) ($ch['uuid'] ?? ''),
+                        'slug'     => $slug,
+                        'title'    => $t,
+                        'url'      => $url !== null ? (string) $url : null,
+                        'url_full' => $urlFull,
+                    ];
+                }
+
+                $out[] = [
+                    'header_menu_id' => $mid > 0 ? $mid : null,
+                    'title'          => $title !== '' ? $title : 'Menu',
+                    'children'       => $kidsOut,
+                ];
+
+                if (count($out) >= 4) break;
+            }
+
+            return $out;
+        }
+
+        // Otherwise: it's your "block config" shape: {title, header_menu_id, child_ids}
+        $menuIds = [];
+        foreach ($blocks as $b) {
+            if (!is_array($b)) continue;
+            $mid = (int) ($b['header_menu_id'] ?? $b['menu_id'] ?? $b['id'] ?? 0);
+            if ($mid > 0) $menuIds[] = $mid;
+        }
+        $menuIds = array_values(array_unique($menuIds));
+        if (empty($menuIds) || !Schema::hasTable('header_menus')) return [];
+
+        $rows = DB::table('header_menus')
+            ->whereIn('id', $menuIds)
+            ->whereNull('deleted_at')
+            ->get();
+
+        $menuMap = [];
+        foreach ($rows as $r) {
+            $menuMap[(int) $r->id] = (array) $r;
+        }
+
+        $out = [];
+        foreach ($blocks as $b) {
+            if (!is_array($b)) continue;
+
+            $mid = (int) ($b['header_menu_id'] ?? $b['menu_id'] ?? $b['id'] ?? 0);
+            if ($mid <= 0) continue;
+
+            $menuRow = $menuMap[$mid] ?? null;
+            $menuTitle = $menuRow ? trim((string) $this->titleOf($menuRow)) : '';
+
+            $blockTitle = trim((string) ($b['title'] ?? ''));
+            $finalTitle = $blockTitle !== '' ? $blockTitle : ($menuTitle !== '' ? $menuTitle : 'Menu');
+
+            $childIds = $this->normalizeIdListSimple($b['child_ids'] ?? $b['submenu_ids'] ?? $b['children_ids'] ?? []);
+            $childrenAll = $this->fetchHeaderMenuChildren($mid);
+
+            if (!empty($childIds)) {
+                $set = array_flip($childIds);
+                $childrenAll = array_values(array_filter($childrenAll, function ($ch) use ($set) {
+                    $id = (int) ($ch['id'] ?? 0);
+                    return $id > 0 && isset($set[$id]);
+                }));
+            }
+
+            $out[] = [
+                'header_menu_id' => $mid,
+                'title'          => $finalTitle,
+                'children'       => $childrenAll,
+            ];
+
+            if (count($out) >= 4) break;
+        }
+
+        return $out;
+    }
+
+
     /* ============================================
      | Row normalization for output
      |============================================ */
@@ -425,7 +573,10 @@ class FooterComponentController extends Controller
         $arr['brand_logo_full_url'] = $this->toUrl($arr['brand_logo_url'] ?? null);
 
         // Section2 already stored as tree (menus + submenus)
+                // Section2: keep raw saved JSON (your admin needs it),
+        // and ALSO provide a resolved tree for public render.
         $arr['section2_header_menus'] = $this->ensureArray($arr['section2_header_menu_json'] ?? []);
+        $arr['section2_header_menus_resolved'] = $this->resolveSection2ForPublic($arr['section2_header_menu_json'] ?? []);
 
         // ✅ Same-as-header flag (only if column exists)
         if ($this->hasCol(self::TABLE, 'same_as_header')) {

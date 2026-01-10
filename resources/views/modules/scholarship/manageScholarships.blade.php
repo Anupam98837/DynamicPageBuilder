@@ -547,6 +547,7 @@ td.col-slug code{
                 <input class="form-control" id="title" required maxlength="255" placeholder="e.g., TFW Scholarship (2026)">
               </div>
 
+
               <div class="col-md-8">
                 <label class="form-label">Slug (optional)</label>
                 <input class="form-control" id="slug" maxlength="160" placeholder="tfw-scholarship-2026">
@@ -557,6 +558,15 @@ td.col-slug code{
                 <label class="form-label">Sort Order</label>
                 <input type="number" class="form-control" id="sort_order" min="0" max="1000000" value="0">
               </div>
+              {{-- Department --}}
+<div class="col-12" id="deptFieldWrap">
+  <label class="form-label">Department <span class="text-danger">*</span></label>
+  <select class="form-select" id="department_id" required>
+    <option value="">Loading departments…</option>
+  </select>
+  <div class="form-text">Select the department this scholarship belongs to.</div>
+</div>
+
 
               <div class="col-md-6">
                 <label class="form-label">Type</label>
@@ -864,35 +874,137 @@ td.col-slug code{
     const coverEmpty = $('coverEmpty');
     const coverMeta = $('coverMeta');
     const btnOpenCover = $('btnOpenCover');
+    // ✅ Department field
+const deptWrap   = $('deptFieldWrap');
+const deptSelect = $('department_id');
 
     // Permissions (same role style as your other modules)
-    const ACTOR = { role: '' };
-    let canCreate=false, canEdit=false, canDelete=false;
+const ACTOR = { role: '' };
+let canCreate=false, canEdit=false, canDelete=false, canPublish=false;
 
-    function computePermissions(){
-      const r = (ACTOR.role || '').toLowerCase();
-      const createDeleteRoles = ['admin','super_admin','director','principal'];
-      const writeRoles = ['admin','super_admin','director','principal','hod','faculty','technical_assistant','it_person'];
-      canCreate = createDeleteRoles.includes(r);
-      canDelete = createDeleteRoles.includes(r);
-      canEdit   = writeRoles.includes(r);
-      if (writeControls) writeControls.style.display = canCreate ? 'flex' : 'none';
-    }
+function computePermissions(){
+  const r = (ACTOR.role || '').toLowerCase();
+  const createDeleteRoles = ['admin','super_admin','director','principal'];
+  const writeRoles = ['admin','super_admin','director','principal','hod','faculty','technical_assistant','it_person'];
+  canCreate = createDeleteRoles.includes(r);
+  canDelete = createDeleteRoles.includes(r);
+  canEdit   = writeRoles.includes(r);
+  canPublish = createDeleteRoles.includes(r);
+  if (writeControls) writeControls.style.display = canCreate ? 'flex' : 'none';
+  
+  // Update publish option visibility
+  updatePublishOption();
+}
+function updatePublishOption(){
+  if (!statusSel) return;
 
-    async function fetchMe(){
-      try{
-        const res = await fetchWithTimeout(API_ME, { headers: authHeaders() }, 8000);
-        if (res.ok){
-          const js = await res.json().catch(()=> ({}));
-          const role = js?.data?.role || js?.role;
-          if (role) ACTOR.role = String(role).toLowerCase();
-        }
-      }catch(_){}
-      if (!ACTOR.role){
-        ACTOR.role = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
-      }
-      computePermissions();
+  const publishOption = statusSel.querySelector('option[value="published"]');
+  if (publishOption){
+    publishOption.style.display = canPublish ? '' : 'none';
+
+    // If current value is published but user can't publish, force to draft
+    if (!canPublish && statusSel.value === 'published'){
+      statusSel.value = 'draft';
     }
+  }
+}
+
+async function fetchMe(){
+  try{
+    const res = await fetchWithTimeout(API_ME, { headers: authHeaders() }, 8000);
+    if (res.ok){
+      const js = await res.json().catch(()=> ({}));
+
+      const role = js?.data?.role || js?.role;
+      if (role) ACTOR.role = String(role).toLowerCase();
+
+      // ✅ department id (common keys)
+      const dep =
+        js?.data?.department_id ??
+        js?.data?.dept_id ??
+        js?.department_id ??
+        js?.dept_id ??
+        '';
+      if (dep !== null && dep !== undefined) ACTOR.department_id = String(dep);
+    }
+  }catch(_){}
+
+  if (!ACTOR.role){
+    ACTOR.role = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
+  }
+  if (!ACTOR.department_id){
+    ACTOR.department_id = (sessionStorage.getItem('department_id') || localStorage.getItem('department_id') || '');
+  }
+
+  computePermissions();
+}
+// ✅ Departments cache
+let __DEPTS_LOADED__ = false;
+
+function lockDepartmentFieldIfNeeded(){
+  if (!deptSelect) return;
+
+  const r = (ACTOR.role || '').toLowerCase();
+  const superRoles = ['admin','super_admin','director','principal'];
+
+  if (!superRoles.includes(r)){
+    if (ACTOR.department_id){
+      deptSelect.value = String(ACTOR.department_id);
+    }
+    deptSelect.disabled = true;
+    if (deptWrap) deptWrap.style.opacity = '0.95';
+  } else {
+    deptSelect.disabled = false;
+  }
+}
+
+async function loadDepartments(){
+  if (!deptSelect) return;
+  if (__DEPTS_LOADED__) { lockDepartmentFieldIfNeeded(); return; }
+
+  deptSelect.innerHTML = `<option value="">Loading departments…</option>`;
+
+  // ✅ Use your correct endpoint here if you already have one
+  const endpoints = [
+    '/api/departments'
+  ];
+
+  let list = null;
+
+  for (const url of endpoints){
+    try{
+      const res = await fetchWithTimeout(url, { headers: authHeaders() }, 12000);
+      if (!res.ok) continue;
+
+      const js = await res.json().catch(()=> ({}));
+      list = js?.data || js?.departments || null;
+
+      if (Array.isArray(list)) break;
+    }catch(_){}
+  }
+
+  if (!Array.isArray(list)) list = [];
+
+  // render options
+  let html = `<option value="">Select Department</option>`;
+  list.forEach(d => {
+    const id   = d.id ?? d.department_id ?? d.uuid ?? '';
+    const name = d.name ?? d.title ?? d.department_name ?? d.dept_name ?? (`Department ${id}`);
+    if (!id) return;
+    html += `<option value="${esc(String(id))}">${esc(String(name))}</option>`;
+  });
+
+  // fallback: if API not returning list but actor has dept_id
+  if (!list.length && ACTOR.department_id){
+    html = `<option value="${esc(String(ACTOR.department_id))}">My Department</option>`;
+  }
+
+  deptSelect.innerHTML = html;
+  __DEPTS_LOADED__ = true;
+
+  lockDepartmentFieldIfNeeded();
+}
+
 
     // State
     const state = {
@@ -1027,6 +1139,11 @@ td.col-slug code{
 
         if (canEdit && tabKey !== 'trash'){
           actions += `<li><button type="button" class="dropdown-item" data-action="edit"><i class="fa fa-pen-to-square"></i> Edit</button></li>`;
+       const statusLower = status.toString().toLowerCase();
+  if (canPublish && statusLower !== 'published'){
+    actions += `<li><button type="button" class="dropdown-item" data-action="make-publish"><i class="fa fa-circle-check"></i> Make Published</button></li>`;
+  }
+
         }
 
         if (tabKey !== 'trash'){
@@ -1461,6 +1578,11 @@ td.col-slug code{
       itemForm?.reset();
       itemUuid.value = '';
       itemId.value = '';
+      // ✅ Department reset
+if (deptSelect){
+  deptSelect.value = '';
+  deptSelect.disabled = false;
+}
 
       slugDirty = false;
       settingSlug = false;
@@ -1482,7 +1604,7 @@ td.col-slug code{
         else if (el.tagName === 'SELECT') el.disabled = false;
         else el.readOnly = false;
       });
-
+      
       if (saveBtn) saveBtn.style.display = '';
       if (itemForm){
         itemForm.dataset.mode = 'edit';
@@ -1507,6 +1629,13 @@ td.col-slug code{
       typeSel.value = (r.type || r.scholarship_type || 'merit');
       amountInput.value = (r.amount ?? r.scholarship_amount ?? '');
       statusSel.value = (r.status || (r.is_published ? 'published' : 'draft') || 'draft');
+      // ✅ Department fill
+const dep = r.department_id ?? r.dept_id ?? r.department ?? '';
+if (deptSelect){
+  deptSelect.value = dep ? String(dep) : (ACTOR.department_id ? String(ACTOR.department_id) : '');
+}
+lockDepartmentFieldIfNeeded();
+if (viewOnly && deptSelect) deptSelect.disabled = true;
 
       const isActive = (r.active ?? r.is_active ?? 1);
       activeSel.value = String(Number(isActive) ? 1 : 0);
@@ -1558,6 +1687,9 @@ td.col-slug code{
         itemForm.dataset.mode = 'edit';
         itemForm.dataset.intent = 'edit';
       }
+       if (!viewOnly) {
+    setTimeout(() => updatePublishOption(), 50);
+  }
     }
 
     function findRowByUuid(uuid){
@@ -1585,13 +1717,15 @@ td.col-slug code{
       slugDirty = !!(slugInput.value || '').trim();
     });
 
-    btnAddItem?.addEventListener('click', () => {
-      if (!canCreate) return;
-      resetForm();
-      if (itemModalTitle) itemModalTitle.textContent = 'Add Scholarship';
-      itemForm.dataset.intent = 'create';
-      itemModal && itemModal.show();
-    });
+    btnAddItem?.addEventListener('click', async () => {
+  if (!canCreate) return;
+  resetForm();
+  await loadDepartments(); // ✅ populate dept dropdown
+  if (itemModalTitle) itemModalTitle.textContent = 'Add Scholarship';
+  itemForm.dataset.intent = 'create';
+  itemModal && itemModal.show();
+});
+
 
     itemModalEl?.addEventListener('hidden.bs.modal', () => {
       if (coverObjectUrl){ try{ URL.revokeObjectURL(coverObjectUrl); }catch(_){ } coverObjectUrl=null; }
@@ -1616,12 +1750,50 @@ td.col-slug code{
       if (act === 'view' || act === 'edit'){
         if (act === 'edit' && !canEdit) return;
         resetForm();
+        await loadDepartments();
+
         if (itemModalTitle) itemModalTitle.textContent = act === 'view' ? 'View Scholarship' : 'Edit Scholarship';
         fillFormFromRow(row || {}, act === 'view');
         itemModal && itemModal.show();
         return;
       }
+if (act === 'make-publish'){
+  if (!canPublish) return;
+  
+  const conf = await Swal.fire({
+    title: 'Publish this scholarship?',
+    text: 'This will make the scholarship visible to the public.',
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Publish',
+    confirmButtonColor: '#10b981'
+  });
+  if (!conf.isConfirmed) return;
 
+  showLoading(true);
+  try{
+    const fd = new FormData();
+    fd.append('status', 'published');
+    fd.append('_method', 'PATCH');  // ✅ Use PATCH to match your other update logic
+
+    const res = await fetchWithTimeout(`${API_BASE}/${encodeURIComponent(uuid)}`, {  // ✅ Use uuid, not key
+      method: 'POST',
+      headers: authHeaders(),
+      body: fd
+    }, 15000);
+
+    const js = await res.json().catch(() => ({}));
+    if (!res.ok || js.success === false) throw new Error(js?.message || 'Publish failed');
+
+    ok('Scholarship published successfully');
+    await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
+  }catch(ex){
+    err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
+  }finally{
+    showLoading(false);
+  }
+  return;
+}
       if (act === 'delete'){
         if (!canDelete) return;
         const conf = await Swal.fire({
@@ -1745,8 +1917,16 @@ td.col-slug code{
 
         if (!title){ err('Title is required'); titleInput.focus(); return; }
         if (!cleanBody){ err('Description is required'); rteFocus(); return; }
+        const departmentId = (deptSelect?.value || '').toString().trim();
+if (!departmentId){
+  err('Department is required');
+  deptSelect?.focus();
+  return;
+}
+const fd = new FormData();
+fd.append('department_id', departmentId);
 
-        const fd = new FormData();
+        
         fd.append('title', title);
         if (slug) fd.append('slug', slug);
         fd.append('type', type);
@@ -1808,6 +1988,7 @@ td.col-slug code{
       showLoading(true);
       try{
         await fetchMe();
+        await loadDepartments();
         await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
       }catch(ex){
         err(ex?.message || 'Initialization failed');

@@ -1,40 +1,39 @@
 {{-- resources/views/landing/gallery-all.blade.php --}}
-@include('landing.components.header')
-@include('landing.components.headermenu')
-
 <style>
-  :root{
-    --brand:#8f2f2f;
-    --ink:#0f172a;
-    --muted:#64748b;
-    --bg:#ffffff;
-    --card:#ffffff;
-    --line: rgba(15,23,42,.10);
-    --shadow: 0 10px 24px rgba(2,6,23,.08);
-  }
+  /* =========================================================
+    ✅ Gallery All (Scoped / No :root / No global body rules)
+    - All CSS + vars are scoped to .gxa-wrap to prevent conflicts
+    - Pinterest-style masonry using CSS Grid + auto-rows + JS row-span
+    - Lightbox (click view) kept as-is (only IDs/classes renamed)
+  ========================================================= */
 
-  :root{
-    --brand: var(--primary-color, var(--brand));
-    --bg: var(--page-bg, var(--bg));
-    --card: var(--surface, var(--card));
-    --line: var(--line-soft, var(--line));
-  }
+  .gxa-wrap{
+    /* ✅ scoped design tokens (NO :root) */
+    --gxa-brand: var(--primary-color, #8f2f2f);
+    --gxa-ink: #0f172a;
+    --gxa-muted: #64748b;
+    --gxa-bg: var(--page-bg, #ffffff);
+    --gxa-card: var(--surface, #ffffff);
+    --gxa-line: var(--line-soft, rgba(15,23,42,.10));
+    --gxa-shadow: 0 10px 24px rgba(2,6,23,.08);
 
-  body{ background: var(--bg); }
-
-  .gal-wrap{
-    max-width: 1180px;
+    max-width: 1320px; /* ✅ a little broader than reference */
     margin: 18px auto 54px;
     padding: 0 12px;
+    background: transparent;
+    position: relative;
+    overflow: visible;
   }
 
-  .gal-head{
-    background: var(--card);
-    border: 1px solid var(--line);
+  /* Header */
+  .gxa-head{
+    background: var(--gxa-card);
+    border: 1px solid var(--gxa-line);
     border-radius: 16px;
-    box-shadow: var(--shadow);
+    box-shadow: var(--gxa-shadow);
     padding: 14px 16px;
     margin-bottom: 16px;
+
     display:flex;
     gap: 12px;
     align-items: flex-end;
@@ -42,115 +41,116 @@
     flex-wrap: wrap;
   }
 
-  .gal-title{
+  .gxa-title{
     margin: 0;
     font-weight: 950;
     letter-spacing: .2px;
-    color: var(--ink);
+    color: var(--gxa-ink);
     font-size: 28px;
   }
-  .gal-sub{
+  .gxa-sub{
     margin: 6px 0 0;
-    color: var(--muted);
+    color: var(--gxa-muted);
     font-size: 14px;
   }
 
-  .gal-tools{
+  .gxa-tools{
     display:flex;
     gap: 10px;
     align-items:center;
     flex-wrap: wrap;
   }
 
-  .gal-search{
+  .gxa-search{
     position: relative;
-    min-width: 260px;
-    max-width: 420px;
-    flex: 1 1 260px;
+    min-width: 300px;
+    max-width: 520px;
+    flex: 1 1 300px;
   }
-  .gal-search i{
+  .gxa-search i{
     position:absolute;
     left: 14px;
     top: 50%;
     transform: translateY(-50%);
     opacity: .65;
-    color: var(--muted);
+    color: var(--gxa-muted);
   }
-  .gal-search input{
+  .gxa-search input{
     width:100%;
     border-radius: 14px;
     padding: 11px 12px 11px 42px;
-    border: 1px solid var(--line);
-    background: var(--card);
-    color: var(--ink);
+    border: 1px solid var(--gxa-line);
+    background: var(--gxa-card);
+    color: var(--gxa-ink);
     outline: none;
   }
-  .gal-search input:focus{
+  .gxa-search input:focus{
     border-color: rgba(201,75,80,.55);
     box-shadow: 0 0 0 4px rgba(201,75,80,.18);
   }
 
-  .gal-chip{
+  .gxa-chip{
     display:flex;
     align-items:center;
     gap: 8px;
     padding: 10px 12px;
     border-radius: 999px;
-    border: 1px solid var(--line);
-    background: var(--card);
+    border: 1px solid var(--gxa-line);
+    background: var(--gxa-card);
     box-shadow: 0 8px 18px rgba(2,6,23,.06);
-    color: var(--ink);
+    color: var(--gxa-ink);
     font-size: 13px;
     font-weight: 900;
     white-space: nowrap;
   }
 
-  /* ====== Grid like your screenshot ====== */
-  .gal-grid{
+  /* =========================================================
+    ✅ Pinterest-style Masonry
+    - Grid with tiny auto-rows
+    - JS computes grid-row-end span per card after images load
+  ========================================================= */
+  .gxa-grid{
     display:grid;
-    grid-template-columns: repeat(auto-fill, minmax(247px, 1fr));
-    gap: 26px;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    grid-auto-rows: 10px;      /* ✅ masonry base row */
+    gap: 18px;
     align-items: start;
   }
 
-  /* fixed tile size requested */
-  .gal-item{
-    width: 247px;
-    height: 329px;
+  .gxa-item{
+    position: relative;
+    overflow: hidden;
+    border-radius: 16px;
     background: #fff;
     border: 1px solid rgba(2,6,23,.08);
-    border-radius: 0;                /* screenshot is squared */
     box-shadow: 0 10px 24px rgba(2,6,23,.08);
-    overflow: hidden;
     cursor: pointer;
     user-select: none;
-    justify-self: center;            /* center inside column */
     transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
-    position: relative;
+    will-change: transform;
   }
-  .gal-item:hover{
+  .gxa-item:hover{
     transform: translateY(-2px);
     box-shadow: 0 16px 34px rgba(2,6,23,.12);
     border-color: rgba(158,54,58,.22);
   }
 
-  .gal-item img{
+  .gxa-item img{
     width: 100%;
-    height: 100%;
-    object-fit: cover;
+    height: auto;           /* ✅ natural heights (Pinterest feel) */
     display:block;
   }
 
-  /* ====== Title/Description/Tags overlay (always visible) ====== */
-  .gal-meta{
+  /* overlay meta (always visible like your existing) */
+  .gxa-meta{
     position:absolute;
     left:0; right:0; bottom:0;
     padding: 10px 10px 9px;
     color: #fff;
     background: linear-gradient(180deg, rgba(2,6,23,0) 0%, rgba(2,6,23,.55) 28%, rgba(2,6,23,.82) 100%);
-    pointer-events: none; /* keeps tile click working */
+    pointer-events: none; /* keep tile click working */
   }
-  .gm-title{
+  .gxa-meta__title{
     font-weight: 950;
     font-size: 13px;
     letter-spacing: .2px;
@@ -160,7 +160,7 @@
     white-space: nowrap;
     text-overflow: ellipsis;
   }
-  .gm-desc{
+  .gxa-meta__desc{
     margin-top: 4px;
     font-size: 12px;
     opacity: .92;
@@ -170,15 +170,14 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
     text-shadow: 0 2px 10px rgba(0,0,0,.35);
-    min-height: calc(12px * 1.25 * 2); /* keeps consistent height */
   }
-  .gm-tags{
+  .gxa-meta__tags{
     margin-top: 6px;
     display:flex;
     gap: 6px;
     flex-wrap: wrap;
   }
-  .gm-tag{
+  .gxa-tag{
     font-size: 11px;
     font-weight: 950;
     padding: 5px 8px;
@@ -191,54 +190,53 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .gm-tag.more{
+  .gxa-tag.more{
     background: rgba(201,75,80,.22);
     border-color: rgba(201,75,80,.35);
   }
 
   /* Loading / empty */
-  .gal-state{
-    background: var(--card);
-    border: 1px solid var(--line);
+  .gxa-state{
+    background: var(--gxa-card);
+    border: 1px solid var(--gxa-line);
     border-radius: 16px;
-    box-shadow: var(--shadow);
+    box-shadow: var(--gxa-shadow);
     padding: 18px;
-    color: var(--muted);
+    color: var(--gxa-muted);
     text-align:center;
   }
 
-  /* Skeleton */
-  .gal-skeleton{
+  /* Skeleton (also masonry) */
+  .gxa-skeleton{
     display:grid;
-    grid-template-columns: repeat(auto-fill, minmax(247px, 1fr));
-    gap: 26px;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    grid-auto-rows: 10px;
+    gap: 18px;
   }
-  .sk-tile{
-    width: 247px;
-    height: 329px;
-    justify-self:center;
-    border: 1px solid var(--line);
+  .gxa-sk{
+    border-radius: 16px;
+    border: 1px solid var(--gxa-line);
     background: #fff;
     overflow:hidden;
     position:relative;
     box-shadow: 0 10px 24px rgba(2,6,23,.08);
   }
-  .sk-tile:before{
+  .gxa-sk:before{
     content:'';
     position:absolute; inset:0;
     transform: translateX(-60%);
     background: linear-gradient(90deg, transparent, rgba(148,163,184,.22), transparent);
-    animation: skMove 1.15s ease-in-out infinite;
+    animation: gxaSkMove 1.15s ease-in-out infinite;
   }
-  @keyframes skMove{ to{ transform: translateX(60%);} }
+  @keyframes gxaSkMove{ to{ transform: translateX(60%);} }
 
-  /* Pagination (bottom center) */
-  .gal-pagination{
+  /* Pagination */
+  .gxa-pagination{
     display:flex;
     justify-content:center;
     margin-top: 18px;
   }
-  .gal-pagination .pager{
+  .gxa-pagination .gxa-pager{
     display:flex;
     gap: 8px;
     flex-wrap: wrap;
@@ -246,10 +244,10 @@
     justify-content:center;
     padding: 10px;
   }
-  .gal-pagebtn{
-    border:1px solid var(--line);
-    background: var(--card);
-    color: var(--ink);
+  .gxa-pagebtn{
+    border:1px solid var(--gxa-line);
+    background: var(--gxa-card);
+    color: var(--gxa-ink);
     border-radius: 12px;
     padding: 9px 12px;
     font-size: 13px;
@@ -258,16 +256,16 @@
     cursor:pointer;
     user-select:none;
   }
-  .gal-pagebtn:hover{ background: rgba(2,6,23,.03); }
-  .gal-pagebtn[disabled]{ opacity:.55; cursor:not-allowed; }
-  .gal-pagebtn.active{
+  .gxa-pagebtn:hover{ background: rgba(2,6,23,.03); }
+  .gxa-pagebtn[disabled]{ opacity:.55; cursor:not-allowed; }
+  .gxa-pagebtn.active{
     background: rgba(201,75,80,.12);
     border-color: rgba(201,75,80,.35);
-    color: var(--brand);
+    color: var(--gxa-brand);
   }
 
-  /* Lightbox */
-  .lb{
+  /* Lightbox (kept same behavior, renamed classes/ids) */
+  .gxa-lb{
     position: fixed;
     inset: 0;
     background: rgba(2,6,23,.72);
@@ -277,9 +275,9 @@
     z-index: 9999;
     padding: 18px;
   }
-  .lb.show{ display:flex; }
+  .gxa-lb.show{ display:flex; }
 
-  .lb-inner{
+  .gxa-lb__inner{
     max-width: min(1100px, 96vw);
     max-height: min(86vh, 900px);
     background: #0b1220;
@@ -289,40 +287,41 @@
     display:flex;
     flex-direction: column;
     overflow:hidden;
+    border-radius: 14px;
   }
-  .lb-img{
+  .gxa-lb__img{
     max-width: min(1100px, 96vw);
     max-height: min(72vh, 820px);
     display:block;
     object-fit: contain;
   }
 
-  .lb-meta{
+  .gxa-lb__meta{
     border-top: 1px solid rgba(255,255,255,.10);
     padding: 12px 14px 14px;
     color: rgba(255,255,255,.92);
     background: rgba(255,255,255,.02);
   }
-  .lb-title{
+  .gxa-lb__title{
     font-weight: 950;
     font-size: 15px;
     letter-spacing: .2px;
     color:#fff;
     margin: 0 0 6px;
   }
-  .lb-desc{
+  .gxa-lb__desc{
     margin: 0 0 10px;
     font-size: 13px;
     line-height: 1.35;
     color: rgba(255,255,255,.86);
     white-space: pre-wrap;
   }
-  .lb-tags{
+  .gxa-lb__tags{
     display:flex;
     gap: 8px;
     flex-wrap: wrap;
   }
-  .lb-tag{
+  .gxa-lb__tag{
     font-size: 12px;
     font-weight: 900;
     padding: 7px 10px;
@@ -331,7 +330,7 @@
     border: 1px solid rgba(255,255,255,.14);
   }
 
-  .lb-close{
+  .gxa-lb__close{
     position:absolute;
     top: 10px;
     right: 10px;
@@ -347,60 +346,58 @@
     justify-content:center;
     z-index: 5;
   }
-  .lb-close:hover{ background: rgba(0,0,0,.55); }
+  .gxa-lb__close:hover{ background: rgba(0,0,0,.55); }
 
   @media (max-width: 640px){
-    .gal-title{ font-size: 24px; }
-    .gal-item, .sk-tile{ width: 247px; height: 329px; } /* keep fixed as requested */
-    .lb-img{ max-height: min(66vh, 760px); }
+    .gxa-title{ font-size: 24px; }
+    .gxa-search{ min-width: 220px; }
+    .gxa-lb__img{ max-height: min(66vh, 760px); }
   }
 </style>
 
-<div class="gal-wrap"
-     data-api="{{ url('/api/public/gallery') }}">
-
-  <div class="gal-head">
+<div class="gxa-wrap" data-api="{{ url('/api/public/gallery') }}">
+  <div class="gxa-head">
     <div>
-      <h1 class="gal-title">Gallery</h1>
-      <div class="gal-sub" id="galSub">View all photos</div>
+      <h1 class="gxa-title">Gallery</h1>
+      <div class="gxa-sub" id="gxaSub">View all photos</div>
     </div>
 
-    <div class="gal-tools">
-      <div class="gal-search">
+    <div class="gxa-tools">
+      <div class="gxa-search">
         <i class="fa fa-magnifying-glass"></i>
-        <input id="galSearch" type="search" placeholder="Search by caption / tag / title…">
+        <input id="gxaSearch" type="search" placeholder="Search by caption / tag / title…">
       </div>
-      <div class="gal-chip" title="Total results">
+      <div class="gxa-chip" title="Total results">
         <i class="fa-solid fa-images" style="opacity:.85"></i>
-        <span id="galCount">—</span>
+        <span id="gxaCount">—</span>
       </div>
     </div>
   </div>
 
-  <div id="galGrid" class="gal-grid" style="display:none;"></div>
+  <div id="gxaGrid" class="gxa-grid" style="display:none;"></div>
 
-  <div id="galSkeleton" class="gal-skeleton"></div>
-  <div id="galState" class="gal-state" style="display:none;"></div>
+  <div id="gxaSkeleton" class="gxa-skeleton"></div>
+  <div id="gxaState" class="gxa-state" style="display:none;"></div>
 
-  <div class="gal-pagination">
-    <div id="galPager" class="pager" style="display:none;"></div>
+  <div class="gxa-pagination">
+    <div id="gxaPager" class="gxa-pager" style="display:none;"></div>
   </div>
 </div>
 
 {{-- Lightbox --}}
-<div id="lb" class="lb" aria-hidden="true">
-  <div class="lb-inner">
-    <button class="lb-close" id="lbClose" aria-label="Close">
+<div id="gxaLb" class="gxa-lb" aria-hidden="true">
+  <div class="gxa-lb__inner">
+    <button class="gxa-lb__close" id="gxaLbClose" aria-label="Close">
       <i class="fa-solid fa-xmark"></i>
     </button>
 
-    <img id="lbImg" class="lb-img" alt="Gallery image">
+    <img id="gxaLbImg" class="gxa-lb__img" alt="Gallery image">
 
     {{-- Meta --}}
-    <div class="lb-meta" id="lbMeta" style="display:none;">
-      <div class="lb-title" id="lbTitle"></div>
-      <div class="lb-desc" id="lbDesc"></div>
-      <div class="lb-tags" id="lbTags"></div>
+    <div class="gxa-lb__meta" id="gxaLbMeta" style="display:none;">
+      <div class="gxa-lb__title" id="gxaLbTitle"></div>
+      <div class="gxa-lb__desc" id="gxaLbDesc"></div>
+      <div class="gxa-lb__tags" id="gxaLbTags"></div>
     </div>
   </div>
 </div>
@@ -409,24 +406,16 @@
 
 <script>
 (() => {
-  if (window.__PUBLIC_GALLERY_ALL__) return;
-  window.__PUBLIC_GALLERY_ALL__ = true;
+  if (window.__LANDING_GALLERY_ALL__) return;
+  window.__LANDING_GALLERY_ALL__ = true;
 
-  const root = document.querySelector('.gal-wrap');
+  const root = document.querySelector('.gxa-wrap');
   if (!root) return;
 
   const API = root.getAttribute('data-api') || '/api/public/gallery';
-
   const $ = (id) => document.getElementById(id);
 
-  const state = {
-    page: 1,
-    perPage: 12,
-    lastPage: 1,
-    total: 0,
-    q: ''
-  };
-
+  const state = { page: 1, perPage: 12, lastPage: 1, total: 0, q: '' };
   let activeController = null;
 
   function esc(str){
@@ -452,21 +441,18 @@
   }
 
   function normalizeTags(raw){
-    // raw can be array or string
     let arr = [];
     if (Array.isArray(raw)){
       arr = raw.map(x => (x ?? '').toString().trim()).filter(Boolean);
     } else {
       const s = (raw ?? '').toString().trim();
       if (s){
-        // supports: "tag1, tag2" or "tag1|tag2" or "#tag1 #tag2"
         if (s.includes('|')) arr = s.split('|');
         else if (s.includes(',')) arr = s.split(',');
         else arr = s.split(/\s+/);
         arr = arr.map(x => x.replace(/^#+/,'').trim()).filter(Boolean);
       }
     }
-    // unique
     const seen = new Set();
     const out = [];
     for (const t of arr){
@@ -497,16 +483,38 @@
     const shown = t.slice(0, max);
     const more = t.length - shown.length;
 
-    let html = shown.map(x => `<span class="gm-tag">${esc(x)}</span>`).join('');
-    if (more > 0) html += `<span class="gm-tag more">+${more}</span>`;
+    let html = shown.map(x => `<span class="gxa-tag">${esc(x)}</span>`).join('');
+    if (more > 0) html += `<span class="gxa-tag more">+${more}</span>`;
     return html;
   }
 
+  /* =========================================================
+    ✅ Masonry helper (Pinterest feel)
+    - Compute row span per item (grid-auto-rows technique)
+  ========================================================= */
+  function applyMasonry(){
+    const grid = $('gxaGrid');
+    if (!grid) return;
+
+    const style = window.getComputedStyle(grid);
+    const rowH = parseInt(style.getPropertyValue('grid-auto-rows'), 10) || 10;
+    const gap  = parseInt(style.getPropertyValue('grid-row-gap'), 10) || 18;
+
+    const items = grid.querySelectorAll('.gxa-item');
+    items.forEach((item) => {
+      // reset to measure natural height
+      item.style.gridRowEnd = 'auto';
+      const h = item.getBoundingClientRect().height;
+      const span = Math.ceil((h + gap) / (rowH + gap));
+      item.style.gridRowEnd = `span ${Math.max(1, span)}`;
+    });
+  }
+
   function showSkeleton(){
-    const sk = $('galSkeleton');
-    const st = $('galState');
-    const grid = $('galGrid');
-    const pager = $('galPager');
+    const sk = $('gxaSkeleton');
+    const st = $('gxaState');
+    const grid = $('gxaGrid');
+    const pager = $('gxaPager');
 
     if (grid) grid.style.display = 'none';
     if (pager) pager.style.display = 'none';
@@ -514,11 +522,14 @@
 
     if (!sk) return;
     sk.style.display = '';
-    sk.innerHTML = new Array(9).fill(0).map(() => `<div class="sk-tile"></div>`).join('');
+
+    // ✅ varied skeleton heights for masonry feel
+    const heights = [170, 260, 210, 320, 190, 280, 240, 360, 200, 300, 230, 340];
+    sk.innerHTML = heights.map(h => `<div class="gxa-sk" style="height:${h}px"></div>`).join('');
   }
 
   function hideSkeleton(){
-    const sk = $('galSkeleton');
+    const sk = $('gxaSkeleton');
     if (!sk) return;
     sk.style.display = 'none';
     sk.innerHTML = '';
@@ -543,18 +554,15 @@
     params.set('page', String(state.page));
     params.set('per_page', String(state.perPage));
     if (state.q.trim()) params.set('q', state.q.trim());
-
-    // if your API supports these, keep; otherwise harmless
     params.set('sort', 'created_at');
     params.set('direction', 'desc');
-
     return API + '?' + params.toString();
   }
 
   function render(items){
-    const grid = $('galGrid');
-    const st = $('galState');
-    const count = $('galCount');
+    const grid = $('gxaGrid');
+    const st = $('gxaState');
+    const count = $('gxaCount');
 
     if (!grid || !st) return;
 
@@ -575,6 +583,7 @@
 
     st.style.display = 'none';
     grid.style.display = '';
+
     grid.innerHTML = items.map(it => {
       const img =
         pick(it, ['image_url','image_full_url','url','src','image']) ||
@@ -588,19 +597,22 @@
       const description =
         pick(it, ['description','desc','summary','details']) ||
         (it?.meta?.description ?? '') ||
-        ''; // keep optional
+        '';
 
       const tags = tagsFromItem(it);
       const tagsStr = tags.join('|');
-
       const full = normalizeUrl(img);
 
-      // If no desc, don't reserve 2-line space with dummy text (we still keep min-height via CSS)
-      const descHtml = description ? `<div class="gm-desc">${esc(description)}</div>` : `<div class="gm-desc" style="opacity:.0"></div>`;
-      const tagsHtml = tags.length ? `<div class="gm-tags">${renderTagChips(tags, 3)}</div>` : `<div class="gm-tags" style="display:none;"></div>`;
+      const descHtml = description
+        ? `<div class="gxa-meta__desc">${esc(description)}</div>`
+        : `<div class="gxa-meta__desc" style="opacity:0;"></div>`;
+
+      const tagsHtml = tags.length
+        ? `<div class="gxa-meta__tags">${renderTagChips(tags, 3)}</div>`
+        : `<div class="gxa-meta__tags" style="display:none;"></div>`;
 
       return `
-        <div class="gal-item"
+        <div class="gxa-item"
              data-full="${esc(full)}"
              data-title="${esc(title)}"
              data-desc="${esc(description)}"
@@ -609,18 +621,29 @@
              tabindex="0"
              aria-label="${esc(title)}">
           <img src="${esc(full)}" alt="${esc(title)}" loading="lazy">
-          <div class="gal-meta">
-            <div class="gm-title">${esc(title)}</div>
+          <div class="gxa-meta">
+            <div class="gxa-meta__title">${esc(title)}</div>
             ${descHtml}
             ${tagsHtml}
           </div>
         </div>
       `;
     }).join('');
+
+    // ✅ masonry after initial paint
+    requestAnimationFrame(() => applyMasonry());
+
+    // ✅ masonry again as images load (important for natural heights)
+    const imgs = grid.querySelectorAll('img');
+    imgs.forEach(img => {
+      if (img.complete) return;
+      img.addEventListener('load', () => applyMasonry(), { once: true });
+      img.addEventListener('error', () => applyMasonry(), { once: true });
+    });
   }
 
   function renderPager(){
-    const pager = $('galPager');
+    const pager = $('gxaPager');
     if (!pager) return;
 
     const last = state.lastPage || 1;
@@ -634,7 +657,7 @@
 
     const btn = (label, page, {disabled=false, active=false}={}) => {
       const dis = disabled ? 'disabled' : '';
-      const cls = active ? 'gal-pagebtn active' : 'gal-pagebtn';
+      const cls = active ? 'gxa-pagebtn active' : 'gxa-pagebtn';
       return `<button class="${cls}" ${dis} data-page="${page}">${label}</button>`;
     };
 
@@ -666,10 +689,10 @@
   }
 
   function setLightboxMeta({title='', desc='', tags=[]}){
-    const meta = $('lbMeta');
-    const t = $('lbTitle');
-    const d = $('lbDesc');
-    const tg = $('lbTags');
+    const meta = $('gxaLbMeta');
+    const t = $('gxaLbTitle');
+    const d = $('gxaLbDesc');
+    const tg = $('gxaLbTags');
 
     if (!meta || !t || !d || !tg) return;
 
@@ -686,19 +709,17 @@
     }
 
     meta.style.display = '';
-
     t.textContent = (title || '').trim();
     d.textContent = (desc || '').trim();
 
     if (hasTags){
-      tg.innerHTML = tags.map(x => `<span class="lb-tag">${esc(x)}</span>`).join('');
+      tg.innerHTML = tags.map(x => `<span class="gxa-lb__tag">${esc(x)}</span>`).join('');
       tg.style.display = 'flex';
     } else {
       tg.innerHTML = '';
       tg.style.display = 'none';
     }
 
-    // If desc empty, remove extra gap
     d.style.display = hasDesc ? '' : 'none';
   }
 
@@ -720,9 +741,9 @@
 
     }catch(e){
       hideSkeleton();
-      const st = $('galState');
-      const grid = $('galGrid');
-      const pager = $('galPager');
+      const st = $('gxaState');
+      const grid = $('gxaGrid');
+      const pager = $('gxaPager');
 
       if (grid) grid.style.display = 'none';
       if (pager) pager.style.display = 'none';
@@ -743,9 +764,9 @@
   }
 
   // Lightbox
-  const lb = $('lb');
-  const lbImg = $('lbImg');
-  const lbClose = $('lbClose');
+  const lb = $('gxaLb');
+  const lbImg = $('gxaLbImg');
+  const lbClose = $('gxaLbClose');
 
   function openLB(src, meta){
     if (!lb || !lbImg) return;
@@ -772,7 +793,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    const search = $('galSearch');
+    const search = $('gxaSearch');
 
     // search (debounced)
     let t = null;
@@ -787,7 +808,7 @@
 
     // pagination click
     document.addEventListener('click', (e) => {
-      const b = e.target.closest('button.gal-pagebtn[data-page]');
+      const b = e.target.closest('button.gxa-pagebtn[data-page]');
       if (!b) return;
       const p = parseInt(b.dataset.page, 10);
       if (!p || Number.isNaN(p) || p === state.page) return;
@@ -798,10 +819,10 @@
 
     // open lightbox
     document.addEventListener('click', (e) => {
-      const tile = e.target.closest('.gal-item[data-full]');
+      const tile = e.target.closest('.gxa-item[data-full]');
       if (!tile) return;
 
-      const src  = tile.getAttribute('data-full') || '';
+      const src   = tile.getAttribute('data-full') || '';
       const title = tile.getAttribute('data-title') || '';
       const desc  = tile.getAttribute('data-desc') || '';
       const tags  = parseTagsStr(tile.getAttribute('data-tags') || '');
@@ -813,13 +834,13 @@
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') closeLB();
 
-      const tile = e.target.closest?.('.gal-item[data-full]');
+      const tile = e.target.closest?.('.gxa-item[data-full]');
       if (!tile) return;
 
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
 
-        const src  = tile.getAttribute('data-full') || '';
+        const src   = tile.getAttribute('data-full') || '';
         const title = tile.getAttribute('data-title') || '';
         const desc  = tile.getAttribute('data-desc') || '';
         const tags  = parseTagsStr(tile.getAttribute('data-tags') || '');
@@ -828,10 +849,18 @@
       }
     });
 
+    // close by clicking backdrop
     lb && lb.addEventListener('click', (e) => {
       if (e.target === lb) closeLB();
     });
     lbClose && lbClose.addEventListener('click', closeLB);
+
+    // ✅ keep masonry responsive
+    window.addEventListener('resize', () => {
+      // small debounce
+      clearTimeout(window.__gxaResizeT);
+      window.__gxaResizeT = setTimeout(() => applyMasonry(), 80);
+    });
 
     load();
   });

@@ -311,6 +311,8 @@ html.theme-dark .fc-img{
                     <div class="fc-help mb-2">
                       Add a block title (e.g., “Department”), pick a Header Menu, then choose which submenus to include.
                       Saved as <code>section_2_menu_blocks_json</code> (array). Max 4 blocks.
+                      <br>
+                      <b>Rule:</b> A Header Menu can be used <b>only once</b> across all blocks.
                     </div>
 
                     <div id="fcMenuBlocks" class="fc-repeater"></div>
@@ -349,6 +351,23 @@ html.theme-dark .fc-img{
                     <div id="fcSection3Links" class="fc-repeater"></div>
                     <div class="fc-help mt-2">
                       Saved as <code>section_3_links_json</code> (array of objects: <code>{title, url}</code>).
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {{-- ✅ Address Text (NEW) --}}
+              <div class="col-12">
+                <div class="fc-box">
+                  <div class="fc-box-h">
+                    <div class="fw-semibold"><i class="fa-solid fa-location-dot me-2"></i>Address Text</div>
+                  </div>
+                  <div class="fc-box-b">
+                    <label class="form-label">Address</label>
+                    <textarea id="fcAddressText" class="form-control" rows="4"
+                      placeholder="e.g., Meghnad Saha Institute of Technology, Techno India Group, Kolkata, West Bengal"></textarea>
+                    <div class="fc-help mt-2">
+                      Saved as <code>address_text</code>.
                     </div>
                   </div>
                 </div>
@@ -529,12 +548,12 @@ html.theme-dark .fc-img{
 
     // Header menus
     headerMenuCandidates: [
-      '/api/header-menus/options?include_children=1&only_active=1',
-      '/api/header-menus/options?include_children=1',
-      '/api/header-menus?include_children=1&only_active=1',
-      '/api/header-menus?include_children=1',
-      '/api/header-menus?only_active=1',
-      '/api/header-menus',
+      '/api/public/header-menus/tree/options?include_children=1&only_active=1',
+      '/api/public/header-menus/tree/options?include_children=1',
+      '/api/public/header-menus/tree?include_children=1&only_active=1',
+      '/api/public/header-menus/tree?include_children=1',
+      '/api/public/header-menus/tree?only_active=1',
+      '/api/public/header-menus/tree',
     ],
 
     // Header components singleton (for Section 4 same-as-header)
@@ -675,6 +694,9 @@ html.theme-dark .fc-img{
     const menuBlocks = $('fcMenuBlocks');
     const addMenuBlock = $('fcAddMenuBlock');
     const blockCountText = $('fcBlockCountText');
+
+    // ✅ Address text (NEW)
+    const addressText = $('fcAddressText');
 
     // Section 4 toggle
     const sameAsHeader = $('fcSameAsHeader');
@@ -858,8 +880,22 @@ html.theme-dark .fc-img{
     }
     function getMenuChildren(menu){
       const m = menu || {};
-      const kids = m.children ?? m.childs ?? m.submenus ?? m.sub_menus ?? m.items ?? m.nodes ?? [];
-      return Array.isArray(kids) ? kids : [];
+      const kids =
+        m.children ??
+        m.child_menus ??        // ✅ very common
+        m.childMenus ??         // ✅ camelCase
+        m.childs ??
+        m.submenus ??
+        m.sub_menus ??
+        m.items ??
+        m.nodes ??
+        m.menu_children ??
+        m.children_json ??
+        m.submenu_json ??
+        [];
+
+      // ✅ allow children to arrive as JSON string
+      return safeArray(kids);
     }
 
     async function fetchMenus(force=false){
@@ -898,8 +934,8 @@ html.theme-dark .fc-img{
           const title = m.title ?? m.name ?? m.label ?? ('Menu #' + id);
           const childrenRaw = getMenuChildren(m);
           const children = childrenRaw.map(c => ({
-            id: c.id,
-            title: c.title ?? c.name ?? c.label ?? ('Item #' + c.id),
+            id: c.id ?? c.menu_id ?? c.page_id ?? c.child_id ?? null,
+            title: c.title ?? c.name ?? c.label ?? c.menu_title ?? ('Item #' + (c.id ?? c.menu_id ?? c.page_id ?? '')),
             slug: c.slug ?? c.menu_slug ?? ''
           })).filter(x => x.id != null);
 
@@ -953,12 +989,105 @@ html.theme-dark .fc-img{
     }
 
     /* =========================
-     * Section 2 blocks
+     * Section 2 blocks (UNIQUE MENUS)
      * ========================= */
+    function getSelectedMenuIds(){
+      const sels = Array.from(menuBlocks?.querySelectorAll('select[data-mb-menu]') || []);
+      const ids = sels
+        .map(s => (s.value || '').trim())
+        .filter(v => /^\d+$/.test(v))
+        .map(v => Number(v));
+      return ids;
+    }
+
+    function isMenuUsedElsewhere(selectEl, menuIdStr){
+      const v = (menuIdStr || '').trim();
+      if (!/^\d+$/.test(v)) return false;
+      const id = Number(v);
+      const sels = Array.from(menuBlocks?.querySelectorAll('select[data-mb-menu]') || []);
+      return sels.some(s => s !== selectEl && Number((s.value || 0)) === id);
+    }
+
+    function enforceUniqueSelections({silent=false} = {}){
+      const sels = Array.from(menuBlocks?.querySelectorAll('select[data-mb-menu]') || []);
+      const seen = new Set();
+      let hadDup = false;
+
+      sels.forEach(sel => {
+        const v = (sel.value || '').trim();
+        if (!/^\d+$/.test(v)) return;
+        const id = Number(v);
+
+        if (seen.has(id)){
+          hadDup = true;
+          // clear duplicate selection
+          sel.value = '';
+
+          const row = sel.closest('.fc-row');
+          if (row){
+            const childIdsHidden = row.querySelector('input[data-mb-childids]');
+            if (childIdsHidden) childIdsHidden.value = JSON.stringify([]);
+            const kidsWrap = row.querySelector('[data-mb-childrenwrap]');
+            if (kidsWrap) kidsWrap.style.display = 'none';
+            const kidsEl = row.querySelector('[data-mb-children]');
+            if (kidsEl) kidsEl.innerHTML = '';
+          }
+        } else {
+          seen.add(id);
+        }
+      });
+
+      if (hadDup && !silent){
+        err('Duplicate Header Menu detected. Each menu can be used only once. Duplicates were cleared.');
+      }
+      return hadDup;
+    }
+
+    function refreshMenuSelectOptions(){
+      const sels = Array.from(menuBlocks?.querySelectorAll('select[data-mb-menu]') || []);
+      const selectedAll = getSelectedMenuIds();
+      const selectedSet = new Set(selectedAll);
+
+      sels.forEach(sel => {
+        const currentRaw = (sel.value || '').trim();
+        const currentId = /^\d+$/.test(currentRaw) ? Number(currentRaw) : null;
+
+        const exclude = new Set(selectedSet);
+        if (currentId !== null) exclude.delete(currentId);
+
+        // rebuild options (keep same <select> + listeners)
+        sel.innerHTML = '';
+        sel.appendChild(new Option('— Select —', ''));
+
+        (state.menuOptions || []).forEach(m => {
+          const mid = Number(m.id);
+          if (exclude.has(mid)) return;
+          const opt = new Option(m.title || ('Menu #' + mid), String(mid));
+          if (currentId !== null && mid === currentId) opt.selected = true;
+          sel.appendChild(opt);
+        });
+
+        // keep a missing selection visible (if menu removed from API)
+        if (currentId !== null && !(state.menuOptions || []).some(m => Number(m.id) === currentId)){
+          const opt = new Option(`(Missing menu #${currentId})`, String(currentId));
+          opt.selected = true;
+          sel.appendChild(opt);
+        }
+      });
+    }
+
     function updateBlockCount(){
       const cnt = menuBlocks?.querySelectorAll('.fc-row')?.length || 0;
       if (blockCountText) blockCountText.textContent = `${cnt} / 4`;
-      if (addMenuBlock) addMenuBlock.disabled = cnt >= 4;
+
+      const used = new Set(getSelectedMenuIds());
+      const total = (state.menuOptions || []).length;
+      const noMoreMenus = total > 0 && used.size >= total;
+
+      if (addMenuBlock){
+        addMenuBlock.disabled = (cnt >= 4) || noMoreMenus;
+        addMenuBlock.title = noMoreMenus ? 'All header menus are already used in blocks' : 'Add Block';
+      }
     }
 
     function repMenuBlockRow(block={ title:'', header_menu_id:'', child_ids:[] }){
@@ -1057,12 +1186,30 @@ html.theme-dark .fc-img{
       }
 
       menuSel?.addEventListener('change', () => {
+        const chosen = (menuSel.value || '').trim();
+
+        // ✅ enforce unique header menus across blocks
+        if (chosen && isMenuUsedElsewhere(menuSel, chosen)){
+          menuSel.value = '';
+          childIdsHidden.value = JSON.stringify([]);
+          renderKids();
+          refreshMenuSelectOptions();
+          updateBlockCount();
+          err('This Header Menu is already used in another block. Please choose a different menu.');
+          return;
+        }
+
         childIdsHidden.value = JSON.stringify([]);
         renderKids();
+
+        // ✅ refresh dropdown options everywhere
+        refreshMenuSelectOptions();
+        updateBlockCount();
       });
 
       removeBtn?.addEventListener('click', () => {
         div.remove();
+        refreshMenuSelectOptions();
         updateBlockCount();
       });
 
@@ -1139,7 +1286,6 @@ html.theme-dark .fc-img{
       (rotateList?.querySelectorAll('button[data-remove]') || []).forEach(b => b.disabled = !!disabled);
 
       // keep socials editable always
-      // open button is okay; leave it enabled
     }
 
     function applySameAsHeaderUI(on){
@@ -1255,28 +1401,27 @@ html.theme-dark .fc-img{
      * Singleton fetch + fill
      * ========================= */
     async function fetchFooterSingleton(){
-  const params = new URLSearchParams();
-  params.set('per_page','1');
-  params.set('page','1');
-  params.set('sort','updated_at');
-  params.set('direction','desc');
+      const params = new URLSearchParams();
+      params.set('per_page','1');
+      params.set('page','1');
+      params.set('sort','updated_at');
+      params.set('direction','desc');
 
-  const res = await fetchWithTimeout(`${API.footerIndex}?${params.toString()}`, { headers: authHeaders() }, 15000);
-  if (res.status === 401 || res.status === 403) { window.location.href = '/'; return null; }
+      const res = await fetchWithTimeout(`${API.footerIndex}?${params.toString()}`, { headers: authHeaders() }, 15000);
+      if (res.status === 401 || res.status === 403) { window.location.href = '/'; return null; }
 
-  const js = await res.json().catch(()=> ({}));
-  if (!res.ok || js.success === false) throw new Error(js?.message || 'Failed to load');
+      const js = await res.json().catch(()=> ({}));
+      if (!res.ok || js.success === false) throw new Error(js?.message || 'Failed to load');
 
-  // ✅ handle both non-paginated and paginated shapes
-  const arr =
-    (Array.isArray(js.data) ? js.data :
-    (Array.isArray(js?.data?.data) ? js.data.data :
-    (Array.isArray(js.items) ? js.items :
-    (Array.isArray(js?.items?.data) ? js.items.data : []))));
+      // ✅ handle both non-paginated and paginated shapes
+      const arr =
+        (Array.isArray(js.data) ? js.data :
+        (Array.isArray(js?.data?.data) ? js.data.data :
+        (Array.isArray(js.items) ? js.items :
+        (Array.isArray(js?.items?.data) ? js.items.data : []))));
 
-  return arr[0] || null;
-}
-
+      return arr[0] || null;
+    }
 
     function resetToBlank(){
       revokeBrandBlob();
@@ -1298,11 +1443,16 @@ html.theme-dark .fc-img{
       // Section 2
       menuBlocks.innerHTML = '';
       menuBlocks.appendChild(repMenuBlockRow({}));
+      enforceUniqueSelections({silent:true});
+      refreshMenuSelectOptions();
       updateBlockCount();
 
       // Section 3
       s3Links.innerHTML = '';
       s3Links.appendChild(repLinkRow({ title:'Contact', url:'/contact' }));
+
+      // ✅ Address
+      if (addressText) addressText.value = '';
 
       // Section 4
       setBrandPreview('');
@@ -1330,27 +1480,24 @@ html.theme-dark .fc-img{
       fcUuid.value = item?.uuid || '';
       fcId.value = item?.id || '';
 
-      // toggle default OFF (we still allow API to provide a flag, but optional)
       function toBool(v){
-  if (v === true || v === 1) return true;
-  if (v === false || v === 0 || v == null) return false;
-  if (typeof v === 'string'){
-    const s = v.trim().toLowerCase();
-    return (s === '1' || s === 'true' || s === 'yes' || s === 'on');
-  }
-  return false;
-}
+        if (v === true || v === 1) return true;
+        if (v === false || v === 0 || v == null) return false;
+        if (typeof v === 'string'){
+          const s = v.trim().toLowerCase();
+          return (s === '1' || s === 'true' || s === 'yes' || s === 'on');
+        }
+        return false;
+      }
 
-// toggle from API (support multiple possible keys)
-const flag = toBool(
-  item?.same_as_header ??
-  item?.section_4_same_as_header ??
-  item?.section4_same_as_header ??
-  item?.is_same_as_header
-);
-
-if (sameAsHeader) sameAsHeader.checked = flag;
-
+      // toggle from API (support multiple possible keys)
+      const flag = toBool(
+        item?.same_as_header ??
+        item?.section_4_same_as_header ??
+        item?.section4_same_as_header ??
+        item?.is_same_as_header
+      );
+      if (sameAsHeader) sameAsHeader.checked = flag;
 
       // Section 1/3 links
       const s1 = safeArray(item?.section1_menu_json ?? item?.section_1_links_json ?? item?.section1_links_json ?? item?.links_section_1_json ?? []);
@@ -1368,11 +1515,20 @@ if (sameAsHeader) sameAsHeader.checked = flag;
       menuBlocks.innerHTML = '';
       if (blocks.length) blocks.slice(0,4).forEach(b => menuBlocks.appendChild(repMenuBlockRow(b)));
       else menuBlocks.appendChild(repMenuBlockRow({}));
+
+      // ✅ enforce unique menus + refresh options
+      enforceUniqueSelections({silent:true});
+      refreshMenuSelectOptions();
       updateBlockCount();
 
       // metadata
       const metaObj = safeObject(item?.metadata ?? item?.metadata_json);
       metaInput.value = metaObj ? JSON.stringify(metaObj, null, 2) : '';
+
+      // ✅ Address
+      if (addressText){
+        addressText.value = (item?.address_text ?? item?.address ?? '').toString();
+      }
 
       // brand values from footer record (may be overridden if same-as-header ON)
       brandTitle.value = item?.section_4_title ?? item?.brand_title ?? item?.footer_title ?? '';
@@ -1442,6 +1598,11 @@ if (sameAsHeader) sameAsHeader.checked = flag;
           await applySameAsHeaderData();
           applySameAsHeaderUI(true);
         }
+
+        // ✅ ensure unique menus + dropdown refresh after menus load
+        enforceUniqueSelections({silent:true});
+        refreshMenuSelectOptions();
+        updateBlockCount();
       }catch(ex){
         setStatus('err','Load failed');
         err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
@@ -1465,7 +1626,20 @@ if (sameAsHeader) sameAsHeader.checked = flag;
     addMenuBlock?.addEventListener('click', () => {
       const cnt = menuBlocks?.querySelectorAll('.fc-row')?.length || 0;
       if (cnt >= 4) return;
+
+      // ✅ If menus are loaded and all are already used, do nothing
+      const used = new Set(getSelectedMenuIds());
+      const total = (state.menuOptions || []).length;
+      if (total > 0 && used.size >= total){
+        err('All header menus are already used. Remove a block or change a selection to add another.');
+        return;
+      }
+
       menuBlocks.appendChild(repMenuBlockRow({}));
+
+      // ✅ update options everywhere so used menus disappear
+      enforceUniqueSelections({silent:true});
+      refreshMenuSelectOptions();
       updateBlockCount();
     });
 
@@ -1488,6 +1662,14 @@ if (sameAsHeader) sameAsHeader.checked = flag;
       if (isEdit && !canEdit) return;
       if (!isEdit && !canCreate) return;
 
+      // ✅ final uniqueness guard
+      if (enforceUniqueSelections({silent:true})){
+        refreshMenuSelectOptions();
+        updateBlockCount();
+        err('Please ensure each Menu Block uses a unique Header Menu.');
+        return;
+      }
+
       showLoading(true);
 
       try{
@@ -1505,6 +1687,9 @@ if (sameAsHeader) sameAsHeader.checked = flag;
 
         // Section 2: max 4 blocks
         fd.append('section2_header_menu_json', JSON.stringify(gatherMenuBlocks().slice(0,4)));
+
+        // ✅ Address text
+        fd.append('address_text', (addressText?.value || '').toString().trim());
 
         // Metadata
         const metaRaw = (metaInput.value || '').trim();
@@ -1544,10 +1729,10 @@ if (sameAsHeader) sameAsHeader.checked = flag;
         fd.append('section5_menu_json', JSON.stringify(gatherLinkList(bottomLinks)));
         const cp = (copyrightText.value || '').trim();
         if (!cp){
-  err('Copyright Text is required');
-  return;
-}
-fd.append('copyright_text', cp);
+          err('Copyright Text is required');
+          return;
+        }
+        fd.append('copyright_text', cp);
 
         const url = isEdit ? API.footerUpdate(fcUuid.value) : API.footerStore;
         if (isEdit) fd.append('_method','PUT');

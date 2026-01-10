@@ -849,37 +849,38 @@
   }
 
   // ✅ Dropdown actions html (adds Publish for draft rows)
-  function rowActions(tabKey, canWrite, row){
-    const draftRow = isDraft(row);
+  // ✅ Dropdown actions html (adds Publish for draft rows)
+function rowActions(tabKey, canWrite, row){
+  const draftRow = isDraft(row);
 
-    let html = `
-      <div class="dropdown text-end">
-        <button type="button" class="btn btn-light btn-sm ach-dd-toggle" aria-expanded="false" title="Actions">
-          <i class="fa fa-ellipsis-vertical"></i>
-        </button>
-        <ul class="dropdown-menu dropdown-menu-end">
-          <li><button type="button" class="dropdown-item" data-action="view"><i class="fa fa-eye"></i> View</button></li>`;
+  let html = `
+    <div class="dropdown text-end">
+      <button type="button" class="btn btn-light btn-sm ach-dd-toggle" aria-expanded="false" title="Actions">
+        <i class="fa fa-ellipsis-vertical"></i>
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li><button type="button" class="dropdown-item" data-action="view"><i class="fa fa-eye"></i> View</button></li>`;
 
-    // active + draft tabs behave similarly (soft delete, edit, featured)
-    if (tabKey === 'active' || tabKey === 'draft'){
-      html += `<li><button type="button" class="dropdown-item" data-action="edit" ${canWrite ? '' : 'disabled'}><i class="fa fa-pen-to-square"></i> Edit</button></li>`;
+  if (tabKey === 'active' || tabKey === 'draft'){
+    html += `<li><button type="button" class="dropdown-item" data-action="edit" ${canWrite ? '' : 'disabled'}><i class="fa fa-pen-to-square"></i> Edit</button></li>`;
 
-      if (draftRow){
-        html += `<li><button type="button" class="dropdown-item" data-action="publish" ${canWrite ? '' : 'disabled'}><i class="fa fa-circle-check"></i> Publish</button></li>`;
-      }
-
-      html += `<li><button type="button" class="dropdown-item" data-action="toggleFeatured" ${canWrite ? '' : 'disabled'}><i class="fa fa-star"></i> Toggle Featured</button></li>
-               <li><hr class="dropdown-divider"></li>
-               <li><button type="button" class="dropdown-item text-danger" data-action="delete" ${canWrite ? '' : 'disabled'}><i class="fa fa-trash"></i> Delete</button></li>`;
-    } else {
-      html += `<li><button type="button" class="dropdown-item" data-action="restore" ${canWrite ? '' : 'disabled'}><i class="fa fa-rotate-left"></i> Restore</button></li>
-               <li><hr class="dropdown-divider"></li>
-               <li><button type="button" class="dropdown-item text-danger" data-action="force" ${canWrite ? '' : 'disabled'}><i class="fa fa-skull-crossbones"></i> Delete Permanently</button></li>`;
+    // ✅ Publish only when row is Draft
+    if (draftRow){
+      html += `<li><button type="button" class="dropdown-item" data-action="publish" ${canWrite ? '' : 'disabled'}><i class="fa fa-circle-check"></i> Publish</button></li>`;
     }
 
-    html += `</ul></div>`;
-    return html;
+    html += `<li><button type="button" class="dropdown-item" data-action="toggleFeatured" ${canWrite ? '' : 'disabled'}><i class="fa fa-star"></i> Toggle Featured</button></li>
+             <li><hr class="dropdown-divider"></li>
+             <li><button type="button" class="dropdown-item text-danger" data-action="delete" ${canWrite ? '' : 'disabled'}><i class="fa fa-trash"></i> Delete</button></li>`;
+  } else {
+    html += `<li><button type="button" class="dropdown-item" data-action="restore" ${canWrite ? '' : 'disabled'}><i class="fa fa-rotate-left"></i> Restore</button></li>
+             <li><hr class="dropdown-divider"></li>
+             <li><button type="button" class="dropdown-item text-danger" data-action="force" ${canWrite ? '' : 'disabled'}><i class="fa fa-skull-crossbones"></i> Delete Permanently</button></li>`;
   }
+
+  html += `</ul></div>`;
+  return html;
+}
 
   document.addEventListener('DOMContentLoaded', async () => {
     const token = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
@@ -927,15 +928,51 @@
     };
 
     // permissions
-    const ACTOR = { role: '' };
-    let canWrite = true;
-    function computePermissions(){
-      const r = (ACTOR.role || '').toLowerCase();
-      const writeRoles = ['admin','super_admin','director','principal','hod','faculty','technical_assistant','it_person'];
-      canWrite = writeRoles.includes(r) || !r;
-      const wc = $('achWriteControls');
-      if (wc) wc.style.display = canWrite ? '' : 'none';
+    // permissions
+const ACTOR = { role: '' };
+
+// granular permissions (same as your snippet)
+let canCreate = false, canEdit = false, canDelete = false, canPublish = false;
+
+// keep your existing canWrite behavior for dropdown enable/disable
+let canWrite = true;
+
+function computePermissions(){
+  const r = (ACTOR.role || '').toLowerCase();
+
+  const createDeleteRoles = ['admin','super_admin','director','principal'];
+  const writeRoles = ['admin','super_admin','director','principal','hod','faculty','technical_assistant','it_person'];
+
+  canCreate  = createDeleteRoles.includes(r);
+  canDelete  = createDeleteRoles.includes(r);
+  canPublish = createDeleteRoles.includes(r);
+  canEdit    = writeRoles.includes(r);
+
+  // keep existing "write" flag used across the page
+  canWrite = canEdit || canCreate || !r; // if role missing, keep same permissive fallback
+
+  const wc = $('achWriteControls');
+  if (wc) wc.style.display = canCreate ? 'flex' : 'none';
+
+  // ✅ hide/show "Published" option in status dropdown
+  updatePublishOption();
+}
+function updatePublishOption(){
+  // Achievements status select
+  if (!achStatus) return;
+
+  const publishOption = achStatus.querySelector('option[value="published"]');
+  if (publishOption){
+    publishOption.style.display = canPublish ? '' : 'none';
+
+    // if user can't publish but current value is published, force draft
+    if (!canPublish && (achStatus.value || '').toLowerCase() === 'published'){
+      achStatus.value = 'draft';
+      applyStatusUI('draft'); // also hides PublishedAt field
     }
+  }
+}
+
 
     async function fetchMe(){
       try{
@@ -1494,18 +1531,18 @@
 
     // ---------- Status UI helpers ----------
     function applyStatusUI(status){
-      const s = (status || 'draft').toLowerCase();
-      if (s === 'published'){
-        if (achPublishedAtWrap) achPublishedAtWrap.style.display = '';
-        if (achPublishedAt && !String(achPublishedAt.value || '').trim()){
-          achPublishedAt.value = nowLocalInput(); // ✅ auto render current time
-        }
-      } else {
-        if (achPublishedAt) achPublishedAt.value = '';
-        if (achPublishedAtWrap) achPublishedAtWrap.style.display = 'none';
-      }
+  const s = (status || 'draft').toLowerCase();
+  if (s === 'published'){
+    if (achPublishedAtWrap) achPublishedAtWrap.style.display = '';
+    if (achPublishedAt && !String(achPublishedAt.value || '').trim()){
+      achPublishedAt.value = nowLocalInput(); // ✅ auto set now
     }
-    achStatus?.addEventListener('change', () => applyStatusUI(achStatus.value));
+  } else {
+    if (achPublishedAt) achPublishedAt.value = '';
+    if (achPublishedAtWrap) achPublishedAtWrap.style.display = 'none';
+  }
+}
+achStatus?.addEventListener('change', () => applyStatusUI(achStatus.value));
 
     // ---------- Modal helpers ----------
     function resetForm(){
@@ -1650,90 +1687,80 @@
     }
 
     async function publishNow(identifier){
-      const conf = await Swal.fire({
-        title: 'Publish this achievement?',
-        text: 'It will move from Draft to Achievements and become visible.',
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonText: 'Publish',
-        confirmButtonColor: '#16a34a'
-      });
-      if (!conf.isConfirmed) return;
+  const conf = await Swal.fire({
+    title: 'Publish this achievement?',
+    text: 'It will move from Draft to Achievements and become visible.',
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Publish',
+    confirmButtonColor: '#16a34a'
+  });
+  if (!conf.isConfirmed) return;
 
-      showLoading(true);
-      try{
-        const r = await fetchOne(identifier);
+  showLoading(true);
+  try{
+    const r = await fetchOne(identifier);
 
-        const title = (r?.title || '').toString().trim();
-        const body = (r?.body || r?.description || '').toString();
+    const title = (r?.title || '').toString().trim();
+    const body  = (r?.body || r?.description || '').toString();
+    if (!title) throw new Error('Cannot publish: title missing');
+    if (!bodyPlainText(body)) throw new Error('Cannot publish: body missing');
 
-        if (!title) throw new Error('Cannot publish: title missing');
-        if (!bodyPlainText(body)) throw new Error('Cannot publish: body missing');
+    let metaObj = null;
+    if (r?.metadata && typeof r.metadata === 'object') metaObj = r.metadata;
+    if (typeof r?.metadata === 'string') { try{ metaObj = JSON.parse(r.metadata); }catch(_){ metaObj = null; } }
 
-        let metaObj = null;
-        if (r?.metadata && typeof r.metadata === 'object') metaObj = r.metadata;
-        if (typeof r?.metadata === 'string') {
-          try { metaObj = JSON.parse(r.metadata); } catch(_) { metaObj = null; }
-        }
+    const fd = new FormData();
 
-        const fd = new FormData();
+    const deptId = (r.department_id ?? r.departmentId ?? '') || (r.department?.id ?? '') || '';
+    if (deptId) fd.append('department_id', String(deptId));
 
-        const deptId =
-          (r.department_id ?? r.departmentId ?? '') ||
-          (r.department?.id ?? '') || '';
+    fd.append('title', title);
 
-        if (deptId) fd.append('department_id', String(deptId));
+    const slugVal = (r?.slug || '').toString().trim();
+    if (slugVal) fd.append('slug', slugVal);
 
-        fd.append('title', title);
+    const pubLocal  = nowLocalInput();
+    const pubServer = dtLocalToServer(pubLocal);
 
-        const slugVal = (r?.slug || '').toString().trim();
-        if (slugVal) fd.append('slug', slugVal);
+    // ✅ send BOTH keys
+    fd.append('published_at', pubServer || '');
+    fd.append('publish_at',   pubServer || '');
+    fd.append('status', 'published');
 
-        const pubLocal = nowLocalInput();
-        const pubServer = dtLocalToServer(pubLocal);
+    fd.append('body', body);
+    fd.append('is_featured_home', ((+r?.is_featured_home) === 1) ? '1' : '0');
+    if (metaObj !== null) fd.append('metadata', JSON.stringify(metaObj));
 
-        // ✅ IMPORTANT: send BOTH keys so your controller saves the publish time
-        fd.append('published_at', pubServer || '');
-        fd.append('publish_at', pubServer || '');
-        fd.append('status', 'published');
+    fd.append('_method', 'PUT');
 
-        fd.append('body', body);
-        fd.append('is_featured_home', ((+r?.is_featured_home) === 1) ? '1' : '0');
+    const res = await fetchWithTimeout(API.update(identifier), {
+      method: 'POST',
+      headers: authHeaders(false),
+      body: fd
+    }, 30000);
 
-        if (metaObj !== null) fd.append('metadata', JSON.stringify(metaObj));
+    const js = await res.json().catch(()=>({}));
+    if(!res.ok || js.success === false) throw new Error(js?.message || js?.error || 'Publish failed');
 
-        fd.append('_method', 'PUT');
+    ok('Published');
 
-        const res = await fetchWithTimeout(API.update(identifier), {
-          method: 'POST',
-          headers: authHeaders(false),
-          body: fd
-        }, 30000);
+    await loadTab('active');
+    state.draftLoaded = true;
+    await loadTab('draft');
 
-        const js = await res.json().catch(()=>({}));
-        if(!res.ok || js.success === false){
-          throw new Error(js?.message || js?.error || 'Publish failed');
-        }
+    // ✅ switch to Achievements tab
+    try{
+      const link = document.querySelector('a[href="#achTabActive"]');
+      link && bootstrap.Tab.getOrCreateInstance(link).show();
+    }catch(_){}
+  }catch(ex){
+    err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
+  }finally{
+    showLoading(false);
+  }
+}
 
-        ok('Published');
-
-        // refresh both lists so it "moves"
-        await loadTab('active');
-        state.draftLoaded = true;
-        await loadTab('draft');
-
-        // ✅ show Achievements tab after publish
-        try{
-          const link = document.querySelector('a[href="#achTabActive"]');
-          link && bootstrap.Tab.getOrCreateInstance(link).show();
-        }catch(_){}
-      }catch(ex){
-        err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
-        console.error('Publish error:', ex);
-      }finally{
-        showLoading(false);
-      }
-    }
 
     // Add button
     $('achBtnAdd')?.addEventListener('click', () => {
@@ -1742,6 +1769,7 @@
       if (itemModalTitle) itemModalTitle.textContent = 'Add Achievement';
       setViewMode(false);
       itemForm.dataset.intent = 'create';
+      updatePublishOption(); 
       itemModal && itemModal.show();
       setTimeout(()=>{ try{ rteEditor.focus(); }catch(_){ } }, 150);
     });
@@ -1768,6 +1796,7 @@
           const data = await fetchOne(id);
           resetForm();
           fillForm(data || {});
+          updatePublishOption(); 
           if (itemModalTitle) itemModalTitle.textContent = (act === 'view') ? 'View Achievement' : 'Edit Achievement';
           setViewMode(act === 'view');
           itemForm.dataset.intent = (act === 'view') ? 'view' : 'edit';

@@ -283,10 +283,6 @@
   }
 </style>
 
-{{-- ✅ Includes (flag set above so header can skip Maps JS API) --}}
-@include('landing.components.header')
-@include('landing.components.headerMenu')
-
 <div class="cu-wrap">
 
   <div class="cu-hero">
