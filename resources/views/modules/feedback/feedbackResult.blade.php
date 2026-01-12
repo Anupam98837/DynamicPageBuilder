@@ -8,7 +8,12 @@
 <style>
 /* =========================
  * Feedback Results (Manage) – same UI DNA
- * + Detail modal shows screenshot-like percentage matrix
+ * ONLY CHANGES (as requested):
+ * 1) Subject shows subject code also (if available)
+ * 2) Remove Group Title from view + export
+ * 3) Remove UUID from details + table "Feedback Post" column
+ * 4) Remove Expiry everywhere (UI + export)
+ * 5) Keep everything else unchanged
  * ========================= */
 
 .fq-wrap{padding:14px 4px}
@@ -46,7 +51,7 @@
 td .fw-semibold{color:var(--ink)}
 .small{font-size:12.5px}
 
-.table-responsive > .table{ width:max-content; min-width:1200px; }
+.table-responsive > .table{ width:max-content; min-width:1100px; }
 .table-responsive th, .table-responsive td{ white-space:nowrap; }
 
 /* Tabs */
@@ -103,6 +108,48 @@ td .fw-semibold{color:var(--ink)}
 .kv .k{color:var(--muted-color)}
 .kv .v{color:var(--ink); font-weight:700}
 
+/* Faculty tabs (inside detail modal) */
+.fac-tabsbar{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  padding:10px;
+  border:1px solid var(--line-strong);
+  background:var(--surface);
+  border-radius:14px;
+  box-shadow:var(--shadow-2);
+}
+.fac-tabbtn{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 10px;
+  border-radius:999px;
+  border:1px solid var(--line-strong);
+  background:color-mix(in oklab, var(--surface) 92%, transparent);
+  color:var(--ink);
+  font-weight:800;
+  font-size:12.5px;
+  cursor:pointer;
+  transition:transform .08s ease, background .12s ease, border-color .12s ease;
+  user-select:none;
+  max-width: 100%;
+}
+.fac-tabbtn:active{transform:translateY(.5px)}
+.fac-tabbtn i{opacity:.85}
+.fac-tabbtn .nm{
+  display:inline-block;
+  max-width: 240px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.fac-tabbtn.active{
+  background:color-mix(in oklab, var(--primary-color) 12%, transparent);
+  border-color:color-mix(in oklab, var(--primary-color) 30%, var(--line-strong));
+  color:var(--primary-color);
+}
+
 /* Screenshot-like matrix */
 .matrix-wrap{
   border:1px solid var(--line-strong);
@@ -154,6 +201,55 @@ td .fw-semibold{color:var(--ink)}
   font-weight:600;
 }
 
+/* ✅ Column colors (5..1) */
+:root{
+  --rate-5: #1f8a3b;      /* green */
+  --rate-4: #2f7bbf;      /* blue */
+  --rate-3: #c08a00;      /* amber */
+  --rate-2: #c45a1a;      /* orange */
+  --rate-1: #b3262e;      /* red */
+}
+
+.matrix thead th.col5{ background:color-mix(in oklab, var(--rate-5) 16%, var(--surface)); }
+.matrix thead th.col4{ background:color-mix(in oklab, var(--rate-4) 16%, var(--surface)); }
+.matrix thead th.col3{ background:color-mix(in oklab, var(--rate-3) 16%, var(--surface)); }
+.matrix thead th.col2{ background:color-mix(in oklab, var(--rate-2) 16%, var(--surface)); }
+.matrix thead th.col1{ background:color-mix(in oklab, var(--rate-1) 16%, var(--surface)); }
+
+.matrix td.col5{ background:color-mix(in oklab, var(--rate-5) 10%, transparent); }
+.matrix td.col4{ background:color-mix(in oklab, var(--rate-4) 10%, transparent); }
+.matrix td.col3{ background:color-mix(in oklab, var(--rate-3) 10%, transparent); }
+.matrix td.col2{ background:color-mix(in oklab, var(--rate-2) 10%, transparent); }
+.matrix td.col1{ background:color-mix(in oklab, var(--rate-1) 10%, transparent); }
+
+/* keep average row tint, but still allow subtle column colors */
+.matrix .avgrow td.col5{ background:color-mix(in oklab, var(--rate-5) 12%, color-mix(in oklab, var(--primary-color) 6%, transparent)); }
+.matrix .avgrow td.col4{ background:color-mix(in oklab, var(--rate-4) 12%, color-mix(in oklab, var(--primary-color) 6%, transparent)); }
+.matrix .avgrow td.col3{ background:color-mix(in oklab, var(--rate-3) 12%, color-mix(in oklab, var(--primary-color) 6%, transparent)); }
+.matrix .avgrow td.col2{ background:color-mix(in oklab, var(--rate-2) 12%, color-mix(in oklab, var(--primary-color) 6%, transparent)); }
+.matrix .avgrow td.col1{ background:color-mix(in oklab, var(--rate-1) 12%, color-mix(in oklab, var(--primary-color) 6%, transparent)); }
+
+/* Export modal helpers */
+.export-pills{
+  display:flex; flex-wrap:wrap; gap:8px;
+  padding:10px;
+  border:1px dashed var(--line-soft);
+  border-radius:14px;
+  background:color-mix(in oklab, var(--surface) 92%, transparent);
+}
+.export-pill{
+  display:inline-flex; align-items:center; gap:8px;
+  padding:8px 10px;
+  border:1px solid var(--line-strong);
+  border-radius:999px;
+  background:var(--surface);
+  font-weight:800;
+  font-size:12.5px;
+  color:var(--ink);
+}
+.export-pill input{ transform:translateY(1px); }
+.export-pill i{opacity:.85}
+
 /* Responsive toolbar */
 @media (max-width: 768px){
   .fq-toolbar .d-flex{flex-direction:column;gap:12px !important}
@@ -161,6 +257,7 @@ td .fw-semibold{color:var(--ink)}
   .toolbar-buttons{display:flex;gap:8px;flex-wrap:wrap}
   .toolbar-buttons .btn{flex:1;min-width:120px}
   .kv{grid-template-columns: 1fr;}
+  .fac-tabbtn .nm{max-width: 180px;}
 }
 </style>
 @endpush
@@ -237,19 +334,19 @@ td .fw-semibold{color:var(--ink)}
             <table class="table table-hover table-borderless align-middle mb-0">
               <thead class="sticky-top">
                 <tr>
-                  <th style="width:340px;">Feedback Post</th>
+                  <th style="width:360px;">Feedback Post</th>
                   <th style="width:210px;">Department</th>
                   <th style="width:210px;">Course</th>
                   <th style="width:170px;">Semester</th>
-                  <th style="width:210px;">Subject</th>
+                  <th style="width:250px;">Subject</th>
                   <th style="width:140px;">Section</th>
                   <th style="width:170px;">Publish</th>
-                  <th style="width:170px;">Expire</th>
-                  <th style="width:130px;" class="text-end">Action</th>
+                  {{-- ✅ Removed Expire --}}
+                  <th style="width:170px;" class="text-end">Action</th>
                 </tr>
               </thead>
               <tbody id="tbody-posts">
-                <tr><td colspan="9" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+                <tr><td colspan="8" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -274,7 +371,7 @@ td .fw-semibold{color:var(--ink)}
           <div class="fw-bold mb-2"><i class="fa fa-circle-info me-2"></i>How this page works</div>
           <ul class="mb-0 text-muted">
             <li>This page shows aggregated results per <b>Feedback Post</b>.</li>
-            <li>Click any row (or the eye button) to open the detailed view with <b>rating % distribution</b>.</li>
+            <li>Click any row (or the eye button) to open the detailed view with <b>rating % distribution</b> (Overall) and <b>faculty-wise breakdown</b> tabs.</li>
             <li>Use filters to narrow by Department/Course/Semester/Subject/Section and (optional) Academic Year / Year.</li>
           </ul>
         </div>
@@ -377,14 +474,14 @@ td .fw-semibold{color:var(--ink)}
         <div class="detail-head mb-3">
           <div>
             <div class="fw-bold" id="detailPostName">—</div>
-            <div class="text-muted small" id="detailPostUuid">—</div>
+            {{-- ✅ Removed UUID in details --}}
           </div>
 
           <div class="detail-meta">
             <span class="chip"><i class="fa fa-calendar"></i> Publish: <span id="detailPublish">—</span></span>
-            <span class="chip"><i class="fa fa-hourglass-end"></i> Expire: <span id="detailExpire">—</span></span>
+            {{-- ✅ Removed Expire chip --}}
             <span class="chip"><i class="fa fa-users"></i> Participated: <b id="detailParticipated">0</b></span>
-            <span class="chip"><i class="fa fa-star"></i> Out of: <b>5</b></span>
+            {{-- <span class="chip"><i class="fa fa-star"></i> Out of: <b>9</b></span> --}}
           </div>
         </div>
 
@@ -393,6 +490,7 @@ td .fw-semibold{color:var(--ink)}
           <div class="k">Course</div><div class="v" id="detailCourse">—</div>
           <div class="k">Semester</div><div class="v" id="detailSem">—</div>
           <div class="k">Subject</div><div class="v" id="detailSub">—</div>
+          <div class="k">Subject Code</div><div class="v" id="detailSubCode">—</div>
           <div class="k">Section</div><div class="v" id="detailSec">—</div>
           <div class="k">Academic Year</div><div class="v" id="detailAcadYear">—</div>
           <div class="k">Year</div><div class="v" id="detailYear">—</div>
@@ -403,11 +501,19 @@ td .fw-semibold{color:var(--ink)}
           <div class="p-3" style="border:1px solid var(--line-strong);border-radius:14px;background:var(--surface);" id="detailDesc">—</div>
         </div>
 
+        {{-- Faculty Tabs (auto) --}}
+        <div id="detailFacultyTabs" class="fac-tabsbar mb-2" style="display:none;"></div>
+
         <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
-          <div class="fw-semibold"><i class="fa fa-table me-2"></i>Question-wise Rating Distribution (%)</div>
-          <div class="position-relative" style="min-width:320px;">
-            <input id="detailSearch" type="search" class="form-control ps-5" placeholder="Search question…">
-            <i class="fa fa-search position-absolute" style="left:12px;top:50%;transform:translateY(-50%);opacity:.6;"></i>
+          <div class="fw-semibold" id="detailMatrixTitle"><i class="fa fa-table me-2"></i>Question-wise Rating Distribution (%)</div>
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            <button type="button" id="btnExport" class="btn btn-outline-primary">
+              <i class="fa-solid fa-file-export me-1"></i>Export
+            </button>
+            <div class="position-relative" style="min-width:320px;">
+              <input id="detailSearch" type="search" class="form-control ps-5" placeholder="Search question…">
+              <i class="fa fa-search position-absolute" style="left:12px;top:50%;transform:translateY(-50%);opacity:.6;"></i>
+            </div>
           </div>
         </div>
 
@@ -419,6 +525,48 @@ td .fw-semibold{color:var(--ink)}
 
       <div class="modal-footer">
         <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+{{-- Export Modal --}}
+<div class="modal fade" id="exportModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa-solid fa-file-export me-2"></i>Export Feedback Result</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="fw-bold mb-1" id="exportPostTitle">—</div>
+        <div class="text-muted small mb-3" id="exportPostSub">—</div>
+
+        <div class="fw-semibold mb-2"><i class="fa fa-square-check me-2"></i>Select what to export</div>
+        <div id="exportTargets" class="export-pills">
+          {{-- filled by JS --}}
+        </div>
+
+        <div class="alert alert-light mt-3 mb-0" style="border:1px dashed var(--line-soft);border-radius:14px;">
+          <div class="small text-muted">
+            <i class="fa fa-circle-info me-1"></i>
+            ✅ CSV: Top academic details first, then blocks: <b>Overall</b>, then selected <b>Faculty</b> blocks (same format).<br>
+            PDF is generated as pages: <b>Overall first</b>, then selected faculties.
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" id="btnDoCsv" class="btn btn-outline-primary">
+          <i class="fa-solid fa-file-csv me-1"></i>Export CSV
+        </button>
+        <button type="button" id="btnDoPdf" class="btn btn-primary">
+          <i class="fa-solid fa-file-pdf me-1"></i>Export PDF
+        </button>
       </div>
 
     </div>
@@ -445,6 +593,10 @@ td .fw-semibold{color:var(--ink)}
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+{{-- PDF libs (client-side) --}}
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 
 <script>
 (() => {
@@ -478,6 +630,144 @@ td .fw-semibold{color:var(--ink)}
   function prettyDate(s){
     const v = (s ?? '').toString().trim();
     return v ? v : '—';
+  }
+
+  function safeText(s){ return (s ?? '').toString().trim(); }
+
+  function normalizePctMap(pct){
+    const p = pct || {};
+    const get = (k) => {
+      const v = (p[k] ?? p[String(k)] ?? p[Number(k)] ?? 0);
+      const n = Number(v);
+      return Number.isFinite(n) ? n : 0;
+    };
+    return { '5': get(5), '4': get(4), '3': get(3), '2': get(2), '1': get(1) };
+  }
+
+  function computeAveragePctFromPctRows(rows){
+    const sum = {5:0,4:0,3:0,2:0,1:0};
+    let cnt = 0;
+    (rows || []).forEach(r => {
+      const p = normalizePctMap(r);
+      [5,4,3,2,1].forEach(k => sum[k] += Number(p[String(k)]||0));
+      cnt++;
+    });
+    if (!cnt) return {5:0,4:0,3:0,2:0,1:0};
+    const out = {};
+    [5,4,3,2,1].forEach(k => out[k] = Math.round(sum[k] / cnt));
+    return out;
+  }
+
+  function downloadBlob(filename, mime, content){
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function csvEscape(v){
+    const s = (v ?? '').toString();
+    if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g,'""')}"`;
+    return s;
+  }
+
+  function nowStamp(){
+    const d = new Date();
+    const pad = (n)=> String(n).padStart(2,'0');
+    return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}`;
+  }
+
+  function slugify(s){
+    return (s||'')
+      .toString()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g,'-')
+      .replace(/(^-|-$)/g,'')
+      .slice(0,40) || 'feedback';
+  }
+
+  function makeSubjectLabel(code, name){
+    const c = (code ?? '').toString().trim();
+    const n = (name ?? '').toString().trim();
+    if (c && n){
+      const nLow = n.toLowerCase();
+      const cLow = c.toLowerCase();
+      if (nLow.includes(cLow)) return n; // already has code
+      return `${c} - ${n}`;
+    }
+    return n || c || '—';
+  }
+
+  function facultyShortName(fullName){
+    let s = (fullName ?? '').toString().trim();
+    if (!s) return '';
+
+    // remove bracket parts & trailing comma suffixes (degrees etc)
+    s = s.replace(/\s*\([^)]*\)\s*/g, ' ').trim();
+    s = s.split(',')[0].trim();
+
+    // normalize spaces
+    let parts = s.split(/\s+/).filter(Boolean);
+
+    // drop leading honorifics/prefixes (skip front part: Asst/Dr/Prof etc)
+    const drop = new Set([
+      'ad','addl','additional','adv','advocate',
+      'dr','dr.','prof','prof.','asst','asst.','assistant','assoc','assoc.','associate',
+      'mr','mr.','mrs','mrs.','ms','ms.','miss','sir','madam',
+      'sri','shri','smt','kumari',
+      'er','er.','eng','eng.',
+      'rev','rev.','fr','fr.'
+    ]);
+
+    const cleanKey = (w) => (w || '').toString().toLowerCase().replace(/\./g,'').trim();
+
+    while (parts.length && drop.has(cleanKey(parts[0]))){
+      parts.shift();
+    }
+
+    // drop trailing degrees (common)
+    const tailDrop = new Set([
+      'phd','ph.d','mtech','m.tech','btech','b.tech','me','m.e','be','b.e',
+      'mba','mca','msc','m.sc','bsc','b.sc','ma','m.a','ba','b.a',
+      'msw','bcom','b.com','mcom','m.com','bba','b.ed','m.ed','bed','med'
+    ]);
+    while (parts.length && tailDrop.has(cleanKey(parts[parts.length-1]))){
+      parts.pop();
+    }
+
+    if (!parts.length) return '';
+    if (parts.length === 1) return parts[0];
+
+    // last name particles support
+    const particles = new Set(['de','del','della','da','di','la','le','van','von','bin','ibn','al','der','den']);
+
+    let start = parts.length - 1;
+    while (start - 1 >= 0 && particles.has(parts[start - 1].toLowerCase())){
+      start--;
+    }
+
+    const lastTokens = parts.slice(start);
+    const firstTokens = parts.slice(0, start);
+
+    const initialOf = (token) => {
+      const segs = token.split(/[-]/).filter(Boolean);
+      const letters = segs.map(seg => {
+        const c = (seg || '').toString().replace(/[^A-Za-z]/g,'');
+        return c ? c[0].toUpperCase() : '';
+      }).filter(Boolean);
+      return letters.join('');
+    };
+
+    const initials = firstTokens.map(initialOf).filter(Boolean);
+    const lastName = lastTokens.join(' ');
+
+    const out = (initials.length ? initials.join(' ') + ' ' : '') + lastName;
+    return out.trim() || s;
   }
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -528,15 +818,14 @@ td .fw-semibold{color:var(--ink)}
 
     const detailTitle     = $('detailTitle');
     const detailPostName  = $('detailPostName');
-    const detailPostUuid  = $('detailPostUuid');
     const detailPublish   = $('detailPublish');
-    const detailExpire    = $('detailExpire');
     const detailParticipated = $('detailParticipated');
 
     const detailDept = $('detailDept');
     const detailCourse = $('detailCourse');
     const detailSem = $('detailSem');
     const detailSub = $('detailSub');
+    const detailSubCode = $('detailSubCode');
     const detailSec = $('detailSec');
     const detailAcadYear = $('detailAcadYear');
     const detailYear = $('detailYear');
@@ -544,8 +833,21 @@ td .fw-semibold{color:var(--ink)}
     const detailDescWrap = $('detailDescWrap');
     const detailDesc = $('detailDesc');
 
+    const detailFacultyTabs = $('detailFacultyTabs');
+    const detailMatrixTitle = $('detailMatrixTitle');
+
     const detailQuestions = $('detailQuestions');
     const detailSearch = $('detailSearch');
+
+    // Export modal fields
+    const btnExport = $('btnExport');
+    const exportModalEl = $('exportModal');
+    const exportModal = exportModalEl ? new bootstrap.Modal(exportModalEl) : null;
+    const exportPostTitle = $('exportPostTitle');
+    const exportPostSub = $('exportPostSub');
+    const exportTargets = $('exportTargets');
+    const btnDoCsv = $('btnDoCsv');
+    const btnDoPdf = $('btnDoPdf');
 
     // State
     const state = {
@@ -565,6 +867,17 @@ td .fw-semibold{color:var(--ink)}
       postIndex: new Map(),
       flatPosts: [],
       total: 0,
+
+      // detail tabs
+      lastDetailPostKey: null,
+      activeFacultyId: 0,          // "0" means Overall
+      activeFacultyName: 'Overall',
+      availableFaculty: [],
+
+      // last opened post cached for export
+      lastDetailCtx: null,
+      lastDetailPost: null,
+      lastDetailQuestions: [],
     };
 
     function buildParams(){
@@ -584,7 +897,7 @@ td .fw-semibold{color:var(--ink)}
 
     function setLoadingRow(){
       if (!tbody) return;
-      tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>`;
     }
 
     function setEmpty(show){
@@ -620,6 +933,7 @@ td .fw-semibold{color:var(--ink)}
       const courseSet = new Map();
       const semSet = new Map();
       const subSet = new Map();
+      const subTitleSet = new Map();
       const secSet = new Map();
 
       (state.rawHierarchy || []).forEach(dept => {
@@ -639,8 +953,13 @@ td .fw-semibold{color:var(--ink)}
 
             (sem?.subjects || []).forEach(sub => {
               const subId = sub?.subject_id ?? '';
-              const subName = sub?.subject_name ?? '';
-              if (subId !== null && subId !== undefined && subId !== '') subSet.set(String(subId), String(subName || ('Subject #' + subId)));
+              const rawSubName = sub?.subject_name ?? '';
+              const subCode = sub?.subject_code ?? '';
+              const subNameOnly = (rawSubName ?? '').toString().trim();
+              const subCodeOnly = (subCode ?? '').toString().trim();
+              const subLabel = subNameOnly || subCodeOnly;
+              if (subId !== null && subId !== undefined && subId !== '') subSet.set(String(subId), String(subLabel || ('Subject #' + subId)));
+              if (subId !== null && subId !== undefined && subId !== '') subTitleSet.set(String(subId), String(subCodeOnly || ''));
 
               (sub?.sections || []).forEach(sec => {
                 const secId = sec?.section_id ?? '';
@@ -658,8 +977,11 @@ td .fw-semibold{color:var(--ink)}
                     course_name: course?.course_name ?? null,
                     semester_id: sem?.semester_id ?? null,
                     semester_name: sem?.semester_name ?? null,
+
                     subject_id: sub?.subject_id ?? null,
-                    subject_name: sub?.subject_name ?? null,
+                    subject_code: sub?.subject_code ?? null,
+                    subject_name: subNameOnly ?? null,
+
                     section_id: sec?.section_id ?? null,
                     section_name: sec?.section_name ?? null,
                   };
@@ -670,11 +992,13 @@ td .fw-semibold{color:var(--ink)}
                   state.flatPosts.push({
                     key,
                     post_id: postId,
+
+                    // ✅ keep uuid in data (not displayed), for searching if needed
                     uuid: post?.feedback_post_uuid ?? '',
+
                     title: post?.title ?? '—',
                     short_title: post?.short_title ?? '',
                     publish_at: post?.publish_at ?? '',
-                    expire_at: post?.expire_at ?? '',
                     description: post?.description ?? '',
                     academic_year: post?.academic_year ?? '',
                     year: post?.year ?? '',
@@ -688,19 +1012,22 @@ td .fw-semibold{color:var(--ink)}
         });
       });
 
-      const fillSel = (sel, map) => {
+      const fillSel = (sel, map, titleMap=null) => {
         if (!sel) return;
         const cur = sel.value || '';
         sel.innerHTML = `<option value="">All</option>` + Array.from(map.entries())
           .sort((a,b)=>String(a[1]).localeCompare(String(b[1])))
-          .map(([id,name]) => `<option value="${esc(id)}">${esc(name)}</option>`).join('');
+          .map(([id,name]) => {
+            const t = titleMap ? (titleMap.get(String(id)) || '') : '';
+            return `<option value="${esc(id)}"${t ? ` title="${esc(t)}"` : ''}>${esc(name)}</option>`;
+          }).join('');
         if (cur) sel.value = cur;
       };
 
       fillSel(fDept, deptSet);
       fillSel(fCourse, courseSet);
       fillSel(fSem, semSet);
-      fillSel(fSub, subSet);
+      fillSel(fSub, subSet, subTitleSet);
       fillSel(fSec, secSet);
 
       state.total = state.flatPosts.length;
@@ -714,7 +1041,8 @@ td .fw-semibold{color:var(--ink)}
         const parts = [
           r.title, r.short_title, r.uuid,
           r.ctx?.department_name, r.ctx?.course_name, r.ctx?.semester_name,
-          r.ctx?.subject_name, r.ctx?.section_name
+          r.ctx?.subject_name, r.ctx?.subject_code,
+          r.ctx?.section_name
         ].map(x => (x ?? '').toString().toLowerCase());
         return parts.some(p => p.includes(q));
       });
@@ -745,7 +1073,13 @@ td .fw-semibold{color:var(--ink)}
         const d = r.ctx?.department_name ?? '—';
         const c = r.ctx?.course_name ?? '—';
         const s = r.ctx?.semester_name ?? '—';
-        const sub = r.ctx?.subject_name ?? '—';
+
+        const subName = (r.ctx?.subject_name ?? '').toString().trim();
+        const subCode = (r.ctx?.subject_code ?? '').toString().trim();
+        const subHtml = subCode
+          ? `<div>${esc(subName || '—')}</div><div class="small text-muted mt-1"><i class="fa-solid fa-tag me-1"></i>${esc(subCode)}</div>`
+          : `${esc(subName || '—')}`;
+
         const sec = (r.ctx?.section_name ?? '—') || '—';
 
         const title = (r.title || '—').toString();
@@ -756,16 +1090,14 @@ td .fw-semibold{color:var(--ink)}
           <tr class="tr-click" data-post="${esc(r.key)}" title="Click to view details">
             <td>
               <div class="fw-semibold">${esc(title)}</div>
-              <div class="small text-muted">${esc(r.uuid || '—')}</div>
               ${subtitle}
             </td>
             <td>${esc(d)}</td>
             <td>${esc(c)}</td>
             <td>${esc(s)}</td>
-            <td>${esc(sub)}</td>
+            <td>${subHtml}</td>
             <td>${esc(sec)}</td>
             <td>${esc(prettyDate(r.publish_at))}</td>
-            <td>${esc(prettyDate(r.expire_at))}</td>
             <td class="text-end">
               <button type="button" class="btn btn-light btn-sm" data-action="view" data-post="${esc(r.key)}">
                 <i class="fa fa-eye"></i>
@@ -778,26 +1110,177 @@ td .fw-semibold{color:var(--ink)}
       renderPager();
     }
 
+    /* ===========================
+     * Detail: faculty tabs helpers
+     * =========================== */
+
+    function collectFacultyFromQuestions(questions){
+      const map = new Map(); // id -> name
+      (questions || []).forEach(q => {
+        (Array.isArray(q.faculty) ? q.faculty : []).forEach(f => {
+          const id = Number(f?.faculty_id);
+          if (!Number.isFinite(id)) return;
+          const name = (f?.faculty_name ?? '').toString().trim() || ('Faculty #' + id);
+          map.set(String(id), name);
+        });
+      });
+
+      if (!map.has('0')) map.set('0', 'Overall');
+
+      const out = [];
+      out.push({ id: '0', name: map.get('0') || 'Overall' });
+
+      Array.from(map.entries())
+        .filter(([id]) => id !== '0')
+        .sort((a,b)=>String(a[1]).localeCompare(String(b[1])))
+        .forEach(([id,name]) => out.push({ id, name }));
+
+      return out;
+    }
+
+    function renderFacultyTabs(){
+      if (!detailFacultyTabs) return;
+
+      const list = Array.isArray(state.availableFaculty) ? state.availableFaculty : [];
+      if (list.length <= 1){
+        detailFacultyTabs.style.display = 'none';
+        return;
+      }
+
+      detailFacultyTabs.style.display = '';
+      detailFacultyTabs.innerHTML = list.map(f => {
+        const active = String(f.id) === String(state.activeFacultyId);
+        const isOverall = String(f.id) === '0';
+        const fullName = String(f.name);
+        const shortName = isOverall ? fullName : (facultyShortName(fullName) || fullName);
+
+        return `
+          <button type="button"
+            class="fac-tabbtn ${active ? 'active' : ''}"
+            data-fid="${esc(String(f.id))}"
+            data-fname="${esc(String(f.name))}">
+            <i class="fa-solid ${isOverall ? 'fa-star' : 'fa-user-tie'}"></i>
+            <span class="nm" title="${esc(String(f.name))}">${esc(shortName)}</span>
+          </button>
+        `;
+      }).join('');
+    }
+
+    function facultyRowForQuestion(q, fid){
+      const arr = Array.isArray(q?.faculty) ? q.faculty : [];
+      return arr.find(x => String(x?.faculty_id) === String(fid)) || null;
+    }
+
+    function renderMatrixHtml({ questions, mode, fid, facName }){
+      const rowPcts = [];
+
+      const rowsHtml = (questions || []).map((q, idx) => {
+        const qTitle = (q.question_title || '—').toString();
+        const searchable = (qTitle || '').toLowerCase();
+
+        let pct = null;
+
+        if (mode === 'overall'){
+          const dist = q.distribution || {};
+          pct = normalizePctMap(dist.percent || {});
+        } else {
+          const f = facultyRowForQuestion(q, fid);
+          pct = (f && f.distribution && f.distribution.percent) ? normalizePctMap(f.distribution.percent) : null;
+        }
+
+        rowPcts.push({
+          idx: idx+1,
+          question: qTitle,
+          pct: pct ? pct : {'5':0,'4':0,'3':0,'2':0,'1':0},
+          hasData: !!pct
+        });
+
+        return `
+          <tr data-qrow="1" data-qsearch="${esc(searchable)}">
+            <td class="qtext">${esc((idx+1) + '. ' + qTitle)}</td>
+            <td class="col5">${pct ? esc((pct['5'] ?? 0) + '%') : '—'}</td>
+            <td class="col4">${pct ? esc((pct['4'] ?? 0) + '%') : '—'}</td>
+            <td class="col3">${pct ? esc((pct['3'] ?? 0) + '%') : '—'}</td>
+            <td class="col2">${pct ? esc((pct['2'] ?? 0) + '%') : '—'}</td>
+            <td class="col1">${pct ? esc((pct['1'] ?? 0) + '%') : '—'}</td>
+          </tr>
+        `;
+      }).join('');
+
+      let avgPct = null;
+      if (mode === 'overall'){
+        const overallCounts = {5:0,4:0,3:0,2:0,1:0};
+        (questions || []).forEach(q => {
+          const c = (q.distribution && q.distribution.counts) ? q.distribution.counts : {};
+          [5,4,3,2,1].forEach(s => overallCounts[s] += Number(c[String(s)] || 0));
+        });
+        const overallTotal = [5,4,3,2,1].reduce((a,s)=>a+overallCounts[s], 0);
+        avgPct = {};
+        [5,4,3,2,1].forEach(s => avgPct[s] = overallTotal ? Math.round((overallCounts[s]*100)/overallTotal) : 0);
+      } else {
+        const usable = rowPcts.filter(r => r.hasData).map(r => r.pct);
+        avgPct = usable.length ? computeAveragePctFromPctRows(usable) : null;
+      }
+
+      const avgRowHtml = `
+        <tr class="avgrow">
+          <td class="qtext"><b>Average</b></td>
+          <td class="col5">${avgPct ? esc(avgPct[5] + '%') : '—'}</td>
+          <td class="col4">${avgPct ? esc(avgPct[4] + '%') : '—'}</td>
+          <td class="col3">${avgPct ? esc(avgPct[3] + '%') : '—'}</td>
+          <td class="col2">${avgPct ? esc(avgPct[2] + '%') : '—'}</td>
+          <td class="col1">${avgPct ? esc(avgPct[1] + '%') : '—'}</td>
+        </tr>
+      `;
+
+      const html = `
+        <div class="matrix-wrap">
+          <table class="matrix">
+            <thead>
+              <tr>
+                <th class="qcol">Question</th>
+                <th class="col5">Outstanding [5]</th>
+                <th class="col4">Excellent [4]</th>
+                <th class="col3">Good [3]</th>
+                <th class="col2">Fair [2]</th>
+                <th class="col1">Not Satisfactory [1]</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+              ${avgRowHtml}
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      return { html, avgPct, rowPcts };
+    }
+
     function renderDetail(postKey){
       const found = state.postIndex.get(String(postKey));
       if (!found) return;
 
+      state.lastDetailPostKey = String(postKey);
+
       const ctx = found.ctx || {};
       const post = found.post || {};
 
-      const postName = (post.title || '—').toString();
-      const postUuid = (post.feedback_post_uuid || '').toString();
+      state.lastDetailCtx = ctx;
+      state.lastDetailPost = post;
 
+      const postName = (post.title || '—').toString();
+
+      console.log(ctx)
       if (detailTitle) detailTitle.innerHTML = `<i class="fa fa-eye me-2"></i>${esc(postName)}`;
       if (detailPostName) detailPostName.textContent = postName;
-      if (detailPostUuid) detailPostUuid.textContent = postUuid ? `UUID: ${postUuid}` : '—';
       if (detailPublish) detailPublish.textContent = prettyDate(post.publish_at);
-      if (detailExpire) detailExpire.textContent = prettyDate(post.expire_at);
 
       if (detailDept) detailDept.textContent = ctx.department_name ?? '—';
       if (detailCourse) detailCourse.textContent = ctx.course_name ?? '—';
       if (detailSem) detailSem.textContent = ctx.semester_name ?? '—';
-      if (detailSub) detailSub.textContent = ctx.subject_name ?? '—';
+      if (detailSub) detailSub.textContent = (ctx.subject_name ?? '—') || '—';
+      if (detailSubCode) detailSubCode.textContent = (ctx.subject_code ?? '—') || '—';
       if (detailSec) detailSec.textContent = ctx.section_name ?? '—';
 
       if (detailAcadYear) detailAcadYear.textContent = (post.academic_year ?? '—') || '—';
@@ -817,78 +1300,55 @@ td .fw-semibold{color:var(--ink)}
       }
 
       const questions = Array.isArray(post.questions) ? post.questions : [];
+      state.lastDetailQuestions = questions;
+
       if (!questions.length){
+        if (detailMatrixTitle) detailMatrixTitle.innerHTML = `<i class="fa fa-table me-2"></i>Question-wise Rating Distribution (%)`;
+        if (detailFacultyTabs) detailFacultyTabs.style.display = 'none';
         detailQuestions.innerHTML = `<div class="text-center text-muted" style="padding:22px;">No question ratings found for this post.</div>`;
         return;
       }
 
-      // Build overall average based on TOTAL counts across all questions
-      const overallCounts = {5:0,4:0,3:0,2:0,1:0};
-      questions.forEach(q => {
-        const dist = q.distribution || {};
-        const c = dist.counts || {};
-        [5,4,3,2,1].forEach(s => overallCounts[s] += Number(c[String(s)] || 0));
-      });
-      const overallTotal = [5,4,3,2,1].reduce((a,s)=>a+overallCounts[s], 0);
-      const overallPct = {};
-      [5,4,3,2,1].forEach(s => {
-        overallPct[s] = overallTotal ? Math.round((overallCounts[s]*100)/overallTotal) : 0;
-      });
+      state.availableFaculty = collectFacultyFromQuestions(questions);
 
-      // Render table
-      const rowsHtml = questions.map((q, idx) => {
-        const qTitle = (q.question_title || '—').toString();
-        const dist = q.distribution || {};
-        const pct = dist.percent || {};
-        const searchable = (qTitle || '').toLowerCase();
+      if (!state.availableFaculty.find(x => String(x.id) === String(state.activeFacultyId))){
+        state.activeFacultyId = 0;
+        state.activeFacultyName = 'Overall';
+      } else {
+        const f = state.availableFaculty.find(x => String(x.id) === String(state.activeFacultyId));
+        state.activeFacultyName = f?.name || 'Overall';
+      }
 
-        return `
-          <tr data-qrow="1" data-qsearch="${esc(searchable)}">
-            <td class="qtext">
-              ${esc((idx+1) + '. ' + qTitle)}
-              ${q.group_title ? `<span class="submeta"><i class="fa-solid fa-layer-group me-1"></i>${esc(q.group_title)}</span>` : ``}
-            </td>
-            <td>${esc((pct['5'] ?? 0) + '%')}</td>
-            <td>${esc((pct['4'] ?? 0) + '%')}</td>
-            <td>${esc((pct['3'] ?? 0) + '%')}</td>
-            <td>${esc((pct['2'] ?? 0) + '%')}</td>
-            <td>${esc((pct['1'] ?? 0) + '%')}</td>
-          </tr>
-        `;
-      }).join('');
+      renderFacultyTabs();
 
-      const tableHtml = `
-        <div class="matrix-wrap">
-          <table class="matrix">
-            <thead>
-              <tr>
-                <th class="qcol">Question</th>
-                <th>Outstanding [5]</th>
-                <th>Excellent [4]</th>
-                <th>Good [3]</th>
-                <th>Fair [2]</th>
-                <th>Not Satisfactory [1]</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rowsHtml}
-              <tr class="avgrow">
-                <td class="qtext"><b>Average</b></td>
-                <td>${esc(overallPct[5] + '%')}</td>
-                <td>${esc(overallPct[4] + '%')}</td>
-                <td>${esc(overallPct[3] + '%')}</td>
-                <td>${esc(overallPct[2] + '%')}</td>
-                <td>${esc(overallPct[1] + '%')}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      `;
+      const fid = String(state.activeFacultyId);
 
-      detailQuestions.innerHTML = tableHtml;
+      const resetDetailSearch = () => {
+        if (detailSearch) detailSearch.value = '';
+      };
+
+      if (fid === '0'){
+        if (detailMatrixTitle) detailMatrixTitle.innerHTML =
+          `<i class="fa fa-table me-2"></i>Question-wise Rating Distribution (%) <span class="pill ms-2"><i class="fa fa-star"></i>Overall</span>`;
+
+        const { html } = renderMatrixHtml({ questions, mode: 'overall', fid: '0', facName: 'Overall' });
+        detailQuestions.innerHTML = html;
+        resetDetailSearch();
+        return;
+      }
+
+      const facName = state.activeFacultyName || 'Faculty';
+      if (detailMatrixTitle){
+        detailMatrixTitle.innerHTML =
+          `<i class="fa fa-table me-2"></i>Question-wise Rating Distribution (%) <span class="pill ms-2"><i class="fa fa-user-tie"></i>${esc(facName)}</span>`;
+      }
+
+      const { html } = renderMatrixHtml({ questions, mode: 'faculty', fid, facName });
+      detailQuestions.innerHTML = html;
+      resetDetailSearch();
     }
 
-    // Detail search (filters table rows)
+    // Detail search
     detailSearch?.addEventListener('input', debounce(() => {
       const q = (detailSearch.value || '').toLowerCase().trim();
       const nodes = detailQuestions?.querySelectorAll('tr[data-qrow="1"]') || [];
@@ -897,6 +1357,313 @@ td .fw-semibold{color:var(--ink)}
         tr.style.display = (!q || hay.includes(q)) ? '' : 'none';
       });
     }, 200));
+
+    /* ===========================
+     * Export (CSV/PDF)
+     * =========================== */
+
+    function buildBasicMetaRows(post, ctx){
+      return [
+        ['Feedback Post', safeText(post?.title)],
+        ['Department', safeText(ctx?.department_name)],
+        ['Course', safeText(ctx?.course_name)],
+        ['Semester', safeText(ctx?.semester_name)],
+        ['Subject', safeText(ctx?.subject_name)],
+        ['Subject Code', safeText(ctx?.subject_code)],
+        ['Section', safeText(ctx?.section_name)],
+        ['Academic Year', safeText(post?.academic_year)],
+        ['Year', safeText(post?.year)],
+        ['Publish', safeText(post?.publish_at)],
+        ['Participated', String(post?.participated_students ?? 0)],
+      ];
+    }
+
+    function exportModalFill(){
+      if (!exportTargets) return;
+
+      const post = state.lastDetailPost || {};
+      const ctx  = state.lastDetailCtx || {};
+
+      if (exportPostTitle) exportPostTitle.textContent = safeText(post.title) || '—';
+      if (exportPostSub) exportPostSub.textContent =
+        `${safeText(ctx.department_name) || '—'} / ${safeText(ctx.course_name) || '—'} / ${safeText(ctx.subject_code) || '—'} / ${safeText(ctx.subject_name) || '—'}`;
+
+      const list = Array.isArray(state.availableFaculty) ? state.availableFaculty : [{id:'0',name:'Overall'}];
+
+      const curActive = String(state.activeFacultyId || '0');
+      exportTargets.innerHTML = list.map(f => {
+        const isOverall = String(f.id) === '0';
+        const checked = isOverall || (!isOverall && String(f.id) === curActive);
+        const fullName = String(f.name);
+        const shortName = isOverall ? fullName : (facultyShortName(fullName) || fullName);
+
+        return `
+          <label class="export-pill" title="${esc(fullName)}">
+            <input type="checkbox" class="form-check-input m-0" data-fid="${esc(String(f.id))}" ${checked ? 'checked' : ''}>
+            <i class="fa-solid ${isOverall ? 'fa-star' : 'fa-user-tie'}"></i>
+            <span>${esc(shortName)}</span>
+          </label>
+        `;
+      }).join('');
+    }
+
+    function getSelectedExportTargets(){
+      const nodes = exportTargets?.querySelectorAll('input[type="checkbox"][data-fid]') || [];
+      const selected = [];
+      nodes.forEach(ch => {
+        if (!ch.checked) return;
+        selected.push(String(ch.getAttribute('data-fid')));
+      });
+      const list = Array.isArray(state.availableFaculty) ? state.availableFaculty : [];
+      const ordered = [];
+      if (selected.includes('0')) ordered.push('0');
+      list.filter(x => String(x.id) !== '0')
+        .forEach(x => { if (selected.includes(String(x.id))) ordered.push(String(x.id)); });
+      return ordered;
+    }
+
+    function buildExportMatrixForTarget(fid){
+      const questions = Array.isArray(state.lastDetailQuestions) ? state.lastDetailQuestions : [];
+
+      const isOverall = String(fid) === '0';
+      const facName = isOverall
+        ? 'Overall'
+        : (state.availableFaculty.find(x => String(x.id) === String(fid))?.name || ('Faculty #' + fid));
+
+      const facShort = isOverall ? 'Overall' : (facultyShortName(facName) || facName);
+
+      const matrix = renderMatrixHtml({
+        questions,
+        mode: isOverall ? 'overall' : 'faculty',
+        fid: String(fid),
+        facName
+      });
+
+      return { facName, facShort, isOverall, matrix };
+    }
+
+    function doExportCsv(){
+      const selected = getSelectedExportTargets();
+      if (!selected.length){
+        err('Select at least one target (Overall/Faculty)');
+        return;
+      }
+
+      const post = state.lastDetailPost || {};
+      const ctx  = state.lastDetailCtx || {};
+
+      const metaRows = buildBasicMetaRows(post, ctx);
+
+      const lines = [];
+
+      lines.push([ 'Academic Details', '' ].map(csvEscape).join(','));
+      metaRows.forEach(([k,v]) => {
+        lines.push([k, v ?? '—'].map(csvEscape).join(','));
+      });
+
+      lines.push('');
+      lines.push('');
+
+      const ordered = [];
+      if (selected.includes('0')) ordered.push('0');
+      selected.filter(x => x !== '0').forEach(x => ordered.push(x));
+
+      const tableHeader = [
+        'Q.No',
+        'Question',
+        'Outstanding [5]',
+        'Excellent [4]',
+        'Good [3]',
+        'Fair [2]',
+        'Not Satisfactory [1]'
+      ];
+
+      ordered.forEach((fid, idx) => {
+        const { facName, facShort, isOverall, matrix } = buildExportMatrixForTarget(fid);
+        const sheetLabel = isOverall ? 'Overall' : `Faculty: ${facShort}`;
+
+        lines.push([sheetLabel].map(csvEscape).join(','));
+        lines.push(tableHeader.map(csvEscape).join(','));
+
+        (matrix.rowPcts || []).forEach(r => {
+          const p = normalizePctMap(r.pct || {});
+          lines.push([
+            String(r.idx),
+            r.question,
+            (p['5'] ?? 0) + '%',
+            (p['4'] ?? 0) + '%',
+            (p['3'] ?? 0) + '%',
+            (p['2'] ?? 0) + '%',
+            (p['1'] ?? 0) + '%',
+          ].map(csvEscape).join(','));
+        });
+
+        const avg = matrix.avgPct;
+        lines.push([
+          '',
+          'Average',
+          avg ? (avg[5] + '%') : '—',
+          avg ? (avg[4] + '%') : '—',
+          avg ? (avg[3] + '%') : '—',
+          avg ? (avg[2] + '%') : '—',
+          avg ? (avg[1] + '%') : '—',
+        ].map(csvEscape).join(','));
+
+        if (idx !== ordered.length - 1){
+          lines.push('');
+          lines.push('');
+        }
+      });
+
+      const fname = `feedback_export_${slugify(post?.title)}_${nowStamp()}.csv`;
+      downloadBlob(fname, 'text/csv;charset=utf-8', lines.join('\n'));
+      ok('CSV exported');
+    }
+
+    function doExportPdf(){
+      const selected = getSelectedExportTargets();
+      if (!selected.length){
+        err('Select at least one target (Overall/Faculty)');
+        return;
+      }
+
+      const post = state.lastDetailPost || {};
+      const ctx  = state.lastDetailCtx || {};
+
+      const title = safeText(post.title) || 'Feedback Result';
+      const metaRows = buildBasicMetaRows(post, ctx);
+
+      const { jsPDF } = (window.jspdf || {});
+      if (!jsPDF){
+        err('PDF library not loaded');
+        return;
+      }
+
+      const doc = new jsPDF({ orientation:'landscape', unit:'pt', format:'a4' });
+      const pageW = doc.internal.pageSize.getWidth();
+      const margin = 32;
+
+      function addHeaderBlock(pageTitle){
+        doc.setFont('helvetica','bold');
+        doc.setFontSize(14);
+        doc.text(pageTitle, margin, 36);
+
+        doc.setFont('helvetica','normal');
+        doc.setFontSize(9);
+
+        // meta key-values (2 columns)
+        let x = margin, y = 58;
+        const colGap = 280;
+        const rowH = 12;
+
+        metaRows.forEach((kv, i) => {
+          const col = (i % 2);
+          const row = Math.floor(i / 2);
+          const xx = x + (col * colGap);
+          const yy = y + (row * rowH);
+          doc.setFont('helvetica','bold');
+          doc.text(String(kv[0]) + ':', xx, yy);
+          doc.setFont('helvetica','normal');
+          doc.text(String(kv[1] ?? '—'), xx + 90, yy);
+        });
+
+        doc.setDrawColor(200);
+        doc.line(margin, 112, pageW - margin, 112);
+      }
+
+      function addMatrixTable(matrix, sheetLabel){
+        const head = [['Question','Outstanding [5]','Excellent [4]','Good [3]','Fair [2]','Not Satisfactory [1]']];
+
+        const body = (matrix.rowPcts || []).map(r => {
+          const p = normalizePctMap(r.pct || {});
+          const q = `${r.idx}. ${r.question}`;
+          return [q, p['5']+'%', p['4']+'%', p['3']+'%', p['2']+'%', p['1']+'%'];
+        });
+
+        const avg = matrix.avgPct;
+        body.push([
+          'Average',
+          avg ? (avg[5] + '%') : '—',
+          avg ? (avg[4] + '%') : '—',
+          avg ? (avg[3] + '%') : '—',
+          avg ? (avg[2] + '%') : '—',
+          avg ? (avg[1] + '%') : '—',
+        ]);
+
+        doc.setFont('helvetica','bold');
+        doc.setFontSize(11);
+        doc.text(sheetLabel, margin, 138);
+
+        doc.autoTable({
+          startY: 150,
+          head,
+          body,
+          theme: 'grid',
+          styles: { font: 'helvetica', fontSize: 9, cellPadding: 6, overflow: 'linebreak' },
+          headStyles: { fontStyle: 'bold' },
+          columnStyles: {
+            0: { cellWidth: 420 },
+            1: { halign:'center' },
+            2: { halign:'center' },
+            3: { halign:'center' },
+            4: { halign:'center' },
+            5: { halign:'center' },
+          },
+          margin: { left: margin, right: margin },
+          didParseCell: (data) => {
+            if (data.section === 'body' && data.row.index === body.length - 1){
+              data.cell.styles.fillColor = [245,245,245];
+              data.cell.styles.fontStyle = 'bold';
+            }
+          }
+        });
+      }
+
+      const ordered = [];
+      if (selected.includes('0')) ordered.push('0');
+      selected.filter(x => x !== '0').forEach(x => ordered.push(x));
+
+      ordered.forEach((fid, idx) => {
+        if (idx > 0) doc.addPage();
+
+        const target = buildExportMatrixForTarget(fid);
+        const sheetLabel = target.isOverall ? 'Overall' : `Faculty: ${target.facShort}`;
+
+        addHeaderBlock(title);
+        addMatrixTable(target.matrix, sheetLabel);
+      });
+
+      const fname = `feedback_export_${slugify(post?.title)}_${nowStamp()}.pdf`;
+      doc.save(fname);
+      ok('PDF exported');
+    }
+
+    btnExport?.addEventListener('click', () => {
+      if (!state.lastDetailPostKey){
+        err('Open a feedback post first');
+        return;
+      }
+      exportModalFill();
+      exportModal && exportModal.show();
+    });
+
+    btnDoCsv?.addEventListener('click', () => {
+      try{
+        doExportCsv();
+        exportModal && exportModal.hide();
+      }catch(ex){
+        err(ex?.message || 'CSV export failed');
+      }
+    });
+
+    btnDoPdf?.addEventListener('click', () => {
+      try{
+        doExportPdf();
+        exportModal && exportModal.hide();
+      }catch(ex){
+        err(ex?.message || 'PDF export failed');
+      }
+    });
 
     async function loadResults(){
       setLoadingRow();
@@ -917,7 +1684,7 @@ td .fw-semibold{color:var(--ink)}
         renderTable();
 
       }catch(ex){
-        tbody.innerHTML = '';
+        if (tbody) tbody.innerHTML = '';
         setEmpty(true);
         renderPager();
         err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
@@ -938,6 +1705,24 @@ td .fw-semibold{color:var(--ink)}
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
 
+    // Faculty tabs click (detail modal)
+    document.addEventListener('click', (e) => {
+      const b = e.target.closest('#detailFacultyTabs .fac-tabbtn[data-fid]');
+      if (!b) return;
+
+      const fid = b.dataset.fid;
+      const fname = b.dataset.fname || 'Faculty';
+
+      state.activeFacultyId = Number(fid || 0);
+      state.activeFacultyName = fname;
+
+      detailFacultyTabs?.querySelectorAll('.fac-tabbtn').forEach(x => {
+        x.classList.toggle('active', x === b);
+      });
+
+      if (state.lastDetailPostKey) renderDetail(state.lastDetailPostKey);
+    });
+
     // Row click / view click
     document.addEventListener('click', (e) => {
       const btn = e.target.closest('button[data-action="view"][data-post]');
@@ -945,6 +1730,9 @@ td .fw-semibold{color:var(--ink)}
       const postKey = btn?.dataset?.post || tr?.dataset?.post;
       if (!postKey) return;
       if (btn) e.preventDefault();
+
+      state.activeFacultyId = 0;
+      state.activeFacultyName = 'Overall';
 
       renderDetail(postKey);
       if (detailSearch) detailSearch.value = '';

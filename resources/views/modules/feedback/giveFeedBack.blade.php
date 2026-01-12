@@ -147,7 +147,6 @@
   display:flex;
   align-items:flex-start;
   gap:14px;
-  /* flex-wrap:wrap; */
 }
 .rate-col{
   border-radius:12px;
@@ -196,6 +195,36 @@
   padding:6px 10px;
   border-radius:999px;
 }
+
+/* =========================
+ * ✅ Error highlighting (requested)
+ * - Highlights the specific question row / section when validation or API errors occur
+ * ========================= */
+.fb-row-error{
+  background: rgba(239,68,68,.08) !important;
+}
+.fb-row-error td{
+  border-bottom-color: rgba(239,68,68,.30) !important;
+}
+.fb-row-error .fb-qtitle{
+  color:#b91c1c;
+}
+.fb-row-error .rate-grid{
+  outline: 2px solid rgba(239,68,68,.28);
+  outline-offset: 4px;
+  border-radius: 14px;
+}
+.fac-tabsbar.is-error{
+  border-color: rgba(239,68,68,.45) !important;
+  box-shadow: 0 0 0 .18rem rgba(239,68,68,.12);
+}
+
+/* ✅ highlight the exact faculty tab which is missing */
+.fac-tabbtn.is-missing{
+  border-color: rgba(239,68,68,.70) !important;
+  box-shadow: 0 0 0 .18rem rgba(239,68,68,.12) !important;
+}
+.fac-tabbtn.is-missing .nm{ color:#b91c1c; }
 
 @media (max-width: 768px){
   .fbsub-panel .d-flex{flex-direction:column;gap:12px !important}
@@ -356,11 +385,25 @@
     filter: 'all',
     ratingsByPost: {},
     activeFacultyByPost: {},
+
+    // ✅ fast lookups (used to show errors by NAME instead of ID)
+    questionsById: new Map(),
+    usersById: new Map(),
   };
 
   function qLabel(q){ return String(q?.question_title || q?.title || q?.name || (`Question #${q?.id}`) || 'Question'); }
   function userLabel(u){ return String(u?.name || u?.full_name || 'User'); }
   function facultyUsers(){ return (state.users || []).filter(u => String(u?.role || '').toLowerCase() === 'faculty'); }
+
+  function getQuestionTitleById(qid){
+    const q = state.questionsById.get(idNum(qid));
+    return q ? qLabel(q) : `Question #${qid}`;
+  }
+  function getFacultyNameById(fid){
+    if (String(fid) === '0') return 'Overall';
+    const u = state.usersById.get(idNum(fid));
+    return u ? userLabel(u) : `Faculty #${fid}`;
+  }
 
   function semesterTitle(post){
     if (post?.semester_no !== null && post?.semester_no !== undefined && String(post.semester_no).trim() !== '') {
@@ -487,31 +530,164 @@
     return answers;
   }
 
+  /* =========================
+   * ✅ Error highlighting helpers
+   * ========================= */
+  function clearHighlights(postKey){
+    const pane = document.getElementById('tablePane_' + postKey);
+    if (pane) pane.querySelectorAll('tr.fb-row-error').forEach(tr => tr.classList.remove('fb-row-error'));
+
+    const tabs = document.querySelector(`[data-posttabs="${CSS.escape(String(postKey))}"]`);
+    tabs?.classList.remove('is-error');
+    tabs?.querySelectorAll('.fac-tabbtn.is-missing').forEach(b => b.classList.remove('is-missing'));
+  }
+
+  // ✅ mark/unmark missing badge for a specific faculty tab (based on current state)
+  function facultyHasMissing(post, postKey, fid){
+    const qIds = pickArray(post?.question_ids).map(idNum).filter(Boolean);
+    if (!qIds.length) return false;
+
+    for (const qid of qIds){
+      if (!isQuestionApplicableToFaculty(post, qid, fid)) continue;
+
+      // ensure slot exists
+      ensureRatingSlot(postKey, qid, fid);
+
+      const v = parseInt(state.ratingsByPost?.[postKey]?.[qid]?.[fid] || 0, 10);
+      if (!(v >= 1 && v <= 5)) return true;
+    }
+    return false;
+  }
+
+  function syncMissingTabMarker(post, postKey, fid){
+    const bar = document.querySelector(`[data-posttabs="${CSS.escape(String(postKey))}"]`);
+    if (!bar) return;
+
+    const btn = bar.querySelector(`.fac-tabbtn[data-post="${CSS.escape(String(postKey))}"][data-fid="${CSS.escape(String(fid))}"]`);
+    if (!btn) return;
+
+    btn.classList.toggle('is-missing', facultyHasMissing(post, postKey, idNum(fid) ?? 0));
+  }
+
+  function activateFacultyTabUI(post, postKey, fid){
+    state.activeFacultyByPost[postKey] = String(fid);
+
+    const bar = document.querySelector(`[data-posttabs="${CSS.escape(String(postKey))}"]`);
+    if (bar){
+      const targetBtn = bar.querySelector(`.fac-tabbtn[data-post="${CSS.escape(String(postKey))}"][data-fid="${CSS.escape(String(fid))}"]`);
+      bar.querySelectorAll('.fac-tabbtn').forEach(x => x.classList.toggle('active', x === targetBtn));
+    }
+
+    const pane = $('tablePane_' + postKey);
+    if (pane){
+      pane.innerHTML = renderQuestionsTable(post, postKey, fid);
+    }
+  }
+
+  function highlightIssue(postKey, qid=null, fid=null){
+    if (!postKey) return;
+
+    const post = state.posts.find(p => String(p?.uuid || p?.id) === String(postKey));
+    clearHighlights(postKey);
+
+    // if we know the faculty, switch to that tab so user sees the exact missing place
+    if (fid !== null && fid !== undefined && post){
+      activateFacultyTabUI(post, postKey, fid);
+
+      const bar = document.querySelector(`[data-posttabs="${CSS.escape(String(postKey))}"]`);
+      const btn = bar?.querySelector(`.fac-tabbtn[data-post="${CSS.escape(String(postKey))}"][data-fid="${CSS.escape(String(fid))}"]`);
+      btn?.classList.add('is-missing');
+    }
+
+    // highlight question row
+    if (qid !== null && qid !== undefined){
+      const pane = document.getElementById('tablePane_' + postKey);
+      const tr = pane?.querySelector(`tr[data-qrow="1"][data-qid="${CSS.escape(String(qid))}"]`);
+      if (tr){
+        tr.classList.add('fb-row-error');
+        tr.scrollIntoView({ behavior:'smooth', block:'center' });
+      } else {
+        const paneNode = document.getElementById('tablePane_' + postKey);
+        paneNode?.scrollIntoView({ behavior:'smooth', block:'start' });
+      }
+    }
+
+    // highlight the faculty tab bar briefly
+    const tabs = document.querySelector(`[data-posttabs="${CSS.escape(String(postKey))}"]`);
+    if (tabs){
+      tabs.classList.add('is-error');
+      setTimeout(() => tabs.classList.remove('is-error'), 2400);
+    }
+  }
+
+  // ✅ Extract useful (qid/fid) from server-side validation errors (if any)
+  function extractIssueFromServerErrors(js){
+    const errs = js?.errors;
+    if (!errs || typeof errs !== 'object') return null;
+
+    const keys = Object.keys(errs);
+    for (const k of keys){
+      // common patterns:
+      // answers.12.5   (qid=12, fid=5)
+      // answers.12.0
+      // answers.12
+      let m = k.match(/^answers\.(\d+)\.(\d+)$/);
+      if (m) return { qid: idNum(m[1]), fid: idNum(m[2]) };
+
+      m = k.match(/^answers\.(\d+)$/);
+      if (m) return { qid: idNum(m[1]), fid: null };
+
+      // sometimes nested: data.answers.12.5
+      m = k.match(/answers\.(\d+)(?:\.(\d+))?/);
+      if (m) return { qid: idNum(m[1]), fid: idNum(m[2]) };
+    }
+    return null;
+  }
+
   function validateBeforeSubmit(post){
     const postKey = String(post?.uuid || post?.id || '');
-    if (!postKey) return 'Invalid feedback post.';
+    if (!postKey) return { message:'Invalid feedback post.', qid:null, fid:null };
 
     const qIds = pickArray(post?.question_ids).map(idNum).filter(Boolean);
-    if (!qIds.length) return 'No questions found in this feedback post.';
+    if (!qIds.length) return { message:'No questions found in this feedback post.', qid:null, fid:null };
 
     const ans = collectPayloadAnswers(postKey);
 
+    // ✅ REQUIRED CHANGE:
+    // Users can submit ONLY if ALL faculty tabs (for this post) are fully filled:
+    // - For each question:
+    //   - if it has allowed faculty list => every allowed faculty must have a rating
+    //   - else => Overall (fid=0) must have a rating
     for (const qid of qIds){
       const block = ans[String(qid)] || {};
       const allowed = getAllowedFacultyIdsForQuestion(post, qid);
+      const qTitle = getQuestionTitleById(qid);
 
       if (allowed.length){
-        const hasAny = Object.keys(block).some(fid => {
-          const v = parseInt(block[fid] || 0, 10);
-          return v >= 1 && v <= 5;
-        });
-        if (!hasAny) return `Please give at least one rating for Question #${qid}.`;
+        for (const fid of allowed){
+          const v = parseInt(block[String(fid)] || 0, 10);
+          if (!(v >= 1 && v <= 5)){
+            const facName = getFacultyNameById(fid);
+            return {
+              message: `Please rate “${qTitle}” for ${facName}.`,
+              qid,
+              fid
+            };
+          }
+        }
       } else {
         const v = parseInt(block['0'] || 0, 10);
-        if (!(v >= 1 && v <= 5)) return `Please rate Question #${qid} (Overall).`;
+        if (!(v >= 1 && v <= 5)){
+          return {
+            message: `Please rate “${qTitle}” (Overall).`,
+            qid,
+            fid: 0
+          };
+        }
       }
     }
-    return '';
+
+    return null;
   }
 
   function renderQuestionsTable(post, postKey, activeFid){
@@ -537,7 +713,7 @@
         <table class="table fb-table">
           <thead>
             <tr>
-              <th style="width:520px;">Question</th>
+              <th style="width:420px;">Question</th>
               <th>Rating</th>
             </tr>
           </thead>
@@ -554,7 +730,7 @@
               const name = `rate_${postKey}_${qid}_${fid}`.replace(/[^a-zA-Z0-9_]/g,'_');
 
               return `
-                <tr>
+                <tr data-qrow="1" data-post="${esc(String(postKey))}" data-qid="${esc(String(qid))}">
                   <td class="qcell-vcenter">
                     <div class="fb-qtitle">
                       <i class="fa-regular fa-circle-question" style="opacity:.85;margin-top:2px"></i>
@@ -721,6 +897,13 @@
         if (!post || !slot) return;
 
         slot.innerHTML = renderPostBody(post, postKey);
+        clearHighlights(postKey);
+
+        // ✅ after render, mark missing faculty tabs (so user knows which tab still incomplete)
+        const tabs = buildFacultyTabsTop(post);
+        tabs.forEach(t => {
+          syncMissingTabMarker(post, postKey, t.id);
+        });
       });
     });
   }
@@ -729,8 +912,12 @@
     const post = state.posts.find(p => String(p?.uuid || p?.id) === String(postKey));
     if (!post){ err('Feedback post not found.'); return; }
 
-    const msg = validateBeforeSubmit(post);
-    if (msg){ err(msg); return; }
+    const v = validateBeforeSubmit(post);
+    if (v){
+      err(v.message);
+      highlightIssue(postKey, v.qid, v.fid);
+      return;
+    }
 
     const idOrUuid = post.uuid || post.id;
     const payload = { answers: collectPayloadAnswers(postKey), metadata: null };
@@ -747,6 +934,23 @@
       if (res.status === 401){ window.location.href='/'; return; }
 
       if (!res.ok || js?.success === false){
+        const issue = extractIssueFromServerErrors(js);
+        if (issue?.qid){
+          const qTitle = getQuestionTitleById(issue.qid);
+          const facName = (issue.fid !== null && issue.fid !== undefined) ? getFacultyNameById(issue.fid) : '';
+          const msgFromServer =
+            (issue.fid !== null && issue.fid !== undefined && Array.isArray(js?.errors?.[`answers.${issue.qid}.${issue.fid}`]) ? js.errors[`answers.${issue.qid}.${issue.fid}`][0] : '') ||
+            (Array.isArray(js?.errors?.[`answers.${issue.qid}`]) ? js.errors[`answers.${issue.qid}`][0] : '') ||
+            js?.message || '';
+
+          const msg = msgFromServer
+            ? String(msgFromServer)
+            : (facName ? `Please check rating for “${qTitle}” for ${facName}.` : `Please check rating for “${qTitle}”.`);
+
+          err(msg);
+          highlightIssue(postKey, issue.qid, issue.fid);
+          throw new Error(msg);
+        }
         throw new Error(js?.message || 'Submit failed');
       }
 
@@ -796,6 +1000,10 @@
     state.questions = normalizeList(jsQ) || [];
     state.users = (normalizeList(jsU) || []).filter(u => String(u?.status || 'active').toLowerCase() !== 'inactive');
 
+    // ✅ build lookups
+    state.questionsById = new Map((state.questions || []).map(q => [idNum(q?.id), q]).filter(x => x[0] !== null));
+    state.usersById = new Map((state.users || []).map(u => [idNum(u?.id), u]).filter(x => x[0] !== null));
+
     updateCounts();
     renderPostsAccordion();
   }
@@ -828,11 +1036,18 @@
 
       const bar = document.querySelector(`[data-posttabs="${CSS.escape(String(postKey))}"]`);
       bar?.querySelectorAll('.fac-tabbtn').forEach(x => x.classList.toggle('active', x === b));
+      bar?.classList.remove('is-error');
+
+      // ✅ if user clicks the missing tab, remove the marker (it will be recalculated as they fill)
+      b.classList.remove('is-missing');
 
       const pane = $('tablePane_' + postKey);
       if (pane){
         pane.innerHTML = renderQuestionsTable(post, postKey, fid);
       }
+
+      // ✅ keep markers updated for this tab (in case it still has missing)
+      syncMissingTabMarker(post, postKey, fid);
     });
   }
 
@@ -851,11 +1066,22 @@
       ensureRatingSlot(postKey, qid, fid);
       state.ratingsByPost[postKey][qid][fid] = val;
 
+      // ✅ clear highlight for this row (since user fixed it)
+      const pane = $('tablePane_' + postKey);
+      const tr = pane?.querySelector(`tr[data-qrow="1"][data-qid="${CSS.escape(String(qid))}"]`);
+      tr?.classList.remove('fb-row-error');
+
       const grid = r.closest('.rate-grid');
       if (grid){
         grid.querySelectorAll('.rate-col').forEach(x => x.classList.remove('is-on'));
         const col = r.closest('.rate-col');
         if (col) col.classList.add('is-on');
+      }
+
+      // ✅ update missing marker for this faculty tab after selection
+      const post = state.posts.find(p => String(p?.uuid || p?.id) === String(postKey));
+      if (post){
+        syncMissingTabMarker(post, postKey, fid);
       }
     });
   }

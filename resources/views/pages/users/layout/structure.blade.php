@@ -279,6 +279,7 @@
             <a href="/course/manage" class="w3-link">Manage Courses</a>
             <a href="/course/semester/manage" class="w3-link">Manage Semesters</a>
             <a href="/course/semester/section/manage" class="w3-link">Manage Sections</a>
+            <a href="/course/subject/manage" class="w3-link">Manage Subject</a>
           </div>
         </div>
 
@@ -513,6 +514,7 @@
         </a>
 
         <div id="sm-manage-profile" class="w3-submenu" role="group" aria-label="Manage Profile submenu">
+          <a href="/user/basic-information/manage" class="w3-link">Basic Information</a>
           <a href="/user/personal-information/manage" class="w3-link">Personal Information</a>
           <a href="/user/education/manage" class="w3-link">Educations</a>
           <a href="/user/honors/manage" class="w3-link">Honors & Awards</a>
@@ -522,6 +524,7 @@
           <a href="/user/social-media/manage" class="w3-link">Social Media</a>
         </div>
       </div>
+      <a href="/feedback/submit" class="w3-link"><i class="fa-solid fa-comment-dots"></i><span> Feedback</span></a>
 
       <a href="/settings/general" class="w3-link">
         <i class="fa-solid fa-gear"></i>

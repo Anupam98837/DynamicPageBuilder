@@ -932,6 +932,191 @@ private function normalizeRole(?string $role): array
             'data'    => $user,
         ]);
     }
+
+    /**
+     * PATCH /api/users/me
+     * Update logged-in user's own basic profile (safe fields only)
+     * ✅ supports image upload via multipart file (image / image_file) OR string path
+     */
+    public function updateMe(Request $request)
+    {
+        $actor = $this->actor($request);
+        if (!$actor['id']) {
+            return response()->json([
+                'success' => false,
+                'error'   => 'Unauthenticated',
+            ], 401);
+        }
+
+        $user = DB::table('users')
+            ->where('id', $actor['id'])
+            ->whereNull('deleted_at')
+            ->first();
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'error'   => 'User not found',
+            ], 404);
+        }
+
+        // Base validation (text fields)
+        $v = Validator::make($request->all(), [
+            'name'                     => ['sometimes', 'required', 'string', 'max:190'],
+            'email'                    => [
+                'sometimes', 'required', 'email', 'max:255',
+                Rule::unique('users', 'email')->ignore($user->id),
+            ],
+            'phone_number'             => [
+                'sometimes', 'nullable', 'string', 'max:32',
+                Rule::unique('users', 'phone_number')->ignore($user->id),
+            ],
+            'alternative_email'        => ['sometimes', 'nullable', 'email', 'max:255'],
+            'alternative_phone_number' => ['sometimes', 'nullable', 'string', 'max:32'],
+            'whatsapp_number'          => ['sometimes', 'nullable', 'string', 'max:32'],
+            'address'                  => ['sometimes', 'nullable', 'string'],
+
+            // allow either a file OR a string path (validated conditionally below)
+            'image'                    => ['sometimes', 'nullable'],
+            'image_file'               => ['sometimes', 'nullable'],
+
+            'metadata'                 => ['sometimes', 'nullable', 'array'],
+        ]);
+
+        if ($v->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors'  => $v->errors(),
+            ], 422);
+        }
+
+        // If file is present, validate it as an actual image file
+        $fileRules = [];
+        if ($request->hasFile('image')) {
+            $fileRules['image'] = ['file', 'image', 'max:4096']; // 4MB
+        }
+        if ($request->hasFile('image_file')) {
+            $fileRules['image_file'] = ['file', 'image', 'max:4096']; // 4MB
+        }
+        if (!empty($fileRules)) {
+            $fv = Validator::make($request->all(), $fileRules);
+            if ($fv->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors'  => $fv->errors(),
+                ], 422);
+            }
+        }
+
+        $data   = $v->validated();
+        $update = [];
+
+        // helper: store profile image into public/assets/media/... and return DB path
+        $storeProfileImage = function ($file, string $userUuid, ?string $oldPath = null): string {
+            if (!$file || !$file->isValid()) {
+                throw new \Exception('Invalid image upload');
+            }
+
+            $baseDir = public_path("assets/media/image/user/{$userUuid}/profile");
+            if (!is_dir($baseDir)) {
+                @mkdir($baseDir, 0775, true);
+            }
+
+            $ext = strtolower($file->getClientOriginalExtension() ?: 'jpg');
+            $safeExt = preg_replace('/[^a-z0-9]/i', '', $ext) ?: 'jpg';
+
+            $filename = 'profile_' . date('Ymd_His') . '_' . Str::random(8) . '.' . $safeExt;
+            $file->move($baseDir, $filename);
+
+            // delete old file only if it is local under /assets/media/
+            if ($oldPath && is_string($oldPath) && str_starts_with($oldPath, '/assets/media/')) {
+                $oldAbs = public_path(ltrim($oldPath, '/'));
+                if (is_file($oldAbs)) @unlink($oldAbs);
+            }
+
+            return "/assets/media/image/user/{$userUuid}/profile/{$filename}";
+        };
+
+        // Name + slug
+        if (array_key_exists('name', $data)) {
+            $update['name'] = $data['name'];
+            $update['slug'] = $this->generateUniqueSlug($data['name'], (int) $user->id);
+        }
+
+        // Email
+        if (array_key_exists('email', $data)) {
+            $update['email'] = $data['email'];
+        }
+
+        // Phones / WhatsApp / Address
+        if (array_key_exists('phone_number', $data)) {
+            $update['phone_number'] = $data['phone_number'] ?? null;
+        }
+        if (array_key_exists('alternative_email', $data)) {
+            $update['alternative_email'] = $data['alternative_email'] ?? null;
+        }
+        if (array_key_exists('alternative_phone_number', $data)) {
+            $update['alternative_phone_number'] = $data['alternative_phone_number'] ?? null;
+        }
+        if (array_key_exists('whatsapp_number', $data)) {
+            $update['whatsapp_number'] = $data['whatsapp_number'] ?? null;
+        }
+        if (array_key_exists('address', $data)) {
+            $update['address'] = $data['address'] ?? null;
+        }
+
+        // ✅ Image (FILE has priority)
+        try {
+            if ($request->hasFile('image') || $request->hasFile('image_file')) {
+                $file = $request->hasFile('image') ? $request->file('image') : $request->file('image_file');
+                $update['image'] = $storeProfileImage($file, (string)$user->uuid, $user->image ?? null);
+            } else {
+                // If no file, allow string path (or null to clear) if image key is present
+                if (array_key_exists('image', $data)) {
+                    $img = $request->input('image');
+                    $update['image'] = (is_string($img) && trim($img) !== '') ? trim($img) : null;
+                } elseif (array_key_exists('image_file', $data)) {
+                    // optional: allow string path via image_file key too (if frontend uses that)
+                    $img = $request->input('image_file');
+                    $update['image'] = (is_string($img) && trim($img) !== '') ? trim($img) : ($update['image'] ?? null);
+                }
+            }
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'error'   => $e->getMessage(),
+            ], 422);
+        }
+
+        // Metadata
+        if (array_key_exists('metadata', $data)) {
+            $update['metadata'] = $data['metadata'] !== null ? json_encode($data['metadata']) : null;
+        }
+
+        if (empty($update)) {
+            $fresh = DB::table('users')->select(self::SELECT_COLUMNS)->where('id', $user->id)->first();
+            return response()->json(['success' => true, 'data' => $fresh]);
+        }
+
+        $update['updated_at'] = Carbon::now();
+
+        DB::table('users')->where('id', $user->id)->update($update);
+
+        $this->logWithActor('msit.users.update_me', $request, [
+            'user_id' => $user->id,
+        ]);
+
+        $fresh = DB::table('users')
+            ->select(self::SELECT_COLUMNS)
+            ->where('id', $user->id)
+            ->first();
+
+        return response()->json([
+            'success' => true,
+            'data'    => $fresh,
+        ]);
+    }
+
  /* ============================================
  | PUBLIC: Faculty Index
  | GET /api/public/faculty

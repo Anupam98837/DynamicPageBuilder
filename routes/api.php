@@ -60,6 +60,8 @@ use App\Http\Controllers\API\FeedbackSubmissionController;
 use App\Http\Controllers\API\FeedbackResultsController;
 use App\Http\Controllers\API\TopHeaderMenuController;
 use App\Http\Controllers\API\StudentAcademicDetailsController;
+use App\Http\Controllers\API\DashboardController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -84,6 +86,9 @@ Route::post('/auth/logout', [UserController::class, 'logout'])
     ->middleware('checkRole');
 
 Route::get('/auth/check',   [UserController::class, 'authenticateToken']);
+
+Route::middleware('checkRole:admin,director,principal')
+    ->get('/admin/dashboard', [DashboardController::class, 'adminDashboard']);
 
 
 /*
@@ -111,6 +116,7 @@ Route::middleware(['checkRole:admin,director,principal,hod'])
         Route::get('/',                  [UserController::class, 'index']);
         Route::post('/',                 [UserController::class, 'store']);
         Route::get('/me',                [UserController::class, 'me']);
+        Route::patch('/me', [UserController::class, 'updateMe']);
         Route::post('/import-csv', [UserController::class, 'importUsersCsv']);
         Route::get('/export-csv', [UserController::class, 'exportUsersCsv']);
         Route::get('/{uuid}',            [UserController::class, 'show']);

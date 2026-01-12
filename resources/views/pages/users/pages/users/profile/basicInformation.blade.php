@@ -1,8 +1,8 @@
 @extends('pages.users.layout.structure')
 
-@section('title', 'Manage Contact Info')
+@section('title', 'Basic Information')
 
-@include('modules.dashboard.adminDashboard')
+@include('modules.users.profile.basicInformation')
 
 @section('scripts')
 <script>

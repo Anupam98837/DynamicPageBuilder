@@ -52,6 +52,9 @@ Route::get('/user/teaching-engagements/manage', function () {
 Route::get('/user/personal-information/manage', function () {
     return view('pages.users.pages.users.profile.personalInformation');
 });
+Route::get('/user/basic-information/manage', function () {
+    return view('pages.users.pages.users.profile.basicInformation');
+});
 
 
 // Department Manage Pages
