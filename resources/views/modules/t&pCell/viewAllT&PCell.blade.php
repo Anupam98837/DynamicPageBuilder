@@ -1,713 +1,968 @@
 {{-- resources/views/landing/placement-officers.blade.php --}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>{{ config('app.name','College Portal') }} — Placement Officers</title>
 
-{{-- (optional) FontAwesome for icons used below; remove if already included in header --}}
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
+  {{-- Bootstrap + Icons --}}
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet"/>
 
-<style>
-/* =========================================================
-  Public Placement Officers (Cards)
-  - Card size: 247px (W) x 329px (H)
-  - Optional Department filter from URL:
-      /{department-slug}/placement-officers/  => filtered (client-side hint)
-      /placement-officers/ => all
-========================================================= */
+  {{-- Common UI tokens --}}
+  <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}">
 
-:root{
-  --po-card-w: 247px;
-  --po-card-h: 329px;
-  --po-radius: 18px;
+  <style>
+    /* =========================================================
+      ✅ Placement Officers (Scoped / No :root / No global body rules)
+      - UI structure matches Announcements reference (theme consistency)
+      - Dept dropdown added (nicer UI)
+      - Dept filtering (frontend filter by department_id / department_uuid)
+      - Deep-link ?d-{uuid} auto-selects dept and filters
+    ========================================================= */
 
-  /* fallbacks if theme vars missing */
-  --po-ink: var(--ink, #111827);
-  --po-muted: var(--muted-color, #64748b);
-  --po-surface: var(--surface, #ffffff);
-  --po-line: var(--line-strong, rgba(15,23,42,.14));
-  --po-line-soft: var(--line-soft, rgba(15,23,42,.10));
-  --po-hover: var(--page-hover, rgba(2,6,23,.04));
-  --po-primary: var(--primary-color, #9E363A);
-  --po-shadow: var(--shadow-2, 0 10px 24px rgba(0,0,0,.08));
-  --po-accent: var(--primary-color, #9E363A);
-}
+    .pox-wrap{
+      /* scoped tokens */
+      --pox-brand: var(--primary-color, #9E363A);
+      --pox-ink: #0f172a;
+      --pox-muted: #64748b;
+      --pox-bg: var(--page-bg, #ffffff);
+      --pox-card: var(--surface, #ffffff);
+      --pox-line: var(--line-soft, rgba(15,23,42,.10));
+      --pox-shadow: 0 10px 24px rgba(2,6,23,.08);
 
-.po-page{
-  max-width: 1180px;
-  margin: 18px auto 44px;
-  padding: 0 10px;
-}
+      /* card sizing */
+      --pox-card-h: 426.4px;
+      --pox-media-h: 240px;
 
-/* Header */
-.po-head{
-  display:flex;
-  align-items:flex-end;
-  justify-content:space-between;
-  gap:12px;
-  flex-wrap:wrap;
-  margin-bottom: 14px;
-}
-.po-title{
-  margin:0;
-  font-weight: 900;
-  letter-spacing: .2px;
-  color: var(--po-ink);
-  font-size: 22px;
-}
-.po-sub{
-  margin: 4px 0 0;
-  color: var(--po-muted);
-  font-size: 13px;
-}
-.po-right{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  flex-wrap:wrap;
-}
-.po-search{
-  position:relative;
-  min-width: 280px;
-  max-width: 420px;
-  flex: 1 1 280px;
-}
-.po-search input{
-  width:100%;
-  border-radius: 14px;
-  padding: 11px 12px 11px 42px;
-  border:1px solid var(--po-line);
-  background: var(--po-surface);
-  color: var(--po-ink);
-  outline: none;
-}
-.po-search input:focus{
-  border-color: color-mix(in oklab, var(--po-primary) 40%, var(--po-line));
-  box-shadow: 0 0 0 4px color-mix(in oklab, var(--po-primary) 20%, transparent);
-}
-.po-search i{
-  position:absolute;
-  left: 14px;
-  top: 50%;
-  transform: translateY(-50%);
-  opacity: .6;
-  color: var(--po-muted);
-}
-.po-chip{
-  border:1px solid var(--po-line);
-  background: var(--po-surface);
-  border-radius: 999px;
-  padding: 10px 12px;
-  color: var(--po-ink);
-  font-size: 13px;
-  display:flex;
-  align-items:center;
-  gap:8px;
-  box-shadow: var(--po-shadow);
-}
-.po-chip b{font-weight:900}
+      max-width: 1320px;
+      margin: 18px auto 54px;
+      padding: 0 12px;
+      background: transparent;
+      position: relative;
+      overflow: visible;
+    }
 
-/* Grid (centered fixed card width) */
-.po-grid{
-  display:grid;
-  grid-template-columns: repeat(3, var(--po-card-w));
-  gap: 18px;
-}
-/* @media (max-width: 980px){
-  .po-grid{ grid-template-columns: repeat(2, var(--po-card-w)); }
-} */
-@media (max-width: 560px){
-  .po-grid{ grid-template-columns: 1fr; justify-content: stretch; }
-  .po-card{ width: 100%; max-width: var(--po-card-w); margin: 0 auto; }
-}
+    /* Header */
+    .pox-head{
+      background: var(--pox-card);
+      border: 1px solid var(--pox-line);
+      border-radius: 16px;
+      box-shadow: var(--pox-shadow);
+      padding: 14px 16px;
+      margin-bottom: 16px;
 
-/* Card */
-.po-card{
-  position: relative;
-  width: var(--po-card-w);
-  height: var(--po-card-h);
-  border-radius: var(--po-radius);
-  overflow:hidden;
-  display:block;
-  text-decoration:none !important;
-  color: inherit;
-  background: color-mix(in oklab, var(--po-surface) 86%, transparent);
-  border: 1px solid color-mix(in oklab, var(--po-line) 80%, transparent);
-  box-shadow: 0 12px 26px rgba(0,0,0,.10);
-  transform: translateZ(0);
-  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
-  cursor:pointer;
-}
-.po-card:hover{
-  transform: translateY(-4px);
-  box-shadow: 0 18px 42px rgba(0,0,0,.16);
-  border-color: color-mix(in oklab, var(--po-primary) 28%, var(--po-line));
-}
+      display:flex;
+      gap: 12px;
+      align-items: flex-end;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+    .pox-title{
+      margin: 0;
+      font-weight: 950;
+      letter-spacing: .2px;
+      color: var(--pox-ink);
+      font-size: 28px;
+      display:flex;
+      align-items:center;
+      gap: 10px;
+    }
+    .pox-title i{ color: var(--pox-brand); }
+    .pox-sub{
+      margin: 6px 0 0;
+      color: var(--pox-muted);
+      font-size: 14px;
+    }
 
-/* image as bg */
-.po-card .bg{
-  position:absolute; inset:0;
-  background-size: cover;
-  background-position: center;
-  filter: saturate(1.02);
-  transform: scale(1.0001);
-}
+    .pox-tools{
+      display:flex;
+      gap: 10px;
+      align-items:center;
+      flex-wrap: wrap;
+    }
 
-/* slight vignette like reference */
-.po-card .vignette{
-  position:absolute; inset:0;
-  background:
-    radial-gradient(1200px 500px at 50% -20%, rgba(255,255,255,.10), rgba(0,0,0,0) 60%),
-    linear-gradient(180deg, rgba(0,0,0,.00) 28%, rgba(0,0,0,.12) 60%, rgba(0,0,0,.54) 100%);
-}
+    /* Search */
+    .pox-search{
+      position: relative;
+      min-width: 260px;
+      max-width: 520px;
+      flex: 1 1 320px;
+    }
+    .pox-search i{
+      position:absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      opacity: .65;
+      color: var(--pox-muted);
+      pointer-events:none;
+    }
+    .pox-search input{
+      width:100%;
+      height: 42px;
+      border-radius: 999px;
+      padding: 11px 12px 11px 42px;
+      border: 1px solid var(--pox-line);
+      background: var(--pox-card);
+      color: var(--pox-ink);
+      outline: none;
+    }
+    .pox-search input:focus{
+      border-color: rgba(201,75,80,.55);
+      box-shadow: 0 0 0 4px rgba(201,75,80,.18);
+    }
 
-/* bottom overlay text */
-.po-card .info{
-  position:absolute;
-  left: 14px;
-  right: 14px;
-  bottom: 14px;
-  z-index: 2;
-}
-.po-name{
-  margin:0;
-  font-size: 18px;
-  font-weight: 900;
-  line-height: 1.1;
-  color: #fff;
-  text-shadow: 0 6px 16px rgba(0,0,0,.35);
-}
-.po-line2{
-  margin: 6px 0 0;
-  font-size: 14px;
-  color: rgba(255,255,255,.86);
-  text-shadow: 0 6px 16px rgba(0,0,0,.35);
-  overflow:hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+    /* ✅ Dept dropdown (nicer UI) */
+    .pox-select{
+      position: relative;
+      min-width: 260px;
+      max-width: 360px;
+      flex: 0 1 320px;
+    }
+    .pox-select__icon{
+      position:absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      opacity: .70;
+      color: var(--pox-muted);
+      pointer-events:none;
+      font-size: 14px;
+    }
+    .pox-select__caret{
+      position:absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      opacity: .70;
+      color: var(--pox-muted);
+      pointer-events:none;
+      font-size: 12px;
+    }
+    .pox-select select{
+      width: 100%;
+      height: 42px;
+      border-radius: 999px;
+      padding: 10px 38px 10px 42px; /* left icon + right caret */
+      border: 1px solid var(--pox-line);
+      background: var(--pox-card);
+      color: var(--pox-ink);
+      outline: none;
 
-/* top “pill” */
-.po-pill{
-  position:absolute;
-  top: 12px;
-  left: 12px;
-  z-index: 2;
-  padding: 7px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: .2px;
-  color: #fff;
-  background: rgba(0,0,0,.28);
-  border: 1px solid rgba(255,255,255,.20);
-  backdrop-filter: blur(6px);
-  max-width: calc(100% - 24px);
-  overflow:hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+      /* remove native arrow */
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+    }
+    .pox-select select:focus{
+      border-color: rgba(201,75,80,.55);
+      box-shadow: 0 0 0 4px rgba(201,75,80,.18);
+    }
 
-/* Placeholder (no image) */
-.po-placeholder{
-  position:absolute; inset:0;
-  display:grid; place-items:center;
-  background:
-    radial-gradient(800px 360px at 20% 10%, color-mix(in oklab, var(--po-primary) 25%, transparent), transparent 60%),
-    radial-gradient(900px 400px at 80% 90%, color-mix(in oklab, var(--po-primary) 18%, transparent), transparent 60%),
-    linear-gradient(180deg, color-mix(in oklab, var(--po-surface) 92%, transparent), color-mix(in oklab, var(--po-surface) 82%, transparent));
-}
-.po-initials{
-  width: 86px; height: 86px;
-  border-radius: 24px;
-  display:grid; place-items:center;
-  font-weight: 900;
-  font-size: 28px;
-  color: var(--po-primary);
-  background: color-mix(in oklab, var(--po-primary) 14%, transparent);
-  border: 1px solid color-mix(in oklab, var(--po-primary) 30%, var(--po-line-soft));
-}
+    /* Chip */
+    .pox-chip{
+      display:flex;
+      align-items:center;
+      gap: 8px;
+      height: 42px;
+      padding: 0 12px;
+      border-radius: 999px;
+      border: 1px solid var(--pox-line);
+      background: var(--pox-card);
+      box-shadow: 0 8px 18px rgba(2,6,23,.06);
+      color: var(--pox-ink);
+      font-size: 13px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
 
-/* Loading / Empty */
-.po-state{
-  border:1px solid var(--po-line);
-  border-radius: 16px;
-  background: var(--po-surface);
-  box-shadow: var(--po-shadow);
-  padding: 18px;
-  color: var(--po-muted);
-  text-align:center;
-}
-.po-spinner{
-  width: 42px; height: 42px;
-  border-radius: 50%;
-  border: 4px solid rgba(148,163,184,.30);
-  border-top: 4px solid var(--po-primary);
-  margin: 0 auto 10px;
-  animation: poSpin 1s linear infinite;
-}
-@keyframes poSpin{to{transform:rotate(360deg)}}
+    /* Grid */
+    .pox-grid{
+      display:grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 18px;
+      align-items: stretch;
+    }
 
-/* Pagination (bottom middle) */
-.po-pagination{
-  display:flex;
-  justify-content:center;
-  margin-top: 18px;
-}
-.po-pagination .pager{
-  display:flex;
-  gap: 8px;
-  flex-wrap:wrap;
-  align-items:center;
-  justify-content:center;
-  padding: 10px;
-}
-.po-pagebtn{
-  border:1px solid var(--po-line);
-  background: var(--po-surface);
-  color: var(--po-ink);
-  border-radius: 12px;
-  padding: 9px 12px;
-  font-size: 13px;
-  font-weight: 900;
-  box-shadow: var(--po-shadow);
-  cursor:pointer;
-  user-select:none;
-}
-.po-pagebtn:hover{ background: var(--po-hover); }
-.po-pagebtn[disabled]{ opacity:.55; cursor:not-allowed; }
-.po-pagebtn.active{
-  background: color-mix(in oklab, var(--po-primary) 14%, transparent);
-  border-color: color-mix(in oklab, var(--po-primary) 35%, var(--po-line));
-  color: var(--po-primary);
-}
+    /* Card */
+    .pox-card{
+      width:100%;
+      height: var(--pox-card-h);
+      position:relative;
+      display:flex;
+      flex-direction:column;
+      border: 1px solid rgba(2,6,23,.08);
+      border-radius: 16px;
+      background: #fff;
+      box-shadow: var(--pox-shadow);
+      overflow:hidden;
+      transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+      will-change: transform;
+    }
+    .pox-card:hover{
+      transform: translateY(-2px);
+      box-shadow: 0 16px 34px rgba(2,6,23,.12);
+      border-color: rgba(158,54,58,.22);
+    }
 
-    .po-title i {
-color: var(--po-accent);
-}
-</style>
+    .pox-media{
+      width:100%;
+      height: var(--pox-media-h);
+      flex: 0 0 auto;
+      background: var(--pox-brand);
+      position:relative;
+      overflow:hidden;
+      user-select:none;
+    }
+    .pox-media .pox-fallback{
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:#fff;
+      font-weight:950;
+      font-size: 26px;
+      letter-spacing:.2px;
+      z-index: 0;
+      gap:10px;
+    }
+    .pox-media .pox-fallback i{ opacity:.9; }
+    .pox-media img{
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      display:block;
+      z-index: 1;
+    }
 
-<div class="po-page">
+    .pox-body{
+      padding: 16px 16px 14px;
+      display:flex;
+      flex-direction:column;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+    .pox-h{
+      font-size: 20px;
+      line-height: 1.25;
+      font-weight: 950;
+      margin: 0 0 10px 0;
+      color: var(--pox-ink);
 
-  <div class="po-head">
-    <div>
-      <h1 class="po-title" id="poTitle"><i class="fa-solid fa-bullhorn"></i> Placement Officers</h1>
-      <div class="po-sub" id="poSub">Meet our Placement & Training team.</div>
+      display:-webkit-box;
+      -webkit-line-clamp:2;
+      -webkit-box-orient:vertical;
+      overflow:hidden;
+
+      overflow-wrap:anywhere;
+      word-break:break-word;
+    }
+    .pox-p{
+      margin:0;
+      color:#475569;
+      font-size: 14.5px;
+      line-height: 1.7;
+
+      display:-webkit-box;
+      -webkit-line-clamp:3;
+      -webkit-box-orient:vertical;
+      overflow:hidden;
+
+      overflow-wrap:anywhere;
+      word-break:break-word;
+      hyphens:auto;
+    }
+
+    .pox-meta{
+      margin-top:auto;
+      color:#94a3b8;
+      font-size: 13px;
+      padding-top: 12px;
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      flex-wrap:wrap;
+    }
+    .pox-meta .it{
+      display:flex;
+      align-items:center;
+      gap: 6px;
+    }
+
+    .pox-link{
+      position:absolute;
+      inset:0;
+      z-index:2;
+      border-radius: 16px;
+    }
+
+    /* State / empty */
+    .pox-state{
+      background: var(--pox-card);
+      border: 1px solid var(--pox-line);
+      border-radius: 16px;
+      box-shadow: var(--pox-shadow);
+      padding: 18px;
+      color: var(--pox-muted);
+      text-align:center;
+    }
+
+    /* Skeleton */
+    .pox-skeleton{
+      display:grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 18px;
+    }
+    .pox-sk{
+      border-radius: 16px;
+      border: 1px solid var(--pox-line);
+      background: #fff;
+      overflow:hidden;
+      position:relative;
+      box-shadow: 0 10px 24px rgba(2,6,23,.08);
+      height: var(--pox-card-h);
+    }
+    .pox-sk:before{
+      content:'';
+      position:absolute; inset:0;
+      transform: translateX(-60%);
+      background: linear-gradient(90deg, transparent, rgba(148,163,184,.22), transparent);
+      animation: poxSkMove 1.15s ease-in-out infinite;
+    }
+    @keyframes poxSkMove{ to{ transform: translateX(60%);} }
+
+    /* Pagination */
+    .pox-pagination{
+      display:flex;
+      justify-content:center;
+      margin-top: 18px;
+    }
+    .pox-pagination .pox-pager{
+      display:flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items:center;
+      justify-content:center;
+      padding: 10px;
+    }
+    .pox-pagebtn{
+      border:1px solid var(--pox-line);
+      background: var(--pox-card);
+      color: var(--pox-ink);
+      border-radius: 12px;
+      padding: 9px 12px;
+      font-size: 13px;
+      font-weight: 950;
+      box-shadow: 0 8px 18px rgba(2,6,23,.06);
+      cursor:pointer;
+      user-select:none;
+    }
+    .pox-pagebtn:hover{ background: rgba(2,6,23,.03); }
+    .pox-pagebtn[disabled]{ opacity:.55; cursor:not-allowed; }
+    .pox-pagebtn.active{
+      background: rgba(201,75,80,.12);
+      border-color: rgba(201,75,80,.35);
+      color: var(--pox-brand);
+    }
+
+    @media (max-width: 640px){
+      .pox-title{ font-size: 24px; }
+      .pox-search{ min-width: 220px; flex: 1 1 240px; }
+      .pox-select{ min-width: 220px; flex: 1 1 240px; }
+      .pox-wrap{ --pox-media-h: 210px; }
+      .pox-media .pox-fallback{ font-size: 22px; }
+    }
+
+    /* ✅ Guard against Bootstrap overriding mega menu dropdown positioning */
+    .dynamic-navbar .navbar-nav .dropdown-menu{
+      position: absolute !important;
+      inset: auto !important;
+    }
+    .dynamic-navbar .dropdown-menu.is-portaled{
+      position: fixed !important;
+    }
+  </style>
+</head>
+<body>
+
+  <div
+    class="pox-wrap"
+    data-api-1="{{ url('/api/public/placement-officers') }}"
+    data-api-2="{{ url('/api/placement-officers') }}"
+    data-dept-api="{{ url('/api/public/departments') }}"
+    data-profile-base="{{ url('/user/profile') }}"
+  >
+    <div class="pox-head">
+      <div>
+        <h1 class="pox-title"><i class="fa-solid fa-bullhorn"></i>Placement Officers</h1>
+        <div class="pox-sub" id="poxSub">Meet our Placement & Training team.</div>
+      </div>
+
+      <div class="pox-tools">
+        <div class="pox-search">
+          <i class="fa fa-magnifying-glass"></i>
+          <input id="poxSearch" type="search" placeholder="Search placement officers (name/email/designation)…">
+        </div>
+
+        <div class="pox-select" title="Filter by department">
+          <i class="fa-solid fa-building-columns pox-select__icon"></i>
+          <select id="poxDept" aria-label="Filter by department">
+            <option value="">All Departments</option>
+          </select>
+          <i class="fa-solid fa-chevron-down pox-select__caret"></i>
+        </div>
+
+        <div class="pox-chip" title="Total results">
+          <i class="fa-regular fa-rectangle-list" style="opacity:.85"></i>
+          <span id="poxCount">—</span>
+        </div>
+      </div>
     </div>
 
-    <div class="po-right">
-      <div class="po-search">
-        <i class="fa fa-magnifying-glass"></i>
-        <input id="poSearch" type="search" placeholder="Search by name / email / designation…">
-      </div>
+    <div id="poxGrid" class="pox-grid" style="display:none;"></div>
 
-      <div class="po-chip" title="Department filter (optional)">
-        <i class="fa-solid fa-filter" style="opacity:.75"></i>
-        <span id="poDeptChip"><b>All</b></span>
-      </div>
+    <div id="poxSkeleton" class="pox-skeleton"></div>
+    <div id="poxState" class="pox-state" style="display:none;"></div>
 
-      <div class="po-chip" title="Total results">
-        <i class="fa-solid fa-users" style="opacity:.75"></i>
-        <span id="poCount">—</span>
-      </div>
+    <div class="pox-pagination">
+      <div id="poxPager" class="pox-pager" style="display:none;"></div>
     </div>
   </div>
 
-  <div id="poGrid" class="po-grid" style="display:none;"></div>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-  <div id="poState" class="po-state">
-    <div class="po-spinner"></div>
-    Loading placement officers…
-  </div>
+  <script>
+  (() => {
+    if (window.__PUBLIC_PLACEMENT_OFFICERS_ALL__) return;
+    window.__PUBLIC_PLACEMENT_OFFICERS_ALL__ = true;
 
-  <div class="po-pagination">
-    <div id="poPager" class="pager" style="display:none;"></div>
-  </div>
+    const root = document.querySelector('.pox-wrap');
+    if (!root) return;
 
-</div>
+    const API_1 = root.getAttribute('data-api-1') || '/api/public/placement-officers';
+    const API_2 = root.getAttribute('data-api-2') || '/api/placement-officers';
+    const DEPT_API = root.getAttribute('data-dept-api') || '/api/public/departments';
+    const PROFILE_BASE = root.getAttribute('data-profile-base') || '/user/profile';
 
-<script>
-(() => {
-  if (window.__PLACEMENT_OFFICERS_PUBLIC_INIT__) return;
-  window.__PLACEMENT_OFFICERS_PUBLIC_INIT__ = true;
+    const $ = (id) => document.getElementById(id);
 
-  const $ = (id) => document.getElementById(id);
-
-  // ✅ Always use Laravel app base URL (local => http://127.0.0.1:8000)
-  const APP_ORIGIN = @json(url('/'));
-
-  // profile route base
-  const PROFILE_PATH = '/user/profile/';
-
-  // Public endpoints (absolute -> always hits :8000)
-  const LIST_ENDPOINTS = [
-    APP_ORIGIN + '/api/public/placement-officers',  // ✅ your new api
-    APP_ORIGIN + '/api/placement-officers'          // (optional fallback if you keep another route)
-  ];
-
-  const state = {
-    page: 1,
-    perPage: 12,
-    lastPage: 1,
-    total: 0,
-    q: '',
-    departmentSlug: ''
-  };
-
-  function esc(str){
-    return (str ?? '').toString().replace(/[&<>"']/g, s => ({
-      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-    }[s]));
-  }
-
-  function normalizeUrl(url){
-    const u = (url || '').toString().trim();
-    if (!u) return '';
-    if (/^(data:|blob:|https?:\/\/)/i.test(u)) return u;
-    if (u.startsWith('/')) return APP_ORIGIN + u;
-    return APP_ORIGIN + '/' + u;
-  }
-
-  function pick(obj, keys){
-    for (const k of keys){
-      const v = obj?.[k];
-      if (v !== null && v !== undefined && String(v).trim() !== '') return v;
-    }
-    return '';
-  }
-
-  function looksLikeUuid(v){
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v || '').trim());
-  }
-
-  // Optional dept filter from URL:
-  // /{dept}/placement-officers/
-  function readDepartmentFromUrl(){
-    const parts = window.location.pathname.split('/').filter(Boolean);
-    const idx = parts.findIndex(p => p.toLowerCase() === 'placement-officers');
-    if (idx > 0) return parts[idx - 1];
-    return '';
-  }
-
-  function titleCaseFromSlug(slug){
-    if (!slug) return '';
-    return slug
-      .replace(/[-_]+/g,' ')
-      .split(' ')
-      .filter(Boolean)
-      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(' ');
-  }
-
-  function initials(name){
-    const n = (name || '').trim();
-    if (!n) return 'PO';
-    const parts = n.split(/\s+/).filter(Boolean).slice(0,2);
-    return parts.map(p => p[0].toUpperCase()).join('');
-  }
-
-  function resolveName(item){
-    return String(pick(item, ['name','user_name','full_name']) || 'Placement Officer');
-  }
-
-  function resolveEmail(item){
-    return String(pick(item, ['email']) || '');
-  }
-
-  function resolveDesignation(item){
-    // your API outputs "designation" from affiliation
-    return String(pick(item, ['designation','affiliation','role_short_form','role']) || '');
-  }
-
-  function resolveImage(item){
-    const img =
-      pick(item, ['image_full_url','image_url','photo_url','profile_image_url']) ||
-      pick(item, ['image']) || '';
-    return normalizeUrl(img);
-  }
-
-  function resolveProfileIdentifier(item){
-    const candidates = [
-      pick(item, ['uuid','user_uuid']),
-      (item?.id ?? '')
-    ].map(v => String(v ?? '').trim()).filter(Boolean);
-
-    const uuid = candidates.find(looksLikeUuid);
-    return uuid || candidates[0] || '';
-  }
-
-  function buildProfileUrl(identifier){
-    return identifier
-      ? (APP_ORIGIN + PROFILE_PATH + encodeURIComponent(identifier))
-      : '#';
-  }
-
-  function toItems(js){
-    if (Array.isArray(js?.data)) return js.data;
-    if (Array.isArray(js?.items)) return js.items;
-    if (Array.isArray(js)) return js;
-    if (Array.isArray(js?.data?.items)) return js.data.items;
-    return [];
-  }
-
-  function toPagination(js){
-    const p = js?.pagination || js?.meta || js?.data?.pagination || {};
-    const total = parseInt(p.total ?? js?.total ?? 0, 10) || 0;
-    const last  = parseInt(p.last_page ?? p.lastPage ?? js?.last_page ?? 1, 10) || 1;
-    const cur   = parseInt(p.current_page ?? p.page ?? js?.page ?? 1, 10) || 1;
-    return { total, last, cur };
-  }
-
-  async function fetchJson(url){
-    const res = await fetch(url, { headers: { 'Accept':'application/json' }});
-    const js = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(js?.message || 'Request failed');
-    return js;
-  }
-
-  async function tryFetchList(urls){
-    let lastErr = null;
-    for (const u of urls){
-      try{
-        const js = await fetchJson(u);
-        return { ok:true, used:u, js, items: toItems(js) };
-      }catch(e){
-        lastErr = e;
-      }
-    }
-    return { ok:false, used:'', js:{}, items:[], error:lastErr };
-  }
-
-  function buildListUrl(base){
-    const params = new URLSearchParams();
-    params.set('per_page', String(state.perPage));
-    params.set('page', String(state.page));
-    params.set('status', 'active');
-
-    if (state.q.trim()) params.set('q', state.q.trim());
-
-    // (optional) if you later add backend dept filter
-    if (state.departmentSlug) params.set('department', state.departmentSlug);
-
-    params.set('sort', 'created_at');
-    params.set('direction', 'desc');
-
-    return base + (base.includes('?') ? '&' : '?') + params.toString();
-  }
-
-  // Optional client-side dept filter (non-breaking)
-  function applyClientDeptFilter(items){
-    if (!state.departmentSlug) return items;
-    const slug = state.departmentSlug.toLowerCase();
-    return (items || []).filter(it => {
-      const d = (resolveDesignation(it) || '').toLowerCase();
-      return d.includes(slug.replace(/[-_]+/g,' ')) || d.includes(slug);
-    });
-  }
-
-  function render(items){
-    const grid = $('poGrid');
-    const st = $('poState');
-    const count = $('poCount');
-    const sub = $('poSub');
-
-    if (!grid || !st) return;
-
-    if (!items.length){
-      grid.style.display = 'none';
-      st.style.display = '';
-      st.innerHTML = `
-        <div style="font-size:34px;opacity:.6;margin-bottom:6px;"><i class="fa-regular fa-face-frown"></i></div>
-        No placement officers found.
-      `;
-      if (count) count.textContent = '0';
-      if (sub) sub.textContent = state.departmentSlug
-        ? 'No records found for this department.'
-        : 'No records match your search.';
-      return;
-    }
-
-    if (count) count.textContent = String(state.total || items.length);
-    if (sub) sub.textContent = 'Click any card to view the profile.';
-
-    st.style.display = 'none';
-    grid.style.display = '';
-    grid.innerHTML = items.map(it => {
-      const name = resolveName(it);
-      const email = resolveEmail(it);
-      const desig = resolveDesignation(it);
-      const img = resolveImage(it);
-
-      const identifier = resolveProfileIdentifier(it);
-      const href = buildProfileUrl(identifier);
-
-      const pill = desig ? `<div class="po-pill">${esc(desig)}</div>` : `<div class="po-pill">Placement Officer</div>`;
-      const line2 = email ? esc(email) : 'Placement Cell';
-
-      if (!img){
-        return `
-          <a class="po-card" href="${esc(href)}" data-profile="${esc(href)}" aria-label="${esc(name)} profile">
-            <div class="po-placeholder">
-              <div class="po-initials">${esc(initials(name))}</div>
-            </div>
-            ${pill}
-            <div class="vignette"></div>
-            <div class="info">
-              <p class="po-name">${esc(name)}</p>
-              <p class="po-line2">${line2}</p>
-            </div>
-          </a>
-        `;
-      }
-
-      return `
-        <a class="po-card" href="${esc(href)}" data-profile="${esc(href)}" aria-label="${esc(name)} profile">
-          <div class="bg" style="background-image:url('${esc(img)}')"></div>
-          ${pill}
-          <div class="vignette"></div>
-          <div class="info">
-            <p class="po-name">${esc(name)}</p>
-            <p class="po-line2">${line2}</p>
-          </div>
-        </a>
-      `;
-    }).join('');
-  }
-
-  function renderPager(){
-    const pager = $('poPager');
-    if (!pager) return;
-
-    const last = state.lastPage || 1;
-    const cur = state.page || 1;
-
-    if (last <= 1){
-      pager.style.display = 'none';
-      pager.innerHTML = '';
-      return;
-    }
-
-    const btn = (label, page, {disabled=false, active=false}={}) => {
-      const dis = disabled ? 'disabled' : '';
-      const cls = active ? 'po-pagebtn active' : 'po-pagebtn';
-      return `<button class="${cls}" ${dis} data-page="${page}">${label}</button>`;
+    const els = {
+      grid: $('poxGrid'),
+      skel: $('poxSkeleton'),
+      state: $('poxState'),
+      pager: $('poxPager'),
+      search: $('poxSearch'),
+      dept: $('poxDept'),
+      count: $('poxCount'),
+      sub: $('poxSub'),
     };
 
-    let html = '';
-    html += btn('Previous', Math.max(1, cur-1), { disabled: cur<=1 });
+    const state = {
+      page: 1,
+      perPage: 9,
+      lastPage: 1,
+      total: 0,
+      q: '',
+      deptUuid: '',
+      deptId: null,
+      deptName: '',
+    };
 
-    const win = 2;
-    const start = Math.max(1, cur - win);
-    const end = Math.min(last, cur + win);
+    let activeController = null;
 
-    if (start > 1){
-      html += btn('1', 1, { active: cur===1 });
-      if (start > 2) html += `<span style="opacity:.6;padding:0 4px;">…</span>`;
+    // cache
+    let allOfficers = null;
+    let deptByUuid = new Map(); // uuid -> {id, title, uuid}
+
+    function esc(str){
+      return (str ?? '').toString().replace(/[&<>"']/g, s => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[s]));
+    }
+    function escAttr(str){
+      return (str ?? '').toString().replace(/"/g, '&quot;');
     }
 
-    for (let p=start; p<=end; p++){
-      html += btn(String(p), p, { active: p===cur });
+    function stripHtml(html){
+      const raw = String(html || '')
+        .replace(/<\s*br\s*\/?>/gi, ' ')
+        .replace(/<\/\s*(p|div|li|h[1-6]|tr|td|th|section|article)\s*>/gi, '$& ')
+        .replace(/<\s*(p|div|li|h[1-6]|tr|td|th|section|article)\b[^>]*>/gi, ' ');
+      const div = document.createElement('div');
+      div.innerHTML = raw;
+      return (div.textContent || div.innerText || '').replace(/\s+/g, ' ').trim();
     }
 
-    if (end < last){
-      if (end < last - 1) html += `<span style="opacity:.6;padding:0 4px;">…</span>`;
-      html += btn(String(last), last, { active: cur===last });
+    function normalizeUrl(url){
+      const u = (url || '').toString().trim();
+      if (!u) return '';
+      if (/^(data:|blob:|https?:\/\/)/i.test(u)) return u;
+      if (u.startsWith('/')) return window.location.origin + u;
+      return window.location.origin + '/' + u;
     }
 
-    html += btn('Next', Math.min(last, cur+1), { disabled: cur>=last });
-
-    pager.innerHTML = html;
-    pager.style.display = 'flex';
-  }
-
-  async function load(){
-    const st = $('poState');
-    const grid = $('poGrid');
-
-    if (st){
-      st.style.display = '';
-      st.innerHTML = `<div class="po-spinner"></div>Loading placement officers…`;
+    function looksLikeUuid(v){
+      return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v || '').trim());
     }
-    if (grid) grid.style.display = 'none';
 
-    const urls = LIST_ENDPOINTS.map(base => buildListUrl(base));
-    const res = await tryFetchList(urls);
-
-    if (!res.ok){
-      if (st){
-        st.style.display = '';
-        st.innerHTML = `
-          <div style="font-size:34px;opacity:.6;margin-bottom:6px;"><i class="fa-solid fa-triangle-exclamation"></i></div>
-          Could not load placement officers.
-        `;
+    function pick(obj, keys){
+      for (const k of keys){
+        const v = obj?.[k];
+        if (v !== null && v !== undefined && String(v).trim() !== '') return v;
       }
-      const pager = $('poPager');
-      if (pager) pager.style.display = 'none';
-      return;
+      return '';
     }
 
-    let items = res.items || [];
-
-    // Optional dept filter client-side (safe even if not needed)
-    items = applyClientDeptFilter(items);
-
-    const p = toPagination(res.js);
-    state.total = p.total || items.length;
-    state.lastPage = p.last || 1;
-    state.page = p.cur || state.page;
-
-    render(items);
-    renderPager();
-  }
-
-  document.addEventListener('DOMContentLoaded', () => {
-    // dept from URL (optional)
-    state.departmentSlug = readDepartmentFromUrl();
-
-    const deptChip = $('poDeptChip');
-    const title = $('poTitle');
-    if (deptChip){
-      deptChip.innerHTML = state.departmentSlug
-        ? `<b>${esc(titleCaseFromSlug(state.departmentSlug))}</b>`
-        : `<b>All</b>`;
+    function resolveName(item){
+      return String(pick(item, ['name','user_name','full_name']) || 'Placement Officer');
     }
-    if (title && state.departmentSlug){
-      title.textContent = `Placement Officers — ${titleCaseFromSlug(state.departmentSlug)}`;
+    function resolveEmail(item){
+      return String(pick(item, ['email']) || '');
+    }
+    function resolveDesignation(item){
+      return String(pick(item, ['designation','affiliation','role_short_form','role']) || 'Placement Officer');
+    }
+    function resolveImage(item){
+      const img =
+        pick(item, ['image_full_url','image_url','photo_url','profile_image_url']) ||
+        pick(item, ['image']) || '';
+      return normalizeUrl(img);
     }
 
-    // ✅ Force navigation on card click (in case any global script blocks anchors)
-    document.addEventListener('click', (e) => {
-      const card = e.target.closest('.po-card');
-      if (!card) return;
-      const url = card.getAttribute('data-profile') || card.getAttribute('href') || '';
-      if (!url || url === '#') return;
-      e.preventDefault();
-      window.location.href = url;
-    });
+    function resolveDeptId(item){
+      const v = pick(item, ['department_id','dept_id','departmentId','deptId','department']);
+      if (v === null || v === undefined || String(v).trim() === '') return '';
+      return String(v).trim();
+    }
+    function resolveDeptUuid(item){
+      const v = pick(item, ['department_uuid','dept_uuid','departmentUuid','deptUuid']);
+      return String(v || '').trim();
+    }
 
-    // search (debounced)
-    const search = $('poSearch');
-    let t = null;
-    if (search){
-      search.addEventListener('input', () => {
-        clearTimeout(t);
-        t = setTimeout(() => {
-          state.q = (search.value || '').trim();
-          state.page = 1;
-          load();
-        }, 260);
+    function resolveProfileIdentifier(item){
+      const candidates = [
+        pick(item, ['uuid','user_uuid']),
+        (item?.id ?? '')
+      ].map(v => String(v ?? '').trim()).filter(Boolean);
+
+      const uuid = candidates.find(looksLikeUuid);
+      return uuid || candidates[0] || '';
+    }
+
+    function buildProfileUrl(identifier){
+      return identifier
+        ? (PROFILE_BASE.replace(/\/+$/,'') + '/' + encodeURIComponent(identifier))
+        : '#';
+    }
+
+    // ✅ handle image load/error without inline JS
+    function bindCardImages(rootEl){
+      rootEl.querySelectorAll('img.pox-img').forEach(img => {
+        const media = img.closest('.pox-media');
+        const fallback = media ? media.querySelector('.pox-fallback') : null;
+
+        if (img.complete && img.naturalWidth > 0) {
+          if (fallback) fallback.style.display = 'none';
+          return;
+        }
+
+        img.addEventListener('load', () => {
+          if (fallback) fallback.style.display = 'none';
+        }, { once: true });
+
+        img.addEventListener('error', () => {
+          img.remove();
+          if (fallback) fallback.style.display = 'flex';
+        }, { once: true });
       });
     }
 
-    // pager click
-    document.addEventListener('click', (e) => {
-      const b = e.target.closest('button.po-pagebtn[data-page]');
-      if (!b) return;
-      const p = parseInt(b.dataset.page, 10);
-      if (!p || Number.isNaN(p) || p === state.page) return;
-      state.page = p;
-      load();
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+    function showSkeleton(){
+      const sk = els.skel, st = els.state, grid = els.grid, pager = els.pager;
+      if (grid) grid.style.display = 'none';
+      if (pager) pager.style.display = 'none';
+      if (st) st.style.display = 'none';
+
+      if (!sk) return;
+      sk.style.display = '';
+      sk.innerHTML = Array.from({length: 6}).map(() => `<div class="pox-sk"></div>`).join('');
+    }
+
+    function hideSkeleton(){
+      const sk = els.skel;
+      if (!sk) return;
+      sk.style.display = 'none';
+      sk.innerHTML = '';
+    }
+
+    async function fetchJson(url){
+      if (activeController) activeController.abort();
+      activeController = new AbortController();
+
+      const res = await fetch(url, {
+        headers: { 'Accept':'application/json' },
+        signal: activeController.signal
+      });
+
+      const js = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(js?.message || ('Request failed: ' + res.status));
+      return js;
+    }
+
+    function toItems(js){
+      if (Array.isArray(js?.data)) return js.data;
+      if (Array.isArray(js?.items)) return js.items;
+      if (Array.isArray(js)) return js;
+      if (Array.isArray(js?.data?.items)) return js.data.items;
+      return [];
+    }
+
+    async function tryFetchList(urls){
+      let lastErr = null;
+      for (const u of urls){
+        try{
+          const js = await fetchJson(u);
+          return { ok:true, used:u, js, items: toItems(js) };
+        }catch(e){
+          lastErr = e;
+        }
+      }
+      return { ok:false, used:'', js:{}, items:[], error:lastErr };
+    }
+
+    function extractDeptUuidFromUrl(){
+      // matches "?d-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" anywhere in URL
+      const hay = (window.location.search || '') + ' ' + (window.location.href || '');
+      const m = hay.match(/d-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+      return m ? m[1] : '';
+    }
+
+    function setDeptSelection(uuid){
+      const sel = els.dept;
+      uuid = (uuid || '').toString().trim();
+
+      if (!sel) return;
+
+      if (!uuid){
+        sel.value = '';
+        state.deptUuid = '';
+        state.deptId = null;
+        state.deptName = '';
+        if (els.sub) els.sub.textContent = 'Meet our Placement & Training team.';
+        return;
+      }
+
+      const meta = deptByUuid.get(uuid);
+      if (!meta) return;
+
+      sel.value = uuid;
+      state.deptUuid = uuid;
+      state.deptId = meta.id ?? null;
+      state.deptName = meta.title ?? '';
+
+      if (els.sub){
+        els.sub.textContent = state.deptName
+          ? ('Placement Officers for ' + state.deptName)
+          : 'Placement Officers (filtered)';
+      }
+    }
+
+    async function loadDepartments(){
+      const sel = els.dept;
+      if (!sel) return;
+
+      sel.innerHTML = `
+        <option value="">All Departments</option>
+        <option value="__loading" disabled>Loading departments…</option>
+      `;
+      sel.value = '__loading';
+
+      try{
+        const res = await fetch(DEPT_API, { headers: { 'Accept':'application/json' } });
+        const js = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(js?.message || ('HTTP ' + res.status));
+
+        const items = Array.isArray(js?.data) ? js.data : [];
+        const depts = items
+          .map(d => ({
+            id: d?.id ?? null,
+            uuid: (d?.uuid ?? '').toString().trim(),
+            title: (d?.title ?? d?.name ?? '').toString().trim(),
+            active: (d?.active ?? 1),
+          }))
+          .filter(x => x.uuid && x.title && String(x.active) === '1'); // ✅ only active
+
+        deptByUuid = new Map(depts.map(d => [d.uuid, d]));
+
+        // sort A-Z
+        depts.sort((a,b) => a.title.localeCompare(b.title));
+
+        sel.innerHTML = `<option value="">All Departments</option>` + depts
+          .map(d => `<option value="${escAttr(d.uuid)}" data-id="${escAttr(d.id ?? '')}">${esc(d.title)}</option>`)
+          .join('');
+
+        sel.value = '';
+      } catch (e){
+        console.warn('Departments load failed:', e);
+        sel.innerHTML = `<option value="">All Departments</option>`;
+        sel.value = '';
+      }
+    }
+
+    async function ensureOfficersLoaded(force=false){
+      if (allOfficers && !force) return;
+
+      showSkeleton();
+
+      try{
+        // ask for a bigger page so frontend filtering always works
+        const urls = [API_1, API_2].map(base => {
+          const u = new URL(base, window.location.origin);
+          u.searchParams.set('page', '1');
+          u.searchParams.set('per_page', '200');
+          u.searchParams.set('status', 'active');
+          u.searchParams.set('sort', 'created_at');
+          u.searchParams.set('direction', 'desc');
+          return u.toString();
+        });
+
+        const res = await tryFetchList(urls);
+        allOfficers = res.ok ? (res.items || []) : [];
+      } finally {
+        hideSkeleton();
+      }
+    }
+
+    function cardHtml(item){
+      const nameRaw = resolveName(item);
+      const desigRaw = resolveDesignation(item);
+      const emailRaw = resolveEmail(item);
+
+      const name = esc(nameRaw);
+      const desig = esc(stripHtml(desigRaw || ''));
+      const email = esc(emailRaw || '');
+
+      const identifier = resolveProfileIdentifier(item);
+      const href = buildProfileUrl(identifier);
+
+      const photo = resolveImage(item);
+      const photoNorm = photo ? normalizeUrl(photo) : '';
+
+      return `
+        <div class="pox-card">
+          <div class="pox-media">
+            <div class="pox-fallback"><i class="fa-solid fa-user-tie"></i>Placement Officer</div>
+            ${photoNorm ? `
+              <img class="pox-img"
+                   src="${escAttr(photoNorm)}"
+                   alt="${escAttr(nameRaw)}"
+                   loading="lazy" />
+            ` : ``}
+          </div>
+
+          <div class="pox-body">
+            <div class="pox-h">${name}</div>
+            <p class="pox-p">${desig || 'Placement Officer'}</p>
+
+            <div class="pox-meta">
+              <div class="it" title="Email">
+                <i class="fa-regular fa-envelope"></i>
+                <span>${email || '—'}</span>
+              </div>
+              <div class="it" title="Department">
+                <i class="fa-regular fa-building"></i>
+                <span>${esc(state.deptName || 'All Departments')}</span>
+              </div>
+            </div>
+          </div>
+
+          ${identifier
+            ? `<a class="pox-link" href="${escAttr(href)}" aria-label="Open ${escAttr(nameRaw)} profile"></a>`
+            : `<div class="pox-link" title="Missing profile identifier"></div>`
+          }
+        </div>
+      `;
+    }
+
+    function applyFilterAndSearch(){
+      const q = (state.q || '').toString().trim().toLowerCase();
+      let items = Array.isArray(allOfficers) ? allOfficers.slice() : [];
+
+      // ✅ Dept filter: when dept selected -> show ONLY those matched to dept
+      if (state.deptUuid && (state.deptId !== null && state.deptId !== undefined && String(state.deptId) !== '')){
+        const deptIdStr = String(state.deptId);
+        const deptUuidStr = String(state.deptUuid);
+
+        items = items.filter(it => {
+          const did = resolveDeptId(it);
+          const duu = resolveDeptUuid(it);
+          return (did && did === deptIdStr) || (duu && duu === deptUuidStr);
+        });
+      } else if (state.deptUuid) {
+        // if somehow deptId missing, try uuid-only
+        const deptUuidStr = String(state.deptUuid);
+        items = items.filter(it => String(resolveDeptUuid(it) || '') === deptUuidStr);
+      }
+
+      // search on name + designation + email
+      if (q){
+        items = items.filter(it => {
+          const n = resolveName(it).toLowerCase();
+          const d = stripHtml(resolveDesignation(it)).toLowerCase();
+          const e = resolveEmail(it).toLowerCase();
+          return (n.includes(q) || d.includes(q) || e.includes(q));
+        });
+      }
+
+      return items;
+    }
+
+    function render(items){
+      const grid = els.grid, st = els.state, count = els.count;
+      if (!grid || !st) return;
+
+      if (count) count.textContent = String(state.total || 0);
+
+      if (!items.length){
+        grid.style.display = 'none';
+        st.style.display = '';
+        const deptLine = state.deptName ? `<div style="margin-top:6px;font-size:12.5px;opacity:.95;">Department: <b>${esc(state.deptName)}</b></div>` : '';
+        st.innerHTML = `
+          <div style="font-size:34px;opacity:.6;margin-bottom:6px;">
+            <i class="fa-regular fa-face-frown"></i>
+          </div>
+          No placement officers found.
+          ${deptLine}
+        `;
+        return;
+      }
+
+      st.style.display = 'none';
+      grid.style.display = '';
+      grid.innerHTML = items.map(cardHtml).join('');
+      bindCardImages(grid);
+    }
+
+    function renderPager(){
+      const pager = els.pager;
+      if (!pager) return;
+
+      const last = state.lastPage || 1;
+      const cur  = state.page || 1;
+
+      if (last <= 1){
+        pager.style.display = 'none';
+        pager.innerHTML = '';
+        return;
+      }
+
+      const btn = (label, page, {disabled=false, active=false}={}) => {
+        const dis = disabled ? 'disabled' : '';
+        const cls = active ? 'pox-pagebtn active' : 'pox-pagebtn';
+        return `<button class="${cls}" ${dis} data-page="${page}">${label}</button>`;
+      };
+
+      let html = '';
+      html += btn('Previous', Math.max(1, cur-1), { disabled: cur<=1 });
+
+      const win = 2;
+      const start = Math.max(1, cur - win);
+      const end   = Math.min(last, cur + win);
+
+      if (start > 1){
+        html += btn('1', 1, { active: cur===1 });
+        if (start > 2) html += `<span style="opacity:.6;padding:0 4px;">…</span>`;
+      }
+
+      for (let p=start; p<=end; p++){
+        html += btn(String(p), p, { active: p===cur });
+      }
+
+      if (end < last){
+        if (end < last - 1) html += `<span style="opacity:.6;padding:0 4px;">…</span>`;
+        html += btn(String(last), last, { active: cur===last });
+      }
+
+      html += btn('Next', Math.min(last, cur+1), { disabled: cur>=last });
+
+      pager.innerHTML = html;
+      pager.style.display = 'flex';
+    }
+
+    function repaint(){
+      const filtered = applyFilterAndSearch();
+
+      state.total = filtered.length;
+      state.lastPage = Math.max(1, Math.ceil(filtered.length / state.perPage));
+      if (state.page > state.lastPage) state.page = state.lastPage;
+
+      const start = (state.page - 1) * state.perPage;
+      const pageItems = filtered.slice(start, start + state.perPage);
+
+      render(pageItems);
+      renderPager();
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadDepartments();
+
+      // ✅ deep-link: ?d-{uuid}
+      const deepDeptUuid = extractDeptUuidFromUrl();
+      if (deepDeptUuid && deptByUuid.has(deepDeptUuid)){
+        setDeptSelection(deepDeptUuid);
+      } else {
+        setDeptSelection('');
+      }
+
+      // load once, then filter client-side
+      await ensureOfficersLoaded(false);
+      repaint();
+
+      // search (debounced)
+      let t = null;
+      els.search && els.search.addEventListener('input', () => {
+        clearTimeout(t);
+        t = setTimeout(() => {
+          state.q = (els.search.value || '').trim();
+          state.page = 1;
+          repaint();
+        }, 260);
+      });
+
+      // dept change
+      els.dept && els.dept.addEventListener('change', () => {
+        const v = (els.dept.value || '').toString();
+        if (v === '__loading') return;
+
+        if (!v){
+          setDeptSelection('');
+        } else {
+          setDeptSelection(v);
+        }
+
+        state.page = 1;
+        repaint();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+
+      // pagination click
+      document.addEventListener('click', (e) => {
+        const b = e.target.closest('button.pox-pagebtn[data-page]');
+        if (!b) return;
+        const p = parseInt(b.dataset.page, 10);
+        if (!p || Number.isNaN(p) || p === state.page) return;
+        state.page = p;
+        repaint();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
     });
 
-    load();
-  });
-
-})();
-</script>
+  })();
+  </script>
+</body>
+</html>

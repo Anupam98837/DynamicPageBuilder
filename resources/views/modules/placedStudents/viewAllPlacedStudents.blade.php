@@ -5,143 +5,204 @@
 
 <style>
 /* =========================================================
-  Public Placed Students (Cards)
+  ✅ Placed Students (Scoped / No :root / No global body rules)
+  - UI structure SAME as Announcements reference (header card + tools + grid + skeleton + pager)
   - Card size: 247px (W) x 329px (H)
-  - Department filter from URL:
-      /{department-slug}/alumni/  => filtered
-      /alumni/ (or no dept segment) => all
+  - Dept dropdown added (nicer UI)
+  - Dept filtering FIXED (frontend filter by department_id / department_uuid)
+  - Deep-link ?d-{uuid} anywhere => auto-select dept + filter
 ========================================================= */
 
-:root{
-  --psp-card-w: 247px;
-  --psp-card-h: 329px;
-  --psp-radius: 18px;
+.psx-wrap{
+  /* scoped tokens */
+  --psx-brand: var(--primary-color, #9E363A);
+  --psx-ink: #0f172a;
+  --psx-muted: #64748b;
+  --psx-bg: var(--page-bg, #ffffff);
+  --psx-card: var(--surface, #ffffff);
+  --psx-line: var(--line-soft, rgba(15,23,42,.10));
+  --psx-shadow: 0 10px 24px rgba(2,6,23,.08);
 
-  /* fallbacks if theme vars missing */
-  --psp-ink: var(--ink, #111827);
-  --psp-muted: var(--muted-color, #64748b);
-  --psp-surface: var(--surface, #ffffff);
-  --psp-line: var(--line-strong, rgba(15,23,42,.14));
-  --psp-line-soft: var(--line-soft, rgba(15,23,42,.10));
-  --psp-hover: var(--page-hover, rgba(2,6,23,.04));
-  --psp-primary: var(--primary-color, #9E363A);
-  --psp-shadow: var(--shadow-2, 0 10px 24px rgba(0,0,0,.08));
-  --psp-accent: var(--primary-color, #9E363A);
-}
+  /* fixed card sizing */
+  --psx-card-w: 247px;
+  --psx-card-h: 329px;
+  --psx-radius: 18px;
 
-.psp-page{
-  max-width: 1180px;
-  margin: 18px auto 44px;
-  padding: 0 10px;
+  max-width: 1320px;
+  margin: 18px auto 54px;
+  padding: 0 12px;
+  background: transparent;
+  position: relative;
+  overflow: visible;
 }
 
 /* Header */
-.psp-head{
+.psx-head{
+  background: var(--psx-card);
+  border: 1px solid var(--psx-line);
+  border-radius: 16px;
+  box-shadow: var(--psx-shadow);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+
   display:flex;
+  gap: 12px;
   align-items:flex-end;
   justify-content:space-between;
-  gap:12px;
   flex-wrap:wrap;
-  margin-bottom: 14px;
 }
-.psp-title{
+.psx-title{
   margin:0;
-  font-weight: 900;
+  font-weight: 950;
   letter-spacing: .2px;
-  color: var(--psp-ink);
-  font-size: 22px;
-}
-.psp-sub{
-  margin: 4px 0 0;
-  color: var(--psp-muted);
-  font-size: 13px;
-}
-.psp-right{
+  color: var(--psx-ink);
+  font-size: 28px;
   display:flex;
   align-items:center;
-  gap:10px;
-  flex-wrap:wrap;
+  gap: 10px;
 }
-.psp-search{
-  position:relative;
-  min-width: 280px;
-  max-width: 420px;
-  flex: 1 1 280px;
+.psx-title i{ color: var(--psx-brand); }
+.psx-sub{
+  margin: 6px 0 0;
+  color: var(--psx-muted);
+  font-size: 14px;
 }
-.psp-search input{
-  width:100%;
-  border-radius: 14px;
-  padding: 11px 12px 11px 42px;
-  border:1px solid var(--psp-line);
-  background: var(--psp-surface);
-  color: var(--psp-ink);
-  outline: none;
+
+.psx-tools{
+  display:flex;
+  gap: 10px;
+  align-items:center;
+  flex-wrap: wrap;
 }
-.psp-search input:focus{
-  border-color: color-mix(in oklab, var(--psp-primary) 40%, var(--psp-line));
-  box-shadow: 0 0 0 4px color-mix(in oklab, var(--psp-primary) 20%, transparent);
+
+/* Search */
+.psx-search{
+  position: relative;
+  min-width: 260px;
+  max-width: 520px;
+  flex: 1 1 320px;
 }
-.psp-search i{
+.psx-search i{
   position:absolute;
   left: 14px;
   top: 50%;
   transform: translateY(-50%);
-  opacity: .6;
-  color: var(--psp-muted);
+  opacity: .65;
+  color: var(--psx-muted);
+  pointer-events:none;
 }
-.psp-chip{
-  border:1px solid var(--psp-line);
-  background: var(--psp-surface);
+.psx-search input{
+  width:100%;
+  height: 42px;
   border-radius: 999px;
-  padding: 10px 12px;
-  color: var(--psp-ink);
-  font-size: 13px;
+  padding: 11px 12px 11px 42px;
+  border: 1px solid var(--psx-line);
+  background: var(--psx-card);
+  color: var(--psx-ink);
+  outline: none;
+}
+.psx-search input:focus{
+  border-color: rgba(201,75,80,.55);
+  box-shadow: 0 0 0 4px rgba(201,75,80,.18);
+}
+
+/* ✅ Dept dropdown (same nicer UI) */
+.psx-select{
+  position: relative;
+  min-width: 260px;
+  max-width: 360px;
+  flex: 0 1 320px;
+}
+.psx-select__icon{
+  position:absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: .70;
+  color: var(--psx-muted);
+  pointer-events:none;
+  font-size: 14px;
+}
+.psx-select__caret{
+  position:absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: .70;
+  color: var(--psx-muted);
+  pointer-events:none;
+  font-size: 12px;
+}
+.psx-select select{
+  width: 100%;
+  height: 42px;
+  border-radius: 999px;
+  padding: 10px 38px 10px 42px; /* left icon + right caret */
+  border: 1px solid var(--psx-line);
+  background: var(--psx-card);
+  color: var(--psx-ink);
+  outline: none;
+
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+.psx-select select:focus{
+  border-color: rgba(201,75,80,.55);
+  box-shadow: 0 0 0 4px rgba(201,75,80,.18);
+}
+
+/* Chip */
+.psx-chip{
   display:flex;
   align-items:center;
-  gap:8px;
-  box-shadow: var(--psp-shadow);
+  gap: 8px;
+  height: 42px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--psx-line);
+  background: var(--psx-card);
+  box-shadow: 0 8px 18px rgba(2,6,23,.06);
+  color: var(--psx-ink);
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
 }
-.psp-chip b{font-weight:900}
 
-/* Grid (centered fixed card width) */
-.psp-grid{
+/* Grid (fixed card size, centered) */
+.psx-grid{
   display:grid;
-  grid-template-columns: repeat(3, var(--psp-card-w));
+  grid-template-columns: repeat(auto-fill, var(--psx-card-w));
   gap: 18px;
-}
-/* @media (max-width: 980px){
-  .psp-grid{ grid-template-columns: repeat(2, var(--psp-card-w)); }
-} */
-@media (max-width: 560px){
-  .psp-grid{ grid-template-columns: 1fr; justify-content: stretch; }
-  .psp-card{ width: 100%; max-width: var(--psp-card-w); margin: 0 auto; }
+  align-items: start;
+  justify-content: center;
 }
 
 /* Card */
-.psp-card{
+.psx-card{
   position: relative;
-  width: var(--psp-card-w);
-  height: var(--psp-card-h);
-  border-radius: var(--psp-radius);
+  width: var(--psx-card-w);
+  height: var(--psx-card-h);
+  border-radius: var(--psx-radius);
   overflow:hidden;
   display:block;
   text-decoration:none !important;
   color: inherit;
-  background: color-mix(in oklab, var(--psp-surface) 86%, transparent);
-  border: 1px solid color-mix(in oklab, var(--psp-line) 80%, transparent);
+  background: #fff;
+  border: 1px solid rgba(2,6,23,.08);
   box-shadow: 0 12px 26px rgba(0,0,0,.10);
   transform: translateZ(0);
   transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
   cursor:pointer;
 }
-.psp-card:hover{
+.psx-card:hover{
   transform: translateY(-4px);
   box-shadow: 0 18px 42px rgba(0,0,0,.16);
-  border-color: color-mix(in oklab, var(--psp-primary) 28%, var(--psp-line));
+  border-color: rgba(158,54,58,.22);
 }
 
 /* image as bg */
-.psp-card .bg{
+.psx-card .bg{
   position:absolute; inset:0;
   background-size: cover;
   background-position: center;
@@ -149,8 +210,8 @@
   transform: scale(1.0001);
 }
 
-/* slight vignette like reference */
-.psp-card .vignette{
+/* vignette */
+.psx-card .vignette{
   position:absolute; inset:0;
   background:
     radial-gradient(1200px 500px at 50% -20%, rgba(255,255,255,.10), rgba(0,0,0,0) 60%),
@@ -158,22 +219,22 @@
 }
 
 /* bottom overlay text */
-.psp-card .info{
+.psx-card .info{
   position:absolute;
   left: 14px;
   right: 14px;
   bottom: 14px;
   z-index: 2;
 }
-.psp-name{
+.psx-name{
   margin:0;
   font-size: 18px;
-  font-weight: 900;
+  font-weight: 950;
   line-height: 1.1;
   color: #fff;
   text-shadow: 0 6px 16px rgba(0,0,0,.35);
 }
-.psp-pass{
+.psx-pass{
   margin: 6px 0 0;
   font-size: 14px;
   color: rgba(255,255,255,.86);
@@ -181,7 +242,7 @@
 }
 
 /* top “pill” */
-.psp-pill{
+.psx-pill{
   position:absolute;
   top: 12px;
   left: 12px;
@@ -189,149 +250,190 @@
   padding: 7px 10px;
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 900;
-  letter-spacing: .2px;
-  color: #fff;
+  font-weight: 950;
+  letter-spacing:.2px;
+  color:#fff;
   background: rgba(0,0,0,.28);
   border: 1px solid rgba(255,255,255,.20);
   backdrop-filter: blur(6px);
 }
 
-/* Placeholder (no image) */
-.psp-placeholder{
+/* Placeholder */
+.psx-placeholder{
   position:absolute; inset:0;
   display:grid; place-items:center;
   background:
-    radial-gradient(800px 360px at 20% 10%, color-mix(in oklab, var(--psp-primary) 25%, transparent), transparent 60%),
-    radial-gradient(900px 400px at 80% 90%, color-mix(in oklab, var(--psp-primary) 18%, transparent), transparent 60%),
-    linear-gradient(180deg, color-mix(in oklab, var(--psp-surface) 92%, transparent), color-mix(in oklab, var(--psp-surface) 82%, transparent));
+    radial-gradient(800px 360px at 20% 10%, rgba(158,54,58,.20), transparent 60%),
+    radial-gradient(900px 400px at 80% 90%, rgba(158,54,58,.14), transparent 60%),
+    linear-gradient(180deg, rgba(255,255,255,.92), rgba(255,255,255,.82));
 }
-.psp-initials{
+.psx-initials{
   width: 86px; height: 86px;
   border-radius: 24px;
   display:grid; place-items:center;
-  font-weight: 900;
+  font-weight: 950;
   font-size: 28px;
-  color: var(--psp-primary);
-  background: color-mix(in oklab, var(--psp-primary) 14%, transparent);
-  border: 1px solid color-mix(in oklab, var(--psp-primary) 30%, var(--psp-line-soft));
+  color: var(--psx-brand);
+  background: rgba(158,54,58,.12);
+  border: 1px solid rgba(158,54,58,.25);
 }
 
-/* Loading / Empty */
-.psp-state{
-  border:1px solid var(--psp-line);
+/* State / empty */
+.psx-state{
+  background: var(--psx-card);
+  border: 1px solid var(--psx-line);
   border-radius: 16px;
-  background: var(--psp-surface);
-  box-shadow: var(--psp-shadow);
+  box-shadow: var(--psx-shadow);
   padding: 18px;
-  color: var(--psp-muted);
+  color: var(--psx-muted);
   text-align:center;
 }
-.psp-spinner{
-  width: 42px; height: 42px;
-  border-radius: 50%;
-  border: 4px solid rgba(148,163,184,.30);
-  border-top: 4px solid var(--psp-primary);
-  margin: 0 auto 10px;
-  animation: pspSpin 1s linear infinite;
-}
-@keyframes pspSpin{to{transform:rotate(360deg)}}
 
-/* Pagination (bottom middle) */
-.psp-pagination{
+/* Skeleton */
+.psx-skeleton{
+  display:grid;
+  grid-template-columns: repeat(auto-fill, var(--psx-card-w));
+  gap: 18px;
+  justify-content: center;
+}
+.psx-sk{
+  border-radius: var(--psx-radius);
+  border: 1px solid var(--psx-line);
+  background: #fff;
+  overflow:hidden;
+  position:relative;
+  box-shadow: 0 10px 24px rgba(2,6,23,.08);
+  height: var(--psx-card-h);
+}
+.psx-sk:before{
+  content:'';
+  position:absolute; inset:0;
+  transform: translateX(-60%);
+  background: linear-gradient(90deg, transparent, rgba(148,163,184,.22), transparent);
+  animation: psxSkMove 1.15s ease-in-out infinite;
+}
+@keyframes psxSkMove{ to{ transform: translateX(60%);} }
+
+/* Pagination */
+.psx-pagination{
   display:flex;
   justify-content:center;
   margin-top: 18px;
 }
-.psp-pagination .pager{
+.psx-pagination .psx-pager{
   display:flex;
   gap: 8px;
-  flex-wrap:wrap;
+  flex-wrap: wrap;
   align-items:center;
   justify-content:center;
   padding: 10px;
 }
-.psp-pagebtn{
-  border:1px solid var(--psp-line);
-  background: var(--psp-surface);
-  color: var(--psp-ink);
+.psx-pagebtn{
+  border:1px solid var(--psx-line);
+  background: var(--psx-card);
+  color: var(--psx-ink);
   border-radius: 12px;
   padding: 9px 12px;
   font-size: 13px;
-  font-weight: 900;
-  box-shadow: var(--psp-shadow);
+  font-weight: 950;
+  box-shadow: 0 8px 18px rgba(2,6,23,.06);
   cursor:pointer;
   user-select:none;
 }
-.psp-pagebtn:hover{ background: var(--psp-hover); }
-.psp-pagebtn[disabled]{ opacity:.55; cursor:not-allowed; }
-.psp-pagebtn.active{
-  background: color-mix(in oklab, var(--psp-primary) 14%, transparent);
-  border-color: color-mix(in oklab, var(--psp-primary) 35%, var(--psp-line));
-  color: var(--psp-primary);
+.psx-pagebtn:hover{ background: rgba(2,6,23,.03); }
+.psx-pagebtn[disabled]{ opacity:.55; cursor:not-allowed; }
+.psx-pagebtn.active{
+  background: rgba(201,75,80,.12);
+  border-color: rgba(201,75,80,.35);
+  color: var(--psx-brand);
 }
 
-    .psp-title i {
-color: var(--psp-accent);
+@media (max-width: 640px){
+  .psx-title{ font-size: 24px; }
+  .psx-search{ min-width: 220px; flex: 1 1 240px; }
+  .psx-select{ min-width: 220px; flex: 1 1 240px; }
+}
+
+/* ✅ Guard against Bootstrap overriding mega menu dropdown positioning */
+.dynamic-navbar .navbar-nav .dropdown-menu{
+  position: absolute !important;
+  inset: auto !important;
+}
+.dynamic-navbar .dropdown-menu.is-portaled{
+  position: fixed !important;
 }
 </style>
 
-<div class="psp-page">
-
-  <div class="psp-head">
+<div
+  class="psx-wrap"
+  data-api="{{ url('/api/placed-students/public') }}"
+  data-api-alt="{{ url('/api/placed-students') }}"
+  data-dept-api="{{ url('/api/public/departments') }}"
+  data-profile-base="{{ url('/user/profile') }}"
+>
+  <div class="psx-head">
     <div>
-      <h1 class="psp-title" id="pspTitle"><i class="fa-solid fa-bullhorn"></i> Placed Students</h1>
-      <div class="psp-sub" id="pspSub">Explore our recent placements.</div>
+      <h1 class="psx-title"><i class="fa-solid fa-user-graduate"></i>Placed Students</h1>
+      <div class="psx-sub" id="psxSub">Explore our recent placements.</div>
     </div>
 
-    <div class="psp-right">
-      <div class="psp-search">
+    <div class="psx-tools">
+      <div class="psx-search">
         <i class="fa fa-magnifying-glass"></i>
-        <input id="pspSearch" type="search" placeholder="Search by name / department / year…">
+        <input id="psxSearch" type="search" placeholder="Search placed students (name/department/year)…">
       </div>
 
-      <div class="psp-chip" title="Department filter">
-        <i class="fa-solid fa-filter" style="opacity:.75"></i>
-        <span id="pspDeptChip"><b>All</b></span>
+      <div class="psx-select" title="Filter by department">
+        <i class="fa-solid fa-building-columns psx-select__icon"></i>
+        <select id="psxDept" aria-label="Filter by department">
+          <option value="">All Departments</option>
+        </select>
+        <i class="fa-solid fa-chevron-down psx-select__caret"></i>
       </div>
 
-      <div class="psp-chip" title="Total results">
-        <i class="fa-solid fa-users" style="opacity:.75"></i>
-        <span id="pspCount">—</span>
+      <div class="psx-chip" title="Total results">
+        <i class="fa-solid fa-users" style="opacity:.85"></i>
+        <span id="psxCount">—</span>
       </div>
     </div>
   </div>
 
-  <div id="pspGrid" class="psp-grid" style="display:none;"></div>
+  <div id="psxGrid" class="psx-grid" style="display:none;"></div>
 
-  <div id="pspState" class="psp-state">
-    <div class="psp-spinner"></div>
-    Loading placed students…
+  <div id="psxSkeleton" class="psx-skeleton"></div>
+  <div id="psxState" class="psx-state" style="display:none;"></div>
+
+  <div class="psx-pagination">
+    <div id="psxPager" class="psx-pager" style="display:none;"></div>
   </div>
-
-  <div class="psp-pagination">
-    <div id="pspPager" class="pager" style="display:none;"></div>
-  </div>
-
 </div>
+
 <script>
 (() => {
-  if (window.__PLACED_STUDENTS_PUBLIC_INIT__) return;
-  window.__PLACED_STUDENTS_PUBLIC_INIT__ = true;
+  if (window.__PUBLIC_PLACED_STUDENTS_ALL__) return;
+  window.__PUBLIC_PLACED_STUDENTS_ALL__ = true;
 
+  const root = document.querySelector('.psx-wrap');
+  if (!root) return;
+
+  const API1 = root.getAttribute('data-api') || '/api/placed-students/public';
+  const API2 = root.getAttribute('data-api-alt') || '/api/placed-students';
+  const DEPT_API = root.getAttribute('data-dept-api') || '/api/public/departments';
+  const PROFILE_BASE = (root.getAttribute('data-profile-base') || '/user/profile').replace(/\/+$/,''); // no trailing slash
+
+  const APP_ORIGIN = @json(url('/'));
   const $ = (id) => document.getElementById(id);
 
-  // ✅ Always use Laravel app base URL (local => http://127.0.0.1:8000)
-  const APP_ORIGIN = @json(url('/'));
-
-  // profile route base
-  const PROFILE_PATH = '/user/profile/';
-
-  // Public endpoints (absolute -> always hits :8000)
-  const LIST_ENDPOINTS = [
-    APP_ORIGIN + '/api/placed-students/public',
-    APP_ORIGIN + '/api/placed-students'
-  ];
+  const els = {
+    grid: $('psxGrid'),
+    skel: $('psxSkeleton'),
+    state: $('psxState'),
+    pager: $('psxPager'),
+    search: $('psxSearch'),
+    dept: $('psxDept'),
+    count: $('psxCount'),
+    sub: $('psxSub'),
+  };
 
   const state = {
     page: 1,
@@ -339,13 +441,29 @@ color: var(--psp-accent);
     lastPage: 1,
     total: 0,
     q: '',
-    departmentSlug: ''
+    deptUuid: '',
+    deptId: null,
+    deptName: '',
   };
+
+  let activeController = null;
+
+  // cache
+  let allPlaced = null;
+  let deptByUuid = new Map(); // uuid -> {id, title, uuid, slug}
+  let deptBySlug = new Map(); // slug -> uuid
 
   function esc(str){
     return (str ?? '').toString().replace(/[&<>"']/g, s => ({
       '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
     }[s]));
+  }
+  function escAttr(str){
+    return (str ?? '').toString().replace(/"/g, '&quot;');
+  }
+
+  function looksLikeUuid(v){
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v || '').trim());
   }
 
   function normalizeUrl(url){
@@ -362,29 +480,6 @@ color: var(--psp-accent);
       if (v !== null && v !== undefined && String(v).trim() !== '') return v;
     }
     return '';
-  }
-
-  function looksLikeUuid(v){
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v || '').trim());
-  }
-
-  // URL department filter:
-  // https://msit.edu.in/business-administration/alumni/
-  function readDepartmentFromUrl(){
-    const parts = window.location.pathname.split('/').filter(Boolean);
-    const idx = parts.findIndex(p => p.toLowerCase() === 'alumni');
-    if (idx > 0) return parts[idx - 1];
-    return '';
-  }
-
-  function titleCaseFromSlug(slug){
-    if (!slug) return '';
-    return slug
-      .replace(/[-_]+/g,' ')
-      .split(' ')
-      .filter(Boolean)
-      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(' ');
   }
 
   function initials(name){
@@ -421,6 +516,20 @@ color: var(--psp-accent);
     );
   }
 
+  function resolveDepartmentId(item){
+    const did =
+      pick(item, ['department_id','dept_id']) ||
+      pick(item?.department, ['id']) || '';
+    return (did === null || did === undefined) ? '' : String(did);
+  }
+
+  function resolveDepartmentUuid(item){
+    const du =
+      pick(item, ['department_uuid','dept_uuid']) ||
+      pick(item?.department, ['uuid']) || '';
+    return (du === null || du === undefined) ? '' : String(du);
+  }
+
   function resolveImage(item){
     const img =
       pick(item, ['image_url','photo_url','profile_image_url']) ||
@@ -430,9 +539,7 @@ color: var(--psp-accent);
     return normalizeUrl(img);
   }
 
-  // ✅ MOST IMPORTANT FIX:
   // Build identifier for /user/profile/{identifier}
-  // Priority: user_uuid / user.uuid => uuid-looking => item.uuid => user_id
   function resolveProfileIdentifier(item){
     const candidates = [
       pick(item, ['user_uuid','userUuid','profile_uuid','profileUuid','user_profile_uuid','userProfileUuid']),
@@ -449,9 +556,8 @@ color: var(--psp-accent);
   }
 
   function buildProfileUrl(identifier){
-    return identifier
-      ? (APP_ORIGIN + PROFILE_PATH + encodeURIComponent(identifier))
-      : '#';
+    if (!identifier) return '#';
+    return APP_ORIGIN + PROFILE_BASE + '/' + encodeURIComponent(identifier);
   }
 
   function toItems(js){
@@ -462,18 +568,35 @@ color: var(--psp-accent);
     return [];
   }
 
-  function toPagination(js){
-    const p = js?.pagination || js?.meta || js?.data?.pagination || {};
-    const total = parseInt(p.total ?? js?.total ?? 0, 10) || 0;
-    const last  = parseInt(p.last_page ?? p.lastPage ?? js?.last_page ?? 1, 10) || 1;
-    const cur   = parseInt(p.current_page ?? p.page ?? js?.page ?? 1, 10) || 1;
-    return { total, last, cur };
+  function showSkeleton(){
+    const sk = els.skel, st = els.state, grid = els.grid, pager = els.pager;
+    if (grid) grid.style.display = 'none';
+    if (pager) pager.style.display = 'none';
+    if (st) st.style.display = 'none';
+
+    if (!sk) return;
+    sk.style.display = '';
+    sk.innerHTML = Array.from({length: 12}).map(() => `<div class="psx-sk"></div>`).join('');
+  }
+
+  function hideSkeleton(){
+    const sk = els.skel;
+    if (!sk) return;
+    sk.style.display = 'none';
+    sk.innerHTML = '';
   }
 
   async function fetchJson(url){
-    const res = await fetch(url, { headers: { 'Accept':'application/json' }});
+    if (activeController) activeController.abort();
+    activeController = new AbortController();
+
+    const res = await fetch(url, {
+      headers: { 'Accept':'application/json' },
+      signal: activeController.signal
+    });
+
     const js = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(js?.message || 'Request failed');
+    if (!res.ok) throw new Error(js?.message || ('Request failed: ' + res.status));
     return js;
   }
 
@@ -490,98 +613,227 @@ color: var(--psp-accent);
     return { ok:false, used:'', js:{}, items:[], error:lastErr };
   }
 
-  function buildListUrl(base){
-    const params = new URLSearchParams();
-    params.set('per_page', String(state.perPage));
-    params.set('page', String(state.page));
-    params.set('status', 'active');
+  function extractDeptUuidFromUrl(){
+    // matches "?d-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" anywhere in URL (search OR full href)
+    const hay = (window.location.search || '') + ' ' + (window.location.href || '');
+    const m = hay.match(/d-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+    return m ? m[1] : '';
+  }
 
-    if (state.q.trim()) params.set('q', state.q.trim());
+  // Support old pattern too: /{department-slug}/alumni/
+  function readDeptSlugFromPath(){
+    const parts = window.location.pathname.split('/').filter(Boolean);
+    const idx = parts.findIndex(p => p.toLowerCase() === 'alumni');
+    if (idx > 0) return parts[idx - 1];
+    return '';
+  }
 
-    // dept filter from URL
-    if (state.departmentSlug) params.set('department', state.departmentSlug);
+  function setDeptSelection(uuid){
+    const sel = els.dept;
+    uuid = (uuid || '').toString().trim();
 
-    params.set('sort', 'created_at');
-    params.set('direction', 'desc');
+    if (!sel) return;
 
-    return base + (base.includes('?') ? '&' : '?') + params.toString();
+    if (!uuid){
+      sel.value = '';
+      state.deptUuid = '';
+      state.deptId = null;
+      state.deptName = '';
+      if (els.sub) els.sub.textContent = 'Explore our recent placements.';
+      return;
+    }
+
+    const meta = deptByUuid.get(uuid);
+    if (!meta) return;
+
+    sel.value = uuid;
+    state.deptUuid = uuid;
+    state.deptId = meta.id ?? null;
+    state.deptName = meta.title ?? '';
+
+    if (els.sub){
+      els.sub.textContent = state.deptName
+        ? ('Placed students for ' + state.deptName)
+        : 'Placed students (filtered)';
+    }
+  }
+
+  async function loadDepartments(){
+    const sel = els.dept;
+    if (!sel) return;
+
+    sel.innerHTML = `
+      <option value="">All Departments</option>
+      <option value="__loading" disabled>Loading departments…</option>
+    `;
+    sel.value = '__loading';
+
+    try{
+      const res = await fetch(DEPT_API, { headers: { 'Accept':'application/json' } });
+      const js = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(js?.message || ('HTTP ' + res.status));
+
+      const items = Array.isArray(js?.data) ? js.data : [];
+      const depts = items
+        .map(d => ({
+          id: d?.id ?? null,
+          uuid: (d?.uuid ?? '').toString().trim(),
+          slug: (d?.slug ?? '').toString().trim(),
+          title: (d?.title ?? d?.name ?? '').toString().trim(),
+          active: (d?.active ?? 1),
+        }))
+        .filter(x => x.uuid && x.title && String(x.active) === '1');
+
+      // maps
+      deptByUuid = new Map(depts.map(d => [d.uuid, d]));
+      deptBySlug = new Map(depts.filter(d => d.slug).map(d => [d.slug, d.uuid]));
+
+      // sort A-Z
+      depts.sort((a,b) => a.title.localeCompare(b.title));
+
+      sel.innerHTML = `<option value="">All Departments</option>` + depts
+        .map(d => `<option value="${escAttr(d.uuid)}" data-id="${escAttr(d.id ?? '')}">${esc(d.title)}</option>`)
+        .join('');
+
+      sel.value = '';
+    } catch (e){
+      console.warn('Departments load failed:', e);
+      sel.innerHTML = `<option value="">All Departments</option>`;
+      sel.value = '';
+    }
+  }
+
+  async function ensurePlacedLoaded(force=false){
+    if (allPlaced && !force) return;
+
+    showSkeleton();
+
+    try{
+      // fetch big once (frontend search/filter/pagination)
+      const urls = [API1, API2].filter(Boolean).map(base => {
+        const u = new URL(base, window.location.origin);
+        u.searchParams.set('page', '1');
+        u.searchParams.set('per_page', '500');
+        u.searchParams.set('status', 'active');
+        u.searchParams.set('sort', 'created_at');
+        u.searchParams.set('direction', 'desc');
+        return u.toString();
+      });
+
+      const res = await tryFetchList(urls);
+      if (!res.ok) throw (res.error || new Error('Placed students load failed'));
+
+      allPlaced = Array.isArray(res.items) ? res.items : [];
+    } finally {
+      hideSkeleton();
+    }
+  }
+
+  function applyFilterAndSearch(){
+    const q = (state.q || '').toString().trim().toLowerCase();
+    let items = Array.isArray(allPlaced) ? allPlaced.slice() : [];
+
+    // ✅ dept filter
+    if (state.deptUuid && state.deptId !== null && state.deptId !== undefined && String(state.deptId) !== ''){
+      const deptIdStr = String(state.deptId);
+      const deptUuidStr = String(state.deptUuid);
+
+      items = items.filter(it => {
+        const did = resolveDepartmentId(it);
+        const duu = resolveDepartmentUuid(it);
+        // when dept selected -> show ONLY those that match dept (nulls auto-excluded)
+        return (did && did === deptIdStr) || (duu && duu === deptUuidStr);
+      });
+    } else if (state.deptUuid){
+      const deptUuidStr = String(state.deptUuid);
+      items = items.filter(it => String(resolveDepartmentUuid(it) || '') === deptUuidStr);
+    }
+
+    // ✅ search across name + dept + year
+    if (q){
+      items = items.filter(it => {
+        const name = resolveName(it).toLowerCase();
+        const dept = resolveDepartmentName(it).toLowerCase();
+        const year = resolveYear(it).toLowerCase();
+        return name.includes(q) || dept.includes(q) || year.includes(q);
+      });
+    }
+
+    return items;
+  }
+
+  function cardHtml(it){
+    const name = resolveName(it);
+    const yr = resolveYear(it);
+    const deptName = resolveDepartmentName(it);
+    const img = resolveImage(it);
+
+    const identifier = resolveProfileIdentifier(it);
+    const href = buildProfileUrl(identifier);
+
+    const passLine = yr ? `${esc(yr)} Pass Out` : (deptName ? esc(deptName) : 'Placed Student');
+    const pill = deptName ? `<div class="psx-pill">${esc(deptName)}</div>` : '';
+
+    if (!img){
+      return `
+        <a class="psx-card" href="${escAttr(href)}" data-profile="${escAttr(href)}" aria-label="${escAttr(name)} profile">
+          <div class="psx-placeholder">
+            <div class="psx-initials">${esc(initials(name))}</div>
+          </div>
+          ${pill}
+          <div class="vignette"></div>
+          <div class="info">
+            <p class="psx-name">${esc(name)}</p>
+            <p class="psx-pass">${passLine}</p>
+          </div>
+        </a>
+      `;
+    }
+
+    return `
+      <a class="psx-card" href="${escAttr(href)}" data-profile="${escAttr(href)}" aria-label="${escAttr(name)} profile">
+        <div class="bg" style="background-image:url('${escAttr(img)}')"></div>
+        ${pill}
+        <div class="vignette"></div>
+        <div class="info">
+          <p class="psx-name">${esc(name)}</p>
+          <p class="psx-pass">${passLine}</p>
+        </div>
+      </a>
+    `;
   }
 
   function render(items){
-    const grid = $('pspGrid');
-    const st = $('pspState');
-    const count = $('pspCount');
-    const sub = $('pspSub');
-
+    const grid = els.grid, st = els.state, count = els.count;
     if (!grid || !st) return;
+
+    if (count) count.textContent = String(state.total || 0);
 
     if (!items.length){
       grid.style.display = 'none';
       st.style.display = '';
+      const deptLine = state.deptName ? `<div style="margin-top:6px;font-size:12.5px;opacity:.95;">Department: <b>${esc(state.deptName)}</b></div>` : '';
       st.innerHTML = `
-        <div style="font-size:34px;opacity:.6;margin-bottom:6px;"><i class="fa-regular fa-face-frown"></i></div>
+        <div style="font-size:34px;opacity:.6;margin-bottom:6px;">
+          <i class="fa-regular fa-face-frown"></i>
+        </div>
         No placed students found.
+        ${deptLine}
       `;
-      if (count) count.textContent = '0';
-      if (sub) sub.textContent = state.departmentSlug
-        ? 'No records found for this department.'
-        : 'No records match your search.';
       return;
     }
 
-    if (count) count.textContent = String(state.total || items.length);
-    if (sub) sub.textContent = 'Click any card to view the student profile.';
-
     st.style.display = 'none';
     grid.style.display = '';
-    grid.innerHTML = items.map(it => {
-      const name = resolveName(it);
-      const yr = resolveYear(it);
-      const deptName = resolveDepartmentName(it);
-      const img = resolveImage(it);
-
-      const identifier = resolveProfileIdentifier(it);
-      const href = buildProfileUrl(identifier);
-
-      const passLine = yr ? `${esc(yr)} Pass Out` : (deptName ? esc(deptName) : 'Placed Student');
-      const pill = deptName ? `<div class="psp-pill">${esc(deptName)}</div>` : '';
-
-      if (!img){
-        return `
-          <a class="psp-card" href="${esc(href)}" data-profile="${esc(href)}" aria-label="${esc(name)} profile">
-            <div class="psp-placeholder">
-              <div class="psp-initials">${esc(initials(name))}</div>
-            </div>
-            ${pill}
-            <div class="vignette"></div>
-            <div class="info">
-              <p class="psp-name">${esc(name)}</p>
-              <p class="psp-pass">${passLine}</p>
-            </div>
-          </a>
-        `;
-      }
-
-      return `
-        <a class="psp-card" href="${esc(href)}" data-profile="${esc(href)}" aria-label="${esc(name)} profile">
-          <div class="bg" style="background-image:url('${esc(img)}')"></div>
-          ${pill}
-          <div class="vignette"></div>
-          <div class="info">
-            <p class="psp-name">${esc(name)}</p>
-            <p class="psp-pass">${passLine}</p>
-          </div>
-        </a>
-      `;
-    }).join('');
+    grid.innerHTML = items.map(cardHtml).join('');
   }
 
   function renderPager(){
-    const pager = $('pspPager');
+    const pager = els.pager;
     if (!pager) return;
 
     const last = state.lastPage || 1;
-    const cur = state.page || 1;
+    const cur  = state.page || 1;
 
     if (last <= 1){
       pager.style.display = 'none';
@@ -591,7 +843,7 @@ color: var(--psp-accent);
 
     const btn = (label, page, {disabled=false, active=false}={}) => {
       const dis = disabled ? 'disabled' : '';
-      const cls = active ? 'psp-pagebtn active' : 'psp-pagebtn';
+      const cls = active ? 'psx-pagebtn active' : 'psx-pagebtn';
       return `<button class="${cls}" ${dis} data-page="${page}">${label}</button>`;
     };
 
@@ -600,7 +852,7 @@ color: var(--psp-accent);
 
     const win = 2;
     const start = Math.max(1, cur - win);
-    const end = Math.min(last, cur + win);
+    const end   = Math.min(last, cur + win);
 
     if (start > 1){
       html += btn('1', 1, { active: cur===1 });
@@ -622,60 +874,44 @@ color: var(--psp-accent);
     pager.style.display = 'flex';
   }
 
-  async function load(){
-    const st = $('pspState');
-    const grid = $('pspGrid');
+  function repaint(){
+    const filtered = applyFilterAndSearch();
 
-    if (st){
-      st.style.display = '';
-      st.innerHTML = `<div class="psp-spinner"></div>Loading placed students…`;
-    }
-    if (grid) grid.style.display = 'none';
+    state.total = filtered.length;
+    state.lastPage = Math.max(1, Math.ceil(filtered.length / state.perPage));
+    if (state.page > state.lastPage) state.page = state.lastPage;
 
-    const urls = LIST_ENDPOINTS.map(base => buildListUrl(base));
-    const res = await tryFetchList(urls);
+    const start = (state.page - 1) * state.perPage;
+    const pageItems = filtered.slice(start, start + state.perPage);
 
-    if (!res.ok){
-      if (st){
-        st.style.display = '';
-        st.innerHTML = `
-          <div style="font-size:34px;opacity:.6;margin-bottom:6px;"><i class="fa-solid fa-triangle-exclamation"></i></div>
-          Could not load placed students.
-        `;
-      }
-      const pager = $('pspPager');
-      if (pager) pager.style.display = 'none';
-      return;
-    }
-
-    const items = res.items || [];
-    const p = toPagination(res.js);
-    state.total = p.total || items.length;
-    state.lastPage = p.last || 1;
-    state.page = p.cur || state.page;
-
-    render(items);
+    render(pageItems);
     renderPager();
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
-    // dept from URL
-    state.departmentSlug = readDepartmentFromUrl();
+  document.addEventListener('DOMContentLoaded', async () => {
+    await loadDepartments();
 
-    const deptChip = $('pspDeptChip');
-    const title = $('pspTitle');
-    if (deptChip){
-      deptChip.innerHTML = state.departmentSlug
-        ? `<b>${esc(titleCaseFromSlug(state.departmentSlug))}</b>`
-        : `<b>All</b>`;
+    // ✅ deep-link first: ?d-{uuid}
+    const deepDeptUuid = extractDeptUuidFromUrl();
+    if (deepDeptUuid && deptByUuid.has(deepDeptUuid)){
+      setDeptSelection(deepDeptUuid);
+    } else {
+      // optional: old route support /{dept-slug}/alumni/
+      const slug = readDeptSlugFromPath();
+      const uuidFromSlug = slug ? (deptBySlug.get(slug) || '') : '';
+      if (uuidFromSlug && deptByUuid.has(uuidFromSlug)){
+        setDeptSelection(uuidFromSlug);
+      } else {
+        setDeptSelection('');
+      }
     }
-    if (title && state.departmentSlug){
-      title.textContent = `Placed Students — ${titleCaseFromSlug(state.departmentSlug)}`;
-    }
+
+    await ensurePlacedLoaded(false);
+    repaint();
 
     // ✅ Force navigation on card click (in case any global script blocks anchors)
     document.addEventListener('click', (e) => {
-      const card = e.target.closest('.psp-card');
+      const card = e.target.closest('.psx-card');
       if (!card) return;
       const url = card.getAttribute('data-profile') || card.getAttribute('href') || '';
       if (!url || url === '#') return;
@@ -684,31 +920,42 @@ color: var(--psp-accent);
     });
 
     // search (debounced)
-    const search = $('pspSearch');
     let t = null;
-    if (search){
-      search.addEventListener('input', () => {
-        clearTimeout(t);
-        t = setTimeout(() => {
-          state.q = (search.value || '').trim();
-          state.page = 1;
-          load();
-        }, 260);
-      });
-    }
+    els.search && els.search.addEventListener('input', () => {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        state.q = (els.search.value || '').trim();
+        state.page = 1;
+        repaint();
+      }, 260);
+    });
 
-    // pager click
+    // dept change
+    els.dept && els.dept.addEventListener('change', () => {
+      const v = (els.dept.value || '').toString();
+      if (v === '__loading') return;
+
+      if (!v){
+        setDeptSelection('');
+      } else {
+        setDeptSelection(v);
+      }
+
+      state.page = 1;
+      repaint();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    // pagination click
     document.addEventListener('click', (e) => {
-      const b = e.target.closest('button.psp-pagebtn[data-page]');
+      const b = e.target.closest('button.psx-pagebtn[data-page]');
       if (!b) return;
       const p = parseInt(b.dataset.page, 10);
       if (!p || Number.isNaN(p) || p === state.page) return;
       state.page = p;
-      load();
+      repaint();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
-
-    load();
   });
 
 })();

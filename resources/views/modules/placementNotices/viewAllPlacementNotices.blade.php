@@ -14,498 +14,1067 @@
   <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}">
 
   <style>
-    :root{
-      --pn-accent: var(--primary-color, #9E363A);
-      --pn-border: rgba(0,0,0,.08);
-      --pn-shadow: 0 10px 24px rgba(0,0,0,.08);
-      --pn-radius: 10px;
+    /* =========================================================
+      ✅ Placement Notices (Scoped / No :root / No global body rules)
+      - UI structure matches reference announcements page
+      - Dept dropdown UI improved (pill, icon, caret)
+      - Dept filtering FIXED for multi-dept notices:
+          match selected dept by:
+            - item.department_ids includes selected dept id
+            - OR item.departments contains selected dept uuid
+      - Deep-link ?d-{uuid} auto-selects dept and filters
+      - If no department selected -> DO NOT show data (as requested)
+    ========================================================= */
 
-      --pn-card-h: 426.4px;
-      --pn-media-h: 240px;
+    .pnx-wrap{
+      /* scoped tokens */
+      --pnx-brand: var(--primary-color, #9E363A);
+      --pnx-ink: #0f172a;
+      --pnx-muted: #64748b;
+      --pnx-bg: var(--page-bg, #ffffff);
+      --pnx-card: var(--surface, #ffffff);
+      --pnx-line: var(--line-soft, rgba(15,23,42,.10));
+      --pnx-shadow: 0 10px 24px rgba(2,6,23,.08);
+
+      /* card sizing */
+      --pnx-card-h: 426.4px;
+      --pnx-media-h: 240px;
+
+      max-width: 1320px;
+      margin: 18px auto 54px;
+      padding: 0 12px;
+      background: transparent;
+      position: relative;
+      overflow: visible;
     }
-    body{background:#f6f7fb}
 
-    .pn-wrap{max-width:1140px;margin:24px auto 56px;padding:0 12px;}
-    .pn-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;}
-    .pn-title{font-weight:800;letter-spacing:.2px;margin:0;}
+    /* Header */
+    .pnx-head{
+      background: var(--pnx-card);
+      border: 1px solid var(--pnx-line);
+      border-radius: 16px;
+      box-shadow: var(--pnx-shadow);
+      padding: 14px 16px;
+      margin-bottom: 16px;
 
-    .pn-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
-    .pn-toolbar .form-control{
-      height:42px;border-radius:10px;border:1px solid var(--pn-border);
-      box-shadow:none;min-width:280px;
+      display:flex;
+      gap: 12px;
+      align-items: flex-end;
+      justify-content: space-between;
+      flex-wrap: wrap;
     }
-    @media (max-width:576px){
-      .pn-toolbar .form-control{min-width:100%}
-      .pn-head{flex-direction:column;align-items:stretch}
+    .pnx-title{
+      margin: 0;
+      font-weight: 950;
+      letter-spacing: .2px;
+      color: var(--pnx-ink);
+      font-size: 28px;
+      display:flex;
+      align-items:center;
+      gap: 10px;
+    }
+    .pnx-title i{ color: var(--pnx-brand); }
+    .pnx-sub{
+      margin: 6px 0 0;
+      color: var(--pnx-muted);
+      font-size: 14px;
     }
 
-    /* Grid (3 / 2 / 1) */
-    .pn-grid{
+    .pnx-tools{
+      display:flex;
+      gap: 10px;
+      align-items:center;
+      flex-wrap: wrap;
+    }
+
+    /* Search */
+    .pnx-search{
+      position: relative;
+      min-width: 260px;
+      max-width: 520px;
+      flex: 1 1 320px;
+    }
+    .pnx-search i{
+      position:absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      opacity: .65;
+      color: var(--pnx-muted);
+      pointer-events:none;
+    }
+    .pnx-search input{
+      width:100%;
+      height: 42px;
+      border-radius: 999px;
+      padding: 11px 12px 11px 42px;
+      border: 1px solid var(--pnx-line);
+      background: var(--pnx-card);
+      color: var(--pnx-ink);
+      outline: none;
+    }
+    .pnx-search input:focus{
+      border-color: rgba(201,75,80,.55);
+      box-shadow: 0 0 0 4px rgba(201,75,80,.18);
+    }
+
+    /* ✅ Dept dropdown */
+    .pnx-select{
+      position: relative;
+      min-width: 260px;
+      max-width: 360px;
+      flex: 0 1 320px;
+    }
+    .pnx-select__icon{
+      position:absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      opacity: .70;
+      color: var(--pnx-muted);
+      pointer-events:none;
+      font-size: 14px;
+    }
+    .pnx-select__caret{
+      position:absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      opacity: .70;
+      color: var(--pnx-muted);
+      pointer-events:none;
+      font-size: 12px;
+    }
+    .pnx-select select{
+      width: 100%;
+      height: 42px;
+      border-radius: 999px;
+      padding: 10px 38px 10px 42px;
+      border: 1px solid var(--pnx-line);
+      background: var(--pnx-card);
+      color: var(--pnx-ink);
+      outline: none;
+
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+    }
+    .pnx-select select:focus{
+      border-color: rgba(201,75,80,.55);
+      box-shadow: 0 0 0 4px rgba(201,75,80,.18);
+    }
+
+    /* Chip */
+    .pnx-chip{
+      display:flex;
+      align-items:center;
+      gap: 8px;
+      height: 42px;
+      padding: 0 12px;
+      border-radius: 999px;
+      border: 1px solid var(--pnx-line);
+      background: var(--pnx-card);
+      box-shadow: 0 8px 18px rgba(2,6,23,.06);
+      color: var(--pnx-ink);
+      font-size: 13px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    /* Grid */
+    .pnx-grid{
       display:grid;
-      grid-template-columns:repeat(3, minmax(0, 1fr));
-      gap:25px;
-      align-items:stretch;
-    }
-    @media (max-width: 992px){
-      .pn-grid{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
-    }
-    @media (max-width: 576px){
-      .pn-grid{ grid-template-columns:1fr; }
-      :root{ --pn-media-h: 210px; }
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 18px;
+      align-items: stretch;
     }
 
     /* Card */
-    .pn-card{
+    .pnx-card{
       width:100%;
-      height:var(--pn-card-h);
+      height: var(--pnx-card-h);
       position:relative;
       display:flex;
       flex-direction:column;
-      border:1px solid var(--pn-border);
-      border-radius:var(--pn-radius);
-      background:#fff;
-      box-shadow:var(--pn-shadow);
+      border: 1px solid rgba(2,6,23,.08);
+      border-radius: 16px;
+      background: #fff;
+      box-shadow: var(--pnx-shadow);
       overflow:hidden;
-      transition:transform .18s ease, box-shadow .18s ease;
+      transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+      will-change: transform;
     }
-    .pn-card:hover{transform:translateY(-2px);box-shadow:0 14px 30px rgba(0,0,0,.10);}
+    .pnx-card:hover{
+      transform: translateY(-2px);
+      box-shadow: 0 16px 34px rgba(2,6,23,.12);
+      border-color: rgba(158,54,58,.22);
+    }
 
-    .pn-media{
+    .pnx-media{
       width:100%;
-      height:var(--pn-media-h);
-      flex:0 0 auto;
-      background:var(--pn-accent);
+      height: var(--pnx-media-h);
+      flex: 0 0 auto;
+      background: var(--pnx-brand);
       position:relative;
       overflow:hidden;
       user-select:none;
     }
-    .pn-media .pn-fallback{
-      position:absolute; inset:0;
-      display:flex; align-items:center; justify-content:center;
-      padding:0 18px;
-      text-align:center;
-      line-height:1.15;
+    .pnx-media .pnx-fallback{
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
       color:#fff;
-      font-weight:900;
-      font-size:28px;
-      letter-spacing:.3px;
-      z-index:0;
+      font-weight:950;
+      font-size: 26px;
+      letter-spacing:.2px;
+      z-index: 0;
+      padding: 0 16px;
+      text-align:center;
+      line-height: 1.12;
       display:-webkit-box;
       -webkit-line-clamp:3;
       -webkit-box-orient:vertical;
       overflow:hidden;
     }
-    .pn-media img{
-      position:absolute; inset:0;
-      width:100%; height:100%;
+    .pnx-media img{
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
       object-fit:cover;
       display:block;
-      z-index:1;
+      z-index: 1;
     }
 
-    .pn-body{
-      padding:18px 18px 16px;
-      display:flex;
-      flex-direction:column;
-      flex:1 1 auto;
-      min-height:0;
-    }
-
-    .pn-h{
-      font-size:22px;line-height:1.25;font-weight:900;margin:0 0 10px 0;color:#0f172a;
-      display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
-    }
-
-    .pn-meta{
-      display:flex;
-      flex-direction:column;
-      gap:6px;
-      margin-bottom:10px;
-      color:#334155;
-      font-weight:700;
-      font-size:13px;
-    }
-    .pn-meta .rowx{display:flex;align-items:center;gap:8px;min-height:18px;}
-    .pn-meta i{width:16px;text-align:center;color:#64748b;}
-
-    .pn-p{
-      margin:0;color:#475569;font-size:15px;line-height:1.7;
-      display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
-    }
-
-    .pn-date{
-      margin-top:auto;
-      color:#94a3b8;
-      font-size:13px;
-      padding-top:12px;
-      display:flex;
-      align-items:center;
-      gap:6px;
-    }
-
-    .pn-pill{
+    /* pill on media */
+    .pnx-pill{
       position:absolute;
-      left:12px;
-      top:12px;
-      z-index:3;
-      padding:6px 10px;
-      border-radius:999px;
-      font-size:12px;
-      font-weight:900;
-      background:rgba(0,0,0,.55);
-      color:#fff;
+      left: 12px;
+      top: 12px;
+      z-index: 3;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 950;
+      background: rgba(0,0,0,.55);
+      color: #fff;
       backdrop-filter: blur(6px);
     }
 
-    .pn-link{position:absolute;inset:0;z-index:4;border-radius:var(--pn-radius);}
-
-    /* Skeletons */
-    .pn-skel{
-      width:100%;
-      height:var(--pn-card-h);
-      border:1px solid var(--pn-border);
-      border-radius:var(--pn-radius);
-      background:#fff;
-      box-shadow:var(--pn-shadow);
-      overflow:hidden;
+    .pnx-body{
+      padding: 16px 16px 14px;
       display:flex;
       flex-direction:column;
+      flex: 1 1 auto;
+      min-height: 0;
     }
-    .pn-skel .m{
-      height:var(--pn-media-h);
-      background:linear-gradient(90deg,#eee,#f6f6f6,#eee);
-      background-size:200% 100%;
-      animation:sk 1.1s infinite;
-    }
-    .pn-skel .b{padding:18px;flex:1}
-    .pn-skel .l{
-      height:16px;margin:10px 0;border-radius:8px;
-      background:linear-gradient(90deg,#eee,#f6f6f6,#eee);
-      background-size:200% 100%;
-      animation:sk 1.1s infinite;
-    }
-    .pn-skel .l.w70{width:70%}
-    .pn-skel .l.w95{width:95%}
-    .pn-skel .l.w85{width:85%}
-    @keyframes sk{0%{background-position:0 0}100%{background-position:200% 0}}
 
-    .pn-footer{display:flex;justify-content:center;margin-top:22px;}
-    .btn-pn{
-      border-radius:12px;padding:10px 16px;border:1px solid var(--pn-border);
-      background:#fff;font-weight:800;
+    .pnx-h{
+      font-size: 20px;
+      line-height: 1.25;
+      font-weight: 950;
+      margin: 0 0 10px 0;
+      color: var(--pnx-ink);
+
+      display:-webkit-box;
+      -webkit-line-clamp:2;
+      -webkit-box-orient:vertical;
+      overflow:hidden;
+
+      overflow-wrap:anywhere;
+      word-break:break-word;
     }
-    .btn-pn:hover{border-color:rgba(0,0,0,.14);background:#fff;}
 
-    .pn-empty{text-align:center;color:#64748b;padding:40px 10px;}
+    .pnx-meta{
+      display:flex;
+      flex-direction:column;
+      gap: 6px;
+      margin: 0 0 10px 0;
+      color:#334155;
+      font-weight: 800;
+      font-size: 13px;
+    }
+    .pnx-meta .rowx{
+      display:flex;
+      align-items:center;
+      gap: 8px;
+      min-height: 18px;
+      overflow:hidden;
+    }
+    .pnx-meta i{
+      width: 16px;
+      text-align:center;
+      color: var(--pnx-muted);
+      opacity: .95;
+      flex: 0 0 auto;
+    }
+    .pnx-meta span{
+      display:block;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+      min-width: 0;
+    }
 
-    .pn-title i {
-color: var(--pn-accent);
-}
+    .pnx-p{
+      margin:0;
+      color:#475569;
+      font-size: 14.5px;
+      line-height: 1.7;
+
+      display:-webkit-box;
+      -webkit-line-clamp:3;
+      -webkit-box-orient:vertical;
+      overflow:hidden;
+
+      overflow-wrap:anywhere;
+      word-break:break-word;
+      hyphens:auto;
+    }
+
+    .pnx-date{
+      margin-top:auto;
+      color:#94a3b8;
+      font-size: 13px;
+      padding-top: 12px;
+      display:flex;
+      align-items:center;
+      gap: 6px;
+    }
+
+    .pnx-link{
+      position:absolute;
+      inset:0;
+      z-index:2;
+      border-radius: 16px;
+    }
+
+    /* State / empty */
+    .pnx-state{
+      background: var(--pnx-card);
+      border: 1px solid var(--pnx-line);
+      border-radius: 16px;
+      box-shadow: var(--pnx-shadow);
+      padding: 18px;
+      color: var(--pnx-muted);
+      text-align:center;
+    }
+
+    /* Skeleton */
+    .pnx-skeleton{
+      display:grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 18px;
+    }
+    .pnx-sk{
+      border-radius: 16px;
+      border: 1px solid var(--pnx-line);
+      background: #fff;
+      overflow:hidden;
+      position:relative;
+      box-shadow: 0 10px 24px rgba(2,6,23,.08);
+      height: var(--pnx-card-h);
+    }
+    .pnx-sk:before{
+      content:'';
+      position:absolute; inset:0;
+      transform: translateX(-60%);
+      background: linear-gradient(90deg, transparent, rgba(148,163,184,.22), transparent);
+      animation: pnxSkMove 1.15s ease-in-out infinite;
+    }
+    @keyframes pnxSkMove{ to{ transform: translateX(60%);} }
+
+    /* Pagination */
+    .pnx-pagination{
+      display:flex;
+      justify-content:center;
+      margin-top: 18px;
+    }
+    .pnx-pagination .pnx-pager{
+      display:flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items:center;
+      justify-content:center;
+      padding: 10px;
+    }
+    .pnx-pagebtn{
+      border:1px solid var(--pnx-line);
+      background: var(--pnx-card);
+      color: var(--pnx-ink);
+      border-radius: 12px;
+      padding: 9px 12px;
+      font-size: 13px;
+      font-weight: 950;
+      box-shadow: 0 8px 18px rgba(2,6,23,.06);
+      cursor:pointer;
+      user-select:none;
+    }
+    .pnx-pagebtn:hover{ background: rgba(2,6,23,.03); }
+    .pnx-pagebtn[disabled]{ opacity:.55; cursor:not-allowed; }
+    .pnx-pagebtn.active{
+      background: rgba(201,75,80,.12);
+      border-color: rgba(201,75,80,.35);
+      color: var(--pnx-brand);
+    }
+
+    @media (max-width: 640px){
+      .pnx-title{ font-size: 24px; }
+      .pnx-search{ min-width: 220px; flex: 1 1 240px; }
+      .pnx-select{ min-width: 220px; flex: 1 1 240px; }
+      .pnx-wrap{ --pnx-media-h: 210px; }
+      .pnx-media .pnx-fallback{ font-size: 22px; }
+    }
+
+    /* ✅ Guard against Bootstrap overriding mega menu dropdown positioning */
+    .dynamic-navbar .navbar-nav .dropdown-menu{
+      position: absolute !important;
+      inset: auto !important;
+    }
+    .dynamic-navbar .dropdown-menu.is-portaled{
+      position: fixed !important;
+    }
   </style>
 </head>
 <body>
 
-  <div class="pn-wrap">
-    <div class="pn-head">
+  <div
+    class="pnx-wrap"
+    data-api="{{ url('/api/public/placement-notices') }}"
+    data-view-base="{{ url('/placement-notices/view') }}"
+    data-dept-api="{{ url('/api/public/departments') }}"
+  >
+    <div class="pnx-head">
       <div>
-        <h2 class="pn-title"><i class="fa-solid fa-bullhorn"></i> Placement Notices</h2>
-        <div class="text-muted" style="font-size:13px;">Latest placement opportunities & updates.</div>
+        <h1 class="pnx-title"><i class="fa-solid fa-bullhorn"></i>Placement Notices</h1>
+        <div class="pnx-sub" id="pnxSub">Select a department to view placement notices.</div>
       </div>
 
-      <div class="pn-toolbar">
-        <input id="pnSearch" class="form-control" type="search" placeholder="Search notices (title/role/eligibility)..." />
-      </div>
-    </div>
-
-    <div class="pn-grid" id="pnGrid">
-      {{-- skeletons --}}
-      @for($i=0; $i<4; $i++)
-        <div class="pn-skel">
-          <div class="m"></div>
-          <div class="b">
-            <div class="l w70"></div>
-            <div class="l w95"></div>
-            <div class="l w85"></div>
-            <div class="l w70" style="margin-top:16px;"></div>
-          </div>
+      <div class="pnx-tools">
+        <div class="pnx-search">
+          <i class="fa fa-magnifying-glass"></i>
+          <input id="pnxSearch" type="search" placeholder="Search notices (title/role/eligibility)…" disabled>
         </div>
-      @endfor
+
+        <div class="pnx-select" title="Filter by department">
+          <i class="fa-solid fa-building-columns pnx-select__icon"></i>
+          <select id="pnxDept" aria-label="Filter by department">
+            <option value="">Select Department</option>
+          </select>
+          <i class="fa-solid fa-chevron-down pnx-select__caret"></i>
+        </div>
+
+        <div class="pnx-chip" title="Total results">
+          <i class="fa-regular fa-rectangle-list" style="opacity:.85"></i>
+          <span id="pnxCount">—</span>
+        </div>
+      </div>
     </div>
 
-    <div class="pn-footer">
-      <button id="pnLoadMore" class="btn btn-pn d-none">
-        <i class="fa-solid fa-rotate me-2"></i>Load more
-      </button>
-    </div>
+    <div id="pnxGrid" class="pnx-grid" style="display:none;"></div>
 
-    <div id="pnEmpty" class="pn-empty d-none">
-      <div style="font-size:34px; line-height:1;">📌</div>
-      <div class="mt-2" style="font-weight:900; font-size:18px;">No placement notices found</div>
-      <div class="mt-1">Try a different search term.</div>
+    <div id="pnxSkeleton" class="pnx-skeleton"></div>
+    <div id="pnxState" class="pnx-state" style="display:none;"></div>
+
+    <div class="pnx-pagination">
+      <div id="pnxPager" class="pnx-pager" style="display:none;"></div>
     </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
   <script>
-    (function(){
-      const API_INDEX = @json(url('/api/public/placement-notices'));
-      const VIEW_BASE = @json(url('/placement-notices/view'));
+  (() => {
+    if (window.__PUBLIC_PLACEMENT_NOTICES_ALL__) return;
+    window.__PUBLIC_PLACEMENT_NOTICES_ALL__ = true;
 
-      const grid     = document.getElementById('pnGrid');
-      const btnMore  = document.getElementById('pnLoadMore');
-      const emptyBox = document.getElementById('pnEmpty');
-      const qInput   = document.getElementById('pnSearch');
+    const root = document.querySelector('.pnx-wrap');
+    if (!root) return;
 
-      let page = 1;
-      let lastPage = 1;
-      let loading = false;
-      let q = '';
+    const API = root.getAttribute('data-api') || '/api/public/placement-notices';
+    const VIEW_BASE = root.getAttribute('data-view-base') || '/placement-notices/view';
+    const DEPT_API = root.getAttribute('data-dept-api') || '/api/public/departments';
 
-      const stripHtml = (html) => {
-        const div = document.createElement('div');
-        div.innerHTML = (html || '');
-        return (div.textContent || div.innerText || '').trim();
-      };
+    const $ = (id) => document.getElementById(id);
 
-      const escAttr = (s) => String(s || '').replace(/"/g, '&quot;');
+    const els = {
+      grid: $('pnxGrid'),
+      skel: $('pnxSkeleton'),
+      state: $('pnxState'),
+      pager: $('pnxPager'),
+      search: $('pnxSearch'),
+      dept: $('pnxDept'),
+      count: $('pnxCount'),
+      sub: $('pnxSub'),
+    };
 
-      const fmtDate = (iso) => {
-        if (!iso) return '';
-        const d = new Date(iso);
-        if (isNaN(d.getTime())) return '';
-        return new Intl.DateTimeFormat('en-IN', { day:'2-digit', month:'short', year:'numeric' }).format(d);
-      };
+    const state = {
+      page: 1,
+      perPage: 9,
+      lastPage: 1,
+      total: 0,
+      q: '',
+      deptUuid: '',
+      deptId: null,
+      deptName: '',
+    };
 
-      const fmtMoney = (v) => {
-        if (v === null || v === undefined || v === '') return '';
-        const n = Number(v);
-        if (Number.isNaN(n)) return String(v);
-        return n.toLocaleString('en-IN');
-      };
+    let activeController = null;
 
-      const setSkeletons = (n=4) => {
-        const s = [];
-        for (let i=0;i<n;i++){
-          s.push(`
-            <div class="pn-skel">
-              <div class="m"></div>
-              <div class="b">
-                <div class="l w70"></div>
-                <div class="l w95"></div>
-                <div class="l w85"></div>
-                <div class="l w70" style="margin-top:16px;"></div>
-              </div>
-            </div>
-          `);
+    // cache
+    let allNotices = null;
+    let deptByUuid = new Map(); // uuid -> {id, title, uuid}
+    let lookupsDepts = [];      // fallback from placement-notices API response
+
+    function esc(str){
+      return (str ?? '').toString().replace(/[&<>"']/g, s => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[s]));
+    }
+    function escAttr(str){
+      return (str ?? '').toString().replace(/"/g, '&quot;');
+    }
+
+    function stripHtml(html){
+      const raw = String(html || '')
+        .replace(/<\s*br\s*\/?>/gi, ' ')
+        .replace(/<\/\s*(p|div|li|h[1-6]|tr|td|th|section|article)\s*>/gi, '$& ')
+        .replace(/<\s*(p|div|li|h[1-6]|tr|td|th|section|article)\b[^>]*>/gi, ' ');
+      const div = document.createElement('div');
+      div.innerHTML = raw;
+      return (div.textContent || div.innerText || '').replace(/\s+/g, ' ').trim();
+    }
+
+    function fmtDate(iso){
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return '';
+      return new Intl.DateTimeFormat('en-IN', { day:'2-digit', month:'short', year:'numeric' }).format(d);
+    }
+
+    function fmtMoney(v){
+      if (v === null || v === undefined || v === '') return '';
+      const n = Number(v);
+      if (Number.isNaN(n)) return String(v);
+      return n.toLocaleString('en-IN');
+    }
+
+    function normalizeUrl(url){
+      const u = (url || '').toString().trim();
+      if (!u) return '';
+      if (/^(data:|blob:|https?:\/\/)/i.test(u)) return u;
+      if (u.startsWith('/')) return window.location.origin + u;
+      return window.location.origin + '/' + u;
+    }
+
+    // ✅ image load/error without inline JS
+    function bindCardImages(rootEl){
+      rootEl.querySelectorAll('img.pnx-img').forEach(img => {
+        const media = img.closest('.pnx-media');
+        const fallback = media ? media.querySelector('.pnx-fallback') : null;
+
+        if (img.complete && img.naturalWidth > 0) {
+          if (fallback) fallback.style.display = 'none';
+          return;
         }
-        grid.innerHTML = s.join('');
-      };
 
-      const removeSkeletons = () => {
-        grid.querySelectorAll('.pn-skel').forEach(el => el.remove());
-      };
+        img.addEventListener('load', () => {
+          if (fallback) fallback.style.display = 'none';
+        }, { once: true });
 
-      const setEmpty = (isEmpty) => emptyBox.classList.toggle('d-none', !isEmpty);
+        img.addEventListener('error', () => {
+          img.remove();
+          if (fallback) fallback.style.display = '-webkit-box';
+        }, { once: true });
+      });
+    }
 
-      const setMore = () => {
-        const show = page < lastPage;
-        btnMore.classList.toggle('d-none', !show);
-        btnMore.disabled = loading;
-      };
+    function pillText(it){
+      const last = it?.last_date_to_apply ? fmtDate(it.last_date_to_apply) : '';
+      if (last) return 'Apply by ' + last;
+      return it?.is_featured_home ? 'Featured' : 'Placement';
+    }
 
-      const pillText = (it) => {
-        const last = it.last_date_to_apply ? fmtDate(it.last_date_to_apply) : '';
-        if (last) return 'Apply by ' + last;
-        return it.is_featured_home ? 'Featured' : 'Placement';
-      };
+    function recruiterText(it){
+      const name = it?.recruiter_name || it?.recruiter_title || '';
+      const comp = it?.recruiter_company_name || '';
+      if (name && comp) return `${name} • ${comp}`;
+      return name || comp || '';
+    }
 
-      const recruiterText = (it) => {
-        const name = it.recruiter_name || it.recruiter_title || '';
-        const comp = it.recruiter_company_name || '';
-        if (name && comp) return `${name} • ${comp}`;
-        return name || comp || '';
-      };
+    function cardHtml(item){
+      const titleRaw = item?.title || 'Placement Notice';
+      const title = esc(titleRaw);
 
-      const cardHtml = (item) => {
-        const title = item.title || 'Placement Notice';
-        const role  = item.role_title || '';
-        const ctc   = (item.ctc !== null && item.ctc !== undefined && item.ctc !== '') ? fmtMoney(item.ctc) : '';
-        const elig  = item.eligibility ? stripHtml(item.eligibility) : '';
-        const desc  = item.description ? stripHtml(item.description) : '';
-        const text  = (desc || elig);
-        const excerpt = text.length > 220 ? (text.slice(0, 220).trim() + '...') : text;
+      const role  = (item?.role_title || '').toString().trim();
+      const recLine = recruiterText(item);
 
-        const created = fmtDate(item.created_at || null);
-        const applyBy = fmtDate(item.last_date_to_apply || null);
+      const ctcRaw = (item?.ctc !== null && item?.ctc !== undefined && item?.ctc !== '') ? fmtMoney(item.ctc) : '';
+      const applyBy = fmtDate(item?.last_date_to_apply || null);
+      const created = fmtDate(item?.created_at || null);
 
-        const uuid = item.uuid ? String(item.uuid) : '';
-        const href = uuid ? (VIEW_BASE + '/' + encodeURIComponent(uuid)) : '#';
+      const elig  = stripHtml(item?.eligibility || '');
+      const desc  = stripHtml(item?.description || '');
+      const text  = (desc || elig || '');
 
-        const banner = item.banner_image_full_url || item.banner_image_url || '';
-        const recLine = recruiterText(item);
+      const MAX_CHARS = 150;
+      let excerptText = text;
+      if (excerptText.length > MAX_CHARS){
+        excerptText = excerptText
+          .slice(0, MAX_CHARS)
+          .trim()
+          .replace(/[,\.;:\-\s]+$/g, '');
+        excerptText += '......';
+      }
+      const excerpt = esc(excerptText || '');
 
-        return `
-          <div class="pn-card">
-            <div class="pn-pill">${escAttr(pillText(item))}</div>
+      const uuid = item?.uuid ? String(item.uuid) : '';
+      const href = uuid ? (VIEW_BASE + '/' + encodeURIComponent(uuid)) : '#';
 
-            <div class="pn-media">
-              <div class="pn-fallback">${escAttr(title)}</div>
+      const banner = item?.banner_image_full_url || item?.banner_image_url || item?.banner_image || '';
+      const bannerNorm = banner ? normalizeUrl(String(banner)) : '';
 
-              ${banner ? `
-                <img class="pn-img"
-                     src="${escAttr(banner)}"
-                     alt="${escAttr(title)}"
-                     loading="lazy" />
-              ` : ``}
-            </div>
+      return `
+        <div class="pnx-card">
+          <div class="pnx-media">
+            <div class="pnx-pill">${esc(pillText(item))}</div>
 
-            <div class="pn-body">
-              <div class="pn-h">${title}</div>
-
-              <div class="pn-meta">
-                <div class="rowx">
-                  <i class="fa-solid fa-briefcase"></i>
-                  <span>${role ? escAttr(role) : '—'}</span>
-                </div>
-
-                <div class="rowx">
-                  <i class="fa-solid fa-building"></i>
-                  <span>${recLine ? escAttr(recLine) : '—'}</span>
-                </div>
-
-                <div class="rowx">
-                  <i class="fa-solid fa-money-bill-wave"></i>
-                  <span>${ctc ? ('CTC: ' + escAttr(ctc)) : '—'}</span>
-                </div>
-
-                <div class="rowx">
-                  <i class="fa-regular fa-calendar"></i>
-                  <span>${applyBy ? ('Last date: ' + escAttr(applyBy)) : '—'}</span>
-                </div>
-              </div>
-
-              <p class="pn-p">${excerpt || ''}</p>
-
-              <div class="pn-date">
-                <i class="fa-regular fa-clock"></i>
-                <span>Created: ${created || '—'}</span>
-              </div>
-            </div>
-
-            ${uuid
-              ? `<a class="pn-link" href="${href}" aria-label="Open ${escAttr(title)}"></a>`
-              : `<div class="pn-link" title="Missing UUID"></div>`
-            }
+            <div class="pnx-fallback">${esc(titleRaw)}</div>
+            ${bannerNorm ? `
+              <img class="pnx-img"
+                   src="${escAttr(bannerNorm)}"
+                   alt="${escAttr(titleRaw)}"
+                   loading="lazy" />
+            ` : ``}
           </div>
-        `;
-      };
 
-      // ✅ image load/error handler (no broken icon)
-      const bindCardImages = (rootEl) => {
-        rootEl.querySelectorAll('img.pn-img').forEach(img => {
-          const media = img.closest('.pn-media');
-          const fallback = media ? media.querySelector('.pn-fallback') : null;
+          <div class="pnx-body">
+            <div class="pnx-h">${title}</div>
 
-          if (img.complete && img.naturalWidth > 0) {
-            if (fallback) fallback.style.display = 'none';
-            return;
-          }
-
-          img.addEventListener('load', () => {
-            if (fallback) fallback.style.display = 'none';
-          }, { once:true });
-
-          img.addEventListener('error', () => {
-            img.remove();
-            if (fallback) fallback.style.display = '-webkit-box';
-          }, { once:true });
-        });
-      };
-
-      const fetchPage = async (reset=false) => {
-        if (loading) return;
-        loading = true;
-
-        if (reset) {
-          page = 1;
-          lastPage = 1;
-          setSkeletons(4);
-          setEmpty(false);
-        }
-
-        setMore();
-
-        try{
-          const url = new URL(API_INDEX, window.location.origin);
-          url.searchParams.set('per_page', '10');
-          url.searchParams.set('page', String(page));
-          if (q) url.searchParams.set('q', q);
-
-          url.searchParams.set('visible_now', '1');
-
-          const res = await fetch(url.toString(), { headers: { 'Accept': 'application/json' } });
-          if (!res.ok) throw new Error('HTTP ' + res.status);
-
-          const json = await res.json();
-          const items = Array.isArray(json.data) ? json.data : [];
-          const pg = json.pagination || {};
-          lastPage = Number(pg.last_page || 1);
-
-          removeSkeletons();
-          if (reset) grid.innerHTML = '';
-
-          if (!items.length && page === 1) {
-            setEmpty(true);
-            btnMore.classList.add('d-none');
-            loading = false;
-            return;
-          }
-
-          const frag = document.createElement('div');
-          frag.innerHTML = items.map(cardHtml).join('');
-          while (frag.firstChild) grid.appendChild(frag.firstChild);
-
-          bindCardImages(grid);
-
-          setEmpty(false);
-          setMore();
-        } catch (e) {
-          console.error('Placement notices load error:', e);
-          removeSkeletons();
-          if (!grid.children.length) {
-            grid.innerHTML = `
-              <div class="pn-empty">
-                <div style="font-size:34px; line-height:1;">⚠️</div>
-                <div class="mt-2" style="font-weight:900; font-size:18px;">Failed to load placement notices</div>
-                <div class="mt-1">Please try again.</div>
+            <div class="pnx-meta">
+              <div class="rowx">
+                <i class="fa-solid fa-briefcase"></i>
+                <span>${role ? esc(role) : '—'}</span>
               </div>
-            `;
-          }
-          btnMore.classList.add('d-none');
-        } finally {
-          loading = false;
-          setMore();
-        }
-      };
 
-      btnMore.addEventListener('click', () => {
-        if (page >= lastPage) return;
-        page += 1;
-        fetchPage(false);
+              <div class="rowx">
+                <i class="fa-solid fa-building"></i>
+                <span>${recLine ? esc(recLine) : '—'}</span>
+              </div>
+
+              <div class="rowx">
+                <i class="fa-solid fa-money-bill-wave"></i>
+                <span>${ctcRaw ? ('CTC: ' + esc(ctcRaw)) : '—'}</span>
+              </div>
+
+              <div class="rowx">
+                <i class="fa-regular fa-calendar"></i>
+                <span>${applyBy ? ('Last date: ' + esc(applyBy)) : '—'}</span>
+              </div>
+            </div>
+
+            <p class="pnx-p">${excerpt}</p>
+
+            <div class="pnx-date">
+              <i class="fa-regular fa-clock"></i>
+              <span>Created: ${esc(created || '—')}</span>
+            </div>
+          </div>
+
+          ${uuid
+            ? `<a class="pnx-link" href="${href}" aria-label="Open ${escAttr(titleRaw)}"></a>`
+            : `<div class="pnx-link" title="Missing UUID"></div>`
+          }
+        </div>
+      `;
+    }
+
+    function showSkeleton(){
+      const sk = els.skel, st = els.state, grid = els.grid, pager = els.pager;
+      if (grid) grid.style.display = 'none';
+      if (pager) pager.style.display = 'none';
+      if (st) st.style.display = 'none';
+
+      if (!sk) return;
+      sk.style.display = '';
+      sk.innerHTML = Array.from({length: 6}).map(() => `<div class="pnx-sk"></div>`).join('');
+    }
+
+    function hideSkeleton(){
+      const sk = els.skel;
+      if (!sk) return;
+      sk.style.display = 'none';
+      sk.innerHTML = '';
+    }
+
+    async function fetchJson(url){
+      if (activeController) activeController.abort();
+      activeController = new AbortController();
+
+      const res = await fetch(url, {
+        headers: { 'Accept':'application/json' },
+        signal: activeController.signal
       });
 
+      const js = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(js?.message || ('Request failed: ' + res.status));
+      return js;
+    }
+
+    function extractDeptUuidFromUrl(){
+      // matches "?d-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" anywhere
+      const hay = (window.location.search || '') + ' ' + (window.location.href || '');
+      const m = hay.match(/d-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+      return m ? m[1] : '';
+    }
+
+    function setDeptSelection(uuid){
+      const sel = els.dept;
+      uuid = (uuid || '').toString().trim();
+
+      if (!sel) return;
+
+      if (!uuid){
+        sel.value = '';
+        state.deptUuid = '';
+        state.deptId = null;
+        state.deptName = '';
+
+        if (els.sub) els.sub.textContent = 'Select a department to view placement notices.';
+        if (els.search){
+          els.search.value = '';
+          els.search.disabled = true;
+        }
+        state.q = '';
+        return;
+      }
+
+      const meta = deptByUuid.get(uuid);
+      if (!meta) return;
+
+      sel.value = uuid;
+      state.deptUuid = uuid;
+      state.deptId = meta.id ?? null;
+      state.deptName = meta.title ?? '';
+
+      if (els.sub){
+        els.sub.textContent = state.deptName
+          ? ('Placement notices for ' + state.deptName)
+          : 'Placement notices (filtered)';
+      }
+
+      if (els.search){
+        els.search.disabled = false;
+      }
+    }
+
+    function populateDeptSelectFromList(list){
+      const sel = els.dept;
+      if (!sel) return;
+
+      const depts = (Array.isArray(list) ? list : [])
+        .map(d => ({
+          id: d?.id ?? null,
+          uuid: (d?.uuid ?? '').toString().trim(),
+          title: (d?.title ?? d?.name ?? '').toString().trim(),
+        }))
+        .filter(x => x.uuid && x.title);
+
+      // build map
+      deptByUuid = new Map(depts.map(d => [d.uuid, d]));
+
+      // sort A-Z
+      depts.sort((a,b) => a.title.localeCompare(b.title));
+
+      sel.innerHTML =
+        `<option value="">Select Department</option>` +
+        depts.map(d => `<option value="${escAttr(d.uuid)}" data-id="${escAttr(d.id ?? '')}">${esc(d.title)}</option>`).join('');
+
+      // keep current selection if still valid
+      if (state.deptUuid && deptByUuid.has(state.deptUuid)){
+        sel.value = state.deptUuid;
+      } else {
+        sel.value = '';
+      }
+    }
+
+    async function loadDepartments(){
+      const sel = els.dept;
+      if (!sel) return;
+
+      sel.innerHTML = `
+        <option value="">Select Department</option>
+        <option value="__loading" disabled>Loading departments…</option>
+      `;
+      sel.value = '__loading';
+
+      try{
+        const res = await fetch(DEPT_API, { headers: { 'Accept':'application/json' } });
+        const js = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(js?.message || ('HTTP ' + res.status));
+
+        const items = Array.isArray(js?.data) ? js.data : [];
+        populateDeptSelectFromList(items);
+      } catch (e){
+        console.warn('Departments load failed, will fallback to lookups if available:', e);
+        // fallback: if we already have lookups from notices API
+        if (Array.isArray(lookupsDepts) && lookupsDepts.length){
+          populateDeptSelectFromList(lookupsDepts);
+        } else {
+          sel.innerHTML = `<option value="">Select Department</option>`;
+          sel.value = '';
+        }
+      }
+    }
+
+    async function ensureNoticesLoaded(force=false){
+      if (allNotices && !force) return;
+
+      showSkeleton();
+
+      try{
+        const u = new URL(API, window.location.origin);
+        u.searchParams.set('page', '1');
+        u.searchParams.set('per_page', '200');
+        u.searchParams.set('visible_now', '1');
+        u.searchParams.set('sort', 'created_at');
+        u.searchParams.set('direction', 'desc');
+
+        const js = await fetchJson(u.toString());
+        const items = Array.isArray(js?.data) ? js.data : [];
+        allNotices = items;
+
+        // ✅ capture lookups departments from this endpoint (your response includes it)
+        const look = js?.lookups?.departments;
+        lookupsDepts = Array.isArray(look) ? look : [];
+
+        // if dept list not loaded (or empty), populate from lookups as fallback
+        if ((!deptByUuid || deptByUuid.size === 0) && lookupsDepts.length){
+          populateDeptSelectFromList(lookupsDepts);
+        }
+      } finally {
+        hideSkeleton();
+      }
+    }
+
+    function applyFilterAndSearch(){
+      const q = (state.q || '').toString().trim().toLowerCase();
+
+      // ✅ as requested: if no dept selected -> show nothing
+      if (!state.deptUuid) return [];
+
+      let items = Array.isArray(allNotices) ? allNotices.slice() : [];
+
+      const deptUuidStr = String(state.deptUuid || '').trim();
+      const deptIdStr = (state.deptId === null || state.deptId === undefined || state.deptId === '')
+        ? ''
+        : String(state.deptId);
+
+      // ✅ MULTI-DEPT FILTER FIX:
+      // match selected dept via department_ids array OR departments[] uuid list
+      items = items.filter(it => {
+        const ids = Array.isArray(it?.department_ids) ? it.department_ids.map(x => String(x)) : [];
+        const okById = deptIdStr ? ids.includes(deptIdStr) : false;
+
+        const deps = Array.isArray(it?.departments) ? it.departments : [];
+        const okByUuid = deptUuidStr
+          ? deps.some(d => String(d?.uuid || '').trim() === deptUuidStr)
+          : false;
+
+        return okById || okByUuid;
+      });
+
+      // search on title + role + recruiter + eligibility/description
+      if (q){
+        items = items.filter(it => {
+          const t = String(it?.title || '').toLowerCase();
+          const r = String(it?.role_title || '').toLowerCase();
+          const rec = String(recruiterText(it) || '').toLowerCase();
+          const e = stripHtml(it?.eligibility || '').toLowerCase();
+          const d = stripHtml(it?.description || '').toLowerCase();
+          return (t.includes(q) || r.includes(q) || rec.includes(q) || e.includes(q) || d.includes(q));
+        });
+      }
+
+      return items;
+    }
+
+    function render(items){
+      const grid = els.grid, st = els.state, count = els.count;
+      if (!grid || !st) return;
+
+      if (count) count.textContent = String(state.total || 0);
+
+      if (!state.deptUuid){
+        grid.style.display = 'none';
+        st.style.display = '';
+        st.innerHTML = `
+          <div style="font-size:34px;opacity:.6;margin-bottom:6px;">
+            <i class="fa-regular fa-hand-pointer"></i>
+          </div>
+          Please select a department to view placement notices.
+        `;
+        return;
+      }
+
+      if (!items.length){
+        grid.style.display = 'none';
+        st.style.display = '';
+        const deptLine = state.deptName ? `<div style="margin-top:6px;font-size:12.5px;opacity:.95;">Department: <b>${esc(state.deptName)}</b></div>` : '';
+        st.innerHTML = `
+          <div style="font-size:34px;opacity:.6;margin-bottom:6px;">
+            <i class="fa-regular fa-face-frown"></i>
+          </div>
+          No placement notices found.
+          ${deptLine}
+        `;
+        return;
+      }
+
+      st.style.display = 'none';
+      grid.style.display = '';
+      grid.innerHTML = items.map(cardHtml).join('');
+      bindCardImages(grid);
+    }
+
+    function renderPager(){
+      const pager = els.pager;
+      if (!pager) return;
+
+      if (!state.deptUuid){
+        pager.style.display = 'none';
+        pager.innerHTML = '';
+        return;
+      }
+
+      const last = state.lastPage || 1;
+      const cur  = state.page || 1;
+
+      if (last <= 1){
+        pager.style.display = 'none';
+        pager.innerHTML = '';
+        return;
+      }
+
+      const btn = (label, page, {disabled=false, active=false}={}) => {
+        const dis = disabled ? 'disabled' : '';
+        const cls = active ? 'pnx-pagebtn active' : 'pnx-pagebtn';
+        return `<button class="${cls}" ${dis} data-page="${page}">${label}</button>`;
+      };
+
+      let html = '';
+      html += btn('Previous', Math.max(1, cur-1), { disabled: cur<=1 });
+
+      const win = 2;
+      const start = Math.max(1, cur - win);
+      const end   = Math.min(last, cur + win);
+
+      if (start > 1){
+        html += btn('1', 1, { active: cur===1 });
+        if (start > 2) html += `<span style="opacity:.6;padding:0 4px;">…</span>`;
+      }
+
+      for (let p=start; p<=end; p++){
+        html += btn(String(p), p, { active: p===cur });
+      }
+
+      if (end < last){
+        if (end < last - 1) html += `<span style="opacity:.6;padding:0 4px;">…</span>`;
+        html += btn(String(last), last, { active: cur===last });
+      }
+
+      html += btn('Next', Math.min(last, cur+1), { disabled: cur>=last });
+
+      pager.innerHTML = html;
+      pager.style.display = 'flex';
+    }
+
+    function repaint(){
+      const filtered = applyFilterAndSearch();
+
+      state.total = filtered.length;
+      state.lastPage = Math.max(1, Math.ceil(filtered.length / state.perPage));
+      if (state.page > state.lastPage) state.page = state.lastPage;
+
+      const start = (state.page - 1) * state.perPage;
+      const pageItems = filtered.slice(start, start + state.perPage);
+
+      render(pageItems);
+      renderPager();
+    }
+
+    async function loadAndPaintIfReady(){
+      // if no dept selected -> show prompt state (no API call needed)
+      if (!state.deptUuid){
+        state.total = 0;
+        if (els.count) els.count.textContent = '0';
+        repaint();
+        return;
+      }
+
+      if (!allNotices){
+        await ensureNoticesLoaded(false);
+      }
+      repaint();
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      // load departments first (dropdown)
+      await loadDepartments();
+
+      // deep-link selection (?d-{uuid})
+      const deepDeptUuid = extractDeptUuidFromUrl();
+      if (deepDeptUuid && deptByUuid.has(deepDeptUuid)){
+        setDeptSelection(deepDeptUuid);
+      } else {
+        setDeptSelection('');
+      }
+
+      // initial render
+      await loadAndPaintIfReady();
+
+      // search (debounced)
       let t = null;
-      qInput.addEventListener('input', () => {
+      els.search && els.search.addEventListener('input', () => {
         clearTimeout(t);
         t = setTimeout(() => {
-          q = (qInput.value || '').trim();
-          fetchPage(true);
-        }, 350);
+          state.q = (els.search.value || '').trim();
+          state.page = 1;
+          repaint();
+        }, 260);
       });
 
-      fetchPage(true);
-    })();
+      // dept change
+      els.dept && els.dept.addEventListener('change', async () => {
+        const v = (els.dept.value || '').toString();
+        if (v === '__loading') return;
+
+        if (!v){
+          setDeptSelection('');
+        } else {
+          setDeptSelection(v);
+        }
+
+        state.page = 1;
+        await loadAndPaintIfReady();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+
+      // pagination click
+      document.addEventListener('click', (e) => {
+        const b = e.target.closest('button.pnx-pagebtn[data-page]');
+        if (!b) return;
+        const p = parseInt(b.dataset.page, 10);
+        if (!p || Number.isNaN(p) || p === state.page) return;
+        state.page = p;
+        repaint();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    });
+
+  })();
   </script>
 </body>
 </html>
