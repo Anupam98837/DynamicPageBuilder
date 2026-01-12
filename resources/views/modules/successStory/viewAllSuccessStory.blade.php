@@ -20,6 +20,7 @@
       - Dept dropdown UI improved (pill, icon, caret)
       - Dept filtering (frontend filter by department_id / department_uuid)
       - Deep-link ?d-{uuid} auto-selects dept and filters
+      - ✅ Count chip removed + head kept in one row (desktop)
     ========================================================= */
 
     .ss-wrap{
@@ -57,8 +58,15 @@
       gap: 12px;
       align-items: flex-end;
       justify-content: space-between;
-      flex-wrap: wrap;
+
+      /* ✅ keep in one row on desktop */
+      flex-wrap: nowrap;
     }
+    .ss-head > div:first-child{
+      flex: 1 1 auto;
+      min-width: 260px;
+    }
+
     .ss-title{
       margin: 0;
       font-weight: 950;
@@ -68,6 +76,7 @@
       display:flex;
       align-items:center;
       gap: 10px;
+      white-space: nowrap;
     }
     .ss-title i{ color: var(--ss-brand); }
     .ss-sub{
@@ -80,7 +89,10 @@
       display:flex;
       gap: 10px;
       align-items:center;
-      flex-wrap: wrap;
+
+      /* ✅ keep tools in one row on desktop */
+      flex-wrap: nowrap;
+      flex: 0 0 auto;
     }
 
     /* Search */
@@ -158,23 +170,6 @@
     .ss-select select:focus{
       border-color: rgba(201,75,80,.55);
       box-shadow: 0 0 0 4px rgba(201,75,80,.18);
-    }
-
-    /* Chip */
-    .ss-chip{
-      display:flex;
-      align-items:center;
-      gap: 8px;
-      height: 42px;
-      padding: 0 12px;
-      border-radius: 999px;
-      border: 1px solid var(--ss-line);
-      background: var(--ss-card);
-      box-shadow: 0 8px 18px rgba(2,6,23,.06);
-      color: var(--ss-ink);
-      font-size: 13px;
-      font-weight: 900;
-      white-space: nowrap;
     }
 
     /* Grid */
@@ -375,7 +370,11 @@
     }
 
     @media (max-width: 640px){
-      .ss-title{ font-size: 24px; }
+      /* ✅ allow wrap on small screens */
+      .ss-head{ flex-wrap: wrap; align-items: flex-end; }
+      .ss-tools{ flex-wrap: wrap; }
+
+      .ss-title{ font-size: 24px; white-space: normal; }
       .ss-search{ min-width: 220px; flex: 1 1 240px; }
       .ss-select{ min-width: 220px; flex: 1 1 240px; }
       .ss-wrap{ --ss-media-h: 210px; }
@@ -420,10 +419,7 @@
           <i class="fa-solid fa-chevron-down ss-select__caret"></i>
         </div>
 
-        <div class="ss-chip" title="Total results">
-          <i class="fa-regular fa-rectangle-list" style="opacity:.85"></i>
-          <span id="ssCount">—</span>
-        </div>
+        {{-- ✅ Count chip removed --}}
       </div>
     </div>
 
@@ -460,7 +456,6 @@
       pager: $('ssPager'),
       search: $('ssSearch'),
       dept: $('ssDept'),
-      count: $('ssCount'),
       sub: $('ssSub'),
     };
 
@@ -750,11 +745,9 @@
         items = items.filter(it => {
           const did = (it?.department_id === null || it?.department_id === undefined) ? '' : String(it.department_id);
           const duu = (it?.department_uuid === null || it?.department_uuid === undefined) ? '' : String(it.department_uuid);
-          // when a dept is selected -> show ONLY those matched to dept
           return (did === deptIdStr) || (duu && duu === deptUuidStr);
         });
       } else if (state.deptUuid) {
-        // if somehow deptId missing, try uuid-only
         const deptUuidStr = String(state.deptUuid);
         items = items.filter(it => String(it?.department_uuid || '') === deptUuidStr);
       }
@@ -773,10 +766,8 @@
     }
 
     function render(items){
-      const grid = els.grid, st = els.state, count = els.count;
+      const grid = els.grid, st = els.state;
       if (!grid || !st) return;
-
-      if (count) count.textContent = String(state.total || 0);
 
       if (!items.length){
         grid.style.display = 'none';

@@ -55,10 +55,14 @@
 
       display:flex;
       gap: 12px;
-      align-items: flex-end;
+      align-items: center;
       justify-content: space-between;
-      flex-wrap: wrap;
+
+      /* ✅ keep header in one row (desktop) */
+      flex-wrap: nowrap;
     }
+    .ntx-head > div:first-child{ flex: 0 0 auto; }
+
     .ntx-title{
       margin: 0;
       font-weight: 950;
@@ -80,7 +84,11 @@
       display:flex;
       gap: 10px;
       align-items:center;
-      flex-wrap: wrap;
+
+      /* ✅ keep tools in one row (desktop) */
+      flex-wrap: nowrap;
+      justify-content: flex-end;
+      flex: 1 1 auto;
     }
 
     /* Search */
@@ -158,23 +166,6 @@
     .ntx-select select:focus{
       border-color: rgba(201,75,80,.55);
       box-shadow: 0 0 0 4px rgba(201,75,80,.18);
-    }
-
-    /* Chip */
-    .ntx-chip{
-      display:flex;
-      align-items:center;
-      gap: 8px;
-      height: 42px;
-      padding: 0 12px;
-      border-radius: 999px;
-      border: 1px solid var(--ntx-line);
-      background: var(--ntx-card);
-      box-shadow: 0 8px 18px rgba(2,6,23,.06);
-      color: var(--ntx-ink);
-      font-size: 13px;
-      font-weight: 900;
-      white-space: nowrap;
     }
 
     /* Grid */
@@ -365,6 +356,12 @@
       color: var(--ntx-brand);
     }
 
+    @media (max-width: 992px){
+      /* allow wrap on smaller screens */
+      .ntx-head{ flex-wrap: wrap; align-items: flex-end; }
+      .ntx-tools{ flex-wrap: wrap; justify-content: flex-start; }
+    }
+
     @media (max-width: 640px){
       .ntx-title{ font-size: 24px; }
       .ntx-search{ min-width: 220px; flex: 1 1 240px; }
@@ -410,11 +407,6 @@
           </select>
           <i class="fa-solid fa-chevron-down ntx-select__caret"></i>
         </div>
-
-        <div class="ntx-chip" title="Total results">
-          <i class="fa-regular fa-rectangle-list" style="opacity:.85"></i>
-          <span id="ntxCount">—</span>
-        </div>
       </div>
     </div>
 
@@ -451,7 +443,6 @@
       pager: $('ntxPager'),
       search: $('ntxSearch'),
       dept: $('ntxDept'),
-      count: $('ntxCount'),
       sub: $('ntxSub'),
     };
 
@@ -763,10 +754,8 @@
     }
 
     function render(items){
-      const grid = els.grid, st = els.state, count = els.count;
+      const grid = els.grid, st = els.state;
       if (!grid || !st) return;
-
-      if (count) count.textContent = String(state.total || 0);
 
       if (!items.length){
         grid.style.display = 'none';
@@ -850,6 +839,17 @@
       renderPager();
     }
 
+    // pagination click (kept outside DOMContentLoaded to avoid re-binding)
+    document.addEventListener('click', (e) => {
+      const b = e.target.closest('button.ntx-pagebtn[data-page]');
+      if (!b) return;
+      const p = parseInt(b.dataset.page, 10);
+      if (!p || Number.isNaN(p) || p === state.page) return;
+      state.page = p;
+      repaint();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
     document.addEventListener('DOMContentLoaded', async () => {
       await loadDepartments();
 
@@ -888,17 +888,6 @@
         }
 
         state.page = 1;
-        repaint();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      });
-
-      // pagination click
-      document.addEventListener('click', (e) => {
-        const b = e.target.closest('button.ntx-pagebtn[data-page]');
-        if (!b) return;
-        const p = parseInt(b.dataset.page, 10);
-        if (!p || Number.isNaN(p) || p === state.page) return;
-        state.page = p;
         repaint();
         window.scrollTo({ top: 0, behavior: 'smooth' });
       });

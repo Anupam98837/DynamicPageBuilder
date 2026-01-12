@@ -2,7 +2,7 @@
 <style>
   /* =========================================================
     ✅ Recruiters (Scoped / No :root / No global body rules)
-    - UI structure matches Announcements reference (header/search/dept/chip/pager)
+    - UI structure matches Announcements reference (header/search/dept/pager)
     - Dept dropdown UI improved (pill, icon, caret)
     - Dept filtering (frontend) + deep-link ?d-{uuid}
     - Keeps: masonry-ish logo tiles (different size boxes) + enhanced modal
@@ -40,10 +40,15 @@
 
     display:flex;
     gap: 12px;
-    align-items: flex-end;
+    align-items: center;
     justify-content: space-between;
-    flex-wrap: wrap;
+
+    /* ✅ keep header in one row (desktop) */
+    flex-wrap: nowrap;
   }
+
+  /* keep left block stable */
+  .orc-head > div:first-child{ flex: 0 0 auto; }
 
   .orc-title{
     margin: 0;
@@ -67,7 +72,11 @@
     display:flex;
     gap: 10px;
     align-items:center;
-    flex-wrap: wrap;
+
+    /* ✅ keep tools in one row (desktop) */
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    flex: 1 1 auto;
   }
 
   /* Search (pill) */
@@ -145,23 +154,6 @@
   .orc-select select:focus{
     border-color: rgba(201,75,80,.55);
     box-shadow: 0 0 0 4px rgba(201,75,80,.18);
-  }
-
-  /* Chip */
-  .orc-chip{
-    display:flex;
-    align-items:center;
-    gap: 8px;
-    height: 42px;
-    padding: 0 12px;
-    border-radius: 999px;
-    border: 1px solid var(--orc-line);
-    background: var(--orc-card);
-    box-shadow: 0 8px 18px rgba(2,6,23,.06);
-    color: var(--orc-ink);
-    font-size: 13px;
-    font-weight: 900;
-    white-space: nowrap;
   }
 
   /* =========================================================
@@ -263,6 +255,10 @@
   .orc-sk-tile:nth-child(6n + 6){ --w: 3; }
 
   @media (max-width: 992px){
+    /* allow wrap on smaller screens to avoid overflow */
+    .orc-head{ flex-wrap: wrap; align-items: flex-end; }
+    .orc-tools{ flex-wrap: wrap; justify-content: flex-start; }
+
     .orc-grid, .orc-skeleton{ grid-template-columns: repeat(6, minmax(0,1fr)); }
     .orc-tile, .orc-sk-tile{ grid-column: span 3; }
   }
@@ -697,11 +693,6 @@
         </select>
         <i class="fa-solid fa-chevron-down orc-select__caret"></i>
       </div>
-
-      <div class="orc-chip" title="Total results">
-        <i class="fa-solid fa-building" style="opacity:.85"></i>
-        <span id="recCount">—</span>
-      </div>
     </div>
   </div>
 
@@ -833,7 +824,6 @@
       pager: $('recPager'),
       search: $('recSearch'),
       dept: $('recDept'),
-      count: $('recCount'),
       sub: $('recSub'),
     };
 
@@ -1224,10 +1214,8 @@
     }
 
     function render(items){
-      const grid = els.grid, st = els.state, count = els.count;
+      const grid = els.grid, st = els.state;
       if (!grid || !st) return;
-
-      if (count) count.textContent = String(state.total || 0);
 
       if (!items.length){
         grid.style.display = 'none';

@@ -1,9 +1,9 @@
 @extends('pages.users.layout.structure')
-
+ 
 @section('title', 'Manage SeniorAuthority')
-
-@include('modules.users.manageOtherRoles')
-
+ 
+@include('modules.users.manageOtherRole')
+ 
 @section('scripts')
 <script>
   // On DOM ready, verify token; if missing, redirect home
@@ -14,3 +14,5 @@
   });
 </script>
 @endsection
+ 
+ 

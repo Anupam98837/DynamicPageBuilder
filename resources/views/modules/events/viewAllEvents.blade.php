@@ -55,9 +55,11 @@
 
       display:flex;
       gap: 12px;
-      align-items: flex-end;
+      align-items: center;
       justify-content: space-between;
-      flex-wrap: wrap;
+
+      /* ✅ one-row head (desktop) */
+      flex-wrap: nowrap;
     }
     .evx-title{
       margin: 0;
@@ -68,6 +70,7 @@
       display:flex;
       align-items:center;
       gap: 10px;
+      white-space: nowrap;
     }
     .evx-title i{ color: var(--evx-brand); }
     .evx-sub{
@@ -80,7 +83,9 @@
       display:flex;
       gap: 10px;
       align-items:center;
-      flex-wrap: wrap;
+
+      /* ✅ keep tools in one row */
+      flex-wrap: nowrap;
     }
 
     /* Search */
@@ -159,23 +164,6 @@
     .evx-select select:focus{
       border-color: rgba(201,75,80,.55);
       box-shadow: 0 0 0 4px rgba(201,75,80,.18);
-    }
-
-    /* Chip */
-    .evx-chip{
-      display:flex;
-      align-items:center;
-      gap: 8px;
-      height: 42px;
-      padding: 0 12px;
-      border-radius: 999px;
-      border: 1px solid var(--evx-line);
-      background: var(--evx-card);
-      box-shadow: 0 8px 18px rgba(2,6,23,.06);
-      color: var(--evx-ink);
-      font-size: 13px;
-      font-weight: 900;
-      white-space: nowrap;
     }
 
     /* Grid */
@@ -396,7 +384,11 @@
     }
 
     @media (max-width: 640px){
-      .evx-title{ font-size: 24px; }
+      /* ✅ allow wrap on small screens so it doesn't overflow */
+      .evx-head{ flex-wrap: wrap; align-items: flex-end; }
+      .evx-tools{ flex-wrap: wrap; }
+
+      .evx-title{ font-size: 24px; white-space: normal; }
       .evx-search{ min-width: 220px; flex: 1 1 240px; }
       .evx-select{ min-width: 220px; flex: 1 1 240px; }
       .evx-wrap{ --evx-media-h: 210px; }
@@ -441,10 +433,7 @@
           <i class="fa-solid fa-chevron-down evx-select__caret"></i>
         </div>
 
-        <div class="evx-chip" title="Total results">
-          <i class="fa-regular fa-rectangle-list" style="opacity:.85"></i>
-          <span id="evxCount">—</span>
-        </div>
+        {{-- ✅ Count chip removed --}}
       </div>
     </div>
 
@@ -481,7 +470,6 @@
       pager: $('evxPager'),
       search: $('evxSearch'),
       dept: $('evxDept'),
-      count: $('evxCount'),
       sub: $('evxSub'),
     };
 
@@ -832,10 +820,8 @@
     }
 
     function render(items){
-      const grid = els.grid, st = els.state, count = els.count;
+      const grid = els.grid, st = els.state;
       if (!grid || !st) return;
-
-      if (count) count.textContent = String(state.total || 0);
 
       if (!items.length){
         grid.style.display = 'none';

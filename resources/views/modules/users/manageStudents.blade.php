@@ -9,7 +9,7 @@
 /* Dropdowns inside table */
 .table-wrap .dropdown{position:relative}
 .dropdown [data-bs-toggle="dropdown"]{border-radius:10px}
-.dropdown-menu{border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:240px;z-index:1085}
+.dropdown-menu{border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:240px;z-index:1049}
 .dropdown-item{display:flex;align-items:center;gap:.6rem}
 .dropdown-item i{width:16px;text-align:center}
 .dropdown-item.text-danger{color:var(--danger-color) !important}
@@ -182,7 +182,7 @@ td .fw-semibold{color:var(--ink)}
 .modal-backdrop{z-index:1050}
 
 /* Dropdown in table cells */
-.table .dropdown-menu{position:absolute;z-index:1085}
+.table .dropdown-menu{position:absolute;z-index:1049}
 
 /* Validation */
 .form-control.is-invalid,
@@ -446,7 +446,7 @@ td .fw-semibold{color:var(--ink)}
               <div class="form-text">This page manages students only.</div>
             </div>
 
-            <div class="col-md-6" >
+            <div class="col-md-6" style="display:none">
               <label class="form-label" for="userDepartment">Department </label>
               <select class="form-select" id="userDepartment" name="department_id">
                 <option value="" selected disabled>Select Department</option>
@@ -456,7 +456,7 @@ td .fw-semibold{color:var(--ink)}
             </div>
 
             <div class="col-md-6">
-              <label class="form-label">Status</label>
+              <label class="form-label">Status<span class="text-danger">*</span></label>
               <select class="form-select" id="userStatus">
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
@@ -574,11 +574,12 @@ td .fw-semibold{color:var(--ink)}
             <div class="col-md-4">
               <label class="form-label">Status</label>
               <select id="acad_status" class="form-select">
-                <option value="">Select an option</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="passed-out">Passed-out</option>
-              </select>
+  <option value="" disabled>Select an option</option>
+  <option value="active" selected>Active</option>
+  <option value="inactive">Inactive</option>
+  <option value="passed-out">Passed-out</option>
+</select>
+
             </div>
 
             <div class="col-md-4">

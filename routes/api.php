@@ -59,6 +59,7 @@ use App\Http\Controllers\API\FeedbackPostController;
 use App\Http\Controllers\API\FeedbackSubmissionController;
 use App\Http\Controllers\API\FeedbackResultsController;
 use App\Http\Controllers\API\TopHeaderMenuController;
+use App\Http\Controllers\API\StudentAcademicDetailsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -110,7 +111,8 @@ Route::middleware(['checkRole:admin,director,principal,hod'])
         Route::get('/',                  [UserController::class, 'index']);
         Route::post('/',                 [UserController::class, 'store']);
         Route::get('/me',                [UserController::class, 'me']);
-        Route::get('export-csv', [UserController::class, 'exportUsersCsv']);
+        Route::post('/import-csv', [UserController::class, 'importUsersCsv']);
+        Route::get('/export-csv', [UserController::class, 'exportUsersCsv']);
         Route::get('/{uuid}',            [UserController::class, 'show']);
         Route::put('/{uuid}',            [UserController::class, 'update']);
         Route::patch('/{uuid}',          [UserController::class, 'update']);

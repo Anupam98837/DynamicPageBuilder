@@ -20,6 +20,9 @@
       - Dept dropdown added (nicer UI)
       - Dept filtering (frontend filter by department_id / department_uuid)
       - Deep-link ?d-{uuid} auto-selects dept and filters
+      ✅ CHANGE:
+      - Removed count chip from header + related code
+      - Header kept in ONE ROW on desktop
     ========================================================= */
 
     .pox-wrap{
@@ -55,9 +58,11 @@
 
       display:flex;
       gap: 12px;
-      align-items: flex-end;
+      align-items: center;
       justify-content: space-between;
-      flex-wrap: wrap;
+
+      /* ✅ keep one row (desktop) */
+      flex-wrap: nowrap;
     }
     .pox-title{
       margin: 0;
@@ -68,6 +73,7 @@
       display:flex;
       align-items:center;
       gap: 10px;
+      white-space: nowrap;
     }
     .pox-title i{ color: var(--pox-brand); }
     .pox-sub{
@@ -80,7 +86,9 @@
       display:flex;
       gap: 10px;
       align-items:center;
-      flex-wrap: wrap;
+
+      /* ✅ keep one row (desktop) */
+      flex-wrap: nowrap;
     }
 
     /* Search */
@@ -159,23 +167,6 @@
     .pox-select select:focus{
       border-color: rgba(201,75,80,.55);
       box-shadow: 0 0 0 4px rgba(201,75,80,.18);
-    }
-
-    /* Chip */
-    .pox-chip{
-      display:flex;
-      align-items:center;
-      gap: 8px;
-      height: 42px;
-      padding: 0 12px;
-      border-radius: 999px;
-      border: 1px solid var(--pox-line);
-      background: var(--pox-card);
-      box-shadow: 0 8px 18px rgba(2,6,23,.06);
-      color: var(--pox-ink);
-      font-size: 13px;
-      font-weight: 900;
-      white-space: nowrap;
     }
 
     /* Grid */
@@ -370,6 +361,12 @@
       color: var(--pox-brand);
     }
 
+    /* ✅ allow wrapping on smaller screens (keeps desktop one-row as requested) */
+    @media (max-width: 992px){
+      .pox-head{ flex-wrap: wrap; align-items: flex-end; }
+      .pox-tools{ flex-wrap: wrap; }
+    }
+
     @media (max-width: 640px){
       .pox-title{ font-size: 24px; }
       .pox-search{ min-width: 220px; flex: 1 1 240px; }
@@ -416,11 +413,6 @@
           </select>
           <i class="fa-solid fa-chevron-down pox-select__caret"></i>
         </div>
-
-        <div class="pox-chip" title="Total results">
-          <i class="fa-regular fa-rectangle-list" style="opacity:.85"></i>
-          <span id="poxCount">—</span>
-        </div>
       </div>
     </div>
 
@@ -458,7 +450,6 @@
       pager: $('poxPager'),
       search: $('poxSearch'),
       dept: $('poxDept'),
-      count: $('poxCount'),
       sub: $('poxSub'),
     };
 
@@ -823,10 +814,8 @@
     }
 
     function render(items){
-      const grid = els.grid, st = els.state, count = els.count;
+      const grid = els.grid, st = els.state;
       if (!grid || !st) return;
-
-      if (count) count.textContent = String(state.total || 0);
 
       if (!items.length){
         grid.style.display = 'none';

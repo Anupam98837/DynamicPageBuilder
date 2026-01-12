@@ -11,6 +11,9 @@
   - Dept dropdown added (nicer UI)
   - Dept filtering FIXED (frontend filter by department_id / department_uuid)
   - Deep-link ?d-{uuid} anywhere => auto-select dept + filter
+  ✅ CHANGE:
+  - Removed count chip from header + related code
+  - Header kept in ONE ROW on desktop
 ========================================================= */
 
 .psx-wrap{
@@ -47,9 +50,11 @@
 
   display:flex;
   gap: 12px;
-  align-items:flex-end;
+  align-items:center;
   justify-content:space-between;
-  flex-wrap:wrap;
+
+  /* ✅ keep one row (desktop) */
+  flex-wrap: nowrap;
 }
 .psx-title{
   margin:0;
@@ -60,6 +65,7 @@
   display:flex;
   align-items:center;
   gap: 10px;
+  white-space: nowrap;
 }
 .psx-title i{ color: var(--psx-brand); }
 .psx-sub{
@@ -72,7 +78,9 @@
   display:flex;
   gap: 10px;
   align-items:center;
-  flex-wrap: wrap;
+
+  /* ✅ keep one row (desktop) */
+  flex-wrap: nowrap;
 }
 
 /* Search */
@@ -150,23 +158,6 @@
 .psx-select select:focus{
   border-color: rgba(201,75,80,.55);
   box-shadow: 0 0 0 4px rgba(201,75,80,.18);
-}
-
-/* Chip */
-.psx-chip{
-  display:flex;
-  align-items:center;
-  gap: 8px;
-  height: 42px;
-  padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid var(--psx-line);
-  background: var(--psx-card);
-  box-shadow: 0 8px 18px rgba(2,6,23,.06);
-  color: var(--psx-ink);
-  font-size: 13px;
-  font-weight: 900;
-  white-space: nowrap;
 }
 
 /* Grid (fixed card size, centered) */
@@ -348,6 +339,12 @@
   color: var(--psx-brand);
 }
 
+/* ✅ allow wrapping on smaller screens (keeps desktop one-row as requested) */
+@media (max-width: 992px){
+  .psx-head{ flex-wrap: wrap; align-items: flex-end; }
+  .psx-tools{ flex-wrap: wrap; }
+}
+
 @media (max-width: 640px){
   .psx-title{ font-size: 24px; }
   .psx-search{ min-width: 220px; flex: 1 1 240px; }
@@ -390,11 +387,6 @@
         </select>
         <i class="fa-solid fa-chevron-down psx-select__caret"></i>
       </div>
-
-      <div class="psx-chip" title="Total results">
-        <i class="fa-solid fa-users" style="opacity:.85"></i>
-        <span id="psxCount">—</span>
-      </div>
     </div>
   </div>
 
@@ -431,7 +423,6 @@
     pager: $('psxPager'),
     search: $('psxSearch'),
     dept: $('psxDept'),
-    count: $('psxCount'),
     sub: $('psxSub'),
   };
 
@@ -439,7 +430,6 @@
     page: 1,
     perPage: 12,
     lastPage: 1,
-    total: 0,
     q: '',
     deptUuid: '',
     deptId: null,
@@ -804,10 +794,8 @@
   }
 
   function render(items){
-    const grid = els.grid, st = els.state, count = els.count;
+    const grid = els.grid, st = els.state;
     if (!grid || !st) return;
-
-    if (count) count.textContent = String(state.total || 0);
 
     if (!items.length){
       grid.style.display = 'none';
@@ -877,7 +865,6 @@
   function repaint(){
     const filtered = applyFilterAndSearch();
 
-    state.total = filtered.length;
     state.lastPage = Math.max(1, Math.ceil(filtered.length / state.perPage));
     if (state.page > state.lastPage) state.page = state.lastPage;
 

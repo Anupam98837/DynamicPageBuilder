@@ -405,37 +405,42 @@ private function normalizeRole(?string $role): array
      * Allowed: director, principal, hod, technical_assistant, it_person
      */
     public function index(Request $request)
-    {
-        $search = trim((string) $request->query('q', ''));
-        $role   = $request->query('role');
+{
+    $search = trim((string) $request->query('q', ''));
+    $role   = $request->query('role');
+    $status = $request->query('status'); // ← ADD THIS
 
-        $query = DB::table('users')
-            ->select(self::SELECT_COLUMNS)
-            ->whereNull('deleted_at');
+    $query = DB::table('users')
+        ->select(self::SELECT_COLUMNS)
+        ->whereNull('deleted_at');
 
-        if ($role) {
-            $query->where('role', $role);
-        }
-
-        if ($search !== '') {
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', '%' . $search . '%')
-                  ->orWhere('email', 'like', '%' . $search . '%')
-                  ->orWhere('phone_number', 'like', '%' . $search . '%');
-            });
-        }
-
-        $users = $query
-            ->orderBy('id', 'desc')
-            ->limit(200)
-            ->get();
-
-        return response()->json([
-            'success' => true,
-            'data'    => $users,
-        ]);
+    if ($role) {
+        $query->where('role', $role);
     }
 
+    // ← ADD STATUS FILTER
+    if ($status && $status !== 'all') {
+        $query->where('status', $status);
+    }
+
+    if ($search !== '') {
+        $query->where(function ($q) use ($search) {
+            $q->where('name', 'like', '%' . $search . '%')
+              ->orWhere('email', 'like', '%' . $search . '%')
+              ->orWhere('phone_number', 'like', '%' . $search . '%');
+        });
+    }
+
+    $users = $query
+        ->orderBy('id', 'desc')
+        ->limit(200)
+        ->get();
+
+    return response()->json([
+        'success' => true,
+        'data'    => $users,
+    ]);
+}
     /**
      * POST /api/users
      * Create a new user.
@@ -881,7 +886,7 @@ private function normalizeRole(?string $role): array
         DB::table('users')
             ->where('id', $user->id)
             ->update([
-                'deleted_at' => Carbon::now(),
+                // 'deleted_at' => Carbon::now(),
                 'status'     => 'inactive',
             ]);
 
@@ -1326,33 +1331,29 @@ protected function normalizeRow($r): array
 /* ============================================
  | PUBLIC: Placement Officer Index
  | GET /api/public/placement-officers
- | Supports:
- |  - search q
- |  - dept_uuid filter (optional)
- |  - returns department_id/uuid/title
  |============================================ */
 public function placementOfficerIndex(Request $request)
 {
     $page    = max(1, (int)$request->query('page', 1));
     $perPage = (int)$request->query('per_page', 12);
     $perPage = max(6, min(60, $perPage));
-
+ 
     $qText   = trim((string)$request->query('q', ''));
     $status  = trim((string)$request->query('status', 'active')) ?: 'active';
-
+ 
     // ✅ allow multiple param names (frontend can use any)
     $deptUuid = trim((string)(
         $request->query('dept_uuid', '') ?:
         $request->query('department_uuid', '') ?:
         $request->query('department', '')
     ));
-
+ 
     $sort = (string)$request->query('sort', 'created_at');
     $dir  = strtolower((string)$request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
-
+ 
     $allowedSort = ['created_at','updated_at','name','id'];
     if (!in_array($sort, $allowedSort, true)) $sort = 'created_at';
-
+ 
     // ✅ keep only placement roles (your normalizeRole stores: placement_officer)
     $placementRoles = [
         'placement_officer',
@@ -1362,11 +1363,11 @@ public function placementOfficerIndex(Request $request)
         'placement',
         'placement_cell',
     ];
-
+ 
     // ✅ detect where dept mapping exists
     $upiHasDept  = Schema::hasColumn('user_personal_information', 'department_id');
     $userHasDept = Schema::hasColumn('users', 'department_id');
-
+ 
     $base = DB::table('users as u')
         ->leftJoin('user_personal_information as upi', 'upi.user_id', '=', 'u.id')
         ->whereNull('u.deleted_at')
@@ -1379,7 +1380,7 @@ public function placementOfficerIndex(Request $request)
         ->where(function ($w) {
             $w->whereNull('upi.id')->orWhereNull('upi.deleted_at');
         });
-
+ 
     // ✅ join departments (support both storages)
     if ($upiHasDept) {
         $base->leftJoin('departments as d_upi', function ($join) {
@@ -1393,7 +1394,7 @@ public function placementOfficerIndex(Request $request)
                  ->whereNull('d_user.deleted_at');
         });
     }
-
+ 
     // ✅ dept filter by dept_uuid (optional)
     if ($deptUuid !== '') {
         if (!($upiHasDept || $userHasDept)) {
@@ -1409,13 +1410,13 @@ public function placementOfficerIndex(Request $request)
                 ],
             ]);
         }
-
+ 
         $dept = DB::table('departments')
             ->select(['id','uuid','title'])
             ->where('uuid', $deptUuid)
             ->whereNull('deleted_at')
             ->first();
-
+ 
         if (!$dept) {
             return response()->json([
                 'success' => true,
@@ -1428,15 +1429,15 @@ public function placementOfficerIndex(Request $request)
                 ],
             ]);
         }
-
+ 
         $deptId = (int)$dept->id;
-
+ 
         $base->where(function ($w) use ($deptId, $upiHasDept, $userHasDept) {
             if ($upiHasDept)  $w->orWhere('upi.department_id', $deptId);
             if ($userHasDept) $w->orWhere('u.department_id', $deptId);
         });
     }
-
+ 
     // ✅ search
     if ($qText !== '') {
         $term = '%' . $qText . '%';
@@ -1451,15 +1452,15 @@ public function placementOfficerIndex(Request $request)
               ->orWhere('upi.research_project', 'like', $term);
         });
     }
-
+ 
     $total    = (clone $base)->distinct('u.id')->count('u.id');
     $lastPage = max(1, (int)ceil($total / $perPage));
-
+ 
     // ✅ select dept fields correctly
     $deptIdSelect = null;
     $deptUuidSelect = null;
     $deptTitleSelect = null;
-
+ 
     if ($upiHasDept && $userHasDept) {
         $deptIdSelect    = DB::raw('COALESCE(upi.department_id, u.department_id) as department_id');
         $deptUuidSelect  = DB::raw('COALESCE(d_upi.uuid, d_user.uuid) as department_uuid');
@@ -1473,7 +1474,7 @@ public function placementOfficerIndex(Request $request)
         $deptUuidSelect  = DB::raw('d_user.uuid as department_uuid');
         $deptTitleSelect = DB::raw('d_user.title as department_title');
     }
-
+ 
     $rows = (clone $base)
         ->select(array_filter([
             'u.id',
@@ -1487,7 +1488,7 @@ public function placementOfficerIndex(Request $request)
             'u.status',
             'u.created_at',
             'u.updated_at',
-
+ 
             'upi.uuid as personal_info_uuid',
             'upi.qualification',
             'upi.affiliation',
@@ -1496,7 +1497,7 @@ public function placementOfficerIndex(Request $request)
             'upi.interest',
             'upi.administration',
             'upi.research_project',
-
+ 
             // ✅ dept fields
             $deptIdSelect,
             $deptUuidSelect,
@@ -1506,11 +1507,11 @@ public function placementOfficerIndex(Request $request)
         ->orderBy('u.id', 'desc')
         ->forPage($page, $perPage)
         ->get();
-
+ 
     // socials (same as your code)
     $ids = $rows->pluck('id')->filter()->values()->all();
     $socialsByUserId = [];
-
+ 
     if (!empty($ids)) {
         $socialRows = DB::table('user_social_media as usm')
             ->select([
@@ -1527,7 +1528,7 @@ public function placementOfficerIndex(Request $request)
             ->orderBy('usm.sort_order', 'asc')
             ->orderBy('usm.id', 'asc')
             ->get();
-
+ 
         foreach ($socialRows as $s) {
             $platform = strtolower(trim((string)$s->platform));
             $socialsByUserId[(int)$s->user_id][] = [
@@ -1539,13 +1540,13 @@ public function placementOfficerIndex(Request $request)
             ];
         }
     }
-
+ 
     $rows->each(function ($r) use ($socialsByUserId) {
         $r->socials = $socialsByUserId[(int)$r->id] ?? [];
     });
-
+ 
     $items = $rows->map(fn($r) => $this->normalizeRow($r))->values()->all();
-
+ 
     return response()->json([
         'success' => true,
         'data' => $items,
@@ -1557,8 +1558,6 @@ public function placementOfficerIndex(Request $request)
         ],
     ]);
 }
-
-
 public function exportUsersCsv(Request $request)
 {
     $filename = 'users_export_' . now()->format('Y-m-d_His') . '.csv';

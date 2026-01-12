@@ -433,7 +433,7 @@ Route::get('/senior-authority/manage', function () {
 });
  
 Route::get('/other-roles/manage', function () {
-    return view('pages.users.pages.users.manageOtherRoles');
+    return view('pages.users.pages.users.manageOtherRole');
 });
  
 Route::get('/faculty/manage', function () {

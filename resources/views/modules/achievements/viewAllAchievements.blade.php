@@ -20,6 +20,7 @@
       - Dept dropdown UI improved (pill, icon, caret)
       - Dept filtering (frontend filter by department_id / department_uuid)
       - Deep-link ?d-{uuid} auto-selects dept and filters
+      - ✅ Count chip removed + header kept in ONE ROW (desktop)
     ========================================================= */
 
     .achx-wrap{
@@ -55,9 +56,9 @@
 
       display:flex;
       gap: 12px;
-      align-items: flex-end;
+      align-items: center;          /* ✅ one-row friendly */
       justify-content: space-between;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;            /* ✅ keep one row on desktop */
     }
     .achx-title{
       margin: 0;
@@ -68,6 +69,7 @@
       display:flex;
       align-items:center;
       gap: 10px;
+      white-space: nowrap;
     }
     .achx-title i{ color: var(--achx-brand); }
     .achx-sub{
@@ -80,15 +82,17 @@
       display:flex;
       gap: 10px;
       align-items:center;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;            /* ✅ keep one row on desktop */
+      justify-content: flex-end;
+      min-width: 520px;
     }
 
     /* Search */
     .achx-search{
       position: relative;
-      min-width: 260px;
+      min-width: 240px;            /* ✅ slightly smaller to avoid wrapping */
       max-width: 520px;
-      flex: 1 1 320px;
+      flex: 1 1 340px;
     }
     .achx-search i{
       position:absolute;
@@ -117,9 +121,9 @@
     /* ✅ Dept dropdown (nicer UI) */
     .achx-select{
       position: relative;
-      min-width: 260px;
+      min-width: 220px;            /* ✅ slightly smaller to avoid wrapping */
       max-width: 360px;
-      flex: 0 1 320px;
+      flex: 0 0 300px;
     }
     .achx-select__icon{
       position:absolute;
@@ -158,23 +162,6 @@
     .achx-select select:focus{
       border-color: rgba(201,75,80,.55);
       box-shadow: 0 0 0 4px rgba(201,75,80,.18);
-    }
-
-    /* Chip */
-    .achx-chip{
-      display:flex;
-      align-items:center;
-      gap: 8px;
-      height: 42px;
-      padding: 0 12px;
-      border-radius: 999px;
-      border: 1px solid var(--achx-line);
-      background: var(--achx-card);
-      box-shadow: 0 8px 18px rgba(2,6,23,.06);
-      color: var(--achx-ink);
-      font-size: 13px;
-      font-weight: 900;
-      white-space: nowrap;
     }
 
     /* Grid */
@@ -361,6 +348,14 @@
       color: var(--achx-brand);
     }
 
+    /* ✅ Responsive: allow wrapping on smaller widths */
+    @media (max-width: 980px){
+      .achx-head{ flex-wrap: wrap; align-items: flex-end; }
+      .achx-tools{ flex-wrap: wrap; min-width: 0; width: 100%; justify-content: flex-start; }
+      .achx-search{ flex: 1 1 280px; }
+      .achx-select{ flex: 1 1 260px; max-width: none; }
+    }
+
     @media (max-width: 640px){
       .achx-title{ font-size: 24px; }
       .achx-search{ min-width: 220px; flex: 1 1 240px; }
@@ -407,10 +402,7 @@
           <i class="fa-solid fa-chevron-down achx-select__caret"></i>
         </div>
 
-        <div class="achx-chip" title="Total results">
-          <i class="fa-regular fa-rectangle-list" style="opacity:.85"></i>
-          <span id="achxCount">—</span>
-        </div>
+        {{-- ✅ Count chip removed --}}
       </div>
     </div>
 
@@ -447,7 +439,6 @@
       pager: $('achxPager'),
       search: $('achxSearch'),
       dept: $('achxDept'),
-      count: $('achxCount'),
       sub: $('achxSub'),
     };
 
@@ -745,10 +736,8 @@
     }
 
     function render(items){
-      const grid = els.grid, st = els.state, count = els.count;
+      const grid = els.grid, st = els.state;
       if (!grid || !st) return;
-
-      if (count) count.textContent = String(state.total || 0);
 
       if (!items.length){
         grid.style.display = 'none';

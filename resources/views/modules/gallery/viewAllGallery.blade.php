@@ -17,15 +17,20 @@
     /* =========================================================
       ✅ Gallery All (Scoped / No :root / No global body rules)
       - UI structure matches your Announcements reference page
-      - Dept dropdown added (pill UI + icon + caret)
+      - Dept dropdown (pill UI + icon + caret)
       - Dept filtering FIXED (frontend filter by department_id / department_uuid)
       - Deep-link ?d-{uuid} auto-selects dept and filters
       - Pinterest-style masonry kept (CSS Grid + JS row-span)
-      - Lightbox kept (renamed ids/classes already consistent)
+      - Lightbox kept
+
+      ✅ SPECIFIC CHANGES (requested):
+      1) Head tools forced into ONE ROW on desktop (like before)
+      2) Removed the first loader (skeleton loader) that was overlapping footer
+         -> Use only #gxaState as the single loader / empty state
+      3) Prevent footer overlap via safe bottom padding (works even with sticky/footer)
     ========================================================= */
 
     .gxa-wrap{
-      /* ✅ scoped design tokens (NO :root) */
       --gxa-brand: var(--primary-color, #9E363A);
       --gxa-ink: #0f172a;
       --gxa-muted: #64748b;
@@ -34,12 +39,16 @@
       --gxa-line: var(--line-soft, rgba(15,23,42,.10));
       --gxa-shadow: 0 10px 24px rgba(2,6,23,.08);
 
+      /* ✅ footer overlap guard */
+      --gxa-footer-safe: 96px;
+
       max-width: 1320px;
       margin: 18px auto 54px;
-      padding: 0 12px;
+      padding: 0 12px var(--gxa-footer-safe);
       background: transparent;
       position: relative;
       overflow: visible;
+      isolation: isolate;
     }
 
     /* Header */
@@ -55,7 +64,7 @@
       gap: 12px;
       align-items: flex-end;
       justify-content: space-between;
-      flex-wrap: wrap;
+      flex-wrap: wrap; /* mobile */
     }
 
     .gxa-title{
@@ -80,7 +89,7 @@
       display:flex;
       gap: 10px;
       align-items:center;
-      flex-wrap: wrap;
+      flex-wrap: wrap; /* mobile */
     }
 
     /* Search (pill like reference) */
@@ -114,7 +123,7 @@
       box-shadow: 0 0 0 4px rgba(201,75,80,.18);
     }
 
-    /* ✅ Dept dropdown (pill UI, like reference) */
+    /* Dept dropdown (pill UI) */
     .gxa-select{
       position: relative;
       min-width: 260px;
@@ -160,27 +169,16 @@
       box-shadow: 0 0 0 4px rgba(201,75,80,.18);
     }
 
-    /* Chip (pill like reference) */
-    .gxa-chip{
-      display:flex;
-      align-items:center;
-      gap: 8px;
-      height: 42px;
-      padding: 0 12px;
-      border-radius: 999px;
-      border: 1px solid var(--gxa-line);
-      background: var(--gxa-card);
-      box-shadow: 0 8px 18px rgba(2,6,23,.06);
-      color: var(--gxa-ink);
-      font-size: 13px;
-      font-weight: 900;
-      white-space: nowrap;
+    /* ✅ ONE ROW on desktop (like before) */
+    @media (min-width: 992px){
+      .gxa-head{ flex-wrap: nowrap; align-items: center; }
+      .gxa-tools{ flex-wrap: nowrap; justify-content: flex-end; }
+      .gxa-search{ min-width: 0; flex: 1 1 520px; }
+      .gxa-select{ min-width: 0; flex: 0 1 320px; }
     }
 
     /* =========================================================
-      ✅ Pinterest-style Masonry
-      - Grid with tiny auto-rows
-      - JS computes grid-row-end span per item after images load
+      Masonry
     ========================================================= */
     .gxa-grid{
       display:grid;
@@ -214,7 +212,7 @@
       display:block;
     }
 
-    /* overlay meta (always visible) */
+    /* overlay meta */
     .gxa-meta{
       position:absolute;
       left:0; right:0; bottom:0;
@@ -268,7 +266,7 @@
       border-color: rgba(201,75,80,.35);
     }
 
-    /* Loading / empty */
+    /* ✅ Single loader / empty state (no skeleton loader anymore) */
     .gxa-state{
       background: var(--gxa-card);
       border: 1px solid var(--gxa-line);
@@ -277,31 +275,25 @@
       padding: 18px;
       color: var(--gxa-muted);
       text-align:center;
-    }
 
-    /* Skeleton (also masonry) */
-    .gxa-skeleton{
-      display:grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      grid-auto-rows: 10px;
-      gap: 18px;
+      position: relative;
+      z-index: 0;
+      margin-bottom: 18px;
     }
-    .gxa-sk{
-      border-radius: 16px;
+    .gxa-state .gxa-spin{
+      width: 42px;
+      height: 42px;
+      margin: 0 auto 10px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border-radius: 999px;
       border: 1px solid var(--gxa-line);
-      background: #fff;
-      overflow:hidden;
-      position:relative;
-      box-shadow: 0 10px 24px rgba(2,6,23,.08);
+      background: rgba(2,6,23,.02);
+      box-shadow: 0 10px 22px rgba(2,6,23,.08);
+      color: var(--gxa-brand);
+      font-size: 18px;
     }
-    .gxa-sk:before{
-      content:'';
-      position:absolute; inset:0;
-      transform: translateX(-60%);
-      background: linear-gradient(90deg, transparent, rgba(148,163,184,.22), transparent);
-      animation: gxaSkMove 1.15s ease-in-out infinite;
-    }
-    @keyframes gxaSkMove{ to{ transform: translateX(60%);} }
 
     /* Pagination */
     .gxa-pagination{
@@ -426,6 +418,7 @@
       .gxa-search{ min-width: 220px; flex: 1 1 240px; }
       .gxa-select{ min-width: 220px; flex: 1 1 240px; }
       .gxa-lb__img{ max-height: min(66vh, 760px); }
+      .gxa-wrap{ --gxa-footer-safe: 84px; }
     }
 
     /* ✅ Guard against Bootstrap overriding mega dropdown positioning */
@@ -457,7 +450,7 @@
           <input id="gxaSearch" type="search" placeholder="Search by caption / tag / title…">
         </div>
 
-        {{-- ✅ Department dropdown --}}
+        {{-- Department dropdown --}}
         <div class="gxa-select" title="Filter by department">
           <i class="fa-solid fa-building-columns gxa-select__icon"></i>
           <select id="gxaDept" aria-label="Filter by department">
@@ -465,17 +458,12 @@
           </select>
           <i class="fa-solid fa-chevron-down gxa-select__caret"></i>
         </div>
-
-        <div class="gxa-chip" title="Total results">
-          <i class="fa-solid fa-images" style="opacity:.85"></i>
-          <span id="gxaCount">—</span>
-        </div>
       </div>
     </div>
 
     <div id="gxaGrid" class="gxa-grid" style="display:none;"></div>
 
-    <div id="gxaSkeleton" class="gxa-skeleton"></div>
+    {{-- ✅ Only ONE loader/empty state now --}}
     <div id="gxaState" class="gxa-state" style="display:none;"></div>
 
     <div class="gxa-pagination">
@@ -517,12 +505,10 @@
 
     const els = {
       grid: $('gxaGrid'),
-      skel: $('gxaSkeleton'),
       state: $('gxaState'),
       pager: $('gxaPager'),
       search: $('gxaSearch'),
       dept: $('gxaDept'),
-      count: $('gxaCount'),
       sub: $('gxaSub'),
 
       lb: $('gxaLb'),
@@ -620,9 +606,7 @@
       return html;
     }
 
-    /* =========================================================
-      ✅ Masonry helper
-    ========================================================= */
+    /* Masonry helper */
     function applyMasonry(){
       const grid = els.grid;
       if (!grid) return;
@@ -640,26 +624,24 @@
       });
     }
 
-    function showSkeleton(){
-      const sk = els.skel, st = els.state, grid = els.grid, pager = els.pager;
-
+    function showLoading(message='Loading gallery…'){
+      const st = els.state, grid = els.grid, pager = els.pager;
       if (grid) grid.style.display = 'none';
       if (pager) pager.style.display = 'none';
-      if (st) st.style.display = 'none';
-
-      if (!sk) return;
-      sk.style.display = '';
-
-      // ✅ varied skeleton heights for masonry feel
-      const heights = [170, 260, 210, 320, 190, 280, 240, 360, 200, 300, 230, 340];
-      sk.innerHTML = heights.map(h => `<div class="gxa-sk" style="height:${h}px"></div>`).join('');
+      if (!st) return;
+      st.style.display = '';
+      st.innerHTML = `
+        <div class="gxa-spin"><i class="fa-solid fa-circle-notch fa-spin"></i></div>
+        <div style="font-weight:900;color:var(--gxa-ink);">${esc(message)}</div>
+        <div style="margin-top:6px;font-size:12.5px;opacity:.95;">Please wait…</div>
+      `;
     }
 
-    function hideSkeleton(){
-      const sk = els.skel;
-      if (!sk) return;
-      sk.style.display = 'none';
-      sk.innerHTML = '';
+    function hideStateIfVisible(){
+      const st = els.state;
+      if (!st) return;
+      st.style.display = 'none';
+      st.innerHTML = '';
     }
 
     async function fetchJson(url){
@@ -677,7 +659,6 @@
     }
 
     function extractDeptUuidFromUrl(){
-      // matches "?d-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" anywhere
       const hay = (window.location.search || '') + ' ' + (window.location.href || '');
       const m = hay.match(/d-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
       return m ? m[1] : '';
@@ -736,7 +717,7 @@
             title: (d?.title ?? d?.name ?? '').toString().trim(),
             active: (d?.active ?? 1),
           }))
-          .filter(x => x.uuid && x.title && String(x.active) === '1'); // ✅ only active
+          .filter(x => x.uuid && x.title && String(x.active) === '1');
 
         deptByUuid = new Map(depts.map(d => [d.uuid, d]));
         depts.sort((a,b) => a.title.localeCompare(b.title));
@@ -756,10 +737,9 @@
     async function ensureGalleryLoaded(force=false){
       if (allGallery && !force) return;
 
-      showSkeleton();
+      showLoading('Loading gallery…');
 
       try{
-        // ✅ fetch big once so frontend dept filter always works
         const u = new URL(API, window.location.origin);
         u.searchParams.set('page', '1');
         u.searchParams.set('per_page', '400');
@@ -769,13 +749,23 @@
         const js = await fetchJson(u.toString());
         const items = Array.isArray(js?.data) ? js.data : (Array.isArray(js) ? js : []);
         allGallery = items;
-      } finally {
-        hideSkeleton();
+      } catch (e){
+        console.error(e);
+        if (els.state){
+          els.state.style.display = '';
+          els.state.innerHTML = `
+            <div style="font-size:34px;opacity:.6;margin-bottom:6px;">
+              <i class="fa-regular fa-circle-xmark"></i>
+            </div>
+            Failed to load gallery.
+            <div style="margin-top:6px;font-size:12.5px;opacity:.95;">Please refresh and try again.</div>
+          `;
+        }
+        throw e;
       }
     }
 
     function getItemDept(it){
-      // support multiple possible API shapes
       const did =
         it?.department_id ??
         it?.dept_id ??
@@ -800,7 +790,6 @@
       const q = (state.q || '').toString().trim().toLowerCase();
       let items = Array.isArray(allGallery) ? allGallery.slice() : [];
 
-      // ✅ dept filter (when selected -> show only matching items)
       if (state.deptUuid && (state.deptId !== null && state.deptId !== undefined && String(state.deptId) !== '')){
         const deptIdStr = String(state.deptId);
         const deptUuidStr = String(state.deptUuid);
@@ -810,12 +799,10 @@
           return (d.id && d.id === deptIdStr) || (d.uuid && d.uuid === deptUuidStr);
         });
       } else if (state.deptUuid) {
-        // uuid-only fallback
         const deptUuidStr = String(state.deptUuid);
         items = items.filter(it => getItemDept(it).uuid === deptUuidStr);
       }
 
-      // search (title + desc + tags)
       if (q){
         items = items.filter(it => {
           const title = String(pick(it, ['title','name','alt','caption']) || '').toLowerCase();
@@ -831,7 +818,6 @@
     function render(items){
       const grid = els.grid;
       const st = els.state;
-      const count = els.count;
 
       if (!grid || !st) return;
 
@@ -846,13 +832,11 @@
           No images found.
           ${deptLine}
         `;
-        if (count) count.textContent = '0';
         return;
       }
 
-      if (count) count.textContent = String(state.total || items.length);
-
       st.style.display = 'none';
+      st.innerHTML = '';
       grid.style.display = '';
 
       grid.innerHTML = items.map(it => {
@@ -901,10 +885,8 @@
         `;
       }).join('');
 
-      // ✅ masonry after paint
       requestAnimationFrame(() => applyMasonry());
 
-      // ✅ masonry again as images load
       const imgs = grid.querySelectorAll('img');
       imgs.forEach(img => {
         if (img.complete) return;

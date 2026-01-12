@@ -36,9 +36,11 @@
 
     display:flex;
     gap: 12px;
-    align-items: flex-end;
+    align-items: center;
     justify-content: space-between;
-    flex-wrap: wrap;
+
+    /* ✅ one-row head (desktop) */
+    flex-wrap: nowrap;
   }
   .fmx-title{
     margin: 0;
@@ -49,6 +51,7 @@
     display:flex;
     align-items:center;
     gap: 10px;
+    white-space: nowrap;
   }
   .fmx-title i{ color: var(--fmx-brand); }
   .fmx-sub{
@@ -61,7 +64,9 @@
     display:flex;
     gap: 10px;
     align-items:center;
-    flex-wrap: wrap;
+
+    /* ✅ keep tools in one row */
+    flex-wrap: nowrap;
   }
 
   .fmx-search{
@@ -137,22 +142,6 @@
   .fmx-select select:focus{
     border-color: rgba(201,75,80,.55);
     box-shadow: 0 0 0 4px rgba(201,75,80,.18);
-  }
-
-  .fmx-chip{
-    display:flex;
-    align-items:center;
-    gap: 8px;
-    height: 42px;
-    padding: 0 12px;
-    border-radius: 999px;
-    border: 1px solid var(--fmx-line);
-    background: var(--fmx-card);
-    box-shadow: 0 8px 18px rgba(2,6,23,.06);
-    color: var(--fmx-ink);
-    font-size: 13px;
-    font-weight: 900;
-    white-space: nowrap;
   }
 
   .fmx-grid{
@@ -361,7 +350,11 @@
   }
 
   @media (max-width: 640px){
-    .fmx-title{ font-size: 24px; }
+    /* ✅ allow wrap on small screens so it doesn't overflow */
+    .fmx-head{ flex-wrap: wrap; align-items: flex-end; }
+    .fmx-tools{ flex-wrap: wrap; }
+
+    .fmx-title{ font-size: 24px; white-space: normal; }
     .fmx-search{ min-width: 220px; flex: 1 1 240px; }
     .fmx-select{ min-width: 220px; flex: 1 1 240px; }
   }
@@ -400,11 +393,7 @@
         </select>
         <i class="fa-solid fa-chevron-down fmx-select__caret"></i>
       </div>
-
-      <div class="fmx-chip" title="Total results">
-        <i class="fa-solid fa-user-group" style="opacity:.85"></i>
-        <span id="fmxCount">0</span>
-      </div>
+      {{-- ✅ Count chip removed --}}
     </div>
   </div>
 
@@ -440,7 +429,6 @@
     pager: $('fmxPager'),
     search: $('fmxSearch'),
     dept: $('fmxDept'),
-    count: $('fmxCount'),
     sub: $('fmxSub'),
   };
 
@@ -448,7 +436,6 @@
     page: 1,
     perPage: 9,
     lastPage: 1,
-    total: 0,
     q: '',
     deptUuid: '',
     deptName: '',
@@ -562,7 +549,6 @@
   function showSelectDeptState(){
     if (els.grid) els.grid.style.display = 'none';
     if (els.pager) els.pager.style.display = 'none';
-    if (els.count) els.count.textContent = '0';
 
     if (els.state){
       els.state.style.display = '';
@@ -661,7 +647,7 @@
 
     // ✅ pass dept_uuid to backend (no client-side guessing)
     if (state.deptUuid) u.searchParams.set('dept_uuid', String(state.deptUuid));
-else u.searchParams.delete('dept_uuid');
+    else u.searchParams.delete('dept_uuid');
 
     if (state.q.trim()) u.searchParams.set('q', state.q.trim());
     return u.toString();
@@ -799,7 +785,6 @@ else u.searchParams.delete('dept_uuid');
   }
 
   async function load(){
-
     showSkeleton();
 
     try{
@@ -807,13 +792,11 @@ else u.searchParams.delete('dept_uuid');
       const items = Array.isArray(js?.data) ? js.data : [];
       const p = js?.pagination || {};
 
-      state.total = parseInt(p.total ?? items.length, 10) || items.length;
       state.lastPage = parseInt(p.last_page ?? 1, 10) || 1;
       state.page = parseInt(p.page ?? state.page, 10) || state.page;
 
       hideSkeleton();
 
-      if (els.count) els.count.textContent = String(state.total || 0);
       render(items);
       renderPager();
 

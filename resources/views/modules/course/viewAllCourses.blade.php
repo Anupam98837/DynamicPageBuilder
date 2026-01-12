@@ -19,6 +19,7 @@
       - UI structure matches Announcements reference
       - Dept dropdown + deep-link ?d-{uuid} supported
       - Dept filtering FIXED (frontend filter by department_id / department_uuid)
+      - ✅ Count chip removed + head kept in one row (desktop)
     ========================================================= */
 
     .csx-wrap{
@@ -54,9 +55,11 @@
 
       display:flex;
       gap: 12px;
-      align-items: flex-end;
+      align-items: center;
       justify-content: space-between;
-      flex-wrap: wrap;
+
+      /* ✅ keep in one row on desktop */
+      flex-wrap: nowrap;
     }
     .csx-title{
       margin: 0;
@@ -67,6 +70,7 @@
       display:flex;
       align-items:center;
       gap: 10px;
+      white-space: nowrap;
     }
     .csx-title i{ color: var(--csx-brand); }
     .csx-sub{
@@ -79,7 +83,9 @@
       display:flex;
       gap: 10px;
       align-items:center;
-      flex-wrap: wrap;
+
+      /* ✅ keep tools in one row on desktop */
+      flex-wrap: nowrap;
     }
 
     /* Search */
@@ -157,23 +163,6 @@
     .csx-select select:focus{
       border-color: rgba(201,75,80,.55);
       box-shadow: 0 0 0 4px rgba(201,75,80,.18);
-    }
-
-    /* Chip */
-    .csx-chip{
-      display:flex;
-      align-items:center;
-      gap: 8px;
-      height: 42px;
-      padding: 0 12px;
-      border-radius: 999px;
-      border: 1px solid var(--csx-line);
-      background: var(--csx-card);
-      box-shadow: 0 8px 18px rgba(2,6,23,.06);
-      color: var(--csx-ink);
-      font-size: 13px;
-      font-weight: 900;
-      white-space: nowrap;
     }
 
     /* Grid */
@@ -364,7 +353,11 @@
     }
 
     @media (max-width: 640px){
-      .csx-title{ font-size: 24px; }
+      /* ✅ allow wrap on small screens */
+      .csx-head{ flex-wrap: wrap; align-items: flex-end; }
+      .csx-tools{ flex-wrap: wrap; }
+
+      .csx-title{ font-size: 24px; white-space: normal; }
       .csx-search{ min-width: 220px; flex: 1 1 240px; }
       .csx-select{ min-width: 220px; flex: 1 1 240px; }
       .csx-wrap{ --csx-media-h: 210px; }
@@ -409,10 +402,7 @@
           <i class="fa-solid fa-chevron-down csx-select__caret"></i>
         </div>
 
-        <div class="csx-chip" title="Total results">
-          <i class="fa-regular fa-rectangle-list" style="opacity:.85"></i>
-          <span id="csxCount">—</span>
-        </div>
+        {{-- ✅ Count chip removed --}}
       </div>
     </div>
 
@@ -449,7 +439,6 @@
       pager: $('csxPager'),
       search: $('csxSearch'),
       dept: $('csxDept'),
-      count: $('csxCount'),
       sub: $('csxSub'),
     };
 
@@ -715,7 +704,6 @@
         const u = new URL(API, window.location.origin);
         u.searchParams.set('page', '1');
         u.searchParams.set('per_page', '200');
-        // (no visible_now here to avoid filtering out everything if API doesn't implement it)
         u.searchParams.set('sort', 'created_at');
         u.searchParams.set('direction', 'desc');
 
@@ -761,10 +749,8 @@
     }
 
     function render(items){
-      const grid = els.grid, st = els.state, count = els.count;
+      const grid = els.grid, st = els.state;
       if (!grid || !st) return;
-
-      if (count) count.textContent = String(state.total || 0);
 
       if (!items.length){
         grid.style.display = 'none';

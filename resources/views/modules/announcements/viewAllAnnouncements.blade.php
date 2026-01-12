@@ -20,6 +20,7 @@
       - Dept dropdown UI improved (pill, icon, caret)
       - Dept filtering FIXED (frontend filter by department_id)
       - Deep-link ?d-{uuid} auto-selects dept and filters
+      - ✅ Count chip removed + header kept in ONE ROW (desktop)
     ========================================================= */
 
     .anx-wrap{
@@ -55,9 +56,9 @@
 
       display:flex;
       gap: 12px;
-      align-items: flex-end;
+      align-items: center;        /* ✅ one-row friendly */
       justify-content: space-between;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;          /* ✅ keep one row on desktop */
     }
     .anx-title{
       margin: 0;
@@ -68,6 +69,7 @@
       display:flex;
       align-items:center;
       gap: 10px;
+      white-space: nowrap;
     }
     .anx-title i{ color: var(--anx-brand); }
     .anx-sub{
@@ -80,15 +82,17 @@
       display:flex;
       gap: 10px;
       align-items:center;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;          /* ✅ keep one row on desktop */
+      justify-content: flex-end;
+      min-width: 520px;
     }
 
     /* Search */
     .anx-search{
       position: relative;
-      min-width: 260px;
+      min-width: 240px;          /* ✅ slightly smaller to avoid wrapping */
       max-width: 520px;
-      flex: 1 1 320px;
+      flex: 1 1 340px;
     }
     .anx-search i{
       position:absolute;
@@ -117,9 +121,9 @@
     /* ✅ Dept dropdown (nicer UI) */
     .anx-select{
       position: relative;
-      min-width: 260px;
+      min-width: 220px;          /* ✅ slightly smaller to avoid wrapping */
       max-width: 360px;
-      flex: 0 1 320px;
+      flex: 0 0 300px;
     }
     .anx-select__icon{
       position:absolute;
@@ -159,23 +163,6 @@
     .anx-select select:focus{
       border-color: rgba(201,75,80,.55);
       box-shadow: 0 0 0 4px rgba(201,75,80,.18);
-    }
-
-    /* Chip */
-    .anx-chip{
-      display:flex;
-      align-items:center;
-      gap: 8px;
-      height: 42px;
-      padding: 0 12px;
-      border-radius: 999px;
-      border: 1px solid var(--anx-line);
-      background: var(--anx-card);
-      box-shadow: 0 8px 18px rgba(2,6,23,.06);
-      color: var(--anx-ink);
-      font-size: 13px;
-      font-weight: 900;
-      white-space: nowrap;
     }
 
     /* Grid */
@@ -362,6 +349,14 @@
       color: var(--anx-brand);
     }
 
+    /* ✅ Responsive: allow wrapping on smaller widths */
+    @media (max-width: 980px){
+      .anx-head{ flex-wrap: wrap; align-items: flex-end; }
+      .anx-tools{ flex-wrap: wrap; min-width: 0; width: 100%; justify-content: flex-start; }
+      .anx-search{ flex: 1 1 280px; }
+      .anx-select{ flex: 1 1 260px; max-width: none; }
+    }
+
     @media (max-width: 640px){
       .anx-title{ font-size: 24px; }
       .anx-search{ min-width: 220px; flex: 1 1 240px; }
@@ -408,10 +403,7 @@
           <i class="fa-solid fa-chevron-down anx-select__caret"></i>
         </div>
 
-        <div class="anx-chip" title="Total results">
-          <i class="fa-regular fa-rectangle-list" style="opacity:.85"></i>
-          <span id="anxCount">—</span>
-        </div>
+        {{-- ✅ Count chip removed --}}
       </div>
     </div>
 
@@ -448,7 +440,6 @@
       pager: $('anxPager'),
       search: $('anxSearch'),
       dept: $('anxDept'),
-      count: $('anxCount'),
       sub: $('anxSub'),
     };
 
@@ -749,10 +740,8 @@
     }
 
     function render(items){
-      const grid = els.grid, st = els.state, count = els.count;
+      const grid = els.grid, st = els.state;
       if (!grid || !st) return;
-
-      if (count) count.textContent = String(state.total || 0);
 
       if (!items.length){
         grid.style.display = 'none';
