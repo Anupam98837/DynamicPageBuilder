@@ -128,8 +128,6 @@
             border-radius:12px;
             overflow:hidden;
         }
-
-        .footer{ background:#f8f9fa; padding:2rem 0; margin-top:3rem; }
     </style>
 </head>
 <body>
@@ -189,7 +187,6 @@
 @php
   $apiBase = rtrim(url('/api'), '/');
 @endphp
-
 <script>
 (function(){
     const API_BASE  = @json($apiBase);
@@ -283,7 +280,6 @@
     }
 
     function showNotFound(slug){ // ✅ NEW
-        // optional: set some text if your partial supports it
         try{
             const slot = document.querySelector('[data-dp-notfound-slug]');
             if (slot) slot.textContent = slug || '';
@@ -331,17 +327,32 @@
         return window.location.pathname.replace(/^\/+|\/+$/g,'').split('/').filter(Boolean);
     }
 
+    // ✅ NEW: submenu is stored in PATH like: /page/test-page&submenu=test?d-uuid
+    function stripSubmenuFromPath(pathname){
+        return String(pathname || '').replace(/&submenu=[^\/?#]*/g, '');
+    }
+    function readSubmenuFromPathname(){
+        const p = String(window.location.pathname || '');
+        const m = p.match(/&submenu=([^\/?#]+)/);
+        return m ? decodeURIComponent(m[1]) : '';
+    }
+
     function getSlugCandidate(){
         const qs = new URLSearchParams(window.location.search);
         const qSlug = qs.get('slug') || qs.get('page_slug') || qs.get('selfslug') || qs.get('shortcode');
         if (qSlug && String(qSlug).trim()) return String(qSlug).trim();
 
         const segs = cleanPathSegments();
+        const strip = (s) => String(s || '').split('&submenu=')[0];
 
-        if (segs.length === 1 && segs[0].toLowerCase() === 'test') return '';
-        if (segs.length >= 2 && segs[0].toLowerCase() === 'test') return segs[1];
+        const first = strip(segs[0] || '');
 
-        const last = segs[segs.length - 1] || '';
+        if (segs.length === 1 && first.toLowerCase() === 'test') return '';
+        if (segs.length >= 2 && first.toLowerCase() === 'test') return strip(segs[1]);
+
+        const lastRaw = segs[segs.length - 1] || '';
+        const last = strip(lastRaw);
+
         if (last.toLowerCase() === 'test') return '';
         return last;
     }
@@ -365,6 +376,123 @@
 
     function safeCssEscape(s){
         try { return CSS.escape(s); } catch(e){ return String(s).replace(/["\\]/g, '\\$&'); }
+    }
+
+    // ------------------------------------------------------------------
+    // ✅ Dept token + mapping helpers (uses /api/public/departments)
+    // ------------------------------------------------------------------
+    function isDeptToken(x){
+        return /^d-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(x || '').trim());
+    }
+    function deptTokenFromUuid(uuid){
+        const u = String(uuid || '').trim();
+        if (!u) return '';
+        return u.startsWith('d-') ? u : ('d-' + u);
+    }
+
+    // Read existing ?d-uuid from current URL (works even if it is stored as a key)
+    function readDeptTokenFromUrl(){
+        try{
+            const usp = new URLSearchParams(window.location.search || '');
+            for (const [k, v] of usp.entries()){
+                if (isDeptToken(k)) return k;               // ?d-uuid (as key)
+                if (k === 'd' && isDeptToken(v)) return v;  // (optional) ?d=d-uuid
+            }
+        }catch(e){}
+
+        const raw = String(window.location.search || '').replace(/^\?/, '').split('&').filter(Boolean);
+        for (const part of raw){
+            const decoded = decodeURIComponent(part);
+            if (isDeptToken(decoded)) return decoded;
+        }
+        return '';
+    }
+
+    // ✅ query builder: dept token must be FIRST => "?d-uuid&foo=bar"
+    // (submenu is NOT kept here anymore)
+    function buildSearchWithDept(params, deptToken){
+        // remove any dept token keys
+        for (const k of Array.from(params.keys())){
+            if (isDeptToken(k)) params.delete(k);
+        }
+
+        // remove any legacy submenu query param
+        params.delete('submenu');
+
+        // remove optional legacy d= token
+        if (params.get('d') && isDeptToken(params.get('d'))) params.delete('d');
+
+        const normal = params.toString(); // key=value params
+        const t = String(deptToken || '').trim();
+
+        const parts = [];
+        if (t && isDeptToken(t)) parts.push(encodeURIComponent(t)); // ✅ first => "?d-uuid"
+        if (normal) parts.push(normal);                             // then => "&foo=bar"
+
+        return parts.length ? ('?' + parts.join('&')) : '';
+    }
+
+    // ✅ Push state:
+    // URL becomes: /page/<slug>&submenu=<submenu>?d-<uuid>
+    function pushUrlStateSubmenu(submenuSlug, deptTokenMaybe){
+        const u = new URL(window.location.href);
+
+        // 1) PATH: store submenu in pathname
+        let path = stripSubmenuFromPath(u.pathname);
+        const s = String(submenuSlug || '').trim();
+        if (s) path += '&submenu=' + encodeURIComponent(s);
+
+        // 2) QUERY: dept token first + keep other params (except submenu/dept tokens)
+        const params = new URLSearchParams(u.search);
+
+        const deptTokenFinal = (deptTokenMaybe && isDeptToken(deptTokenMaybe))
+            ? deptTokenMaybe
+            : readDeptTokenFromUrl();
+
+        const search = buildSearchWithDept(params, deptTokenFinal);
+        const nextUrl = path + search + u.hash;
+
+        window.history.pushState({}, '', nextUrl);
+    }
+
+    function normalizeDepartmentsPayload(body){
+        if (!body) return [];
+        const root = (body && typeof body === 'object' && 'data' in body) ? body.data : body;
+
+        if (Array.isArray(root)) return root;
+        if (Array.isArray(root?.data)) return root.data;
+        if (Array.isArray(root?.departments)) return root.departments;
+        if (Array.isArray(root?.items)) return root.items;
+        if (Array.isArray(root?.data?.data)) return root.data.data;
+        return [];
+    }
+
+    async function loadPublicDepartmentsMap(){
+        // cache
+        if (window.__DP_DEPT_ID_UUID_MAP__ && Object.keys(window.__DP_DEPT_ID_UUID_MAP__).length) {
+            return window.__DP_DEPT_ID_UUID_MAP__;
+        }
+
+        const u = new URL(API_BASE + '/public/departments', window.location.origin);
+        u.searchParams.set('_ts', Date.now());
+
+        const r = await fetchJsonWithStatus(u.toString());
+        if (!r.ok) {
+            window.__DP_DEPT_ID_UUID_MAP__ = window.__DP_DEPT_ID_UUID_MAP__ || {};
+            return window.__DP_DEPT_ID_UUID_MAP__;
+        }
+
+        const list = normalizeDepartmentsPayload(r.data);
+        const map = {};
+
+        list.forEach(d => {
+            const id = parseInt(d?.id ?? d?.department_id ?? 0, 10);
+            const uuid = String(d?.uuid ?? d?.department_uuid ?? '').trim();
+            if (id > 0 && uuid) map[String(id)] = uuid;
+        });
+
+        window.__DP_DEPT_ID_UUID_MAP__ = map;
+        return map;
     }
 
     // ✅ Resolve page (public)
@@ -414,7 +542,6 @@
         const tpl = document.createElement('template');
         tpl.innerHTML = String(html || '');
 
-        // re-execute inline scripts inside html
         const scripts = tpl.content.querySelectorAll('script');
         scripts.forEach((oldScript) => {
             const s = document.createElement('script');
@@ -431,20 +558,64 @@
         document.querySelectorAll('[data-dp-asset="script"]').forEach(n => n.remove());
     }
 
-    function injectModuleStyles(stylesHtml){
-        document.querySelectorAll('[data-dp-asset="style"]').forEach(n => n.remove());
+function injectModuleStyles(stylesHtml){
+    document.querySelectorAll('[data-dp-asset="style"]').forEach(n => n.remove());
 
-        const tpl = document.createElement('template');
-        tpl.innerHTML = String(stylesHtml || '');
+    const tpl = document.createElement('template');
+    tpl.innerHTML = String(stylesHtml || '');
 
-        [...tpl.content.children].forEach((node) => {
-            const tag = (node.tagName || '').toUpperCase();
-            if (!['LINK','STYLE','META'].includes(tag)) return;
+    const SITE_ORIGIN = (() => {
+        try { return new URL(SITE_BASE, window.location.origin).origin; }
+        catch(e){ return window.location.origin; }
+    })();
 
-            node.setAttribute('data-dp-asset', 'style');
-            document.head.appendChild(node);
-        });
-    }
+    const isSameOrigin = (url) => {
+        try {
+            const u = new URL(url, window.location.href);
+            return u.origin === SITE_ORIGIN;
+        } catch(e){
+            return false;
+        }
+    };
+
+    const isBlockedStyleHref = (href) => {
+        const h = String(href || '').toLowerCase();
+
+        // Block common duplicates that break your header theme when injected last
+        if (h.includes('bootstrap')) return true;
+        if (h.includes('font-awesome') || h.includes('fontawesome')) return true;
+        if (h.includes('/assets/css/common/main.css')) return true;
+
+        // Block common CDNs (module should not re-add global libs)
+        if (h.includes('cdn.jsdelivr.net')) return true;
+        if (h.includes('cdnjs.cloudflare.com')) return true;
+
+        return false;
+    };
+
+    [...tpl.content.children].forEach((node) => {
+        const tag = (node.tagName || '').toUpperCase();
+        if (!['LINK','STYLE','META'].includes(tag)) return;
+
+        if (tag === 'LINK'){
+            const rel = String(node.getAttribute('rel') || '').toLowerCase();
+            const href = node.getAttribute('href') || '';
+
+            if (rel !== 'stylesheet') return;
+            if (!href) return;
+
+            // Skip duplicates + external libs
+            if (isBlockedStyleHref(href)) return;
+
+            // Allow same-origin styles only (relative URLs are same-origin)
+            if (/^https?:\/\//i.test(href) && !isSameOrigin(href)) return;
+        }
+
+        node.setAttribute('data-dp-asset', 'style');
+        document.head.appendChild(node);
+    });
+}
+
 
     function runWithDomReadyShim(fn){
         const origAdd = document.addEventListener;
@@ -459,25 +630,63 @@
 
         try { fn(); } finally { document.addEventListener = origAdd; }
     }
+function injectModuleScripts(scriptsHtml){
+    document.querySelectorAll('[data-dp-asset="script"]').forEach(n => n.remove());
 
-    function injectModuleScripts(scriptsHtml){
-        document.querySelectorAll('[data-dp-asset="script"]').forEach(n => n.remove());
+    const tpl = document.createElement('template');
+    tpl.innerHTML = String(scriptsHtml || '');
 
-        const tpl = document.createElement('template');
-        tpl.innerHTML = String(scriptsHtml || '');
+    const SITE_ORIGIN = (() => {
+        try { return new URL(SITE_BASE, window.location.origin).origin; }
+        catch(e){ return window.location.origin; }
+    })();
 
-        const scripts = tpl.content.querySelectorAll('script');
+    const isSameOrigin = (url) => {
+        try {
+            const u = new URL(url, window.location.href);
+            return u.origin === SITE_ORIGIN;
+        } catch(e){
+            return false;
+        }
+    };
 
-        runWithDomReadyShim(() => {
-            scripts.forEach((oldScript) => {
-                const s = document.createElement('script');
-                for (const attr of oldScript.attributes) s.setAttribute(attr.name, attr.value);
-                s.textContent = oldScript.textContent || '';
-                s.setAttribute('data-dp-asset', 'script');
-                document.body.appendChild(s);
-            });
+    const isBlockedScriptSrc = (src) => {
+        const s = String(src || '').toLowerCase();
+
+        // Block duplicates that are already loaded globally in test.blade.php
+        if (s.includes('bootstrap')) return true;
+        if (s.includes('sweetalert2')) return true;
+
+        // Block common CDNs
+        if (s.includes('cdn.jsdelivr.net')) return true;
+        if (s.includes('cdnjs.cloudflare.com')) return true;
+
+        return false;
+    };
+
+    const scripts = tpl.content.querySelectorAll('script');
+
+    runWithDomReadyShim(() => {
+        scripts.forEach((oldScript) => {
+            const src = oldScript.getAttribute('src') || '';
+
+            // If script has src, enforce safe rules
+            if (src){
+                if (isBlockedScriptSrc(src)) return;
+
+                // Allow same-origin scripts only
+                if (/^https?:\/\//i.test(src) && !isSameOrigin(src)) return;
+            }
+
+            const s = document.createElement('script');
+            for (const attr of oldScript.attributes) s.setAttribute(attr.name, attr.value);
+            s.textContent = oldScript.textContent || '';
+            s.setAttribute('data-dp-asset', 'script');
+            document.body.appendChild(s);
         });
-    }
+    });
+}
+
 
     /* ==============================
      * Submenu AJAX loader
@@ -502,7 +711,6 @@
                 ? (r.data.message || r.data.error)
                 : ('Load failed: ' + r.status);
 
-            // Helpful hint if auth is missing
             if ((r.status === 401 || r.status === 403) && !TOKEN) {
                 showError(msg + ' (Login token missing)');
             } else {
@@ -593,6 +801,13 @@
             a.dataset.submenuSlug = nodeSlug;
             a.setAttribute('data-submenu-slug', nodeSlug);
 
+            // ✅ store department_id from tree node + optional uuid if backend sends it
+            const nodeDeptId = parseInt(pick(node, ['department_id','dept_id']) || 0, 10);
+            if (nodeDeptId > 0) a.dataset.deptId = String(nodeDeptId);
+
+            const nodeDeptUuid = String(pick(node, ['department_uuid','dept_uuid']) || '').trim();
+            if (nodeDeptUuid) a.dataset.deptUuid = nodeDeptUuid;
+
             const basePad = 14;
             const indent = Math.min(54, level * 14);
             a.style.paddingLeft = (basePad + indent) + 'px';
@@ -615,9 +830,16 @@
 
                 await loadSubmenuRightContent(sslug, window.__DP_PAGE_SCOPE__ || null);
 
-                const url = new URL(window.location.href);
-                url.searchParams.set('submenu', sslug);
-                window.history.pushState({}, '', url.toString());
+                // ✅ resolve dept uuid from /api/public/departments and push: /...&submenu=... ?d-uuid
+                const deptId = parseInt(a.dataset.deptId || '0', 10);
+                const deptUuid =
+                    (a.dataset.deptUuid || '').trim() ||
+                    (deptId > 0 ? (window.__DP_DEPT_ID_UUID_MAP__?.[String(deptId)] || '') : '');
+
+                const deptToken = deptTokenFromUuid(deptUuid);
+
+                // keep dept token if exists; add if we have it
+                pushUrlStateSubmenu(sslug, deptToken);
             });
 
             row.appendChild(a);
@@ -754,9 +976,8 @@
             if (elNotFound) elNotFound.classList.add('d-none');
             hideError();
 
-            const url = new URL(window.location.href);
-            url.searchParams.delete('submenu');
-            window.history.pushState({}, '', url.toString());
+            // ✅ remove submenu from PATH but keep dept token (?d-uuid)
+            pushUrlStateSubmenu('', null);
         });
 
         topRow.appendChild(topA);
@@ -778,11 +999,13 @@
             return;
         }
 
+        // ✅ preload department map (id -> uuid) using /api/public/departments
+        await loadPublicDepartmentsMap();
+
         showLoading('Loading page…');
 
         const page = await resolvePublicPage(slugCandidate);
         if (!page) {
-            // ✅ show partial instead of error
             showNotFound(slugCandidate);
             return;
         }
@@ -813,9 +1036,15 @@
 
         await loadSidebarIfAny(page, currentLower);
 
-        // auto-load submenu if url has ?submenu=
-        const qs = new URLSearchParams(window.location.search);
-        const submenuSlug = (qs.get('submenu') || '').trim();
+        // ✅ auto-load submenu from PATH: /...&submenu=xxx?d-uuid
+        let submenuSlug = (readSubmenuFromPathname() || '').trim();
+
+        // (optional backward compat: old ?submenu=xxx)
+        if (!submenuSlug){
+            const qs = new URLSearchParams(window.location.search);
+            submenuSlug = (qs.get('submenu') || '').trim();
+        }
+
         if (submenuSlug) {
             const link = document.querySelector('.hallienz-side__link[data-submenu-slug="' + safeCssEscape(submenuSlug) + '"]');
             if (link) {
@@ -833,6 +1062,7 @@
 
 })();
 </script>
+
 
 @stack('scripts')
 </body>

@@ -91,7 +91,7 @@
       {{-- ===== BELONGS TO PAGE (REQUIRED) ===== --}}
       <div class="section-label">Belongs To Page</div>
       <div class="row g-3">
-        <div class="col-12 col-md-6">
+        <div class="col-12 col-md-4">
           <label class="form-label">Page ID <span class="text-danger">*</span></label>
           <div class="input-group">
             <span class="input-group-text"><i class="fa-solid fa-file-lines"></i></span>
@@ -105,7 +105,22 @@
           <div class="err" data-for="page_id"></div>
         </div>
 
-        <div class="col-12 col-md-6">
+        {{-- ✅ NEW: Department dropdown --}}
+        <div class="col-12 col-md-4">
+          <label class="form-label">Department <span class="pill ms-1">optional</span></label>
+          <div class="input-group">
+            <span class="input-group-text"><i class="fa-solid fa-building-columns"></i></span>
+            <select class="form-select" id="department_id">
+              <option value="">Loading departments…</option>
+            </select>
+          </div>
+          <small class="text-muted tiny" id="deptHint">
+            If the selected Page already has a department, it will be auto-selected and locked.
+          </small>
+          <div class="err" data-for="department_id"></div>
+        </div>
+
+        <div class="col-12 col-md-4">
           <label class="form-label">Page Slug <span class="pill ms-1">optional</span></label>
           <div class="input-group">
             <span class="input-group-text"><i class="fa-solid fa-link"></i></span>
@@ -361,6 +376,10 @@
     pageId: byId('page_id'),
     belongsPageSlug: byId('belongs_page_slug'),
 
+    // ✅ NEW: department
+    deptId: byId('department_id'),
+    deptHint: byId('deptHint'),
+
     // submenu
     title: byId('title'),
     desc: byId('description'),
@@ -414,6 +433,9 @@
 
   let initialData = null;
 
+  // ✅ NEW: current dept lock state
+  let DEPT_LOCKED_BY_PAGE = false;
+
   /* ---------- utilities ---------- */
   function showBusy(on){ busy.classList.toggle('show', !!on); }
   function showError(field, msg){
@@ -463,7 +485,16 @@
     const opt = els.pageId?.options?.[els.pageId.selectedIndex];
     return (opt && opt.getAttribute('data-slug')) ? opt.getAttribute('data-slug') : '';
   }
-  function ensurePageOption(id, title, slug){
+
+  // ✅ NEW: read department_id from selected page option if present
+  function selectedPageDeptId(){
+    const opt = els.pageId?.options?.[els.pageId.selectedIndex];
+    const raw = opt ? opt.getAttribute('data-department-id') : '';
+    const v = parseInt(String(raw||'').trim(), 10);
+    return Number.isFinite(v) && v > 0 ? v : 0;
+  }
+
+  function ensurePageOption(id, title, slug, departmentId){
     const existing = Array.from(els.pageId.options).find(o => String(o.value) === String(id));
     if (existing) return;
 
@@ -475,8 +506,43 @@
     const opt = document.createElement('option');
     opt.value = String(id);
     opt.setAttribute('data-slug', s);
+
+    const dep = parseInt(String(departmentId||'').trim(), 10);
+    if (Number.isFinite(dep) && dep > 0) opt.setAttribute('data-department-id', String(dep));
+
     opt.textContent = label;
     els.pageId.appendChild(opt);
+  }
+
+  // ✅ NEW: ensure dept option exists (defensive)
+  function ensureDeptOption(id, title){
+    const existing = Array.from(els.deptId.options).find(o => String(o.value) === String(id));
+    if (existing) return;
+
+    const opt = document.createElement('option');
+    opt.value = String(id);
+    opt.textContent = (title || ('Department #' + id));
+    els.deptId.appendChild(opt);
+  }
+
+  // ✅ NEW: get selected dept id from dropdown
+  function getDepartmentId(){
+    const v = parseInt(String(els.deptId.value||'').trim(), 10);
+    return Number.isFinite(v) && v > 0 ? v : 0;
+  }
+
+  // ✅ NEW: lock/unlock department dropdown
+  function setDepartmentLock(locked, deptId, msg){
+    DEPT_LOCKED_BY_PAGE = !!locked;
+
+    if (locked && deptId > 0){
+      els.deptId.value = String(deptId);
+      els.deptId.disabled = true;
+      els.deptHint.textContent = msg || 'Department is inherited from the selected Page and cannot be changed here.';
+    } else {
+      els.deptId.disabled = false;
+      els.deptHint.textContent = msg || 'If the selected Page already has a department, it will be auto-selected and locked.';
+    }
   }
 
   /* ---------- pages dropdown (API: GET /api/page-submenus/pages) ---------- */
@@ -517,11 +583,17 @@
       const title = (p?.title ?? p?.name ?? p?.page_title ?? '').toString().trim();
       const slug  = (p?.slug ?? p?.page_slug ?? '').toString().trim();
 
+      // ✅ NEW: if API includes department_id, store on option
+      const deptId = parseInt(p?.department_id ?? p?.dept_id ?? 0, 10);
+
       const label = (title ? title : (slug ? ('/' + slug) : 'Untitled page')) + (title && slug ? ('  •  /' + slug) : '');
 
       const opt = document.createElement('option');
       opt.value = String(id);
       opt.setAttribute('data-slug', slug);
+      if (Number.isFinite(deptId) && deptId > 0){
+        opt.setAttribute('data-department-id', String(deptId));
+      }
       opt.textContent = label; // ✅ no "#id" shown
       els.pageId.appendChild(opt);
     });
@@ -554,8 +626,137 @@
     err('Unable to load pages list for Page ID dropdown.');
   }
 
+  // ✅ NEW: load departments dropdown
+  function setDeptDropdownStateLoading(){
+    els.deptId.innerHTML = '';
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = 'Loading departments…';
+    els.deptId.appendChild(opt);
+    els.deptId.disabled = true;
+  }
+  function setDeptDropdownStateError(){
+    els.deptId.innerHTML = '';
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = 'Unable to load departments';
+    els.deptId.appendChild(opt);
+    els.deptId.disabled = false; // still allow manual selection if you later add options
+  }
+  function extractDepartmentsArray(j){
+    if (Array.isArray(j?.data)) return j.data;
+    if (Array.isArray(j?.departments)) return j.departments;
+    if (Array.isArray(j?.items)) return j.items;
+    if (Array.isArray(j?.data?.data)) return j.data.data; // pagination-safe
+    return [];
+  }
+  function setDeptDropdownOptions(depts){
+    els.deptId.innerHTML = '';
+
+    const opt0 = document.createElement('option');
+    opt0.value = '';
+    opt0.textContent = 'Select a department…';
+    els.deptId.appendChild(opt0);
+
+    (depts||[]).forEach(d=>{
+      const id = parseInt(d?.id ?? d?.department_id, 10);
+      if (!Number.isFinite(id) || id <= 0) return;
+
+      const title = (d?.title ?? d?.name ?? d?.department_title ?? '').toString().trim() || ('Department #' + id);
+
+      const opt = document.createElement('option');
+      opt.value = String(id);
+      opt.textContent = title;
+      els.deptId.appendChild(opt);
+    });
+
+    els.deptId.disabled = false;
+  }
+
+  async function loadDepartmentsDropdown(){
+    setDeptDropdownStateLoading();
+
+    const candidates = [
+      '/api/departments?limit=2000&_ts=' + Date.now(),
+      '/api/departments?per_page=2000&_ts=' + Date.now(),
+      '/api/departments?_ts=' + Date.now(),
+      '/api/public/departments?limit=2000&_ts=' + Date.now(),
+      '/api/public/departments?_ts=' + Date.now(),
+    ];
+
+    for (const url of candidates){
+      try{
+        const j = await fetchJSON(url);
+        const arr = extractDepartmentsArray(j);
+        if (Array.isArray(arr) && arr.length){
+          setDeptDropdownOptions(arr);
+          return;
+        }
+      }catch(e){
+        // try next
+      }
+    }
+
+    setDeptDropdownStateError();
+    // don’t toast hard error (could be endpoint not present), just keep hint
+    els.deptHint.textContent = 'Departments API not found. Add a departments endpoint or adjust the URL candidates in JS.';
+  }
+
+  // ✅ NEW: detect page department (from option attr OR from page show API)
+  async function fetchPageDepartmentId(pageId){
+    // 1) from selected option data attr (fast)
+    const fromOpt = selectedPageDeptId();
+    if (fromOpt > 0) return fromOpt;
+
+    // 2) from page show endpoint(s)
+    const candidates = [
+      '/api/pages/' + encodeURIComponent(pageId),
+      '/api/pages/show/' + encodeURIComponent(pageId),
+      '/api/page/' + encodeURIComponent(pageId),
+    ];
+
+    for (const url of candidates){
+      try{
+        const j = await fetchJSON(url);
+        const p = (j && typeof j === 'object' && 'data' in j) ? j.data : j;
+
+        const dep =
+          parseInt(p?.department_id ?? p?.dept_id ?? p?.departmentId ?? 0, 10);
+
+        if (Number.isFinite(dep) && dep > 0) return dep;
+      }catch(e){
+        // try next
+      }
+    }
+
+    return 0;
+  }
+
+  // ✅ NEW: apply lock based on selected page
+  async function syncDepartmentFromSelectedPage(){
+    const pid = getPageId();
+    if (!pid){
+      setDepartmentLock(false, 0, 'Select a Page first. If that Page has a department, it will auto-lock here.');
+      return;
+    }
+
+    const depId = await fetchPageDepartmentId(pid);
+
+    if (depId > 0){
+      // ensure option exists
+      ensureDeptOption(depId, '');
+      setDepartmentLock(true, depId, 'Department is inherited from the selected Page (locked).');
+    } else {
+      setDepartmentLock(false, 0, 'This Page has no department. Select one here (optional).');
+      // if previously locked, keep current value only if it was not forced; else clear
+      if (DEPT_LOCKED_BY_PAGE){
+        els.deptId.value = '';
+      }
+    }
+  }
+
   // when page changes, reset parent selection (parent tree is page-specific)
-  els.pageId.addEventListener('change', ()=>{
+  els.pageId.addEventListener('change', async ()=>{
     clearErrors();
     setParent('', 'Self (Root)');
 
@@ -564,6 +765,9 @@
       const s = selectedPageSlug();
       if (s) els.belongsPageSlug.value = s;
     }
+
+    // ✅ NEW: lock/unlock dept based on this page
+    await syncDepartmentFromSelectedPage();
   });
 
   /* ---------- slug auto (submenu slug) ---------- */
@@ -625,14 +829,7 @@
   els.includablePath.addEventListener('change', ()=> syncDestinationLocks('includablePath'));
 
   /* ==========================================================
-     ✅ CHANGED: includable paths dropdown is now DYNAMIC
-     - Tries API first:
-         GET /api/page-submenus/includables
-       Expected response formats (any one):
-         { success:true, data:["modules.a.b", ...] }
-         { success:true, data:[{label:"Page Editor", value:"modules.pageEditor.pageEditor"}] }
-         { modules:[...] } or { items:[...] } also supported
-     - If API fails, it falls back to the array below.
+     ✅ includable paths dropdown is now DYNAMIC (as you already have)
      ========================================================== */
 
   // 🔧 FALLBACK LIST (you can insert modules here anytime)
@@ -642,7 +839,6 @@
   ];
 
   function normalizeIncludableItem(x){
-    // allow string or {label,value}
     if (typeof x === 'string') {
       const v = x.trim();
       return v ? { label: v, value: v } : null;
@@ -660,7 +856,7 @@
     if (Array.isArray(j?.data)) return j.data;
     if (Array.isArray(j?.modules)) return j.modules;
     if (Array.isArray(j?.items)) return j.items;
-    if (Array.isArray(j?.data?.data)) return j.data.data; // pagination-safe
+    if (Array.isArray(j?.data?.data)) return j.data.data;
     return [];
   }
 
@@ -683,14 +879,12 @@
         els.includablePath.appendChild(opt);
       });
 
-    // restore selection if possible
     if (current){
       els.includablePath.value = current;
     }
   }
 
   async function loadIncludablePaths(){
-    // loading state
     els.includablePath.disabled = true;
     els.includablePath.innerHTML = '<option value="">Loading modules…</option>';
 
@@ -709,16 +903,12 @@
           els.includablePath.disabled = false;
           return;
         }
-      }catch(e){
-        // try next
-      }
+      }catch(e){}
     }
 
-    // fallback
     setIncludableOptions(INCLUDABLE_PATHS_FALLBACK);
     els.includablePath.disabled = false;
 
-    // only show error toast if fallback is also empty
     if (!INCLUDABLE_PATHS_FALLBACK.length){
       err('Modules list API not found. Add paths in INCLUDABLE_PATHS_FALLBACK or create /api/page-submenus/includables.');
     }
@@ -830,7 +1020,6 @@
     nodes.forEach(n => ul.appendChild(makeNode(n, 0)));
     els.treeRoot.appendChild(ul);
 
-    // search
     els.treeSearch.value = '';
     els.treeSearch.oninput = function(){
       const q = this.value.trim().toLowerCase();
@@ -882,7 +1071,6 @@
 
   /* ============================
      ✅ Load selected submenu & populate (EDIT mode)
-     API: GET /api/page-submenus/{id}
   ============================ */
   async function loadForEdit(){
     if (!IS_EDIT) return;
@@ -891,7 +1079,6 @@
     els.btnCreateLabel.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Changes';
     els.hint.textContent = 'Editing selected submenu from Manage page.';
 
-    // In edit: don’t auto-overwrite slug unless user turns it ON.
     els.slugAuto.checked = false;
     els.slug.disabled = false;
     els.btnRegen.disabled = false;
@@ -906,18 +1093,16 @@
 
       if (!m) throw new Error('No data found');
 
-      // belongs-to page
       if (m.page_id){
-        // ensure option exists even if API /pages list didn't include it
         ensurePageOption(
           m.page_id,
           m.page_title || m.page_name || '',
-          m.belongs_page_slug || m.belongs_slug || m.page_slug || ''
+          m.belongs_page_slug || m.belongs_slug || m.page_slug || '',
+          m.page_department_id || m.department_id || null
         );
         els.pageId.value = String(m.page_id);
       }
 
-      // best-effort belongs slug display
       const guessBelongsSlug =
         m.belongs_page_slug ||
         m.belongs_slug ||
@@ -927,6 +1112,13 @@
         '';
 
       if (guessBelongsSlug) els.belongsPageSlug.value = String(guessBelongsSlug);
+
+      // ✅ NEW: set dept from submenu (will be overridden/locked if page has dept)
+      const subDept = parseInt(m.department_id ?? 0, 10);
+      if (Number.isFinite(subDept) && subDept > 0){
+        ensureDeptOption(subDept, m.department_title || '');
+        els.deptId.value = String(subDept);
+      }
 
       // submenu fields
       els.title.value = m.title || '';
@@ -941,7 +1133,6 @@
 
       els.active.checked = !!m.active;
 
-      // parent label best-effort
       const parentLabel =
         m.parent_title ||
         (m.parent && m.parent.title) ||
@@ -949,8 +1140,10 @@
 
       setParent(m.parent_id || '', parentLabel);
 
-      // apply destination locks (based on current values)
       syncDestinationLocks();
+
+      // ✅ NEW: lock/unlock dept based on selected page
+      await syncDepartmentFromSelectedPage();
 
     }catch(e){
       console.error(e);
@@ -981,19 +1174,24 @@
       els.slug.value = slugify(els.title.value);
     }
 
-    // determine active destination and send ONLY that one (others null)
     const activeDestKey = syncDestinationLocks();
-
     const v = getDestValues();
+
+    // ✅ NEW: department_id (locked or manual)
+    const deptId = getDepartmentId();
+
     const payload = {
       page_id: pid,
+
+      // ✅ NEW
+      department_id: deptId > 0 ? deptId : null,
+
       title: els.title.value.trim(),
       description: els.desc.value.trim() || null,
       slug: els.slug.value.trim() || undefined,
       parent_id: els.parentId.value ? parseInt(els.parentId.value,10) : null,
       active: !!els.active.checked,
 
-      // destination (only one allowed)
       page_slug:       (activeDestKey === 'pageSlug')       ? (v.pageSlug || null) : null,
       page_shortcode:  (activeDestKey === 'pageShortcode')  ? (v.pageShortcode || null) : null,
       page_url:        (activeDestKey === 'pageUrl')        ? (v.pageUrl || null) : null,
@@ -1057,17 +1255,20 @@
     }
   });
 
-  els.btnReset.addEventListener('click', ()=>{
+  els.btnReset.addEventListener('click', async ()=>{
     setBtnBusy(els.btnReset, true, '<i class="fa-regular fa-trash-can"></i> Resetting…');
     clearErrors();
 
     if (IS_EDIT && initialData){
-      // restore loaded data
       if (initialData.page_id){
-        ensurePageOption(initialData.page_id, initialData.page_title || '', initialData.page_slug || '');
+        ensurePageOption(initialData.page_id, initialData.page_title || '', initialData.page_slug || '', initialData.page_department_id || initialData.department_id || null);
         els.pageId.value = String(initialData.page_id);
       }
       els.belongsPageSlug.value = initialData.belongs_page_slug || initialData.page_slug || selectedPageSlug() || '';
+
+      // ✅ NEW: restore department from submenu (then apply page lock)
+      const subDept = parseInt(initialData.department_id ?? 0, 10);
+      els.deptId.value = subDept > 0 ? String(subDept) : '';
 
       els.title.value = initialData.title || '';
       els.desc.value  = initialData.description || '';
@@ -1087,15 +1288,22 @@
 
       setParent(initialData.parent_id || '', parentLabel);
 
-      // keep edit-mode slug behavior
       els.slugAuto.checked = false;
       els.slug.disabled = false;
       els.btnRegen.disabled = false;
 
+      syncDestinationLocks();
+
+      // ✅ NEW: apply dept lock based on page
+      await syncDepartmentFromSelectedPage();
+
     } else {
-      // create-mode reset
       els.pageId.value='';
       els.belongsPageSlug.value='';
+
+      // ✅ NEW
+      els.deptId.value='';
+      setDepartmentLock(false, 0);
 
       els.title.value='';
       els.desc.value='';
@@ -1111,10 +1319,9 @@
       els.slug.disabled = true;
       els.btnRegen.disabled = true;
       maybeUpdateSlug();
-    }
 
-    // re-apply destination locks
-    syncDestinationLocks();
+      syncDestinationLocks();
+    }
 
     setTimeout(()=> setBtnBusy(els.btnReset, false, '<i class="fa-regular fa-trash-can"></i> Reset'), 120);
   });
@@ -1123,28 +1330,29 @@
   (async function init(){
     els.hint.textContent = 'Page submenus are attached to a specific page and used to build page-level navigation.';
 
-    // default state
     els.slug.value = '';
     els.slugAuto.checked = true;
     els.slug.disabled = true;
     els.btnRegen.disabled = true;
     maybeUpdateSlug();
 
-    // ✅ CHANGED: load includables dynamically (API -> fallback array)
     await loadIncludablePaths();
 
-    // default destination lock state
     syncDestinationLocks();
+
+    // ✅ NEW: load departments first (so selection/locking works immediately)
+    await loadDepartmentsDropdown();
 
     await loadPagesDropdown();
 
-    // convenience: if user picks page first, auto-fill belongs slug (only if empty)
     if (!IS_EDIT && !els.belongsPageSlug.value.trim()){
       const s = selectedPageSlug();
       if (s) els.belongsPageSlug.value = s;
     }
 
-    // ✅ if edit id exists, load and populate
+    // ✅ NEW: apply dept lock for preselected page (if any)
+    await syncDepartmentFromSelectedPage();
+
     await loadForEdit();
   })();
 

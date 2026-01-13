@@ -390,6 +390,22 @@
         gap: 1.5rem;
         margin-top: 1rem;
       }
+      
+      /* =========================
+        ✅ MOBILE SPECIFIC: Show only 1 card for testimonials (Successful Entrepreneurs)
+      ========================= */
+      #entrepreneursCarousel .carousel-item .row .col-lg-6 {
+        flex: 0 0 100%;
+        max-width: 100%;
+      }
+      
+      /* =========================
+        ✅ MOBILE SPECIFIC: Show only 1 card for alumni videos
+      ========================= */
+      #alumniCarousel .carousel-item .row .col-lg-4 {
+        flex: 0 0 100%;
+        max-width: 100%;
+      }
     }
   </style>
 </head>
@@ -1484,7 +1500,7 @@ async function loadNoticeMarquee(){
   }
 
   /* =========================
-    Testimonials
+    Testimonials - Responsive per slide count
   ========================= */
   function renderTestimonials(arr){
     const container = document.getElementById('testimonialContainer');
@@ -1497,7 +1513,11 @@ async function loadNoticeMarquee(){
     }
 
     const cleaned = items.slice(0, 12);
-    const perSlide = 2;
+    
+    // ✅ RESPONSIVE: Mobile shows 1, Desktop shows 2 per slide
+    const isMobile = window.innerWidth < 768;
+    const perSlide = isMobile ? 1 : 2;
+    
     const groups = chunkArray(cleaned, perSlide);
     const hasMulti = groups.length > 1;
 
@@ -1571,7 +1591,7 @@ async function loadNoticeMarquee(){
   }
 
   /* =========================
-    Alumni Speak
+    Alumni Speak - Responsive per slide count
   ========================= */
   function renderAlumniSpeak(alumni){
     const titleEl = document.getElementById('alumniSpeakTitle');
@@ -1591,7 +1611,11 @@ async function loadNoticeMarquee(){
       return;
     }
 
-    if(vids.length < 4){
+    // ✅ RESPONSIVE: Mobile shows 1, Desktop shows 3 per slide
+    const isMobile = window.innerWidth < 768;
+    const perSlide = isMobile ? 1 : 3;
+    
+    if(vids.length <= perSlide){
       container.innerHTML = vids.slice(0, 6).map(v => {
         const embed = v.video_id
           ? `https://www.youtube-nocookie.com/embed/${String(v.video_id)}`
@@ -1615,7 +1639,7 @@ async function loadNoticeMarquee(){
       return;
     }
 
-    const groups = chunkArray(vids, 3);
+    const groups = chunkArray(vids, perSlide);
     const hasMulti = groups.length > 1;
 
     container.innerHTML = `
@@ -1902,6 +1926,27 @@ try{
     }
   };
 
+  /* =========================
+    Handle window resize for responsive carousels
+  ========================= */
+  let storedTestimonials = null;
+  let storedAlumni = null;
+  let resizeTimeout;
+  
+  function handleResponsiveResize() {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(async () => {
+      // Re-render testimonials and alumni sections on resize
+      if (storedTestimonials) {
+        renderTestimonials(storedTestimonials);
+      }
+      
+      if (storedAlumni) {
+        renderAlumniSpeak(storedAlumni);
+      }
+    }, 250);
+  }
+
   function initLazySections(){
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
     const sections = Array.from(document.querySelectorAll('[data-lazy-key]'));
@@ -1915,6 +1960,10 @@ try{
           if(!conf) continue;
           try{
             const payload = await conf.load();
+            // Store the data for responsive resizing
+            if (key === 'testimonials') storedTestimonials = payload.successful_entrepreneurs || payload.items || payload;
+            if (key === 'alumni') storedAlumni = payload.alumni_speak || payload;
+            
             conf.render(payload);
             sec.classList.add('is-in');
             sec.dataset.rendered = '1';
@@ -1950,6 +1999,10 @@ try{
 
         try{
           const payload = await conf.load();
+          // Store the data for responsive resizing
+          if (key === 'testimonials') storedTestimonials = payload.successful_entrepreneurs || payload.items || payload;
+          if (key === 'alumni') storedAlumni = payload.alumni_speak || payload;
+          
           setTimeout(() => {
             try{ conf.render(payload); }catch(err){}
           }, 70);
@@ -1971,6 +2024,9 @@ try{
       initRevealObservers();
       await loadImmediateSections();
       initLazySections();
+      
+      // Add resize event listener for responsive carousels
+      window.addEventListener('resize', handleResponsiveResize, { passive: true });
     }catch(err){
       console.error('Home boot error:', err);
       showApiAlert(err);

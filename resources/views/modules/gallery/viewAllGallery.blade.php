@@ -420,15 +420,6 @@
       .gxa-lb__img{ max-height: min(66vh, 760px); }
       .gxa-wrap{ --gxa-footer-safe: 84px; }
     }
-
-    /* ✅ Guard against Bootstrap overriding mega dropdown positioning */
-    .dynamic-navbar .navbar-nav .dropdown-menu{
-      position: absolute !important;
-      inset: auto !important;
-    }
-    .dynamic-navbar .dropdown-menu.is-portaled{
-      position: fixed !important;
-    }
   </style>
 </head>
 <body>

@@ -61,7 +61,7 @@ use App\Http\Controllers\API\FeedbackResultsController;
 use App\Http\Controllers\API\TopHeaderMenuController;
 use App\Http\Controllers\API\StudentAcademicDetailsController;
 use App\Http\Controllers\API\DashboardController;
-
+use App\Http\Controllers\API\FacultyPreviewOrderController;
 
 /*
 |--------------------------------------------------------------------------
@@ -1966,3 +1966,37 @@ Route::prefix('student-academic-details')
     });
  
  
+/*
+|--------------------------------------------------------------------------
+| Faculty Preview Order (Reorder Faculties by Department)
+|--------------------------------------------------------------------------
+| - Select dept -> load users excluding admin/director/student
+| - Tab1 Assigned: users present in faculty_ids_json
+| - Tab2 Unassigned: eligible users not in assigned list
+| - Save reorder: POST { faculty_ids: [...] }
+*/
+
+Route::middleware(['checkRole:admin,director,principal,hod'])
+    ->prefix('faculty-preview-order')
+    ->group(function () {
+
+        // list all dept order rows
+        Route::get('/', [FacultyPreviewOrderController::class, 'index']);
+
+        // get assigned + unassigned for a department (id|uuid|slug)
+        Route::get('/{department}', [FacultyPreviewOrderController::class, 'show']);
+
+        // save / upsert order for a department
+        Route::post('/{department}/save', [FacultyPreviewOrderController::class, 'save']);
+
+        // optional: toggle active (1/0)
+        Route::post('/{department}/toggle-active', [FacultyPreviewOrderController::class, 'toggleActive']);
+
+        // optional: remove order record
+        Route::delete('/{department}', [FacultyPreviewOrderController::class, 'destroy']);
+});
+
+Route::prefix('public')->group(function () {
+    Route::get('/faculty-preview-order', [FacultyPreviewOrderController::class, 'publicIndex']);
+    Route::get('/faculty-preview-order/{department}', [FacultyPreviewOrderController::class, 'publicShow']);
+});

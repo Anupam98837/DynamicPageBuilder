@@ -377,6 +377,11 @@
           <i class="fa-solid fa-scroll"></i><span>Notice Marquee</span>
         </a>
 
+        <!-- Faculty Preview Order -->
+<a href="/faculty-preview-order" class="w3-link">
+  <i class="fa-solid fa-users-gear"></i><span>Faculty Preview Order</span>
+</a>
+
         {{-- =======================
            PLACEMENT & OUTCOMES
         ======================== --}}

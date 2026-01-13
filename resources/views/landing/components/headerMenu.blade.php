@@ -14,7 +14,7 @@
        - Mobile: hamburger -> offcanvas sidebar
        ========================================================= */
 
-    * { margin:0; padding:0; box-sizing:border-box; }
+    .dynamic-navbar, .dynamic-navbar * { box-sizing:border-box; }
 
     :root{
         /* ✅ Hard cap (requested) */
@@ -32,7 +32,7 @@
         overflow: visible;
     }
 
-    .navbar-container{
+    .dynamic-navbar .navbar-container {
         display:flex;
         align-items:stretch;
         justify-content:flex-start;          /* ✅ start from left */
@@ -46,7 +46,7 @@
         padding: 0 10px;
     }
 
-    .menu-row{
+    .dynamic-navbar .menu-row {
         flex: 1 1 auto;
         display:flex;
         justify-content:flex-start;          /* ✅ start from left */
@@ -179,7 +179,7 @@
     .burger::after{ bottom:0; }
 
     /* Menu List - single row */
-    .navbar-nav{
+    .dynamic-navbar .navbar-nav {
         display:flex;
         flex-direction:row;
         flex-wrap:nowrap;
@@ -192,7 +192,7 @@
         width: max-content;          /* scroll inside menu-row */
     }
 
-    .nav-item{
+    .dynamic-navbar .nav-item {
         position: relative;
         margin:0;
         display:flex;
@@ -200,7 +200,7 @@
         min-width: 0;
     }
 
-    .nav-link{
+    .dynamic-navbar .nav-link{
         display:flex;
         align-items:center;
         justify-content:center;
@@ -549,15 +549,15 @@
     .menu-loading-text small{ opacity: .85; font-size: .85rem; }
 
     /* ✅ Guard against Bootstrap overriding mega menu dropdown positioning */
-.dynamic-navbar .navbar-nav .dropdown-menu{
-  position: absolute !important;
-  inset: auto !important;
-}
+    .dynamic-navbar .navbar-nav .dropdown-menu{
+      position: absolute !important;
+      inset: auto !important;
+    }
 
-/* keep your portal mode working */
-.dynamic-navbar .dropdown-menu.is-portaled{
-  position: fixed !important;
-}
+    /* keep your portal mode working */
+    .dynamic-navbar .dropdown-menu.is-portaled{
+      position: fixed !important;
+    }
 
 </style>
 
@@ -617,6 +617,11 @@
         constructor() {
             this.apiBase = '{{ url("/api/public/header-menus") }}';
             this.menuData = null;
+
+            // ✅ NEW: Departments API (for department_id -> uuid mapping)
+            this.apiDepartmentsPublic = '{{ url("/api/public/departments") }}';
+            this.apiDepartments       = '{{ url("/api/departments") }}';
+            this.deptUuidById = new Map();
 
             this.nodeById = new Map();
             this.childrenById = new Map();
@@ -686,16 +691,114 @@
             return '';
         }
 
+        async fetchJson(url) {
+            const res = await fetch(url, { headers: { 'Accept': 'application/json' }, cache: 'no-store' });
+            const txt = await res.text();
+            let data = null;
+            try { data = txt ? JSON.parse(txt) : null; } catch(e) {}
+            return { ok: res.ok, status: res.status, data };
+        }
+
+        // ✅ NEW: normalize departments payloads (supports multiple shapes)
+        normalizeDepartmentsPayload(payload) {
+            let data = payload;
+            if (data && typeof data === 'object' && data.success !== undefined) data = data.data;
+
+            let items = [];
+            if (Array.isArray(data)) items = data;
+            else if (data && Array.isArray(data.items)) items = data.items;
+            else if (data && Array.isArray(data.data)) items = data.data;
+
+            return (items || []).filter(d => d && d.id !== undefined && d.id !== null);
+        }
+
+        // ✅ NEW: build id -> uuid map
+        buildDeptMap(depts) {
+            this.deptUuidById.clear();
+            (depts || []).forEach(d => {
+                const id = Number(d.id);
+                const uuid = (d.uuid ?? d.department_uuid ?? d.dept_uuid ?? '').toString().trim();
+                if (id && uuid) this.deptUuidById.set(id, uuid);
+            });
+        }
+
+        // ✅ NEW: resolve dept uuid from item (direct or via department_id map)
+        getItemDeptUuid(item) {
+            const direct =
+                (item?.department_uuid ?? item?.dept_uuid ?? '') ||
+                (item?.department?.uuid ?? item?.department?.department_uuid ?? item?.department?.dept_uuid ?? '');
+            const directTrim = (direct || '').toString().trim();
+            if (directTrim) return directTrim;
+
+            const did = item?.department_id;
+            if (did !== undefined && did !== null) {
+                const mapped = this.deptUuidById.get(Number(did));
+                if (mapped) return mapped;
+            }
+            return '';
+        }
+
+        // ✅ NEW: append query token ?d-{uuid} (or &d-{uuid}) for same-origin URLs
+        applyDepartmentUuid(url, deptUuid) {
+            deptUuid = (deptUuid || '').toString().trim();
+            if (!deptUuid) return url;
+            if (!url || url === '#') return url;
+
+            let u;
+            try {
+                u = new URL(url, window.location.origin);
+            } catch (e) {
+                const token = `d-${deptUuid}`;
+                const sep = url.includes('?') ? '&' : '?';
+                return `${url}${sep}${token}`;
+            }
+
+            // only for same-origin internal links
+            if (u.origin !== window.location.origin) return url;
+
+            const token = `d-${deptUuid}`;
+
+            // remove existing d-* tokens and department_uuid=...
+            const raw = (u.search || '').replace(/^\?/, '');
+            const parts = raw ? raw.split('&').filter(Boolean) : [];
+
+            const kept = parts.filter(p => {
+                const key = (p.split('=')[0] || '').trim();
+                if (!key) return false;
+                if (key === 'department_uuid') return false;
+                if (key.startsWith('d-')) return false;
+                return true;
+            });
+
+            const newSearch = kept.length ? (`?${kept.join('&')}&${token}`) : (`?${token}`);
+            return `${u.origin}${u.pathname}${newSearch}${u.hash || ''}`;
+        }
+
         async loadMenu() {
             this.showLoading('Loading menu…');
 
             try {
-                const response = await fetch(`${this.apiBase}/tree`, { headers: { 'Accept': 'application/json' } });
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                // ✅ fetch menu + departments (public) in parallel
+                const [menuRes, deptPublicRes] = await Promise.all([
+                    this.fetchJson(`${this.apiBase}/tree`),
+                    this.fetchJson(this.apiDepartmentsPublic),
+                ]);
 
-                const data = await response.json();
+                if (!menuRes.ok) throw new Error(`HTTP error! status: ${menuRes.status}`);
 
-                if (data.success && data.data) {
+                // ✅ departments: public -> fallback (/api/departments)
+                let deptList = [];
+                if (deptPublicRes.ok) {
+                    deptList = this.normalizeDepartmentsPayload(deptPublicRes.data);
+                } else {
+                    const deptRes = await this.fetchJson(this.apiDepartments);
+                    if (deptRes.ok) deptList = this.normalizeDepartmentsPayload(deptRes.data);
+                }
+                this.buildDeptMap(deptList);
+
+                const data = menuRes.data;
+
+                if (data && data.success && data.data) {
                     this.menuData = data.data;
 
                     this.buildNodeMaps(this.menuData);
@@ -877,10 +980,11 @@
                 a.href = this.getMenuItemUrl(item);
                 a.textContent = item.title;
 
+                // ✅ keep existing behavior, but open using computed href (so d-uuid is preserved)
                 if (item.page_url && item.page_url.startsWith('http')) {
                     a.addEventListener('click', (e) => {
                         e.preventDefault();
-                        window.open(item.page_url, '_blank');
+                        window.open(a.href, '_blank');
                     });
                 }
 
@@ -992,10 +1096,11 @@
                 const hasChildren = item.children && item.children.length > 0;
                 if (hasChildren) a.classList.add('has-children');
 
+                // ✅ keep behavior, but open using computed href (so d-uuid is preserved)
                 if (item.page_url && item.page_url.startsWith('http')) {
                     a.addEventListener('click', (e) => {
                         e.preventDefault();
-                        window.open(item.page_url, '_blank');
+                        window.open(a.href, '_blank');
                     });
                 }
 
@@ -1253,22 +1358,6 @@
             update();
         }
 
-        applyDepartmentUuid(url, deptUuid) {
-            deptUuid = (deptUuid || '').trim();
-            if (!deptUuid) return url;
-            if (!url || url === '#') return url;
-
-            if (url.includes(deptUuid)) return url;
-
-            try {
-                const u = new URL(url, window.location.origin);
-                if (u.origin !== window.location.origin) return url;
-            } catch (e) {}
-
-            const sep = url.includes('?') ? '&' : '?';
-            return `${url}${sep}${encodeURIComponent(deptUuid)}`;
-        }
-
         getMenuItemUrl(item) {
             let url = '#';
 
@@ -1282,7 +1371,10 @@
                 url = `{{ url('/page') }}/${item.slug}`;
             }
 
-            url = this.applyDepartmentUuid(url, item.department_uuid);
+            // ✅ append ?d-{uuid} if item has department_id/department_uuid
+            const deptUuid = this.getItemDeptUuid(item);
+            url = this.applyDepartmentUuid(url, deptUuid);
+
             return url;
         }
 
@@ -1343,10 +1435,11 @@
 
             const href = link.getAttribute('href') || '#';
 
+            // ✅ keep behavior, but open using computed href (so d-uuid is preserved)
             if (item.page_url && item.page_url.startsWith('http')) {
                 link.addEventListener('click', (e) => {
                     e.preventDefault();
-                    window.open(item.page_url, '_blank');
+                    window.open(link.href, '_blank');
                     this.forceCloseOffcanvas();
                 });
             } else {

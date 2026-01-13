@@ -9,6 +9,9 @@
   $apiTrash         = url('/api/top-header-menus/trash');
   $apiReorder       = url('/api/top-header-menus/reorder');
 
+  // ✅ Departments (for department_id FK dropdown in create/edit modal)
+  $apiDepartments   = url('/api/departments');
+
   // Contact Infos (global, not tied to any menu item)
   $apiContactInfos  = url('/api/top-header-menus/contact-infos'); // must return all contact infos
   $apiCiSelection   = url('/api/top-header-menus/contact-info'); // ✅ ONLY GET/PUT/DELETE (NO POST)
@@ -204,6 +207,7 @@
      data-api-base="{{ $apiBase }}"
      data-api-trash="{{ $apiTrash }}"
      data-api-reorder="{{ $apiReorder }}"
+     data-api-departments="{{ $apiDepartments }}"
      data-api-contact-infos="{{ $apiContactInfos }}"
      data-api-ci-selection="{{ $apiCiSelection }}">
 
@@ -537,6 +541,19 @@
             <div class="thm-err" data-for="slug"></div>
           </div>
 
+          {{-- ✅ Department (FK) --}}
+          <div class="col-12">
+            <label class="form-label">Department <span class="text-danger">*</span></label>
+            <div class="input-group">
+              <span class="input-group-text"><i class="fa-solid fa-building-columns"></i></span>
+              <select class="form-select js-department">
+                <option value="" selected disabled>Loading departments…</option>
+              </select>
+            </div>
+            <div class="small text-muted mt-1">Select which department this top header item belongs to.</div>
+            <div class="thm-err" data-for="department_id"></div>
+          </div>
+
           {{-- URL --}}
           <div class="col-12">
             <label class="form-label">URL <span class="thm-pill ms-1">optional</span></label>
@@ -617,6 +634,9 @@
   const API_BASE        = ROOT.dataset.apiBase;
   const API_TRASH       = ROOT.dataset.apiTrash;
   const API_REORDER     = ROOT.dataset.apiReorder;
+
+  // ✅ Departments (FK dropdown)
+  const API_DEPARTMENTS = ROOT.dataset.apiDepartments;
 
   // Contact infos (global section)
   const API_CI          = ROOT.dataset.apiContactInfos;
@@ -973,6 +993,7 @@
     slug: modalEl.querySelector('.js-slug'),
     slugAuto: modalEl.querySelector('.js-slug-auto'),
     slugRegen: modalEl.querySelector('.js-slug-regen'),
+    department: modalEl.querySelector('.js-department'),
     url: modalEl.querySelector('.js-url'),
     active: modalEl.querySelector('.js-active'),
 
@@ -982,15 +1003,90 @@
     modalSub: modalEl.querySelector('.js-modal-sub'),
   };
 
+  // ✅ Departments cache
+  let departments = [];
+  let deptLoaded = false;
+
+  function deptLabel(d){
+    return d?.title || d?.name || d?.department_title || d?.label || d?.slug || ('#' + (d?.id ?? ''));
+  }
+
+  function renderDeptOptions(selectedId){
+    const sel = m.department;
+    if (!sel) return;
+
+    const cur = (selectedId != null && selectedId !== '') ? String(selectedId) : '';
+
+    if (!API_DEPARTMENTS){
+      sel.innerHTML = `<option value="" selected disabled>Departments API not configured</option>`;
+      sel.disabled = true;
+      return;
+    }
+
+    if (!departments.length){
+      sel.innerHTML = `<option value="" selected disabled>No departments found</option>`;
+      sel.disabled = true;
+      return;
+    }
+
+    const opts = [];
+    opts.push(`<option value="" disabled ${cur===''?'selected':''}>Select department…</option>`);
+    departments.forEach(d => {
+      if (!d || d.id == null) return;
+      const id = String(d.id);
+      const name = deptLabel(d);
+      opts.push(`<option value="${esc(id)}" ${id===cur?'selected':''}>${esc(name)}</option>`);
+    });
+
+    sel.innerHTML = opts.join('');
+    sel.disabled = false;
+  }
+
+  async function ensureDepartments(force=false, selectedId=''){
+    if (deptLoaded && !force) {
+      renderDeptOptions(selectedId);
+      return;
+    }
+
+    if (!m.department) return;
+
+    m.department.disabled = true;
+    m.department.innerHTML = `<option value="" selected disabled>Loading departments…</option>`;
+
+    try{
+      if (!API_DEPARTMENTS) throw new Error('Departments API not configured');
+
+      const sep = API_DEPARTMENTS.includes('?') ? '&' : '?';
+      const j = await fetchJSON(API_DEPARTMENTS + sep + '_ts=' + Date.now());
+
+      // Accept: [] OR {data:[]} (and tolerate nested structures)
+      const list =
+        Array.isArray(j) ? j :
+        (Array.isArray(j.data) ? j.data :
+        (Array.isArray(j.departments) ? j.departments : []));
+
+      departments = (list || []).filter(x => x && x.id != null);
+      deptLoaded = true;
+
+      renderDeptOptions(selectedId);
+    }catch(e){
+      console.error('Departments load failed:', e);
+      deptLoaded = false;
+      departments = [];
+      m.department.innerHTML = `<option value="" selected disabled>Failed to load departments</option>`;
+      m.department.disabled = true;
+    }
+  }
+
   function clearModalErrors(){
     modalEl.querySelectorAll('.thm-err').forEach(e => { e.textContent=''; e.style.display='none'; });
   }
   function showModalError(field, msg){
-    const el = modalEl.querySelector(`.thm-err[data-for="${field}"]`);
-    if (!el) return;
-    el.textContent = msg || '';
-    el.style.display = msg ? 'block' : 'none';
-  }
+  const el = modalEl.querySelector(`.thm-err[data-for="${field}"]`);
+  if (!el) return;
+  el.textContent = msg || '';
+  el.style.display = msg ? 'block' : 'none';
+}
 
   function setSaveLoading(on){
     const sp = m.saveBtn.querySelector('.btn-spinner');
@@ -1031,6 +1127,11 @@
     m.active.checked = true;
 
     applySlugAutoState();
+
+    // ✅ load departments + reset selection
+    await ensureDepartments(false, '');
+    if (m.department) m.department.value = '';
+
     MODAL.show();
   }
 
@@ -1038,7 +1139,7 @@
     clearModalErrors();
     m.editId.value = String(id);
     m.modalTitle.textContent = 'Edit Top Header Item';
-    m.modalSub.textContent = 'Update title, slug, url, and status.';
+    m.modalSub.textContent = 'Update title, slug, url, department, and status.';
 
     // In edit, don’t force overwrite slug
     m.slugAuto.checked = false;
@@ -1052,7 +1153,13 @@
       m.title.value = row?.title || '';
       m.slug.value  = row?.slug || '';
       m.url.value   = row?.url || row?.link || row?.page_url || '';
+
       m.active.checked = !!row?.active;
+
+      // ✅ department_id (FK)
+      const deptId = row?.department_id ?? row?.dept_id ?? row?.department?.id ?? '';
+      await ensureDepartments(false, deptId ? String(deptId) : '');
+      if (m.department) m.department.value = deptId ? String(deptId) : '';
 
       MODAL.show();
     }catch(e){
@@ -1080,9 +1187,24 @@
       return;
     }
 
+    // ✅ department_id required (FK)
+    const deptRaw = (m.department?.value || '').trim();
+    if (!deptRaw){
+      showModalError('department_id','Department is required');
+      m.department?.focus();
+      return;
+    }
+    const department_id = Number(deptRaw);
+    if (!Number.isFinite(department_id) || department_id <= 0){
+      showModalError('department_id','Invalid department selected');
+      m.department?.focus();
+      return;
+    }
+
     const payload = {
       title,
       slug,
+      department_id,
       url: (m.url.value || '').trim() || null,
       active: !!m.active.checked,
     };

@@ -442,3 +442,7 @@ Route::get('/other-roles/manage', function () {
 Route::get('/faculty/manage', function () {
     return view('pages.users.pages.users.manageFaculty');
 });
+ 
+Route::get('/faculty-preview-order', function () {
+    return view('pages.users.pages.faculty.facultyPreviewOrder');
+});

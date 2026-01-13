@@ -1,8 +1,8 @@
 @extends('pages.users.layout.structure')
 
-@section('title', 'Manage Department')
+@section('title', 'Faculty Preview Order')
 
-@include('modules.pages.managePage')
+@include('modules.faculty.facultyPreviewOrder')
 
 @section('scripts')
 <script>

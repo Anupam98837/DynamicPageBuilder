@@ -546,13 +546,13 @@
     .menu-loading-text small{ opacity: .85; font-size: .85rem; }
 
     /* Guard against Bootstrap overriding dropdown positioning */
-#thmNavbar .navbar-nav .dropdown-menu{
-  position: absolute !important;
-  inset: auto !important;
-}
-#thmNavbar .dropdown-menu.is-portaled{
-  position: fixed !important;
-}
+    #thmNavbar .navbar-nav .dropdown-menu{
+      position: absolute !important;
+      inset: auto !important;
+    }
+    #thmNavbar .dropdown-menu.is-portaled{
+      position: fixed !important;
+    }
 
 </style>
 
@@ -621,11 +621,19 @@
             // ✅ Fallback: list all contact infos (we will pick first 2 if primary fails/empty)
             this.apiContactsFallback = @json(url('/api/public/top-header-menus/contact-infos'));
 
+            // ✅ NEW: Departments (to map department_id -> uuid so we can append ?d-{uuid})
+            // We'll try public first, then fallback to /api/departments if your app allows it.
+            this.apiDepartmentsPublic = @json(url('/api/public/departments'));
+            this.apiDepartments       = @json(url('/api/departments'));
+
             this.menuTree = [];
             this.contacts = []; // first 2 contacts (normalized)
 
             this.nodeById = new Map();
             this.childrenById = new Map();
+
+            // ✅ NEW: dept id -> uuid map
+            this.deptUuidById = new Map();
 
             this.currentSlug = this.getCurrentSlug();
             this.currentPath = this.normPath(window.location.pathname || '/');
@@ -722,15 +730,16 @@
         }
 
         /* ---------------------------
-         * Load Contacts + Menus
+         * Load Contacts + Menus + Departments
          * --------------------------- */
         async loadAll() {
             this.showLoading('Loading top header…');
 
             try {
-                const [contactsPrimaryRes, menusRes] = await Promise.all([
+                const [contactsPrimaryRes, menusRes, deptPublicRes] = await Promise.all([
                     this.fetchJson(this.apiContactsPrimary),
                     this.fetchJson(this.apiMenus),
+                    this.fetchJson(this.apiDepartmentsPublic),
                 ]);
 
                 if (!contactsPrimaryRes.ok) {
@@ -739,6 +748,21 @@
                 if (!menusRes.ok) {
                     console.warn('[TopHeaderMenu] menus failed:', menusRes.status, menusRes.data);
                 }
+
+                // ✅ departments: public -> fallback
+                let deptList = [];
+                if (deptPublicRes.ok) {
+                    deptList = this.normalizeDepartmentsPayload(deptPublicRes.data);
+                } else {
+                    // fallback to /api/departments (may be protected; if so it'll fail harmlessly)
+                    const deptRes = await this.fetchJson(this.apiDepartments);
+                    if (!deptRes.ok) {
+                        console.warn('[TopHeaderMenu] departments failed:', deptRes.status, deptRes.data);
+                    } else {
+                        deptList = this.normalizeDepartmentsPayload(deptRes.data);
+                    }
+                }
+                this.buildDeptMap(deptList);
 
                 // ✅ contacts: primary -> fallback
                 let pickedContacts = this.normalizeContactsPayload(contactsPrimaryRes.data);
@@ -781,12 +805,33 @@
             }
         }
 
+        /* ---------------------------
+         * ✅ Departments normalization + mapping
+         * --------------------------- */
+        normalizeDepartmentsPayload(payload){
+            let data = payload;
+            if (data && typeof data === 'object' && data.success !== undefined) data = data.data;
+
+            let items = [];
+            if (Array.isArray(data)) items = data;
+            else if (data && Array.isArray(data.items)) items = data.items;
+            else if (data && Array.isArray(data.data)) items = data.data;
+
+            // accept minimal shapes: {id, uuid, name}
+            return (items || []).filter(d => d && (d.id !== undefined && d.id !== null));
+        }
+
+        buildDeptMap(depts){
+            this.deptUuidById.clear();
+            (depts || []).forEach(d => {
+                const id = Number(d.id);
+                const uuid = (d.uuid ?? d.department_uuid ?? d.dept_uuid ?? '').toString().trim();
+                if (id && uuid) this.deptUuidById.set(id, uuid);
+            });
+        }
+
         /* =========================================================
-         * ✅ FIXED: CONTACT NORMALIZATION FOR YOUR API SHAPE
-         * Your /contact-info returns:
-         * {success:true,data:{contact_info_ids:[...], items:[{... , contact_info:{key,value,icon_class,...}}, ...]}}
-         * Earlier code was normalizing the outer item (title="contact") -> showed "contact".
-         * Now we always extract item.contact_info when present.
+         * ✅ CONTACT NORMALIZATION (unchanged)
          * ========================================================= */
         normalizeContactsPayload(payload) {
             const root = (payload && typeof payload === 'object' && payload.success !== undefined)
@@ -846,22 +891,17 @@
         normalizeContact(c) {
             if (!c || typeof c !== 'object') return null;
 
-            // Your contact_info has: { key: "phone|email|address|...", name, value, icon_class, ... }
             const key = (c.key ?? c.contact_key ?? c.kind ?? '').toString().trim().toLowerCase();
             const rawType = (c.type ?? c.contact_type ?? '').toString().trim().toLowerCase();
 
             const label = (c.name ?? c.label ?? c.title ?? c.key ?? '').toString().trim();
 
-            // prefer value; if missing use name/label
             let value = (c.value ?? c.info ?? c.text ?? c.content ?? '').toString().trim();
             if (!value) value = label;
 
             const url = (c.url ?? c.href ?? '').toString().trim();
-
-            // explicit icon from API
             const icon = (c.icon_class ?? c.icon ?? '').toString().trim();
 
-            // determine effective type (phone/email/address etc.)
             const typeGuess = this.normalizeContactType(key || rawType || '', value);
 
             const display = (value || label || '').toString().trim();
@@ -880,7 +920,6 @@
             if (['whatsapp','wa'].includes(type)) return 'whatsapp';
             if (['website','web','url','link'].includes(type)) return 'website';
 
-            // heuristic fallback
             if (v.includes('@')) return 'email';
             if (v.replace(/[^\d+]/g,'').length >= 8) return 'phone';
 
@@ -1061,7 +1100,7 @@
         }
 
         /* ---------------------------
-         * ✅ Contacts builders (tel/mailto/maps/etc)
+         * Contacts builders
          * --------------------------- */
         guessContactType(c){
             const t = (c.type || c.key || '').toLowerCase();
@@ -1135,7 +1174,6 @@
             const href = this.contactHref(c);
             a.href = href;
 
-            // optional: open maps/wa/external in new tab (keeps menu UX nice)
             const type = this.guessContactType(c);
             if (['address','whatsapp','website'].includes(type) || /^https?:\/\//i.test(href)) {
                 a.target = '_blank';
@@ -1146,7 +1184,7 @@
             icon.className = this.contactIcon(c);
 
             const span = document.createElement('span');
-            span.textContent = (c.value || c.label || '').toString(); // ✅ shows phone/email/address etc
+            span.textContent = (c.value || c.label || '').toString();
 
             a.appendChild(icon);
             a.appendChild(span);
@@ -1200,23 +1238,61 @@
         }
 
         /* ---------------------------
-         * Menu URL + render
+         * ✅ Dept uuid resolver
+         * --------------------------- */
+        getItemDeptUuid(item){
+            // if API ever starts returning department_uuid, we will use it directly
+            const direct =
+                (item?.department_uuid ?? item?.dept_uuid ?? '') ||
+                (item?.department?.uuid ?? item?.department?.department_uuid ?? item?.department?.dept_uuid ?? '');
+            const directTrim = (direct || '').toString().trim();
+            if (directTrim) return directTrim;
+
+            // current API returns department_id (like your sample)
+            const did = item?.department_id;
+            if (did !== undefined && did !== null) {
+                const mapped = this.deptUuidById.get(Number(did));
+                if (mapped) return mapped;
+            }
+            return '';
+        }
+
+        /* ---------------------------
+         * ✅ Append deep-link token ?d-{uuid}
          * --------------------------- */
         applyDepartmentUuid(url, deptUuid) {
-            deptUuid = (deptUuid || '').trim();
+            deptUuid = (deptUuid || '').toString().trim();
             if (!deptUuid) return url;
             if (!url || url === '#') return url;
 
+            let u;
             try {
-                const u = new URL(url, window.location.origin);
-                if (u.origin !== window.location.origin) return url;
-
-                u.searchParams.set('department_uuid', deptUuid);
-                return u.toString();
+                u = new URL(url, window.location.origin);
             } catch (e) {
+                const token = `d-${deptUuid}`;
                 const sep = url.includes('?') ? '&' : '?';
-                return `${url}${sep}department_uuid=${encodeURIComponent(deptUuid)}`;
+                return `${url}${sep}${token}`;
             }
+
+            // only for same-origin internal links
+            if (u.origin !== window.location.origin) return url;
+
+            const token = `d-${deptUuid}`;
+
+            // remove duplicates (old style department_uuid=... or any existing d-*)
+            const raw = (u.search || '').replace(/^\?/, '');
+            const parts = raw ? raw.split('&').filter(Boolean) : [];
+
+            const kept = parts.filter(p => {
+                const key = (p.split('=')[0] || '').trim();
+                if (!key) return false;
+                if (key === 'department_uuid') return false;
+                if (key.startsWith('d-')) return false;
+                return true;
+            });
+
+            const newSearch = kept.length ? (`?${kept.join('&')}&${token}`) : (`?${token}`);
+            return `${u.origin}${u.pathname}${newSearch}${u.hash || ''}`;
         }
 
         getMenuItemUrl(item) {
@@ -1235,7 +1311,9 @@
                 url = `{{ url('/page') }}/${item.slug}`;
             }
 
-            url = this.applyDepartmentUuid(url, item.department_uuid);
+            const deptUuid = this.getItemDeptUuid(item);
+            url = this.applyDepartmentUuid(url, deptUuid);
+
             return url;
         }
 
@@ -1273,10 +1351,11 @@
 
                 if (this.isItemActive(item)) a.classList.add('active');
 
+                // keep external new-tab behavior, but preserve computed href (with d-uuid if any)
                 if (item.page_url && item.page_url.startsWith('http')) {
                     a.addEventListener('click', (e) => {
                         e.preventDefault();
-                        window.open(item.page_url, '_blank');
+                        window.open(a.href, '_blank');
                     });
                 }
 
@@ -1296,7 +1375,7 @@
         }
 
         /* ---------------------------
-         * Mega menu (same as reference)
+         * Mega menu
          * --------------------------- */
         getAnchorTop(panel, anchorEl) {
             if (!panel || !anchorEl) return 0;
@@ -1393,7 +1472,7 @@
                 if (item.page_url && item.page_url.startsWith('http')) {
                     a.addEventListener('click', (e) => {
                         e.preventDefault();
-                        window.open(item.page_url, '_blank');
+                        window.open(a.href, '_blank');
                     });
                 }
 
@@ -1694,7 +1773,7 @@
             if (item.page_url && item.page_url.startsWith('http')) {
                 link.addEventListener('click', (e) => {
                     e.preventDefault();
-                    window.open(item.page_url, '_blank');
+                    window.open(link.href, '_blank');
                     this.forceCloseOffcanvas();
                 });
             } else {

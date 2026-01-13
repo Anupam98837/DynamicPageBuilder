@@ -50,6 +50,34 @@ class PageSubmenuController extends Controller
         }
     }
 
+    /** ✅ Ensure department exists (and not soft-deleted) */
+    private function validateDepartment(?int $deptId): void
+    {
+        if ($deptId === null || $deptId <= 0) return;
+
+        $ok = DB::table('departments')
+            ->where('id', $deptId)
+            ->whereNull('deleted_at')
+            ->exists();
+
+        if (!$ok) {
+            abort(response()->json(['error' => 'Invalid department_id'], 422));
+        }
+    }
+
+    /** ✅ (Optional) read department_id from pages if that column exists */
+    private function pageDepartmentId(int $pageId): ?int
+    {
+        if (!Schema::hasColumn('pages', 'department_id')) return null;
+
+        $val = DB::table('pages')
+            ->where('id', $pageId)
+            ->whereNull('deleted_at')
+            ->value('department_id');
+
+        return $val ? (int) $val : null;
+    }
+
     /** Auto-generate unique submenu shortcode (alphanumeric) */
     private function generateSubmenuShortcode(?int $excludeId = null): string
     {
@@ -378,6 +406,7 @@ class PageSubmenuController extends Controller
     {
         $data = $r->validate([
             'page_id'         => 'required|integer|min:1',
+            'department_id'   => 'sometimes|nullable|integer|min:1|exists:departments,id', // ✅ added
             'title'           => 'required|string|max:150',
             'description'     => 'sometimes|nullable|string',
             'slug'            => 'sometimes|nullable|string|max:160',
@@ -395,6 +424,22 @@ class PageSubmenuController extends Controller
 
         $pageId = (int) $data['page_id'];
         $this->validatePage($pageId);
+
+        // ✅ department_id handling
+        $deptId = array_key_exists('department_id', $data)
+            ? ($data['department_id'] === null ? null : (int) $data['department_id'])
+            : null;
+
+        $pageDeptId = $this->pageDepartmentId($pageId);
+        if ($deptId === null && $pageDeptId !== null) {
+            $deptId = $pageDeptId; // inherit
+        }
+
+        if ($deptId !== null && $pageDeptId !== null && $deptId !== $pageDeptId) {
+            return response()->json(['error' => 'department_id must match page.department_id'], 422);
+        }
+
+        $this->validateDepartment($deptId);
 
         $parentId = array_key_exists('parent_id', $data)
             ? ($data['parent_id'] === null ? null : (int) $data['parent_id'])
@@ -508,6 +553,7 @@ class PageSubmenuController extends Controller
                 ->where('id', $trashed->id)
                 ->update([
                     'page_id'          => $pageId,
+                    'department_id'    => $deptId, // ✅ added
                     'parent_id'        => $parentId,
                     'title'            => $data['title'],
                     'description'      => $data['description'] ?? null,
@@ -537,6 +583,7 @@ class PageSubmenuController extends Controller
         $id = DB::table($this->table)->insertGetId([
             'uuid'            => (string) Str::uuid(),
             'page_id'         => $pageId,
+            'department_id'   => $deptId, // ✅ added
             'parent_id'       => $parentId,
             'title'           => $data['title'],
             'description'     => $data['description'] ?? null,
@@ -574,6 +621,7 @@ class PageSubmenuController extends Controller
 
         $data = $r->validate([
             'page_id'          => 'sometimes|integer|min:1', // not allowed to change (validated below)
+            'department_id'    => 'sometimes|nullable|integer|min:1|exists:departments,id', // ✅ added
             'title'            => 'sometimes|string|max:150',
             'description'      => 'sometimes|nullable|string',
             'slug'             => 'sometimes|nullable|string|max:160', // pass empty + regenerate_slug to regenerate
@@ -597,6 +645,23 @@ class PageSubmenuController extends Controller
         }
 
         $this->validatePage($pageId);
+
+        // ✅ department_id handling
+        $deptId = $row->department_id ?? null;
+        if (array_key_exists('department_id', $data)) {
+            $deptId = ($data['department_id'] === null) ? null : (int) $data['department_id'];
+        }
+
+        $pageDeptId = $this->pageDepartmentId($pageId);
+        if ($deptId === null && $pageDeptId !== null) {
+            $deptId = $pageDeptId; // inherit
+        }
+
+        if ($deptId !== null && $pageDeptId !== null && $deptId !== $pageDeptId) {
+            return response()->json(['error' => 'department_id must match page.department_id'], 422);
+        }
+
+        $this->validateDepartment($deptId);
 
         $parentId = array_key_exists('parent_id', $data)
             ? ($data['parent_id'] === null ? null : (int) $data['parent_id'])
@@ -706,6 +771,7 @@ class PageSubmenuController extends Controller
         if ($singleDestErr) return $singleDestErr;
 
         $upd = [
+            'department_id'    => $deptId, // ✅ added
             'parent_id'        => $parentId,
             'title'            => $data['title'] ?? $row->title,
             'description'      => array_key_exists('description', $data) ? $data['description'] : $row->description,
@@ -1074,229 +1140,227 @@ class PageSubmenuController extends Controller
     }
 
     /**
- * ✅ Render submenu destination (AJAX friendly)
- *
- * GET /api/public/page-submenus/render?slug=child-slug
- * Optional scoping:
- *  - page_id=123 OR page_slug=about-us (to ensure submenu belongs to that page)
- *
- * Returns JSON:
- *  - type: includable | page | url
- *  - html: rendered HTML fragment (for includable/page)
- *  - url: target url (for url type)
- */
-public function renderPublic(Request $r)
-{
-    $slug = $this->normSlug($r->query('slug', ''));
-    if ($slug === '') {
-        return response()->json(['success' => false, 'error' => 'Missing slug'], 422);
-    }
-
-    // Optional: scope to page
-    $pageId = $this->resolvePageIdFromRequest($r);
-
-    $q = DB::table($this->table)
-        ->where('slug', $slug)
-        ->whereNull('deleted_at')
-        ->where('active', true);
-
-    if ($pageId > 0) {
-        $q->where('page_id', $pageId);
-    }
-
-    $menu = $q->first();
-    if (!$menu) {
-        return response()->json(['success' => false, 'error' => 'Submenu not found'], 404);
-    }
-
-    // Destination fields
-    $pageUrl        = trim((string)($menu->page_url ?? ''));
-    $pageSlug       = trim((string)($menu->page_slug ?? ''));
-    $pageShortcode  = trim((string)($menu->page_shortcode ?? ''));
-    $includablePath = trim((string)($menu->includable_path ?? ''));
-
-    // Helper for iframe hint (same origin)
-    $sameOrigin = function (string $u) use ($r): bool {
-        $u = trim($u);
-        if ($u === '') return false;
-
-        // relative URLs are same-origin
-        if (!preg_match('/^https?:\/\//i', $u)) return true;
-
-        $host = parse_url($u, PHP_URL_HOST);
-        if (!$host) return false;
-
-        return strtolower($host) === strtolower($r->getHost());
-    };
-
-    /**
-     * 1) ✅ includable_path (modules.*)
-     * Important:
-     * - If the blade is a "partial" (plain HTML), view()->render() works.
-     * - If the blade is "section-only" (defines @section('content') etc), render() will be empty,
-     *   so we fall back to renderSections() and pick a section.
+     * ✅ Render submenu destination (AJAX friendly)
+     *
+     * GET /api/public/page-submenus/render?slug=child-slug
+     * Optional scoping:
+     *  - page_id=123 OR page_slug=about-us (to ensure submenu belongs to that page)
+     *
+     * Returns JSON:
+     *  - type: includable | page | url
+     *  - html: rendered HTML fragment (for includable/page)
+     *  - url: target url (for url type)
      */
-    if ($includablePath !== '') {
-
-        if (!Str::startsWith($includablePath, 'modules.')) {
-            return response()->json([
-                'success' => false,
-                'error'   => 'Invalid includable_path (only modules.* allowed)'
-            ], 422);
+    public function renderPublic(Request $r)
+    {
+        $slug = $this->normSlug($r->query('slug', ''));
+        if ($slug === '') {
+            return response()->json(['success' => false, 'error' => 'Missing slug'], 422);
         }
 
-        if (!View::exists($includablePath)) {
-            return response()->json([
-                'success' => false,
-                'error'   => 'Blade view not found',
-                'path'    => $includablePath
-            ], 404);
+        // Optional: scope to page
+        $pageId = $this->resolvePageIdFromRequest($r);
+
+        $q = DB::table($this->table)
+            ->where('slug', $slug)
+            ->whereNull('deleted_at')
+            ->where('active', true);
+
+        if ($pageId > 0) {
+            $q->where('page_id', $pageId);
         }
 
-        try {
-            $vf = app('view');
+        $menu = $q->first();
+        if (!$menu) {
+            return response()->json(['success' => false, 'error' => 'Submenu not found'], 404);
+        }
 
-            // reset any previous sections/stacks from earlier renders in same request
-            if (method_exists($vf, 'flushState')) {
-                $vf->flushState();
+        // Destination fields
+        $pageUrl        = trim((string)($menu->page_url ?? ''));
+        $pageSlug       = trim((string)($menu->page_slug ?? ''));
+        $pageShortcode  = trim((string)($menu->page_shortcode ?? ''));
+        $includablePath = trim((string)($menu->includable_path ?? ''));
+
+        // Helper for iframe hint (same origin)
+        $sameOrigin = function (string $u) use ($r): bool {
+            $u = trim($u);
+            if ($u === '') return false;
+
+            // relative URLs are same-origin
+            if (!preg_match('/^https?:\/\//i', $u)) return true;
+
+            $host = parse_url($u, PHP_URL_HOST);
+            if (!$host) return false;
+
+            return strtolower($host) === strtolower($r->getHost());
+        };
+
+        /**
+         * 1) ✅ includable_path (modules.*)
+         * Important:
+         * - If the blade is a "partial" (plain HTML), view()->render() works.
+         * - If the blade is "section-only" (defines @section('content') etc), render() will be empty,
+         *   so we fall back to renderSections() and pick a section.
+         */
+        if ($includablePath !== '') {
+
+            if (!Str::startsWith($includablePath, 'modules.')) {
+                return response()->json([
+                    'success' => false,
+                    'error'   => 'Invalid includable_path (only modules.* allowed)'
+                ], 422);
             }
 
-            $viewObj = view($includablePath);
+            if (!View::exists($includablePath)) {
+                return response()->json([
+                    'success' => false,
+                    'error'   => 'Blade view not found',
+                    'path'    => $includablePath
+                ], 404);
+            }
 
-            // First try: like @include (partials)
-            $html = $viewObj->render();
+            try {
+                $vf = app('view');
 
-            // Capture pushed stacks (if module uses @push)
-            $styles  = method_exists($vf, 'yieldPushContent') ? $vf->yieldPushContent('styles')  : '';
-            $scripts = method_exists($vf, 'yieldPushContent') ? $vf->yieldPushContent('scripts') : '';
-
-            // Fallback: section-only blades (no visible HTML on render)
-            $pickedSection = null;
-            $sections = [];
-
-            // If render() looks empty OR it looks like a full layout, try sections
-            $looksEmpty = trim(strip_tags((string)$html)) === '';
-            $looksLikeFullLayout =
-                stripos((string)$html, '<html') !== false ||
-                stripos((string)$html, '<body') !== false;
-
-            if ($looksEmpty || $looksLikeFullLayout) {
-                // flush and re-render sections cleanly (avoid mixing render()+renderSections())
+                // reset any previous sections/stacks from earlier renders in same request
                 if (method_exists($vf, 'flushState')) {
                     $vf->flushState();
                 }
 
-                $sections = $viewObj->renderSections();
+                $viewObj = view($includablePath);
 
-                // Common section keys used in your pages/modules
-                $candidates = ['content', 'page-content', 'main', 'body'];
+                // First try: like @include (partials)
+                $html = $viewObj->render();
 
-                foreach ($candidates as $sec) {
-                    $candidateHtml = $sections[$sec] ?? '';
-                    if (trim(strip_tags((string)$candidateHtml)) !== '') {
-                        $html = $candidateHtml;
-                        $pickedSection = $sec;
-                        break;
+                // Capture pushed stacks (if module uses @push)
+                $styles  = method_exists($vf, 'yieldPushContent') ? $vf->yieldPushContent('styles')  : '';
+                $scripts = method_exists($vf, 'yieldPushContent') ? $vf->yieldPushContent('scripts') : '';
+
+                // Fallback: section-only blades (no visible HTML on render)
+                $pickedSection = null;
+                $sections = [];
+
+                // If render() looks empty OR it looks like a full layout, try sections
+                $looksEmpty = trim(strip_tags((string)$html)) === '';
+                $looksLikeFullLayout =
+                    stripos((string)$html, '<html') !== false ||
+                    stripos((string)$html, '<body') !== false;
+
+                if ($looksEmpty || $looksLikeFullLayout) {
+                    // flush and re-render sections cleanly (avoid mixing render()+renderSections())
+                    if (method_exists($vf, 'flushState')) {
+                        $vf->flushState();
+                    }
+
+                    $sections = $viewObj->renderSections();
+
+                    // Common section keys used in your pages/modules
+                    $candidates = ['content', 'page-content', 'main', 'body'];
+
+                    foreach ($candidates as $sec) {
+                        $candidateHtml = $sections[$sec] ?? '';
+                        if (trim(strip_tags((string)$candidateHtml)) !== '') {
+                            $html = $candidateHtml;
+                            $pickedSection = $sec;
+                            break;
+                        }
+                    }
+
+                    // Re-capture stacks after the sections render (pushes happen during render)
+                    $styles  = method_exists($vf, 'yieldPushContent') ? $vf->yieldPushContent('styles')  : $styles;
+                    $scripts = method_exists($vf, 'yieldPushContent') ? $vf->yieldPushContent('scripts') : $scripts;
+
+                    // Optional: if module used @section('scripts') instead of @push, append it
+                    if (isset($sections['scripts']) && trim((string)$sections['scripts']) !== '') {
+                        $scripts = (string)$scripts . "\n" . (string)$sections['scripts'];
+                    }
+                    if (isset($sections['styles']) && trim((string)$sections['styles']) !== '') {
+                        $styles = (string)$styles . "\n" . (string)$sections['styles'];
                     }
                 }
 
-                // Re-capture stacks after the sections render (pushes happen during render)
-                $styles  = method_exists($vf, 'yieldPushContent') ? $vf->yieldPushContent('styles')  : $styles;
-                $scripts = method_exists($vf, 'yieldPushContent') ? $vf->yieldPushContent('scripts') : $scripts;
+                return response()->json([
+                    'success' => true,
+                    'type'    => 'includable',
+                    'title'   => $menu->title ?? 'Submenu',
+                    'meta'    => [
+                        'submenu_slug'     => $menu->slug ?? null,
+                        'submenu_id'       => $menu->id ?? null,
+                        'includable'       => $includablePath,
+                        'section_used'     => $pickedSection,
+                        'render_was_empty' => $looksEmpty,
+                    ],
+                    'assets'  => [
+                        'styles'  => $styles ?: '',
+                        'scripts' => $scripts ?: '',
+                    ],
+                    'html'    => (string)($html ?: ''),
+                ]);
 
-                // Optional: if module used @section('scripts') instead of @push, append it
-                if (isset($sections['scripts']) && trim((string)$sections['scripts']) !== '') {
-                    $scripts = (string)$scripts . "\n" . (string)$sections['scripts'];
-                }
-                if (isset($sections['styles']) && trim((string)$sections['styles']) !== '') {
-                    $styles = (string)$styles . "\n" . (string)$sections['styles'];
-                }
+            } catch (\Throwable $e) {
+                return response()->json([
+                    'success' => false,
+                    'error'   => 'Failed to render includable view',
+                    'details' => $e->getMessage(),
+                ], 422);
             }
+        }
+
+        /**
+         * 2) ✅ page_slug / page_shortcode => load page content_html from pages table
+         */
+        if ($pageSlug !== '' || $pageShortcode !== '') {
+            $p = DB::table('pages')->whereNull('deleted_at');
+
+            if ($pageSlug !== '') {
+                $p->where('slug', $this->normSlug($pageSlug));
+            } else {
+                $p->where('shortcode', $pageShortcode);
+            }
+
+            $page = $p->first();
+
+            if (!$page) {
+                return response()->json(['success' => false, 'error' => 'Target page not found'], 404);
+            }
+
+            $html = $page->content_html ?? '';
 
             return response()->json([
                 'success' => true,
-                'type'    => 'includable',
-                'title'   => $menu->title ?? 'Submenu',
+                'type'    => 'page',
+                'title'   => $page->title ?? ($menu->title ?? 'Page'),
                 'meta'    => [
-                    'submenu_slug'    => $menu->slug ?? null,
-                    'submenu_id'      => $menu->id ?? null,
-                    'includable'      => $includablePath,
-                    'section_used'    => $pickedSection,
-                    'render_was_empty'=> $looksEmpty,
+                    'submenu_slug' => $menu->slug ?? null,
+                    'submenu_id'   => $menu->id ?? null,
+                    'page_id'      => $page->id ?? null,
+                    'page_slug'    => $page->slug ?? null,
+                    'shortcode'    => $page->shortcode ?? null,
                 ],
-                'assets'  => [
-                    'styles'  => $styles ?: '',
-                    'scripts' => $scripts ?: '',
-                ],
-                'html'    => (string)($html ?: ''),
+                'html' => (string)$html,
             ]);
+        }
 
-        } catch (\Throwable $e) {
+        /**
+         * 3) ✅ page_url => return url (frontend will iframe it)
+         */
+        if ($pageUrl !== '') {
             return response()->json([
-                'success' => false,
-                'error'   => 'Failed to render includable view',
-                'details' => $e->getMessage(),
-            ], 422);
+                'success'     => true,
+                'type'        => 'url',
+                'title'       => $menu->title ?? 'Link',
+                'meta'        => [
+                    'submenu_slug' => $menu->slug ?? null,
+                    'submenu_id'   => $menu->id ?? null,
+                ],
+                'url'         => $pageUrl,
+                'same_origin' => $sameOrigin($pageUrl),
+            ]);
         }
-    }
-
-    /**
-     * 2) ✅ page_slug / page_shortcode => load page content_html from pages table
-     */
-    if ($pageSlug !== '' || $pageShortcode !== '') {
-        $p = DB::table('pages')->whereNull('deleted_at');
-
-        if ($pageSlug !== '') {
-            $p->where('slug', $this->normSlug($pageSlug));
-        } else {
-            $p->where('shortcode', $pageShortcode);
-        }
-
-        $page = $p->first();
-
-        if (!$page) {
-            return response()->json(['success' => false, 'error' => 'Target page not found'], 404);
-        }
-
-        $html = $page->content_html ?? '';
 
         return response()->json([
-            'success' => true,
-            'type'    => 'page',
-            'title'   => $page->title ?? ($menu->title ?? 'Page'),
-            'meta'    => [
-                'submenu_slug' => $menu->slug ?? null,
-                'submenu_id'   => $menu->id ?? null,
-                'page_id'      => $page->id ?? null,
-                'page_slug'    => $page->slug ?? null,
-                'shortcode'    => $page->shortcode ?? null,
-            ],
-            'html' => (string)$html,
-        ]);
+            'success' => false,
+            'error'   => 'No destination configured for this submenu',
+        ], 422);
     }
-
-    /**
-     * 3) ✅ page_url => return url (frontend will iframe it)
-     */
-    if ($pageUrl !== '') {
-        return response()->json([
-            'success'     => true,
-            'type'        => 'url',
-            'title'       => $menu->title ?? 'Link',
-            'meta'        => [
-                'submenu_slug' => $menu->slug ?? null,
-                'submenu_id'   => $menu->id ?? null,
-            ],
-            'url'         => $pageUrl,
-            'same_origin' => $sameOrigin($pageUrl),
-        ]);
-    }
-
-    return response()->json([
-        'success' => false,
-        'error'   => 'No destination configured for this submenu',
-    ], 422);
-}
-
-
 }

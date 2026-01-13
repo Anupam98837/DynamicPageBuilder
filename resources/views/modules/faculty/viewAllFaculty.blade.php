@@ -3,9 +3,11 @@
 <style>
   /* =========================================================
     ✅ Faculty Members (Scoped / No :root / No global body rules)
-    - Matches Announcements UI DNA
+    - UI matches screenshot (single-column rows / list cards)
     - Dept dropdown + ?d-{uuid} deep-link
-    - Loads dept-specific data from API (dept_uuid param)
+    - ✅ Uses PUBLIC preview-order APIs to show ONLY assigned faculty
+    - ✅ Department dropdown shows ONLY departments that have order saved (active + count>0)
+    - ✅ Frontend order ALWAYS matches DB saved order (even if API returns unordered)
   ========================================================= */
 
   .fmx-wrap{
@@ -16,7 +18,8 @@
     --fmx-line: var(--line-soft, rgba(15,23,42,.10));
     --fmx-shadow: 0 10px 24px rgba(2,6,23,.08);
 
-    --fmx-card-h: 426.4px;
+    /* used for skeleton only */
+    --fmx-card-h: 250px;
 
     max-width: 1320px;
     margin: 18px auto 54px;
@@ -39,7 +42,6 @@
     align-items: center;
     justify-content: space-between;
 
-    /* ✅ one-row head (desktop) */
     flex-wrap: nowrap;
   }
   .fmx-title{
@@ -64,8 +66,6 @@
     display:flex;
     gap: 10px;
     align-items:center;
-
-    /* ✅ keep tools in one row */
     flex-wrap: nowrap;
   }
 
@@ -144,16 +144,21 @@
     box-shadow: 0 0 0 4px rgba(201,75,80,.18);
   }
 
+  /* ✅ Screenshot UI: single-column rows */
+  .fmx-grid,
+  .fmx-skeleton{
+    max-width: 1040px;
+    margin: 0 auto;
+  }
   .fmx-grid{
-    display:grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    display:flex;
+    flex-direction:column;
     gap: 18px;
     align-items: stretch;
   }
 
   .fmx-card{
     width:100%;
-    min-height: var(--fmx-card-h);
     position:relative;
     display:flex;
     flex-direction:column;
@@ -181,8 +186,6 @@
     padding: 16px 16px 14px;
     display:flex;
     flex-direction:column;
-    flex: 1 1 auto;
-    min-height: 0;
   }
 
   .fmx-top{ display:flex; gap: 12px; align-items:flex-start; }
@@ -261,8 +264,7 @@
   .fmx-links a:hover{ text-decoration: underline; }
 
   .fmx-social{
-    margin-top: auto;
-    padding-top: 14px;
+    margin-top: 12px;
     display:flex;
     gap: 10px;
     flex-wrap: wrap;
@@ -284,6 +286,8 @@
   .fmx-social a i{ color:#fff; font-size: 16px; line-height: 1; }
 
   .fmx-state{
+    max-width: 1040px;
+    margin: 0 auto;
     background: var(--fmx-card);
     border: 1px solid var(--fmx-line);
     border-radius: 16px;
@@ -294,8 +298,8 @@
   }
 
   .fmx-skeleton{
-    display:grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    display:flex;
+    flex-direction:column;
     gap: 18px;
   }
   .fmx-sk{
@@ -350,13 +354,14 @@
   }
 
   @media (max-width: 640px){
-    /* ✅ allow wrap on small screens so it doesn't overflow */
     .fmx-head{ flex-wrap: wrap; align-items: flex-end; }
     .fmx-tools{ flex-wrap: wrap; }
 
     .fmx-title{ font-size: 24px; white-space: normal; }
     .fmx-search{ min-width: 220px; flex: 1 1 240px; }
     .fmx-select{ min-width: 220px; flex: 1 1 240px; }
+
+    .fmx-grid, .fmx-skeleton, .fmx-state{ max-width: 100%; }
   }
 
   .dynamic-navbar .navbar-nav .dropdown-menu{
@@ -370,9 +375,9 @@
 
 <div
   class="fmx-wrap"
-  data-api="{{ url('/api/public/faculty') }}"
   data-profile-base="{{ url('/user/profile') }}/"
-  data-dept-api="{{ url('/api/public/departments') }}"
+  data-preview-index="{{ url('/api/public/faculty-preview-order') }}"
+  data-preview-show-base="{{ url('/api/public/faculty-preview-order') }}/"
 >
   <div class="fmx-head">
     <div>
@@ -393,7 +398,6 @@
         </select>
         <i class="fa-solid fa-chevron-down fmx-select__caret"></i>
       </div>
-      {{-- ✅ Count chip removed --}}
     </div>
   </div>
 
@@ -416,9 +420,9 @@
   const root = document.querySelector('.fmx-wrap');
   if (!root) return;
 
-  const API = root.getAttribute('data-api') || '/api/public/faculty';
   const PROFILE_BASE = root.getAttribute('data-profile-base') || (window.location.origin + '/user/profile/');
-  const DEPT_API = root.getAttribute('data-dept-api') || '/api/public/departments';
+  const PREVIEW_INDEX = root.getAttribute('data-preview-index') || (window.location.origin + '/api/public/faculty-preview-order');
+  const PREVIEW_SHOW_BASE = root.getAttribute('data-preview-show-base') || (window.location.origin + '/api/public/faculty-preview-order/');
 
   const $ = (id) => document.getElementById(id);
 
@@ -442,7 +446,12 @@
   };
 
   let activeController = null;
+
+  // deptUuid -> {id,uuid,slug,title}
   let deptByUuid = new Map();
+
+  // current assigned list (ordered, must match DB saved order)
+  let assignedAll = [];
 
   function esc(str){
     return (str ?? '').toString().replace(/[&<>"']/g, s => ({
@@ -498,6 +507,7 @@
     const p = (platform || '').toLowerCase().trim();
     if (p.includes('linkedin')) return 'fa-brands fa-linkedin-in';
     if (p.includes('google') || p.includes('scholar')) return 'fa-solid fa-graduation-cap';
+    if (p.includes('university') || p.includes('profile') || p.includes('college')) return 'fa-solid fa-building-columns';
     if (p.includes('researchgate')) return 'fa-brands fa-researchgate';
     if (p === 'facebook' || p.includes('fb')) return 'fa-brands fa-facebook-f';
     if (p.includes('instagram') || p.includes('insta')) return 'fa-brands fa-instagram';
@@ -514,21 +524,65 @@
     }
     return i;
   }
+
+  // ✅ Social links: prefer socials[], else fallback to metadata keys (LinkedIn/Scholar/College/Facebook/Instagram/etc.)
   function buildSocialFromItem(it){
-    const arr = Array.isArray(it?.socials) ? it.socials : [];
-    const html = arr.map(s => {
-      const url = (s?.url || '').toString().trim();
-      if (!url) return '';
-      const icon = normalizeFaIcon(s?.icon) || iconForPlatform(s?.platform);
-      const title = (s?.platform || 'Link').toString();
-      return `
-        <a href="${escAttr(normalizeUrl(url))}" target="_blank" rel="noopener"
-           title="${escAttr(title)}" data-stop-card="1">
-          <i class="${escAttr(icon)}"></i>
-        </a>
-      `;
-    }).join('');
-    return html ? `<div class="fmx-social">${html}</div>` : '';
+    const socials = Array.isArray(it?.socials) ? it.socials : [];
+    const meta = decodeMaybeJson(it?.metadata) || {};
+
+    let items = [];
+
+    if (socials.length){
+      items = socials.map(s => ({
+        url: (s?.url || '').toString().trim(),
+        icon: normalizeFaIcon(s?.icon) || iconForPlatform(s?.platform),
+        title: (s?.platform || 'Link').toString(),
+      }));
+    } else {
+      // fallback (common keys you might store in metadata)
+      const pickUrl = (...keys) => {
+        for (const k of keys){
+          const v = meta?.[k] ?? it?.[k];
+          const s = (v || '').toString().trim();
+          if (s) return s;
+        }
+        return '';
+      };
+
+      const add = (url, title, icon) => {
+        const u = (url || '').toString().trim();
+        if (!u) return;
+        items.push({ url: u, title, icon });
+      };
+
+      // screenshot-like set (only if present)
+      add(pickUrl('linkedin','linkedin_url','linkedIn','linkedinLink'), 'LinkedIn', 'fa-brands fa-linkedin-in');
+      add(pickUrl('google_scholar','scholar','scholar_url','google_scholar_url'), 'Google Scholar', 'fa-solid fa-graduation-cap');
+      add(pickUrl('college_profile','university_profile','profile_url','msit_profile','institute_profile'), 'Profile', 'fa-solid fa-building-columns');
+      add(pickUrl('facebook','facebook_url','fb','fb_url'), 'Facebook', 'fa-brands fa-facebook-f');
+      add(pickUrl('instagram','instagram_url','insta','insta_url'), 'Instagram', 'fa-brands fa-instagram');
+
+      // extra (only if present)
+      add(pickUrl('twitter','x','twitter_url','x_url'), 'X', 'fa-brands fa-x-twitter');
+      add(pickUrl('github','github_url'), 'GitHub', 'fa-brands fa-github');
+      add(pickUrl('youtube','youtube_url'), 'YouTube', 'fa-brands fa-youtube');
+      add(pickUrl('researchgate','researchgate_url'), 'ResearchGate', 'fa-brands fa-researchgate');
+    }
+
+    items = items
+      .map(x => ({...x, url: normalizeUrl(x.url)}))
+      .filter(x => x.url);
+
+    if (!items.length) return '';
+
+    const html = items.map(s => `
+      <a href="${escAttr(s.url)}" target="_blank" rel="noopener"
+         title="${escAttr(s.title)}" data-stop-card="1">
+        <i class="${escAttr(s.icon)}"></i>
+      </a>
+    `).join('');
+
+    return `<div class="fmx-social">${html}</div>`;
   }
 
   function bindAvatarImages(rootEl){
@@ -587,7 +641,7 @@
     });
 
     const js = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(js?.message || ('Request failed: ' + res.status));
+    if (!res.ok) throw new Error(js?.message || js?.error || ('Request failed: ' + res.status));
     return js;
   }
 
@@ -597,7 +651,8 @@
     return m ? m[1] : '';
   }
 
-  async function loadDepartments(){
+  // ✅ load ONLY ordered departments (active + has count)
+  async function loadOrderedDepartments(){
     const sel = els.dept;
     if (!sel) return;
 
@@ -608,21 +663,24 @@
     sel.value = '__loading';
 
     try{
-      const res = await fetch(DEPT_API, { headers: { 'Accept':'application/json' } });
-      const js = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(js?.message || ('HTTP ' + res.status));
+      const js = await fetchJson(PREVIEW_INDEX);
+      const rows = Array.isArray(js?.data) ? js.data : [];
 
-      const items = Array.isArray(js?.data) ? js.data : [];
-      const depts = items
-        .map(d => ({
-          id: d?.id ?? null,
-          uuid: (d?.uuid ?? '').toString().trim(),
-          title: (d?.title ?? d?.name ?? '').toString().trim(),
-          active: (d?.active ?? 1),
+      // rows:
+      // { department:{id,uuid,slug,title}, order:{active,faculty_count} }
+      const depts = rows
+        .map(r => ({
+          id: r?.department?.id ?? null,
+          uuid: (r?.department?.uuid ?? '').toString().trim(),
+          slug: (r?.department?.slug ?? '').toString().trim(),
+          title:(r?.department?.title ?? '').toString().trim(),
+          count: parseInt(r?.order?.faculty_count ?? 0, 10) || 0,
         }))
-        .filter(x => x.uuid && x.title && String(x.active) === '1');
+        .filter(d => d.uuid && d.title && d.count > 0);
 
       deptByUuid = new Map(depts.map(d => [d.uuid, d]));
+
+      // keep dropdown clean (no brackets / no extra text)
       depts.sort((a,b) => a.title.localeCompare(b.title));
 
       sel.innerHTML = `<option value="">Select Department</option>` + depts
@@ -630,27 +688,33 @@
         .join('');
 
       sel.value = '';
+
+      if (!depts.length){
+        if (els.state){
+          els.state.style.display = '';
+          els.state.innerHTML = `
+            <div style="font-size:34px;opacity:.6;margin-bottom:6px;">
+              <i class="fa-solid fa-users"></i>
+            </div>
+            Faculty list is not available right now.
+          `;
+        }
+      }
+
     } catch (e){
-      console.warn('Departments load failed:', e);
+      console.warn('Ordered departments load failed:', e);
       sel.innerHTML = `<option value="">Select Department</option>`;
       sel.value = '';
+      if (els.state){
+        els.state.style.display = '';
+        els.state.innerHTML = `
+          <div style="font-size:34px;opacity:.6;margin-bottom:6px;">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+          </div>
+          Faculty list is not available right now.
+        `;
+      }
     }
-  }
-
-  function buildListUrl(){
-    const u = new URL(API, window.location.origin);
-    u.searchParams.set('page', String(state.page));
-    u.searchParams.set('per_page', String(state.perPage));
-    u.searchParams.set('status', 'active');
-    u.searchParams.set('sort', 'created_at');
-    u.searchParams.set('direction', 'desc');
-
-    // ✅ pass dept_uuid to backend (no client-side guessing)
-    if (state.deptUuid) u.searchParams.set('dept_uuid', String(state.deptUuid));
-    else u.searchParams.delete('dept_uuid');
-
-    if (state.q.trim()) u.searchParams.set('q', state.q.trim());
-    return u.toString();
   }
 
   function cardHtml(it){
@@ -715,6 +779,38 @@
         </div>
       </article>
     `;
+  }
+
+  function applySearch(items){
+    const q = (state.q || '').trim().toLowerCase();
+    if (!q) return items;
+
+    // ✅ filter only; DO NOT reorder (keeps DB order)
+    return items.filter(it => {
+      const name = (pick(it, ['name','user_name']) || '').toLowerCase();
+      const desig =
+        (pick(it, ['designation']) ||
+          (decodeMaybeJson(it?.metadata)?.designation || '') ||
+          (decodeMaybeJson(it?.metadata)?.role_title || '')
+        ).toString().toLowerCase();
+
+      const qual = formatQualification(it?.qualification).toLowerCase();
+      return name.includes(q) || desig.includes(q) || qual.includes(q);
+    });
+  }
+
+  function paginate(items){
+    const per = state.perPage || 9;
+    const total = items.length;
+    const last = Math.max(1, Math.ceil(total / per));
+    state.lastPage = last;
+
+    const page = Math.min(Math.max(1, state.page || 1), last);
+    state.page = page;
+
+    const start = (page - 1) * per;
+    const slice = items.slice(start, start + per);
+    return { slice, total, last };
   }
 
   function render(items){
@@ -784,21 +880,83 @@
     pager.style.display = 'flex';
   }
 
-  async function load(){
+  // ✅ Force DB-order even if API returns unordered
+  function toInt(v){
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) ? n : null;
+  }
+  function getUserNumericId(it){
+    // your order is "faculty json array = id of faculties" -> typically user.id
+    return (
+      toInt(it?.user_id) ??
+      toInt(it?.faculty_id) ??
+      toInt(it?.id) ??
+      toInt(it?.user?.id) ??
+      null
+    );
+  }
+  function extractOrderIds(js){
+    // try common shapes:
+    // js.order.faculty_ids OR js.order.faculty_ids_json OR js.faculty_ids OR js.order_ids
+    const raw =
+      js?.order?.faculty_ids ??
+      js?.order?.faculty_ids_json ??
+      js?.faculty_ids ??
+      js?.order_ids ??
+      js?.faculty_order ??
+      null;
+
+    const arr = Array.isArray(raw) ? raw : (decodeMaybeJson(raw) || null);
+    if (!Array.isArray(arr)) return [];
+
+    return arr.map(x => toInt(x)).filter(x => x !== null);
+  }
+  function orderByDb(assigned, orderIds){
+    if (!Array.isArray(assigned) || !assigned.length) return [];
+    if (!Array.isArray(orderIds) || !orderIds.length) return assigned;
+
+    const idx = new Map(orderIds.map((id, i) => [String(id), i]));
+
+    return assigned
+      .map((it, originalIndex) => {
+        const id = getUserNumericId(it);
+        const key = id === null ? null : String(id);
+        const orderIndex = (key && idx.has(key)) ? idx.get(key) : 1e9;
+        return { it, originalIndex, orderIndex };
+      })
+      .sort((a,b) => (a.orderIndex - b.orderIndex) || (a.originalIndex - b.originalIndex))
+      .map(x => x.it);
+  }
+
+  async function loadAssignedForDept(deptUuid){
     showSkeleton();
 
     try{
-      const js = await fetchJson(buildListUrl());
-      const items = Array.isArray(js?.data) ? js.data : [];
-      const p = js?.pagination || {};
+      const url = PREVIEW_SHOW_BASE + encodeURIComponent(deptUuid) + '?status=active';
+      const js = await fetchJson(url);
 
-      state.lastPage = parseInt(p.last_page ?? 1, 10) || 1;
-      state.page = parseInt(p.page ?? state.page, 10) || state.page;
+      const dept = js?.department || {};
+      const assigned = Array.isArray(js?.assigned) ? js.assigned : [];
 
+      // ✅ enforce DB saved order
+      const orderIds = extractOrderIds(js);
+      assignedAll = orderByDb(assigned, orderIds);
+
+      // header/subtitle
+      state.deptName = (dept?.title || deptByUuid.get(deptUuid)?.title || '').toString().trim();
+      if (els.sub) {
+        els.sub.textContent = state.deptName ? ('Faculty members of ' + state.deptName) : 'Faculty members';
+      }
+
+      // enable search only when dept is selected
+      if (els.search){
+        els.search.disabled = false;
+        els.search.placeholder = 'Search faculty (name/designation/qualification)…';
+      }
+
+      state.page = 1;
       hideSkeleton();
-
-      render(items);
-      renderPager();
+      applyAndRender();
 
     } catch (e){
       hideSkeleton();
@@ -811,31 +969,34 @@
           <div style="font-size:34px;opacity:.6;margin-bottom:6px;">
             <i class="fa-solid fa-triangle-exclamation"></i>
           </div>
-          Could not load faculty.
-          <div style="margin-top:8px;font-size:12.5px;opacity:.9;">
-            API: <b>${esc(API)}</b>
-          </div>
+          Faculty list is not available right now.
         `;
       }
     }
   }
 
+  function applyAndRender(){
+    const filtered = applySearch(assignedAll);
+    const { slice } = paginate(filtered);
+    render(slice);
+    renderPager();
+  }
+
   document.addEventListener('DOMContentLoaded', async () => {
     showSelectDeptState();
 
-    await loadDepartments();
+    // dropdown from preview-order public index (only ordered depts)
+    await loadOrderedDepartments();
 
     // deep-link ?d-{uuid}
     const deep = extractDeptUuidFromUrl();
     if (deep && deptByUuid.has(deep)){
       els.dept.value = deep;
       state.deptUuid = deep;
-      state.deptName = deptByUuid.get(deep)?.title || '';
-      if (els.sub) els.sub.textContent = state.deptName ? ('Faculty members of ' + state.deptName) : 'Faculty members';
-
-      els.search.disabled = false;
-      els.search.placeholder = 'Search faculty (name/designation/qualification)…';
-      await load();
+      state.page = 1;
+      state.q = '';
+      if (els.search) els.search.value = '';
+      await loadAssignedForDept(deep);
     }
 
     // dept change
@@ -844,6 +1005,7 @@
 
       state.page = 1;
       state.q = '';
+      assignedAll = [];
       if (els.search) els.search.value = '';
 
       if (!v){
@@ -854,45 +1016,34 @@
           els.search.disabled = true;
           els.search.placeholder = 'Select a department to search…';
         }
-        await load();   // ✅ load all
+        showSelectDeptState();
         return;
       }
 
       state.deptUuid = v;
-      state.deptName = deptByUuid.get(v)?.title || '';
-
-      if (els.sub){
-        els.sub.textContent = state.deptName ? ('Faculty members of ' + state.deptName) : 'Faculty members';
-      }
-
-      if (els.search){
-        els.search.disabled = false;
-        els.search.placeholder = 'Search faculty (name/designation/qualification)…';
-      }
-
-      await load();
+      await loadAssignedForDept(v);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
 
-    // search (debounced)
+    // search (debounced, client-side on assigned list; keeps DB order)
     let t = null;
     els.search && els.search.addEventListener('input', () => {
       clearTimeout(t);
-      t = setTimeout(async () => {
+      t = setTimeout(() => {
         state.q = (els.search.value || '').trim();
         state.page = 1;
-        await load();
-      }, 260);
+        applyAndRender();
+      }, 220);
     });
 
     // pagination
-    document.addEventListener('click', async (e) => {
+    document.addEventListener('click', (e) => {
       const b = e.target.closest('button.fmx-pagebtn[data-page]');
       if (!b) return;
       const p = parseInt(b.dataset.page, 10);
       if (!p || Number.isNaN(p) || p === state.page) return;
       state.page = p;
-      await load();
+      applyAndRender();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
 

@@ -1,6 +1,4 @@
 {{-- resources/views/modules/managePages.blade.php --}}
-@extends('pages.users.layout.structure')
-
 @section('title','Manage Pages')
 
 @push('styles')
