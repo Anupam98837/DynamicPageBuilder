@@ -548,7 +548,7 @@
     const slug = ($('#pageSlug').val() || '').trim();
     if(!slug) return '';
     // If you have a public render route, change it here:
-    return `/pages/view/${encodeURIComponent(slug)}?mode=test`;
+    return `/page/${encodeURIComponent(slug)}?mode=test`;
   }
 
   function previewDirectNewTab(){

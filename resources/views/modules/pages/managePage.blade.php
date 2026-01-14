@@ -1,5 +1,4 @@
 {{-- resources/views/modules/managePages.blade.php --}}
-@extends('pages.users.layout.structure')
 
 @section('title','Manage Pages')
 
@@ -58,6 +57,7 @@
   overflow-y:visible !important;
   -webkit-overflow-scrolling:touch;
   position:relative;
+  z-index:0; /* ✅ helps stacking contexts */
 }
 .mp-table-responsive > table{width:max-content; min-width:1050px;}
 .mp-table-responsive th,.mp-table-responsive td{white-space:nowrap;}
@@ -93,14 +93,14 @@
 .badge-secondary{background:#64748b!important}
 
 /* ✅ Dropdown (fixed like reference) */
-.mp-table-responsive .dropdown{position:relative}
+.mp-table-responsive .dropdown{position:relative; z-index:5;} /* ✅ */
 .mp-dd-toggle{border-radius:10px}
 .dropdown-menu{
   border-radius:12px;
   border:1px solid var(--line-strong);
   box-shadow:var(--shadow-2);
   min-width:230px;
-  z-index:99999;
+  z-index:999999; /* ✅ stronger */
 }
 .dropdown-menu.show{display:block !important}
 .dropdown-item{display:flex;align-items:center;gap:.6rem}
@@ -373,12 +373,7 @@
     departments: []
   };
 
-  /* ================== PAGINATION NORMALIZER (same concept as Manage Users) ==================
-   * Supports:
-   *  A) { data:[], pagination:{ current_page,last_page,per_page,total,from,to } }
-   *  B) Laravel: { data:[], meta:{ current_page,last_page,per_page,total,from,to } }
-   *  C) Sometimes: { data:{ data:[], ... } }
-   */
+  /* ================== PAGINATION NORMALIZER (same concept as Manage Users) ================== */
   function pickPagination(j){
     const pag = j?.pagination || j?.meta || j?.paginate || j?.page || {};
     const current = parseInt(pag.current_page ?? pag.currentPage ?? j?.current_page ?? 1, 10) || 1;
@@ -386,7 +381,6 @@
     const per     = parseInt(pag.per_page ?? pag.perPage ?? j?.per_page ?? 10, 10) || 10;
     const total   = parseInt(pag.total ?? j?.total ?? 0, 10) || 0;
 
-    // if API does not provide total, derive from rows length (fallback)
     const from = (pag.from !== undefined && pag.from !== null) ? parseInt(pag.from,10) : null;
     const to   = (pag.to   !== undefined && pag.to   !== null) ? parseInt(pag.to,10)   : null;
 
@@ -397,7 +391,6 @@
     const total = (pg.total && pg.total > 0) ? pg.total : rowsLen;
     if (total <= 0) return '0 item(s)';
 
-    // prefer API provided from/to
     const from = (pg.from && pg.from > 0) ? pg.from : ((pg.current_page - 1) * pg.per_page + 1);
     const to   = (pg.to   && pg.to   > 0) ? pg.to   : Math.min(total, (pg.current_page - 1) * pg.per_page + rowsLen);
 
@@ -458,30 +451,35 @@
     pager.innerHTML = (totalPages <= 1) ? '' : html;
   }
 
-  // ✅ IMPORTANT FIX: your old global click closer was killing pager clicks.
-  // We now close dropdowns on pointerdown capture, but DO NOT interfere with pager links.
+  /* ================== ✅ DROPDOWN FIX (Bootstrap + Fallback, no silent failure) ================== */
   function closeAllDropdownsExcept(exceptToggle){
     document.querySelectorAll('.mp-dd-toggle').forEach(t => {
       if (t === exceptToggle) return;
-      try{
-        const inst = bootstrap.Dropdown.getInstance(t);
-        inst && inst.hide();
-      }catch(_){}
+
+      // Bootstrap close if available
+      if (window.bootstrap?.Dropdown){
+        try{
+          const inst = window.bootstrap.Dropdown.getInstance(t);
+          inst && inst.hide();
+        }catch(_){}
+        return;
+      }
+
+      // Fallback close
+      const menu = t.closest('.dropdown')?.querySelector('.dropdown-menu');
+      if (menu) menu.classList.remove('show');
     });
   }
 
   // Close dropdowns when clicking outside, but do NOT hijack pagination click.
   document.addEventListener('pointerdown', (e) => {
-    // if clicking a pager link, don't touch (avoid blocking)
     if (e.target.closest('a.page-link[data-page]')) return;
-
-    // if clicking dropdown toggle, let toggle handler deal with it
     if (e.target.closest('.mp-dd-toggle')) return;
-
+    if (e.target.closest('.dropdown-menu')) return;
     closeAllDropdownsExcept(null);
   }, { capture:true });
 
-  // Dropdown toggle with fixed strategy
+  // Dropdown toggle (works even if bootstrap is missing/overridden)
   document.addEventListener('click', (e) => {
     const toggle = e.target.closest('.mp-dd-toggle');
     if (!toggle) return;
@@ -491,19 +489,27 @@
 
     closeAllDropdownsExcept(toggle);
 
-    try{
-      const inst = bootstrap.Dropdown.getOrCreateInstance(toggle, {
-        autoClose: true,
-        popperConfig: (def) => {
-          const base = def || {};
-          const mods = Array.isArray(base.modifiers) ? base.modifiers.slice() : [];
-          mods.push({ name:'preventOverflow', options:{ boundary:'viewport', padding:8 } });
-          mods.push({ name:'flip', options:{ boundary:'viewport', padding:8 } });
-          return { ...base, strategy:'fixed', modifiers: mods };
-        }
-      });
-      inst.toggle();
-    }catch(_){}
+    // ✅ Use Bootstrap if present
+    if (window.bootstrap?.Dropdown){
+      try{
+        const inst = window.bootstrap.Dropdown.getOrCreateInstance(toggle, {
+          autoClose: true,
+          popperConfig: (def) => {
+            const base = def || {};
+            const mods = Array.isArray(base.modifiers) ? base.modifiers.slice() : [];
+            mods.push({ name:'preventOverflow', options:{ boundary:'viewport', padding:8 } });
+            mods.push({ name:'flip', options:{ boundary:'viewport', padding:8 } });
+            return { ...base, strategy:'fixed', modifiers: mods };
+          }
+        });
+        inst.toggle();
+        return;
+      }catch(_){}
+    }
+
+    // ✅ Fallback toggle
+    const menu = toggle.closest('.dropdown')?.querySelector('.dropdown-menu');
+    if (menu) menu.classList.toggle('show');
   });
 
   /* ================== EMPTY HELPERS ================== */
@@ -560,7 +566,6 @@
       const rows = Array.isArray(j.data) ? j.data : [];
       const pg = pickPagination(j);
 
-      // ✅ keep state synced (server may clamp page)
       state.active.page = pg.current_page;
       state.active.lastPage = pg.last_page;
       state.active.perPage = pg.per_page || state.active.perPage;

@@ -294,7 +294,7 @@ class PageController extends Controller
     $data = $request->validate([
         'title'            => 'required|string|max:200',
         'slug'             => 'sometimes|nullable|string|max:200',
-        'shortcode'        => 'sometimes|string|max:12',
+        'shortcode'        => 'sometimes|nullable|string|max:12',
         'page_type'        => 'sometimes|string|max:30',
         'content_html'     => 'sometimes|nullable|string',
         'includable_id'    => 'sometimes|nullable|string|max:120',

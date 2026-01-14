@@ -1954,6 +1954,8 @@ Route::prefix('/public/top-header-menus')
 Route::prefix('student-academic-details')
     ->middleware('checkRole:admin,super_admin,director,principal,hod,faculty,technical_assistant,it_person')
     ->group(function () {
+
+        Route::get('by-academics', [StudentAcademicDetailsController::class, 'studentsByAcademics']);
  
         // CRUD
         Route::get('/',        [StudentAcademicDetailsController::class, 'index']);

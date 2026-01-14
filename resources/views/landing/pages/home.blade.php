@@ -76,141 +76,32 @@
     .loader-spinner{width: 28px; height: 28px;border-radius: 50%;border: 3px solid rgba(158,54,58,.22);border-top-color: var(--brand);animation: spin .75s linear infinite;flex: 0 0 auto;}
     @keyframes spin{ to{ transform: rotate(360deg); } }
 
-    /* =========================
-      ✅ NEW: Home Contact Popup (shows every refresh)
-      ✅ FIXED: popup content can scroll + starts at top
-    ========================= */
-    .home-popup{
-      position: fixed;
-      inset: 0;
-      z-index: 100000;
-      display: none;
-      align-items: flex-start;
-      justify-content: center;
-      padding: 18px;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      overscroll-behavior: contain;
-    }
+    .home-popup{position: fixed;inset: 0;z-index: 100000;display: none;align-items: flex-start;justify-content: center;padding: 18px;overflow-y: auto;-webkit-overflow-scrolling: touch;overscroll-behavior: contain;}
     .home-popup.is-open{ display:flex; }
 
-    .home-popup-backdrop{
-      position: fixed;
-      inset:0;
-      background: rgba(2,6,23,.55);
-      backdrop-filter: blur(6px);
-      -webkit-backdrop-filter: blur(6px);
-    }
+    .home-popup-backdrop{position: fixed;inset:0;background: rgba(2,6,23,.55);backdrop-filter: blur(6px);-webkit-backdrop-filter: blur(6px);}
 
-    .home-popup-card{
-      position: relative;
-      background: rgba(255,255,255,.98);
-      border: 1px solid rgba(158,54,58,.22);
-      border-radius: 20px;
-      box-shadow: 0 22px 60px rgba(2,6,23,.30);
-      width: min(980px, 96vw);
-      max-height: calc(100vh - 36px);
-      margin: 18px auto;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-    .home-popup-card::before{
-      content:"";
-      position:absolute;
-      inset:-140px -140px auto auto;
-      width: 280px;
-      height: 280px;
-      background: radial-gradient(circle at 30% 30%, rgba(201,75,80,.22), rgba(201,75,80,0));
-      transform: rotate(12deg);
-      pointer-events:none;
-    }
-    .home-popup-head{
-      display:flex;
-      align-items:flex-start;
-      justify-content:space-between;
-      gap: 12px;
-      padding: 18px 18px 10px;
-      position: relative;
-      flex: 0 0 auto;
-    }
-    .home-popup-title{
-      margin:0;
-      font-weight: 950;
-      color:#0f172a;
-      font-size: 18px;
-      line-height: 1.1;
-    }
-    .home-popup-sub{
-      margin: 6px 0 0;
-      color: var(--muted);
-      font-weight: 800;
-      font-size: 13px;
-    }
-    .home-popup-close{
-      width: 38px;
-      height: 38px;
-      border-radius: 12px;
-      border: 1px solid rgba(2,6,23,.12);
-      background: rgba(255,255,255,.9);
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      cursor:pointer;
-    }
+    .home-popup-card{position: relative;background: rgba(255,255,255,.98);border: 1px solid rgba(158,54,58,.22);border-radius: 20px;box-shadow: 0 22px 60px rgba(2,6,23,.30);width: min(980px, 96vw);max-height: calc(100vh - 36px);margin: 18px auto;display: flex;flex-direction: column;overflow: hidden;}
+    .home-popup-card::before{content:"";position:absolute;inset:-140px -140px auto auto;width: 280px;height: 280px;background: radial-gradient(circle at 30% 30%, rgba(201,75,80,.22), rgba(201,75,80,0));transform: rotate(12deg);pointer-events:none;}
+    .home-popup-head{display:flex;align-items:flex-start;justify-content:space-between;gap: 12px;padding: 18px 18px 10px;position: relative;flex: 0 0 auto;}
+    .home-popup-title{margin:0;font-weight: 950;color:#0f172a;font-size: 18px;line-height: 1.1;}
+    .home-popup-sub{margin: 6px 0 0;color: var(--muted);font-weight: 800;font-size: 13px;}
+    .home-popup-close{width: 38px;height: 38px;border-radius: 12px;border: 1px solid rgba(2,6,23,.12);background: rgba(255,255,255,.9);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;}
     .home-popup-close:hover{ background:#f1f5f9; }
 
-    .home-popup-body{
-      padding: 0 18px 18px;
-      position: relative;
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: auto;
-      -webkit-overflow-scrolling: touch;
-    }
+    .home-popup-body{padding: 0 18px 18px;position: relative;flex: 1 1 auto;min-height: 0;overflow: auto;-webkit-overflow-scrolling: touch;}
 
-    .home-popup-placeholder{
-      border: 1px dashed rgba(158,54,58,.32);
-      background: linear-gradient(135deg, rgba(158,54,58,.06), rgba(201,75,80,.03));
-      border-radius: 16px;
-      padding: 18px;
-      text-align: center;
-    }
-    .home-popup-placeholder h4{
-      margin: 0 0 8px;
-      font-weight: 950;
-      color: var(--brand);
-      font-size: 16px;
-    }
-    .home-popup-placeholder p{
-      margin: 0;
-      color: #334155;
-      font-weight: 800;
-      font-size: 13.5px;
-      line-height: 1.5;
-    }
-    .home-popup-placeholder code{
-      background: rgba(255,255,255,.65);
-      padding: 2px 6px;
-      border-radius: 8px;
-      font-weight: 950;
-      color: #7a2626;
-    }
+    .home-popup-placeholder{border: 1px dashed rgba(158,54,58,.32);background: linear-gradient(135deg, rgba(158,54,58,.06), rgba(201,75,80,.03));border-radius: 16px;padding: 18px;text-align: center;}
+    .home-popup-placeholder h4{margin: 0 0 8px;font-weight: 950;color: var(--brand);font-size: 16px;}
+    .home-popup-placeholder p{margin: 0;color: #334155;font-weight: 800;font-size: 13.5px;line-height: 1.5;}
+    .home-popup-placeholder code{background: rgba(255,255,255,.65);padding: 2px 6px;border-radius: 8px;font-weight: 950;color: #7a2626;}
     @media (max-width: 576px){
       .home-popup{ padding: 12px; }
-      .home-popup-card{
-        border-radius: 18px;
-        width: min(980px, 98vw);
-        max-height: calc(100vh - 24px);
-        margin: 12px auto;
-      }
+      .home-popup-card{border-radius: 18px;width: min(980px, 98vw);max-height: calc(100vh - 24px);margin: 12px auto;}
       .home-popup-head{ padding: 16px 14px 8px; }
       .home-popup-body{ padding: 0 14px 14px; }
     }
 
-    /* =========================
-      Motion / Reveal (loads one-by-one + on scroll)
-    ========================= */
     .reveal{opacity: 0;transform: translateY(22px);transition: opacity .7s ease, transform .85s cubic-bezier(.2,.8,.2,1);will-change: opacity, transform;}
     .reveal.reveal-left{ transform: translateX(-22px); }
     .reveal.reveal-right{ transform: translateX(22px); }
@@ -221,27 +112,8 @@
       .loader-bar > span::after{ animation: none !important; }
     }
 
-    /* =========================
-      ✅ NEW: Home Sections Container
-    ========================= */
-    .home-sections-container {
-      display: flex;
-      flex-direction: column;
-      gap: 2.5rem;
-      margin-top: 1.5rem;
-    }
-
-    /* =========================
-      ✅ NEW: FULL-WIDTH TOP STACK (Notice strip + Hero)
-      - These two sections are OUTSIDE the .container now
-      - Rest of the homepage remains inside the normal container width
-    ========================= */
-    .home-topstack{
-      width: 100%;
-      display:flex;
-      flex-direction:column;
-      margin-bottom: 10px;
-    }
+    .home-sections-container {display: flex;flex-direction: column;gap: 2.5rem;margin-top: 1.5rem;}
+    .home-topstack{width: 100%;display:flex;flex-direction:column;margin-bottom: 10px;}
 
     /* ===== hero carousel ===== */
     .hero-wrap{ position:relative; overflow:hidden; }
@@ -255,20 +127,12 @@
     .btn-hero{background: var(--accent);border: 0;color:#fff;border-radius: 12px;padding: 12px 24px;font-weight: 800;font-size: 15px;}
     .btn-hero:hover{ background: var(--brand); color:#fff; }
 
-    /* =========================
-      Hero carousel transition control (duration + fade)
-      JS will set --hero-transition-ms using API transition_ms
-    ========================= */
     #homeHero{ --hero-transition-ms: 600ms; }
     #homeHero .carousel-item{transition: transform var(--hero-transition-ms) ease-in-out;}
     #homeHero.carousel-fade .carousel-item{transition-property: opacity;transition-duration: var(--hero-transition-ms);}
     #homeHero.carousel-fade .active.carousel-item-start,
     #homeHero.carousel-fade .active.carousel-item-end{transition: opacity 0s var(--hero-transition-ms);}
 
-    /* =========================
-      Top strip (NOTICE MARQUEE ONLY)
-      ✅ FIXED: marquee settings applied via API settings now
-    ========================= */
     .notice-strip{background: #ffd600;padding: 5px 14px;overflow:hidden;}
     .notice-strip .strip-ico{width: 34px; height: 34px;display:inline-flex; align-items:center; justify-content:center;border-radius: 999px;background: rgba(158,54,58,.12);color: var(--brand);border: 1px solid rgba(158,54,58,.18);flex: 0 0 auto;}
     .notice-strip marquee{font-weight: 900;color: #7a2626;font-size: 14.5px;}
@@ -277,34 +141,16 @@
     .notice-strip marquee .nm-text{color: #7a2626;font-weight: 900;cursor: default;}
     .notice-strip marquee .nm-sep{opacity: .75;padding: 0 10px;user-select:none;}
 
-    /* =========================
-      ✅ Smooth Notice Marquee (settings-driven)
-    ========================= */
     .nm-viewport{ overflow:hidden; width:100%; }
-    .nm-track{
-      display:flex;
-      align-items:center;
-      gap: 10px;
-      white-space: nowrap;
-      will-change: transform;
-    }
+    .nm-track{display:flex;align-items:center;gap: 10px;white-space: nowrap;will-change: transform;}
     .nm-run{ display:inline-flex; align-items:center; gap: 10px; }
     .nm-text{font-weight: 900;color:#7a2626;font-size:14.5px;}
     .nm-link{color:#7a2626;text-decoration:none;font-weight:950;}
     .nm-link:hover{color: #0D29AC;}
     .nm-sep{opacity:.75;padding:0 10px;user-select:none;}
 
-    /* ✅ NEW: Notice Marquee GIF (prefix for every item + suffix for last) */
-    .nm-gif{
-      width: 18px;
-      height: 18px;
-      object-fit: contain;
-      display: inline-block;
-      vertical-align: middle;
-      transform: translateY(-1px);
-    }
-    .nm-gif-start{ margin: 0 8px 0 0; }
-    .nm-gif-end{ margin: 0 0 0 8px; }
+    /* ✅ UPDATED: Notice Marquee GIF (bigger + used as separator instead of dots; no double-logo at loop seam) */
+    .nm-gif {width: 45px;height: 30px;object-fit: contain;display: inline-block;vertical-align: middle;flex: 0 0 auto;filter: drop-shadow(0 1px 0 rgba(0,0,0,.08));}
 
     /* ===== three info boxes ===== */
     .info-boxes{ }
@@ -318,23 +164,15 @@
     .info-box a{ color:#fff; text-decoration:none; font-weight:800; }
     .info-box a:hover{ text-decoration:underline; }
 
-    /* ✅ FIXED: Smooth upward scroller styling - IMPROVED */
-    .info-box ul.autoscroll{
-      overflow: hidden;
-      scroll-behavior: auto;
-      position: relative;
-      height: 260px;
-    }
+    /* ✅ FIX (ONLY): keep the autoscrolling UL from moving into the <h5> area
+       - We clip the animated UL inside a viewport that sits *below* the heading. */
+    .info-box .info-ul-viewport{ position: relative; }
+    .info-box .info-ul-viewport.autoscroll-viewport{ height: 260px; overflow: hidden; }
+    .info-box ul.autoscroll{ overflow: visible; scroll-behavior: auto; position: relative; height: auto; }
 
     /* ✅ FIXED: Create smooth scrolling animation */
-    .info-box ul.scrolling-upwards {
-      animation: scrollUp 20s linear infinite;
-      animation-play-state: running;
-    }
-
-    .info-box ul.scrolling-upwards:hover {
-      animation-play-state: paused;
-    }
+    .info-box ul.scrolling-upwards {animation: scrollUp 20s linear infinite;animation-play-state: running;}
+    .info-box ul.scrolling-upwards:hover {animation-play-state: paused;}
 
     @keyframes scrollUp {
       0% { transform: translateY(0); }
@@ -356,21 +194,11 @@
     .nva-list a:hover{ color: var(--brand); text-decoration: underline; }
 
     /* ✅ FIXED: Auto-scroll list styling - IMPROVED */
-    .nva-list.autoscroll{
-      overflow: hidden;
-      height: 260px;
-      position: relative;
-    }
+    .nva-list.autoscroll{overflow: hidden;height: 260px;position: relative;}
 
     /* ✅ FIXED: Create smooth scrolling animation for NVA cards */
-    .nva-list.scrolling-upwards {
-      animation: scrollUpList 25s linear infinite;
-      animation-play-state: running;
-    }
-
-    .nva-list.scrolling-upwards:hover {
-      animation-play-state: paused;
-    }
+    .nva-list.scrolling-upwards {animation: scrollUpList 25s linear infinite;animation-play-state: running;}
+    .nva-list.scrolling-upwards:hover {animation-play-state: paused;}
 
     @keyframes scrollUpList {
       0% { transform: translateY(0); }
@@ -469,18 +297,7 @@
       .success-scroller-item{flex: 0 0 calc((100% - var(--success-gap-3)) / 4);max-width: calc((100% - var(--success-gap-3)) / 4);}
     }
 
-    .success-card{
-      display:block;
-      background: var(--surface);
-      border-radius: 16px;
-      padding: 20px;
-      height: 100%;
-      border: 1px solid var(--line);
-      box-shadow: none;
-      transition: transform .18s ease, border-color .18s ease;
-      text-decoration:none;
-      color: inherit;
-    }
+    .success-card{display:block;background: var(--surface);border-radius: 16px;padding: 20px;height: 100%;border: 1px solid var(--line);box-shadow: none;transition: transform .18s ease, border-color .18s ease;text-decoration:none;color: inherit;}
     .success-card:hover{ transform: translateY(-2px); border-color: rgba(158,54,58,.35); }
     .success-img{width: 100%;height: 200px;object-fit: cover;border-radius: 12px;margin-bottom: 16px;background:#eee;}
     .success-desc{font-size: 14px;color: var(--muted);margin-bottom: 12px;line-height: 1.5;font-family: inherit;background: transparent;padding: 0;border-radius: 0;white-space: normal;word-break: break-word;}
@@ -509,14 +326,7 @@
     .home-alert pre{margin: 8px 0 0;white-space: pre-wrap;background: rgba(255,255,255,.55);padding: 10px 12px;border-radius: 12px;font-size: 12.5px;line-height: 1.4;color: #7c2d12;}
 
     /* ✅ Recruiters wrapper like other sections */
-    .recruiters-wrap{
-      background: var(--surface);
-      border: 1px solid var(--line);
-      border-radius: var(--r-xl);
-      box-shadow: var(--shadow);
-      padding: 22px 18px;
-      overflow: hidden;
-    }
+    .recruiters-wrap{background: var(--surface);border: 1px solid var(--line);border-radius: var(--r-xl);box-shadow: var(--shadow);padding: 22px 18px;overflow: hidden;}
 
     @media (max-width: 768px){
       .hero-inner{ padding: 40px 24px; }
@@ -529,22 +339,13 @@
       .cta-btn{ font-size: 14px; padding: 10px 12px; }
       .loader-card{ padding: 16px; border-radius: 18px; }
 
-      .home-sections-container{
-        gap: 1.5rem;
-        margin-top: 1rem;
-      }
+      .home-sections-container{gap: 1.5rem;margin-top: 1rem;}
 
       /* ✅ MOBILE SPECIFIC: Show only 1 card for testimonials (Successful Entrepreneurs) */
-      #entrepreneursCarousel .carousel-item .row .col-lg-6 {
-        flex: 0 0 100%;
-        max-width: 100%;
-      }
+      #entrepreneursCarousel .carousel-item .row .col-lg-6 {flex: 0 0 100%;max-width: 100%;}
 
       /* ✅ MOBILE SPECIFIC: Show only 1 card for alumni videos */
-      #alumniCarousel .carousel-item .row .col-lg-4 {
-        flex: 0 0 100%;
-        max-width: 100%;
-      }
+      #alumniCarousel .carousel-item .row .col-lg-4 {flex: 0 0 100%;max-width: 100%;}
     }
   </style>
 </head>
@@ -591,7 +392,7 @@
 
       <div class="home-popup-body">
         {{-- Later: replace placeholder with your include --}}
-        @include('modules.contactUs.viewContactUs')
+        @include('modules.enquiry.createEnquiry')
       </div>
     </div>
   </div>
@@ -676,25 +477,31 @@
             <div class="col-lg-4 col-md-4">
               <div class="info-box">
                 <h5><i class="fa-solid fa-trophy"></i> Career At MSIT</h5>
-                <ul id="careerList">
-                  <li><i class="fa-solid fa-chevron-right"></i> <span>Loading…</span></li>
-                </ul>
+                <div class="info-ul-viewport">
+                  <ul id="careerList">
+                    <li><i class="fa-solid fa-chevron-right"></i> <span>Loading…</span></li>
+                  </ul>
+                </div>
               </div>
             </div>
             <div class="col-lg-4 col-md-4">
               <div class="info-box">
                 <h5><i class="fa-solid fa-star"></i> Why MSIT</h5>
-                <ul id="whyMsitList">
-                  <li><i class="fa-solid fa-check"></i> <span>Loading…</span></li>
-                </ul>
+                <div class="info-ul-viewport">
+                  <ul id="whyMsitList">
+                    <li><i class="fa-solid fa-check"></i> <span>Loading…</span></li>
+                  </ul>
+                </div>
               </div>
             </div>
             <div class="col-lg-4 col-md-4">
               <div class="info-box">
                 <h5><i class="fa-solid fa-award"></i> Scholarship</h5>
-                <ul id="scholarshipList">
-                  <li><i class="fa-solid fa-gift"></i> <span>Loading…</span></li>
-                </ul>
+                <div class="info-ul-viewport">
+                  <ul id="scholarshipList">
+                    <li><i class="fa-solid fa-gift"></i> <span>Loading…</span></li>
+                  </ul>
+                </div>
               </div>
             </div>
           </div>
@@ -747,25 +554,31 @@
             <div class="col-lg-4">
               <div class="info-box">
                 <h5><i class="fa-solid fa-trophy"></i> Achievements</h5>
-                <ul id="achievementList">
-                  <li><i class="fa-solid fa-medal"></i> <span>Loading…</span></li>
-                </ul>
+                <div class="info-ul-viewport">
+                  <ul id="achievementList">
+                    <li><i class="fa-solid fa-medal"></i> <span>Loading…</span></li>
+                  </ul>
+                </div>
               </div>
             </div>
             <div class="col-lg-4">
               <div class="info-box">
                 <h5><i class="fa-solid fa-users"></i> Students Activity</h5>
-                <ul id="activityList">
-                  <li><i class="fa-solid fa-calendar"></i> <span>Loading…</span></li>
-                </ul>
+                <div class="info-ul-viewport">
+                  <ul id="activityList">
+                    <li><i class="fa-solid fa-calendar"></i> <span>Loading…</span></li>
+                  </ul>
+                </div>
               </div>
             </div>
             <div class="col-lg-4">
               <div class="info-box">
                 <h5><i class="fa-solid fa-briefcase"></i> Placement Notice</h5>
-                <ul id="placementList2">
-                  <li><i class="fa-solid fa-building"></i> <span>Loading…</span></li>
-                </ul>
+                <div class="info-ul-viewport">
+                  <ul id="placementList2">
+                    <li><i class="fa-solid fa-building"></i> <span>Loading…</span></li>
+                  </ul>
+                </div>
               </div>
             </div>
           </div>
@@ -1088,31 +901,29 @@
       return { text:'', url:'' };
     }).filter(x => x.text);
 
-    const gifStart = NOTICE_MARQUEE_GIF_SRC
-      ? `<img class="nm-gif nm-gif-start" src="${esc(NOTICE_MARQUEE_GIF_SRC)}" alt="" aria-hidden="true">`
-      : '';
-
-    const gifEnd = NOTICE_MARQUEE_GIF_SRC
-      ? `<img class="nm-gif nm-gif-end" src="${esc(NOTICE_MARQUEE_GIF_SRC)}" alt="" aria-hidden="true">`
-      : '';
-
-    const html = items.length
-      ? items.map((x, i) => {
-          const t = esc(x.text);
-          const u = x.url ? safeHref(x.url) : '';
-          const node = u
-            ? `<a class="nm-link" href="${esc(u)}">${t}</a>`
-            : `<span class="nm-text">${t}</span>`;
-
-          // ✅ REQUIRED FORMAT:
-          // (gif) item1 .... (gif) item2 .... (gif)  -> last item gets suffix gif
-          const isLast = (i === items.length - 1);
-          const tail = isLast ? gifEnd : `<span class="nm-sep">•</span>`;
-          return `${gifStart}${node}${tail}`;
-        }).join('')
-      : `<span class="nm-text">No notices available.</span>`;
-
     const loop = parseInt(settings.loop ?? 1, 10) === 1;
+
+    const logo = NOTICE_MARQUEE_GIF_SRC
+      ? `<img class="nm-gif" src="${esc(NOTICE_MARQUEE_GIF_SRC)}" alt="" aria-hidden="true">`
+      : '';
+
+    const buildRunHtml = () => {
+      if(!items.length) return `<span class="nm-text">No notices available.</span>`;
+
+      const body = items.map((x) => {
+        const t = esc(x.text);
+        const u = x.url ? safeHref(x.url) : '';
+        const node = u
+          ? `<a class="nm-link" href="${esc(u)}">${t}</a>`
+          : `<span class="nm-text">${t}</span>`;
+        return `${logo}${node}`;
+      }).join('');
+
+      return loop ? body : (body + logo);
+    };
+
+    const html = buildRunHtml();
+
     track.innerHTML = `
       <div class="nm-run" data-run="1">${html}</div>
       ${loop ? `<div class="nm-run" data-run="2" aria-hidden="true">${html}</div>` : ``}
@@ -1245,15 +1056,20 @@
     const ul = document.getElementById(listId);
     if(!ul) return;
 
+    // ✅ FIX (ONLY): if this UL lives under an <h5>, clip it inside the viewport so it can't overlap the heading
+    const viewport = ul.closest('.info-ul-viewport');
+
     ul.classList.remove('scrolling-upwards');
 
     const lis = Array.from(ul.querySelectorAll('li'));
     if(lis.length <= 7) {
       ul.classList.remove('autoscroll');
+      if(viewport) viewport.classList.remove('autoscroll-viewport');
       return;
     }
 
     ul.classList.add('autoscroll');
+    if(viewport) viewport.classList.add('autoscroll-viewport');
 
     const children = Array.from(ul.children);
     children.forEach(ch => {

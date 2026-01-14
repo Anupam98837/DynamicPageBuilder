@@ -431,6 +431,18 @@
       if (courseId) qs.set('course_id', courseId);
       return `/api/course-semester-sections/current?${qs.toString()}`;
     },
+
+    // ✅ NEW: students filtered by academics (course/semester/section)
+    // GET /api/student-academic-details/by-academics?course_id=&semester_id=&section_id=
+    studentsByAcademics: ({ course_id='', semester_id='', section_id='' }={}) => {
+      const qs = new URLSearchParams();
+      if (course_id) qs.set('course_id', course_id);
+      if (semester_id) qs.set('semester_id', semester_id);
+      // ✅ If section not selected, don't pass section_id => backend returns all sections
+      if (section_id) qs.set('section_id', section_id);
+      qs.set('per_page', '500'); // safe large list for picker
+      return `/api/student-academic-details/by-academics?${qs.toString()}`;
+    },
   };
 
   function esc(str){
@@ -522,7 +534,8 @@
     canWrite: false,
 
     questions: [],
-    users: [],
+    users: [],           // for faculty selection
+    studentsAcad: [],    // ✅ students from academic filter API
 
     courses: [],
     semesters: [],
@@ -534,7 +547,7 @@
     selectedStudentIds: new Set(),
 
     // request-scoping tokens to avoid stale populate
-    req: { sem: 0, sub: 0, sec: 0 }
+    req: { sem: 0, sub: 0, sec: 0, stu: 0 }
   };
 
   function computePermissions(){
@@ -578,6 +591,7 @@
   }
 
   async function loadUsers(){
+    // used for faculty list
     const res = await fetchWithTimeout(API.users(), { headers: authHeaders(token()) }, 20000);
     const js = await res.json().catch(()=> ({}));
     if (!res.ok) throw new Error(js?.message || 'Failed to load users');
@@ -585,11 +599,70 @@
     state.users = arr.filter(u => String(u?.status || 'active').toLowerCase() !== 'inactive');
   }
 
+  async function loadStudentsByAcademics(){
+    const reqId = ++state.req.stu;
+
+    const courseId   = ($('course_id')?.value || '').trim();
+    const semesterId = ($('semester_id')?.value || '').trim();
+    const sectionId  = ($('section_id')?.value || '').trim(); // optional
+
+    // ✅ If course/semester not chosen, keep empty list (prevents "all students" load)
+    if (!courseId || !semesterId){
+      state.studentsAcad = [];
+      return;
+    }
+
+    const url = API.studentsByAcademics({ course_id: courseId, semester_id: semesterId, section_id: sectionId });
+
+    try{
+      const res = await fetchWithTimeout(url, { headers: authHeaders(token()) }, 25000);
+      const js = await res.json().catch(()=> ({}));
+      if (reqId !== state.req.stu) return;
+
+      if (!res.ok) {
+        // don't hard fail page; just keep empty
+        state.studentsAcad = [];
+        return;
+      }
+
+      const rows = normalizeList(js) || [];
+      // Expected row fields from backend:
+      // user_id, student_name, student_email, course_title, semester_title, section_title (+ sad.*)
+      const normalized = rows.map(r => {
+        const uid = idNum(r?.user_id ?? r?.id);
+        if (!uid) return null;
+
+        const name = String(r?.student_name || r?.name || r?.full_name || 'Student');
+        const email = String(r?.student_email || r?.email || '');
+        const course = String(r?.course_title || r?.course_name || '');
+        const sem = String(r?.semester_title || r?.semester_name || '');
+        const sec = String(r?.section_title || r?.section_name || '');
+
+        return {
+          id: uid,
+          student_name: name,
+          student_email: email,
+          course_title: course,
+          semester_title: sem,
+          section_title: sec,
+          _raw: r
+        };
+      }).filter(Boolean);
+
+      state.studentsAcad = uniqBy(normalized, x => x.id);
+    }catch(_){
+      if (reqId !== state.req.stu) return;
+      state.studentsAcad = [];
+    }
+  }
+
   function facultyUsers(){
     return (state.users || []).filter(u => String(u?.role || '').toLowerCase() === 'faculty');
   }
+
+  // ✅ students are now loaded from academics API
   function studentUsers(){
-    return (state.users || []).filter(u => String(u?.role || '').toLowerCase() === 'student');
+    return (state.studentsAcad || []).slice();
   }
 
   function qLabel(q){
@@ -602,6 +675,31 @@
 
   function userLabel(u){
     return String(u?.name || u?.full_name || 'User');
+  }
+
+  function studentLabel(s){
+    return String(s?.student_name || s?.name || 'Student');
+  }
+
+  function studentSubLine(s){
+    const email = String(s?.student_email || '');
+    const parts = [];
+
+    if (email) parts.push(email);
+
+    const course = String(s?.course_title || '').trim();
+    const sem    = String(s?.semester_title || '').trim();
+    const sec    = String(s?.section_title || '').trim();
+
+    // show only if exists
+    const acad = [];
+    if (course) acad.push(`Course: ${course}`);
+    if (sem) acad.push(`Sem: ${sem}`);
+    if (sec) acad.push(`Sec: ${sec}`);
+
+    if (acad.length) parts.push(acad.join(' • '));
+
+    return parts.join(' • ');
   }
 
   // =========================
@@ -843,6 +941,9 @@
     pickArray(d?.question_ids).forEach(x => { const n=idNum(x); if(n) state.selectedQuestionIds.add(n); });
     pickArray(d?.faculty_ids).forEach(x => { const n=idNum(x); if(n) state.selectedFacultyIds.add(n); });
     pickArray(d?.student_ids).forEach(x => { const n=idNum(x); if(n) state.selectedStudentIds.add(n); });
+
+    // ✅ after scope hydrated, load students list accordingly
+    await loadStudentsByAcademics();
   }
 
   // =========================
@@ -876,8 +977,8 @@
 
     const sChips = [];
     state.selectedStudentIds.forEach(uid => {
-      const u = state.users.find(x => String(x?.id) === String(uid));
-      sChips.push(chipHTML(u ? userLabel(u) : `Student #${uid}`, `s:${uid}`));
+      const s = state.studentsAcad.find(x => String(x?.id) === String(uid));
+      sChips.push(chipHTML(s ? studentLabel(s) : `Student #${uid}`, `s:${uid}`));
     });
     $('chipsStudents').innerHTML = sChips.length ? sChips.join('') : `<span class="text-muted small">None</span>`;
 
@@ -885,8 +986,12 @@
     $('fCount').textContent = state.selectedFacultyIds.size;
     $('sCount').textContent = state.selectedStudentIds.size;
 
+    const courseTxt = $('course_id')?.value ? `course=${$('course_id').value}` : 'course=—';
+    const semTxt    = $('semester_id')?.value ? `sem=${$('semester_id').value}` : 'sem=—';
+    const secTxt    = $('section_id')?.value ? `sec=${$('section_id').value}` : 'sec=ALL';
+
     $('summaryText').textContent =
-      `Selected: ${state.selectedQuestionIds.size} question(s), ${state.selectedFacultyIds.size} faculty, ${state.selectedStudentIds.size} student(s)`;
+      `Selected: ${state.selectedQuestionIds.size} question(s), ${state.selectedFacultyIds.size} faculty, ${state.selectedStudentIds.size} student(s) • Student filter: ${courseTxt}, ${semTxt}, ${secTxt}`;
   }
 
   // =========================
@@ -1011,14 +1116,29 @@
     }
 
     if (mode === 'students'){
-      title = 'Select Students';
-      items = studentUsers().map(u => ({
+      // ✅ Students now come from academics API only
+      const courseId   = ($('course_id')?.value || '').trim();
+      const semesterId = ($('semester_id')?.value || '').trim();
+      const sectionId  = ($('section_id')?.value || '').trim();
+
+      if (!courseId || !semesterId){
+        Swal.fire({
+          icon: 'info',
+          title: 'Select Course & Semester first',
+          text: 'Students are loaded based on academics (course + semester, and section if selected).',
+          confirmButtonText: 'OK'
+        });
+        return;
+      }
+
+      title = sectionId ? 'Select Students (Filtered by Course + Semester + Section)' : 'Select Students (Filtered by Course + Semester)';
+      items = studentUsers().map(s => ({
         _mode: 'students',
-        id: idNum(u?.id),
-        title: String(u?.name || u?.full_name || 'Student'),
-        sub: `${u?.email||'No email'} • ${u?.role||''}`,
-        avatar: initials(u?.name),
-        _search: `${u?.name||''} ${u?.email||''} ${u?.role||''}`.trim()
+        id: idNum(s?.id),
+        title: studentLabel(s),
+        sub: studentSubLine(s),
+        avatar: initials(studentLabel(s)),
+        _search: `${studentLabel(s)} ${studentSubLine(s)}`.trim()
       })).filter(x => x.id);
 
       pre = new Set(state.selectedStudentIds);
@@ -1190,7 +1310,17 @@
     // open pickers
     $('btnPickQuestions').addEventListener('click', () => openPicker('questions'));
     $('btnPickFaculty').addEventListener('click', () => openPicker('faculty'));
-    $('btnPickStudents').addEventListener('click', () => openPicker('students'));
+
+    // ✅ before opening students picker, ensure list is fresh for current scope
+    $('btnPickStudents').addEventListener('click', async () => {
+      showLoading(true);
+      try{
+        await loadStudentsByAcademics();
+      }finally{
+        showLoading(false);
+      }
+      openPicker('students');
+    });
 
     // dependency bindings
     $('course_id').addEventListener('change', async () => {
@@ -1200,6 +1330,10 @@
       $('section_id').value = '';
       await loadSemesters(courseId);
       await loadSections();
+
+      // ✅ students must follow course+semester (semester cleared => empty)
+      await loadStudentsByAcademics();
+      renderChips();
     });
 
     $('semester_id').addEventListener('change', async () => {
@@ -1208,11 +1342,25 @@
       $('section_id').value = '';
       await loadSubjects(semesterId);
       await loadSections();
+
+      // ✅ reload students by (course + semester)
+      await loadStudentsByAcademics();
+      renderChips();
     });
 
     $('subject_id').addEventListener('change', async () => {
       $('section_id').value = '';
       // no loadSections() here by design (your endpoint is course+semester based)
+
+      // ✅ subject doesn't affect students API; keep as-is but still refresh students list (optional safe)
+      await loadStudentsByAcademics();
+      renderChips();
+    });
+
+    $('section_id').addEventListener('change', async () => {
+      // ✅ section affects students API (if selected; else all sections)
+      await loadStudentsByAcademics();
+      renderChips();
     });
 
     // toolbar
@@ -1225,6 +1373,10 @@
         state.selectedQuestionIds = new Set();
         state.selectedFacultyIds  = new Set();
         state.selectedStudentIds  = new Set();
+
+        // ✅ keep scope dropdowns as currently selected, but refresh students list for them
+        await loadStudentsByAcademics();
+
         await loadPostIfEdit();
         renderChips();
         ok('Refreshed');
@@ -1242,8 +1394,11 @@
 
       await loadCourses();
       await Promise.all([loadQuestions(), loadUsers()]);
-      await loadPostIfEdit();
 
+      // ✅ initial students list depends on current dropdown selection (usually empty)
+      await loadStudentsByAcademics();
+
+      await loadPostIfEdit();
       renderChips();
     }catch(ex){
       err(ex?.message || 'Initialization failed');

@@ -451,6 +451,6 @@ Route::get('/sticky-buttons/manage', function () {
     return view('pages.users.pages.stickyButtons.manageStickyButtons');
 });
  
-Route::get('/sticky-buttons/view', function () {
-    return view('landing.components.stickyButtons');
+Route::get('/enquiry', function () {
+    return view('modules.enquiry.createEnquiry');
 });

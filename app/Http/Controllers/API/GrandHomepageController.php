@@ -710,11 +710,23 @@ private function fetchNoticeMarquee($now): ?array
         ];
     }
 
-    private function fetchSuccessStories($now, ?int $deptId, int $limit): array
+private function fetchSuccessStories($now, ?int $deptId, int $limit): array
 {
+    // pick a safe title column from departments
+    $deptTitleCol = $this->hasColumn('departments', 'title')
+        ? 'title'
+        : ($this->hasColumn('departments', 'name') ? 'name' : null);
+
     $base = DB::table('success_stories as s')
+        ->select('s.*') // IMPORTANT: avoid column collisions after join
         ->when($this->hasColumn('success_stories', 'deleted_at'), fn($q) => $q->whereNull('s.deleted_at'))
         ->where('s.status', 'published');
+
+    // ✅ join departments to get department title
+    if ($deptTitleCol) {
+        $base->leftJoin('departments as d', 'd.id', '=', 's.department_id')
+             ->addSelect(DB::raw("d.$deptTitleCol as department_title"));
+    }
 
     // publish window (guard columns)
     if ($this->hasColumn('success_stories', 'publish_at')) {
@@ -739,6 +751,8 @@ private function fetchNoticeMarquee($now): ?array
         return [
             'uuid' => $this->getVal($r, 'uuid'),
             'department_id' => $this->getVal($r, 'department_id'),
+            'department_title' => $this->getVal($r, 'department_title'), // ✅ added
+
             'slug' => $this->getVal($r, 'slug'),
             'name' => $this->getVal($r, 'name'),
             'title' => $this->getVal($r, 'title'),
@@ -748,6 +762,7 @@ private function fetchNoticeMarquee($now): ?array
             'year' => $this->getVal($r, 'year'),
             'photo_url' => $this->assetUrl($this->getVal($r, 'photo_url')),
             'social_links_json' => $this->json($this->getVal($r, 'social_links_json'), []),
+
             'is_featured_home' => (int) $this->getVal($r, 'is_featured_home', 0),
             'sort_order' => (int) $this->getVal($r, 'sort_order', 0),
             'publish_at' => $this->iso($this->getVal($r, 'publish_at')),
@@ -760,7 +775,6 @@ private function fetchNoticeMarquee($now): ?array
     };
 
     $fetch = function ($q) use ($limit, $map) {
-        // match your publicIndex ordering
         if ($this->hasColumn('success_stories', 'is_featured_home')) $q->orderBy('s.is_featured_home', 'desc');
         if ($this->hasColumn('success_stories', 'sort_order'))       $q->orderBy('s.sort_order', 'asc');
 
@@ -778,7 +792,6 @@ private function fetchNoticeMarquee($now): ?array
             ->all();
     };
 
-    // ✅ featured first, fallback to all
     if ($this->hasColumn('success_stories', 'is_featured_home')) {
         $rows = $fetch((clone $base)->where('s.is_featured_home', 1));
         if (!empty($rows)) return $rows;
@@ -786,6 +799,7 @@ private function fetchNoticeMarquee($now): ?array
 
     return $fetch($base);
 }
+
 
 
     /* =========================================================

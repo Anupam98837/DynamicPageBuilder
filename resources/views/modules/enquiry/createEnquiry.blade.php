@@ -24,6 +24,7 @@
    * Changes:
    * - home-popup-title: Contact Us -> Enquiry
    * - removed: cu-hero, cu-info-grid, cu-find
+   * - added: captcha before submit
    * ========================= */
 
   :root{
@@ -93,7 +94,59 @@
     accent-color: var(--contact-accent);
     flex:0 0 auto;
   }
-  .cu-check b{ font-weight:900; color:var(--contact-ink); }
+
+  /* ✅ Captcha */
+  .cu-captcha{
+    grid-column: 1 / -1;
+    margin-top: 2px;
+    padding-top: 10px;
+    border-top: 1px dashed rgba(15,23,42,.12);
+  }
+  .cu-captcha-row{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    flex-wrap:wrap;
+  }
+  .cu-canvas{
+    width:160px;
+    height:56px;
+    border:1px solid var(--contact-line);
+    border-radius:12px;
+    overflow:hidden;
+    background:#fff;
+    box-shadow: 0 10px 22px rgba(16,24,40,.06);
+  }
+  .cu-canvas canvas{
+    width:160px;
+    height:56px;
+    display:block;
+  }
+  .cu-cap-actions{
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .cu-cap-btn{
+    border:1px solid var(--contact-line);
+    background:#fff;
+    border-radius:12px;
+    padding:10px 12px;
+    font-weight:900;
+    color:var(--contact-ink);
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+  }
+  .cu-cap-btn:hover{
+    border-color: rgba(143,45,47,.35);
+    box-shadow: 0 0 0 3px rgba(143,45,47,.10);
+  }
+  .cu-cap-hint{
+    font-size:12.5px;
+    color:var(--contact-muted);
+  }
 
   .cu-actions{
     grid-column: 1 / -1;
@@ -115,7 +168,7 @@
   .cu-btn:hover{ background: var(--contact-accent-2); }
   .cu-note{ color:var(--contact-muted); font-size:13px; }
 
-  /* ✅ Disabled submit styling (still same button, but clearly disabled) */
+  /* ✅ Disabled submit styling */
   .cu-btn:disabled{
     opacity:.55;
     cursor:not-allowed;
@@ -140,7 +193,7 @@
       </div>
     </div>
 
-    <form id="contactForm" class="cu-form">
+    <form id="contactForm" class="cu-form" autocomplete="off">
       <div>
         <label for="first_name">First Name *</label>
         <input id="first_name" type="text" placeholder="Your first name" required>
@@ -179,6 +232,38 @@
         </label>
       </div>
 
+      {{-- ✅ Captcha (before submit) --}}
+      <div class="cu-captcha">
+        <label for="captcha_input">Captcha *</label>
+        <div class="cu-captcha-row">
+          <div class="cu-canvas" aria-hidden="true">
+            <canvas id="captchaCanvas" width="160" height="56"></canvas>
+          </div>
+
+          <div class="cu-cap-actions">
+            <button id="refreshCaptcha" class="cu-cap-btn" type="button">
+              <i class="fa-solid fa-rotate-right"></i> Refresh
+            </button>
+            {{-- ✅ CHANGE: hint clarifies uppercase requirement --}}
+            <div class="cu-cap-hint">Type the code shown in the box (CAPITAL letters only).</div>
+          </div>
+
+          <div style="flex:1 1 240px; min-width:220px;">
+            {{-- ✅ CHANGE: no auto-uppercasing; only enable submit when user typed ALL CAPS --}}
+            <input
+              id="captcha_input"
+              type="text"
+              inputmode="text"
+              placeholder="Enter captcha (CAPITAL)"
+              autocomplete="off"
+              autocapitalize="characters"
+              spellcheck="false"
+              required
+            >
+          </div>
+        </div>
+      </div>
+
       <div class="cu-actions">
         <button id="submitBtn" class="cu-btn" type="submit" disabled>
           <i class="fa-solid fa-paper-plane"></i> Send Message
@@ -208,22 +293,120 @@
     const termsEl     = document.getElementById('consent_terms');
     const promoEl     = document.getElementById('consent_promotions');
 
+    // ✅ Captcha
+    const capCanvas   = document.getElementById('captchaCanvas');
+    const capInputEl  = document.getElementById('captcha_input');
+    const capRefresh  = document.getElementById('refreshCaptcha');
+    const capCtx      = capCanvas.getContext('2d', { willReadFrequently: true });
+
+    let CAPTCHA_CODE = '';
+
     // ✅ texts must be posted as discussed
     const LEGAL_TEXT_1 = @json($legalText1);
     const LEGAL_TEXT_2 = @json($legalText2);
 
+    function rand(min, max){ return Math.floor(Math.random() * (max - min + 1)) + min; }
+
+    function genCode(len=6){
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // avoid confusing chars like 0/O/1/I
+      let out = '';
+      for(let i=0;i<len;i++) out += chars[rand(0, chars.length-1)];
+      return out;
+    }
+
+    function drawCaptcha(code){
+      // background
+      capCtx.clearRect(0,0,capCanvas.width,capCanvas.height);
+      capCtx.fillStyle = '#ffffff';
+      capCtx.fillRect(0,0,capCanvas.width,capCanvas.height);
+
+      // light noise lines
+      for(let i=0;i<6;i++){
+        capCtx.beginPath();
+        capCtx.moveTo(rand(0,160), rand(0,56));
+        capCtx.lineTo(rand(0,160), rand(0,56));
+        capCtx.strokeStyle = `rgba(143,45,47,${Math.random()*0.25 + 0.10})`;
+        capCtx.lineWidth = rand(1,2);
+        capCtx.stroke();
+      }
+
+      // dots
+      for(let i=0;i<35;i++){
+        capCtx.beginPath();
+        capCtx.arc(rand(0,160), rand(0,56), rand(1,2), 0, Math.PI*2);
+        capCtx.fillStyle = `rgba(16,24,40,${Math.random()*0.12 + 0.05})`;
+        capCtx.fill();
+      }
+
+      // text
+      capCtx.font = '900 28px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+      capCtx.textBaseline = 'middle';
+
+      const startX = 18;
+      const gap = 22;
+
+      for(let i=0;i<code.length;i++){
+        const ch = code[i];
+        const x = startX + (i * gap);
+        const y = 28;
+
+        capCtx.save();
+        capCtx.translate(x, y);
+        capCtx.rotate((Math.random() - 0.5) * 0.45);
+
+        capCtx.fillStyle = `rgba(18,33,43,${Math.random()*0.20 + 0.78})`;
+        capCtx.fillText(ch, 0, 0);
+
+        capCtx.restore();
+      }
+
+      // border stroke
+      capCtx.strokeStyle = 'rgba(231,234,238,1)';
+      capCtx.lineWidth = 2;
+      capCtx.strokeRect(1,1,capCanvas.width-2,capCanvas.height-2);
+    }
+
+    function refreshCaptcha(){
+      CAPTCHA_CODE = genCode(6);
+      drawCaptcha(CAPTCHA_CODE);
+      capInputEl.value = '';
+    }
+
+    // ✅ CHANGE (YOUR REQUEST):
+    // - lowercase should NOT work
+    // - enable submit ONLY if user typed ALL CAPS exactly
+    function captchaOk(){
+      const typedRaw = (capInputEl.value || '').trim();  // keep user's real case
+      if(!typedRaw) return false;
+
+      // If user used any small letters -> do NOT allow
+      if(typedRaw !== typedRaw.toUpperCase()) return false;
+
+      // Must match captcha exactly
+      return typedRaw === CAPTCHA_CODE;
+    }
+
     function canSubmit(){
       const okRequired = firstNameEl.value.trim() && emailEl.value.trim() && msgEl.value.trim();
       const okConsent  = termsEl.checked && promoEl.checked;
-      return !!(okRequired && okConsent);
+      const okCaptcha  = captchaOk();
+      return !!(okRequired && okConsent && okCaptcha);
     }
 
     function syncBtn(){
       btn.disabled = !canSubmit();
     }
 
+    // init captcha
+    refreshCaptcha();
+
+    capRefresh.addEventListener('click', function(){
+      refreshCaptcha();
+      syncBtn();
+    });
+
     // enable/disable submit live
-    [firstNameEl, emailEl, msgEl, termsEl, promoEl, lastNameEl, phoneEl].forEach(el => {
+    [firstNameEl, emailEl, msgEl, termsEl, promoEl, lastNameEl, phoneEl, capInputEl].forEach(el => {
       el.addEventListener('input', syncBtn);
       el.addEventListener('change', syncBtn);
     });
@@ -243,9 +426,17 @@
         return;
       }
 
-      // ✅ Hard requirement: both must be checked, otherwise blocked
+      // ✅ Hard requirement: both must be checked
       if(!(termsEl.checked && promoEl.checked)){
         Swal.fire('Error','Please accept the required agreements to continue.','error');
+        syncBtn();
+        return;
+      }
+
+      // ✅ Captcha check (case-sensitive + ALL CAPS required)
+      if(!captchaOk()){
+        Swal.fire('Error','Captcha does not match. Use CAPITAL letters only.','error');
+        refreshCaptcha();
         syncBtn();
         return;
       }
@@ -284,10 +475,11 @@
           Swal.fire('Success','Message sent successfully','success');
           form.reset();
 
-          // ✅ FIX: force-disable immediately after reset
+          // ✅ Refresh captcha + force-disable after reset
+          refreshCaptcha();
           btn.disabled = true;
 
-          syncBtn(); // keeps it disabled until required fields + both consents are checked again
+          syncBtn();
         }else{
           let msg = data.message || 'Validation failed';
 
@@ -301,15 +493,16 @@
 
           Swal.fire('Error', msg, 'error');
           console.error(data);
+          refreshCaptcha();
           syncBtn();
         }
       }catch(err){
         console.error(err);
         Swal.fire('Error','Something went wrong. Please try again.','error');
+        refreshCaptcha();
         syncBtn();
       }finally{
         btn.style.opacity = '1';
-        // do not force enable; keep it tied to consent + required fields
         syncBtn();
       }
     });
