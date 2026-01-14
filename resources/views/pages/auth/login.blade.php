@@ -4,22 +4,22 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Login — Hallienz Home Builder</title>
-
+  <title>Login — {{ config('app.name', 'Hallienz Home Builder') }}</title>
+ 
   <meta name="csrf-token" content="{{ csrf_token() }}"/>
-
+ 
   <!-- Vendors -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet"/>
-
+ 
   <!-- Global tokens / design system -->
   <link rel="stylesheet" href="{{ asset('/assets/css/common/main.css') }}"/>
-
+ 
   <style>
     /* =========================
        Namespaced Login (lx-*)
        ========================= */
-
+ 
     html, body { height:100%; }
     body.lx-auth-body{
       height:100%;
@@ -28,14 +28,14 @@
       color:var(--text-color);
       font-family:var(--font-sans);
     }
-
+ 
     .lx-grid{
       height:100vh;
       display:grid;
       grid-template-columns: minmax(420px,560px) 1fr;
     }
     @media (max-width: 992px){ .lx-grid{ grid-template-columns: 1fr; } }
-
+ 
     /* LEFT: form column */
     .lx-left{
       height:100vh;
@@ -60,10 +60,10 @@
       animation: lx-floatB 11s ease-in-out infinite;
     }
     @media (max-width: 992px){ .lx-left::before, .lx-left::after{ display:block; } }
-
+ 
     .lx-brand{ display:grid; place-items:center; margin-bottom:18px; position:relative; z-index:1; }
     .lx-brand img{ height:60px; }
-
+ 
     .lx-title{
       font-family:var(--font-head); font-weight:700; color:var(--ink);
       text-align:center; font-size:clamp(1.6rem, 2.6vw, 2.2rem); margin:.35rem 0 .25rem;
@@ -77,7 +77,7 @@
       z-index:1;
       max-width: 420px;
     }
-
+ 
     .lx-card{
       position:relative; z-index:1;
       background:var(--surface); border:1px solid var(--line-strong);
@@ -107,7 +107,7 @@
       backdrop-filter: blur(4px);
       animation: lx-chip 7s ease-in-out infinite;
     }
-
+ 
     .lx-label{ font-weight:600; color:var(--ink); }
     .lx-input-wrap{ position:relative; }
     .lx-control{ height:46px; border-radius:12px; padding-right:48px; }
@@ -118,7 +118,7 @@
       display:grid; place-items:center; cursor:pointer; border-radius:8px;
     }
     .lx-eye:focus-visible{ outline:none; box-shadow: var(--ring); }
-
+ 
     .lx-row{ display:flex; justify-content:space-between; align-items:center; gap:12px; }
     .lx-login{
       width:100%; height:48px; border:none; border-radius:12px; font-weight:700; color:#fff;
@@ -130,7 +130,7 @@
       transition:var(--transition);
     }
     .lx-login:hover{ filter:brightness(.98); transform:translateY(-1px); }
-
+ 
     /* RIGHT visuals (hidden on mobile) */
     .lx-right{
       position:relative; height:100vh; display:grid; place-items:center;
@@ -141,7 +141,7 @@
       isolation:isolate; overflow:hidden;
     }
     @media (max-width: 992px){ .lx-right{ display:none; } }
-
+ 
     .lx-arc{
       position:absolute; inset: -18% -10% auto auto;
       width:120%; height:140%;
@@ -187,9 +187,9 @@
         radial-gradient(#ffffff 1px, transparent 2px) 11px 11px/22px 22px;
       mix-blend-mode: overlay; animation: lx-twinkle 12s linear infinite;
     }
-
+ 
     .lx-obj{ position:absolute; z-index:3; opacity:.9; filter: drop-shadow(0 8px 18px rgba(0,0,0,.28)); user-select:none; pointer-events:none; }
-
+ 
     .lx-books{
       top: clamp(18px, 3vw, 36px);
       left: clamp(12px, 2vw, 28px);
@@ -210,7 +210,7 @@
       background:linear-gradient(90deg, #f97316, #facc15);
       transform:rotate(-2deg) translateX(14px);
     }
-
+ 
     .lx-cup{
       right: clamp(16px, 3vw, 36px);
       bottom: clamp(18px, 3vw, 36px);
@@ -244,7 +244,7 @@
       background:linear-gradient(180deg, var(--accent-color), var(--primary-color));
       animation-delay:1.8s;
     }
-
+ 
     /* Animations */
     @keyframes lx-pop{ from{opacity:0; transform:translateY(10px) scale(.98);} to{opacity:1; transform:none;} }
     @keyframes lx-zoom{ from{transform:scale(1);} to{transform:scale(1.06);} }
@@ -260,29 +260,29 @@
   </style>
 </head>
 <body class="lx-auth-body">
-
+ 
 <div class="lx-grid">
   <!-- LEFT: LOGIN FORM -->
   <section class="lx-left">
     <div class="lx-brand">
-      <img src="{{ asset('/assets/media/images/web/logo.png') }}" alt="Hallienz Home Builder">
+      <img src="{{ asset('/assets/media/images/web/logo.png') }}" alt="{{ config('app.name', 'Hallienz Home Builder') }}">
     </div>
-
-    <h1 class="lx-title">Sign in to Hallienz Home Builder</h1>
+ 
+    <h1 class="lx-title">Sign in to {{ config('app.name', 'Hallienz Home Builder') }}</h1>
     <p class="lx-sub">
       Use your institute credentials to manage departments, faculty profiles, notices, and more —
       all from a single dashboard.
     </p>
-
+ 
     <form class="lx-card" id="lx_form" action="/login" method="post" novalidate>
       <span class="lx-float-chip">
         <i class="fa-solid fa-shield-halved me-1"></i> Secure token-based access
       </span>
       @csrf
-
+ 
       <!-- Alerts -->
       <div id="lx_alert" class="alert d-none mb-3" role="alert"></div>
-
+ 
       <!-- Email (Hallienz typically uses email login) -->
       <div class="mb-3">
         <label class="lx-label form-label" for="lx_id_or_email">Institute Email</label>
@@ -291,7 +291,7 @@
                  placeholder="you@Hallienz.edu.in" required>
         </div>
       </div>
-
+ 
       <!-- Password with eye toggle -->
       <div class="mb-2">
         <label class="lx-label form-label" for="lx_pw">Password</label>
@@ -303,7 +303,7 @@
           </button>
         </div>
       </div>
-
+ 
       <div class="lx-row mb-3">
         <div class="form-check m-0">
           <input class="form-check-input" type="checkbox" id="lx_keep">
@@ -311,24 +311,24 @@
         </div>
         <a class="text-decoration-none" href="/forgot-password">Forgot password?</a>
       </div>
-
+ 
       <button class="lx-login" id="lx_btn" type="submit">
         <span class="me-2"><i class="fa-solid fa-right-to-bracket"></i></span> Login
       </button>
     </form>
   </section>
-
+ 
   <!-- RIGHT: VISUAL (hidden on mobile) -->
   <aside class="lx-right" id="lx_visual" aria-hidden="true">
     <span class="lx-arc"></span>
     <span class="lx-ring"></span>
-
+ 
     <div class="lx-obj lx-books">
       <div class="lx-book"></div>
       <div class="lx-book"></div>
       <div class="lx-book"></div>
     </div>
-
+ 
     <div class="lx-obj lx-cup">
       <div class="lx-cup-body"></div>
       <div class="lx-pencil" style="left:8px;"></div>
@@ -336,13 +336,13 @@
       <div class="lx-pencil"></div>
       <div class="lx-pencil"></div>
     </div>
-
+ 
     <div class="lx-hero" id="lx_hero">
       <div class="lx-hero-frame">
         <div class="lx-hero-img">
           {{-- Better academic image (library / study hall) --}}
           <img
-            src="https://images.unsplash.com/photo-1588072432836-e10032774350?q=80&w=1600&auto=format&fit=crop"
+            src="https://images.unsplash.com/photo-1588072432836-e10032774350?q=80&w=1600&auto=format&fit=crop%22
             alt="Students studying together in a university library">
           <div class="lx-particles"></div>
         </div>
@@ -350,15 +350,15 @@
     </div>
   </aside>
 </div>
-
+ 
 <script>
   (function(){
     // ---- CONFIG (uses Hallienz Home Builder API contracts) ----
     const LOGIN_API = "/api/auth/login";
     const CHECK_API = "/api/auth/check";
-
+ 
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-
+ 
     // ---- DOM ----
     const form    = document.getElementById('lx_form');
     const emailIn = document.getElementById('lx_id_or_email');
@@ -367,7 +367,7 @@
     const btn     = document.getElementById('lx_btn');
     const alertEl = document.getElementById('lx_alert');
     const toggle  = document.getElementById('lx_togglePw');
-
+ 
     // ---- UI helpers ----
     function setBusy(b){
       btn.disabled = b;
@@ -384,7 +384,7 @@
       alertEl.classList.add('d-none');
       alertEl.textContent = '';
     }
-
+ 
     // ---- Storage helpers (keys EXACTLY "token" and "role") ----
     const authStore = {
       set(token, role, keep){
@@ -413,22 +413,22 @@
         return { token: localStorage.getItem('token'), role: localStorage.getItem('role') };
       }
     };
-
+ 
     // ---- Build role dashboard path (adjust routes here if needed) ----
     function rolePath(role){
       const r = (role || '').toString().trim().toLowerCase();
       if (!r) return '/dashboard';
-
+ 
       // If later you create role-specific dashboards, you can switch here.
       // Example:
       // if (r === 'director' || r === 'principal' || r === 'it_person') return '/admin/dashboard';
       // if (r === 'hod') return '/hod/dashboard';
       // if (r === 'faculty') return '/faculty/dashboard';
       // if (r === 'student') return '/student/dashboard';
-
+ 
       return '/dashboard';
     }
-
+ 
     // ---- Password eye toggle ----
     toggle?.addEventListener('click', () => {
       const show = pwIn.type === 'password';
@@ -437,12 +437,12 @@
         ? '<i class="fa-regular fa-eye" aria-hidden="true"></i>'
         : '<i class="fa-regular fa-eye-slash" aria-hidden="true"></i>';
     });
-
+ 
     // ---- Auto-redirect if token already present in local (Keep me logged in) ----
     async function tryAutoLoginFromLocal(){
       const { token, role } = authStore.getLocal();
       if(!token) return;
-
+ 
       try{
         const res = await fetch(CHECK_API, {
           headers: { 'Authorization': 'Bearer ' + token }
@@ -460,25 +460,25 @@
         // network issue: ignore, stay on login
       }
     }
-
+ 
     document.addEventListener('DOMContentLoaded', () => {
       tryAutoLoginFromLocal();
     });
-
+ 
     // ---- Intercept submit -> call /api/auth/login ----
     form?.addEventListener('submit', async (e) => {
       e.preventDefault();
       clearAlert();
-
+ 
       const identifier = (emailIn.value || '').trim();
       const password   = pwIn.value || '';
       const keep       = !!keepCb.checked;
-
+ 
       if(!identifier || !password){
         showAlert('error','Please enter both email and password.');
         return;
       }
-
+ 
       setBusy(true);
       try{
         const res = await fetch(LOGIN_API, {
@@ -490,9 +490,9 @@
           // Backend expects: { email, password }
           body: JSON.stringify({ email: identifier, password, remember: keep })
         });
-
+ 
         const data = await res.json().catch(() => ({}));
-
+ 
         if(!res.ok){
           const msg = data?.message || data?.error ||
                       (data?.errors ? Object.values(data.errors).flat().join(', ') : 'Unable to log in.');
@@ -500,32 +500,32 @@
           setBusy(false);
           return;
         }
-
+ 
         // Expected from your UserController: { success, token, token_type, user:{ role, ... } }
         const token = data?.access_token || data?.token || '';
         const role  = (data?.user?.role || localStorage.getItem('role') || 'student').toLowerCase();
-
+ 
         if(!token){
           showAlert('error', 'No token received from server.');
           setBusy(false);
           return;
         }
-
+ 
         // Save token+role
         authStore.set(token, role, keep);
-
+ 
         showAlert('success', 'Login successful. Redirecting…');
         setTimeout(() => {
           window.location.assign(rolePath(role));
         }, 500);
-
+ 
       } catch(err){
         showAlert('error','Network error. Please try again.');
       } finally {
         setBusy(false);
       }
     });
-
+ 
     // ---- Parallax (desktop only) ----
     (function(){
       const stage  = document.getElementById('lx_visual');
@@ -533,14 +533,14 @@
       const frame  = document.querySelector('.lx-hero-frame');
       const img    = document.querySelector('.lx-hero-img img');
       if (!stage || !frame || !img || !hero) return;
-
+ 
       const mq = window.matchMedia('(max-width: 992px)');
       let targetTX = 0, targetTY = 0, targetRX = 0, targetRY = 0;
       let currTX = 0, currTY = 0, currRX = 0, currRY = 0;
       let rafId = null;
-
+ 
       const MAX_T = 18, MAX_RX = 6, MAX_RY = 8, LERP = 0.12;
-
+ 
       function onMove(e){
         const rect = stage.getBoundingClientRect();
         const cx = rect.left + rect.width/2;
@@ -549,12 +549,12 @@
         const dy = (e.clientY - cy) / (rect.height/2);
         const ndx = Math.max(-1, Math.min(1, dx));
         const ndy = Math.max(-1, Math.min(1, dy));
-
+ 
         targetTX = ndx * MAX_T;
         targetTY = ndy * MAX_T;
         targetRY = ndx * MAX_RY;
         targetRX = -ndy * MAX_RX;
-
+ 
         if (!hero.classList.contains('is-tracking')){
           hero.classList.add('is-tracking');
           tick();
@@ -566,22 +566,22 @@
         currTY += (targetTY - currTY) * LERP;
         currRX += (targetRX - currRX) * LERP;
         currRY += (targetRY - currRY) * LERP;
-
+ 
         frame.style.transform =
           `translate3d(${currTX.toFixed(2)}px, ${currTY.toFixed(2)}px, 0)
            rotateX(${currRX.toFixed(2)}deg)
            rotateY(${currRY.toFixed(2)}deg)`;
-
+ 
         const ix = (-currTX * 0.6).toFixed(2);
         const iy = (-currTY * 0.6).toFixed(2);
         img.style.transform = `translate3d(${ix}px, ${iy}px, 0) scale(1.05)`;
-
+ 
         const nearZero =
           Math.abs(currTX) < 0.15 && Math.abs(currTY) < 0.15 &&
           Math.abs(currRX) < 0.08 && Math.abs(currRY) < 0.08 &&
           Math.abs(targetTX) < 0.15 && Math.abs(targetTY) < 0.15 &&
           Math.abs(targetRX) < 0.08 && Math.abs(targetRY) < 0.08;
-
+ 
         if (!nearZero){
           rafId = requestAnimationFrame(tick);
         } else {
@@ -594,7 +594,7 @@
       }
       function attach(){ if (mq.matches) return; stage.addEventListener('mousemove', onMove); stage.addEventListener('mouseleave', onLeave); }
       function detach(){ stage.removeEventListener('mousemove', onMove); stage.removeEventListener('mouseleave', onLeave); onLeave(); }
-
+ 
       attach();
       mq.addEventListener('change', () => { detach(); attach(); });
       window.addEventListener('blur', onLeave);
@@ -603,3 +603,4 @@
 </script>
 </body>
 </html>
+ 

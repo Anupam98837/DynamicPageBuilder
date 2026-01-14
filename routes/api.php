@@ -62,6 +62,7 @@ use App\Http\Controllers\API\TopHeaderMenuController;
 use App\Http\Controllers\API\StudentAcademicDetailsController;
 use App\Http\Controllers\API\DashboardController;
 use App\Http\Controllers\API\FacultyPreviewOrderController;
+use App\Http\Controllers\API\StickyButtonController;
 
 /*
 |--------------------------------------------------------------------------
@@ -1999,4 +2000,56 @@ Route::middleware(['checkRole:admin,director,principal,hod'])
 Route::prefix('public')->group(function () {
     Route::get('/faculty-preview-order', [FacultyPreviewOrderController::class, 'publicIndex']);
     Route::get('/faculty-preview-order/{department}', [FacultyPreviewOrderController::class, 'publicShow']);
+});
+
+
+/*
+|--------------------------------------------------------------------------
+| Sticky Buttons (Admin + Public)
+|--------------------------------------------------------------------------
+| Table: sticky_buttons
+| - buttons_json: JSON array storing selected contact_info snapshot
+| - Admin can CRUD + upsert-current
+| - Public can read active (current + list + show)
+*/
+
+Route::middleware(['checkRole:admin,director,principal,hod'])
+    ->prefix('sticky-buttons')
+    ->group(function () {
+
+        // static first
+        Route::get('/current', [StickyButtonController::class, 'current']);
+        Route::get('/trash',   [StickyButtonController::class, 'trash']);
+        Route::post('/upsert-current', [StickyButtonController::class, 'upsertCurrent']);
+
+        // list + CRUD
+        Route::get('/',  [StickyButtonController::class, 'index']);
+
+        Route::get('/{identifier}', [StickyButtonController::class, 'show'])
+            ->where('identifier', '[0-9]+|[0-9a-fA-F\-]{36}');
+
+        Route::post('/', [StickyButtonController::class, 'store']);
+
+        Route::match(['put','patch'], '/{identifier}', [StickyButtonController::class, 'update'])
+            ->where('identifier', '[0-9]+|[0-9a-fA-F\-]{36}');
+
+        Route::post('/{identifier}/toggle-status', [StickyButtonController::class, 'toggleStatus'])
+            ->where('identifier', '[0-9]+|[0-9a-fA-F\-]{36}');
+
+        Route::delete('/{identifier}', [StickyButtonController::class, 'destroy'])
+            ->where('identifier', '[0-9]+|[0-9a-fA-F\-]{36}');
+
+        Route::post('/{identifier}/restore', [StickyButtonController::class, 'restore'])
+            ->where('identifier', '[0-9]+|[0-9a-fA-F\-]{36}');
+
+        Route::delete('/{identifier}/force', [StickyButtonController::class, 'forceDelete'])
+            ->where('identifier', '[0-9]+|[0-9a-fA-F\-]{36}');
+    });
+
+/* ===== Public (no auth) ===== */
+Route::prefix('public')->group(function () {
+    Route::get('/sticky-buttons',          [StickyButtonController::class, 'publicIndex']);
+    Route::get('/sticky-buttons/current',  [StickyButtonController::class, 'publicCurrent']);
+    Route::get('/sticky-buttons/{identifier}', [StickyButtonController::class, 'publicShow'])
+        ->where('identifier', '[0-9]+|[0-9a-fA-F\-]{36}');
 });

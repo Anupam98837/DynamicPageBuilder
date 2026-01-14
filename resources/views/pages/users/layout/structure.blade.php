@@ -264,9 +264,6 @@
           </a>
           <div id="sm-departments" class="w3-submenu" role="group" aria-label="Departments submenu">
             <a href="/department/manage" class="w3-link">Manage Departments</a>
-            <a href="/department/curriculum-syllabus" class="w3-link">Curriculum & Syllabus</a>
-            <a href="/department/gallery" class="w3-link">Gallery</a>
-          </div>
         </div>
 
         <!-- Courses -->
@@ -282,6 +279,16 @@
             <a href="/course/subject/manage" class="w3-link">Manage Subject</a>
           </div>
         </div>
+
+        <!-- Curriculum & Syllabus -->
+<a href="/department/curriculum-syllabus" class="w3-link">
+  <i class="fa-solid fa-book-open"></i><span>Curriculum & Syllabus</span>
+</a>
+
+<!-- Gallery -->
+<a href="/department/gallery" class="w3-link">
+  <i class="fa-solid fa-images"></i><span>Gallery</span>
+</a>
 
         {{-- =======================
            SITE SETTINGS & CONTENT (site related changes)
@@ -345,7 +352,7 @@
             <a href="/contact-info/manage" class="w3-link">Manage Contact Info</a>
             <!-- <a href="/contact/forms/manage" class="w3-link">Contact Forms</a>
             <a href="/contact/locations/manage" class="w3-link">Office Locations</a> -->
-            <a href="/contact-us/manage" class="w3-link">Manage Contacts</a>
+            <a href="/contact-us/manage" class="w3-link">Manage Enquiries</a>
             <a href="/contact-us-visibility/manage" class="w3-link">Contact Visibility</a>
           </div>
         </div>
@@ -382,6 +389,11 @@
   <i class="fa-solid fa-users-gear"></i><span>Faculty Preview Order</span>
 </a>
 
+<!-- Sticky Buttons -->
+<a href="/sticky-buttons/manage" class="w3-link">
+  <i class="fa-solid fa-thumbtack"></i><span>Sticky Buttons</span>
+</a>
+
         {{-- =======================
            PLACEMENT & OUTCOMES
         ======================== --}}
@@ -414,7 +426,6 @@
           <div id="sm-placement" class="w3-submenu" role="group" aria-label="Placement submenu">
             <a href="/department/placement-notices" class="w3-link">Placement Notices</a>
             <a href="/department/placed-students" class="w3-link">Placed Students</a>
-            <a href="/department/successful-entrepreneurs" class="w3-link">Successful Entrepreneurs</a>
           </div>
         </div>
 
@@ -422,6 +433,11 @@
         <a href="/alumni-speak/manage" class="w3-link">
           <i class="fa-solid fa-microphone"></i><span>Alumni Speak</span>
         </a>
+
+        <!-- Successful Entrepreneurs -->
+<a href="/department/successful-entrepreneurs" class="w3-link">
+  <i class="fa-solid fa-lightbulb"></i><span>Successful Entrepreneurs</span>
+</a>
 
         {{-- =======================
            COMMUNICATIONS (notices/announcements/etc + feedback)

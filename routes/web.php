@@ -446,3 +446,11 @@ Route::get('/faculty/manage', function () {
 Route::get('/faculty-preview-order', function () {
     return view('pages.users.pages.faculty.facultyPreviewOrder');
 });
+ 
+Route::get('/sticky-buttons/manage', function () {
+    return view('pages.users.pages.stickyButtons.manageStickyButtons');
+});
+ 
+Route::get('/sticky-buttons/view', function () {
+    return view('landing.components.stickyButtons');
+});

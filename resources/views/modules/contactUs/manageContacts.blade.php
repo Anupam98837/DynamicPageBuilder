@@ -1,4 +1,3 @@
-
 @push('styles')
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
 
@@ -24,6 +23,7 @@
 .tiny-sort{font-size:14px;margin-left:6px;opacity:.6}
 </style>
 @endpush
+
 @section('content')
 <div class="sm-wrap py-4" id="enquiryAdmin">
 
@@ -56,16 +56,19 @@
         <option>100</option>
       </select>
 
-      <select id="sortSelect" class="form-select" style="width:180px;">
+      {{-- ✅ UPDATED: name sort -> first/last sort --}}
+      <select id="sortSelect" class="form-select" style="width:220px;">
         <option value="created_desc" selected>Newest first</option>
         <option value="created_asc">Oldest first</option>
-        <option value="name_asc">Name A → Z</option>
-        <option value="name_desc">Name Z → A</option>
+        <option value="first_name_asc">First Name A → Z</option>
+        <option value="first_name_desc">First Name Z → A</option>
+        <option value="last_name_asc">Last Name A → Z</option>
+        <option value="last_name_desc">Last Name Z → A</option>
       </select>
 
       <div class="position-relative" style="min-width:260px;">
         <input id="searchBox" class="form-control ps-5"
-               placeholder="Search name, email, phone…">
+               placeholder="Search first/last name, email, phone…">
         <i class="fa fa-search position-absolute"
            style="left:12px;top:50%;transform:translateY(-50%);opacity:.6;"></i>
       </div>
@@ -82,17 +85,19 @@
       <table class="table table-hover align-middle mb-0">
         <thead>
           <tr>
-            <th>Name</th>
+            {{-- ✅ UPDATED: split name columns --}}
+            <th>First Name</th>
+            <th>Last Name</th>
             <th>Email</th>
             <th>Phone</th>
             <th>Message</th>
             <th>Received</th>
-    <th>Read</th>
+            <th>Read</th>
           </tr>
         </thead>
         <tbody id="tbody">
           <tr>
-            <td colspan="6" class="text-center py-5 text-muted">
+            <td colspan="7" class="text-center py-5 text-muted">
               <div class="spinner-border spinner-border-sm me-2"></div>
               Loading enquiries…
             </td>
@@ -107,6 +112,7 @@
     </div>
   </div>
 </div>
+
 <!-- Message View Modal -->
 <div class="modal fade" id="msgModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -124,6 +130,7 @@
 </div>
 
 @endsection
+
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', () => {
@@ -148,7 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function load(){
     tbody.innerHTML = `
       <tr>
-        <td colspan="6" class="text-center py-5 text-muted">
+        <td colspan="7" class="text-center py-5 text-muted">
           <div class="spinner-border spinner-border-sm me-2"></div> Loading…
         </td>
       </tr>`;
@@ -172,7 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!rows.length) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="6" class="text-center py-5 text-muted">
+          <td colspan="7" class="text-center py-5 text-muted">
             <i class="fa fa-inbox fa-2x mb-2"></i><br>No enquiries found
           </td>
         </tr>`;
@@ -181,37 +188,45 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    tbody.innerHTML = rows.map(r => `
-      <tr ${r.is_read == 0 ? 'class="fw-semibold"' : ''}>
-        <td>${esc(r.name)}</td>
-        <td><a href="mailto:${esc(r.email)}">${esc(r.email)}</a></td>
-        <td>${esc(r.phone || '—')}</td>
+    tbody.innerHTML = rows.map(r => {
+      const fn = (r.first_name || '').trim();
+      const ln = (r.last_name || '').trim();
+      const isUnread = (r.is_read == 0);
 
-        <td>
-          <div class="d-flex align-items-center gap-2">
-            <span title="${esc(r.message)}">
-              ${esc(r.message).slice(0,40)}${r.message.length > 40 ? '…' : ''}
-            </span>
-            <button class="btn-icon btn-sm" onclick="viewMsg(${r.id})">
-              <i class="fa fa-eye"></i>
-            </button>
-          </div>
-        </td>
+      return `
+        <tr ${isUnread ? 'class="fw-semibold"' : ''}>
+          <td>${esc(fn || '—')}</td>
+          <td>${esc(ln || '—')}</td>
 
-        <td>${new Date(r.created_at).toLocaleString()}</td>
+          <td><a href="mailto:${esc(r.email)}">${esc(r.email)}</a></td>
+          <td>${esc(r.phone || '—')}</td>
 
-        <td>
-          ${
-            r.is_read == 1
-              ? `<span class="badge bg-success">Read</span>`
-              : `<button class="btn btn-sm btn-outline-primary"
-                         onclick="markRead(${r.id})">
-                    Mark as read
-                 </button>`
-          }
-        </td>
-      </tr>
-    `).join('');
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              <span title="${esc(r.message)}">
+                ${esc(r.message).slice(0,40)}${r.message.length > 40 ? '…' : ''}
+              </span>
+              <button class="btn-icon btn-sm" onclick="viewMsg(${r.id})">
+                <i class="fa fa-eye"></i>
+              </button>
+            </div>
+          </td>
+
+          <td>${new Date(r.created_at).toLocaleString()}</td>
+
+          <td>
+            ${
+              r.is_read == 1
+                ? `<span class="badge bg-success">Read</span>`
+                : `<button class="btn btn-sm btn-outline-primary"
+                           onclick="markRead(${r.id})">
+                      Mark as read
+                   </button>`
+            }
+          </td>
+        </tr>
+      `;
+    }).join('');
 
     buildPager(meta);
   }
@@ -248,7 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const r = await fetch(`${API}/${id}`);
     const j = await r.json();
 
-    modalBody.textContent = j.message.message;
+    modalBody.textContent = (j && j.message && j.message.message) ? j.message.message : '';
     modal.show();
     load(); // refresh read state
   };
@@ -272,12 +287,19 @@ document.addEventListener('DOMContentLoaded', () => {
     load();
   });
 
+  // ✅ UPDATED sort mapping (name -> first_name/last_name)
   document.getElementById('sortSelect').addEventListener('change', e=>{
     const v = e.target.value;
+
     if (v === 'created_desc'){ sortBy='created_at'; sortDir='desc'; }
     if (v === 'created_asc'){ sortBy='created_at'; sortDir='asc'; }
-    if (v === 'name_asc'){ sortBy='name'; sortDir='asc'; }
-    if (v === 'name_desc'){ sortBy='name'; sortDir='desc'; }
+
+    if (v === 'first_name_asc'){ sortBy='first_name'; sortDir='asc'; }
+    if (v === 'first_name_desc'){ sortBy='first_name'; sortDir='desc'; }
+
+    if (v === 'last_name_asc'){ sortBy='last_name'; sortDir='asc'; }
+    if (v === 'last_name_desc'){ sortBy='last_name'; sortDir='desc'; }
+
     page = 1;
     load();
   });

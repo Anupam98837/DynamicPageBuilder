@@ -541,16 +541,16 @@
             <div class="thm-err" data-for="slug"></div>
           </div>
 
-          {{-- ✅ Department (FK) --}}
+          {{-- ✅ Department (FK) (NOW OPTIONAL) --}}
           <div class="col-12">
-            <label class="form-label">Department <span class="text-danger">*</span></label>
+            <label class="form-label">Department <span class="thm-pill ms-1">optional</span></label>
             <div class="input-group">
               <span class="input-group-text"><i class="fa-solid fa-building-columns"></i></span>
               <select class="form-select js-department">
-                <option value="" selected disabled>Loading departments…</option>
+                <option value="" selected>Loading departments…</option>
               </select>
             </div>
-            <div class="small text-muted mt-1">Select which department this top header item belongs to.</div>
+            <div class="small text-muted mt-1">Optional: choose a department for this menu item (leave blank for global).</div>
             <div class="thm-err" data-for="department_id"></div>
           </div>
 
@@ -1018,25 +1018,26 @@
     const cur = (selectedId != null && selectedId !== '') ? String(selectedId) : '';
 
     if (!API_DEPARTMENTS){
-      sel.innerHTML = `<option value="" selected disabled>Departments API not configured</option>`;
-      sel.disabled = true;
-      return;
-    }
-
-    if (!departments.length){
-      sel.innerHTML = `<option value="" selected disabled>No departments found</option>`;
+      sel.innerHTML = `<option value="" selected>Department (optional) — API not configured</option>`;
       sel.disabled = true;
       return;
     }
 
     const opts = [];
-    opts.push(`<option value="" disabled ${cur===''?'selected':''}>Select department…</option>`);
-    departments.forEach(d => {
-      if (!d || d.id == null) return;
-      const id = String(d.id);
-      const name = deptLabel(d);
-      opts.push(`<option value="${esc(id)}" ${id===cur?'selected':''}>${esc(name)}</option>`);
-    });
+    // ✅ Optional: allow blank selection
+    opts.push(`<option value="" ${cur===''?'selected':''}>No department (Global)</option>`);
+
+    if (departments.length){
+      departments.forEach(d => {
+        if (!d || d.id == null) return;
+        const id = String(d.id);
+        const name = deptLabel(d);
+        opts.push(`<option value="${esc(id)}" ${id===cur?'selected':''}>${esc(name)}</option>`);
+      });
+    } else {
+      // still allow saving without department
+      opts.push(`<option value="" disabled>— No departments found —</option>`);
+    }
 
     sel.innerHTML = opts.join('');
     sel.disabled = false;
@@ -1051,7 +1052,7 @@
     if (!m.department) return;
 
     m.department.disabled = true;
-    m.department.innerHTML = `<option value="" selected disabled>Loading departments…</option>`;
+    m.department.innerHTML = `<option value="" selected>Loading departments…</option>`;
 
     try{
       if (!API_DEPARTMENTS) throw new Error('Departments API not configured');
@@ -1073,8 +1074,9 @@
       console.error('Departments load failed:', e);
       deptLoaded = false;
       departments = [];
-      m.department.innerHTML = `<option value="" selected disabled>Failed to load departments</option>`;
-      m.department.disabled = true;
+      // ✅ Optional: still allow blank even if load fails
+      m.department.innerHTML = `<option value="" selected>No department (Global)</option>`;
+      m.department.disabled = false;
     }
   }
 
@@ -1082,11 +1084,11 @@
     modalEl.querySelectorAll('.thm-err').forEach(e => { e.textContent=''; e.style.display='none'; });
   }
   function showModalError(field, msg){
-  const el = modalEl.querySelector(`.thm-err[data-for="${field}"]`);
-  if (!el) return;
-  el.textContent = msg || '';
-  el.style.display = msg ? 'block' : 'none';
-}
+    const el = modalEl.querySelector(`.thm-err[data-for="${field}"]`);
+    if (!el) return;
+    el.textContent = msg || '';
+    el.style.display = msg ? 'block' : 'none';
+  }
 
   function setSaveLoading(on){
     const sp = m.saveBtn.querySelector('.btn-spinner');
@@ -1156,7 +1158,7 @@
 
       m.active.checked = !!row?.active;
 
-      // ✅ department_id (FK)
+      // ✅ department_id (FK) (optional)
       const deptId = row?.department_id ?? row?.dept_id ?? row?.department?.id ?? '';
       await ensureDepartments(false, deptId ? String(deptId) : '');
       if (m.department) m.department.value = deptId ? String(deptId) : '';
@@ -1187,24 +1189,23 @@
       return;
     }
 
-    // ✅ department_id required (FK)
+    // ✅ department_id is NOW OPTIONAL
     const deptRaw = (m.department?.value || '').trim();
-    if (!deptRaw){
-      showModalError('department_id','Department is required');
-      m.department?.focus();
-      return;
-    }
-    const department_id = Number(deptRaw);
-    if (!Number.isFinite(department_id) || department_id <= 0){
-      showModalError('department_id','Invalid department selected');
-      m.department?.focus();
-      return;
+    let department_id = null;
+    if (deptRaw){
+      const n = Number(deptRaw);
+      if (!Number.isFinite(n) || n <= 0){
+        showModalError('department_id','Invalid department selected');
+        m.department?.focus();
+        return;
+      }
+      department_id = n;
     }
 
     const payload = {
       title,
       slug,
-      department_id,
+      department_id, // null when not selected
       url: (m.url.value || '').trim() || null,
       active: !!m.active.checked,
     };

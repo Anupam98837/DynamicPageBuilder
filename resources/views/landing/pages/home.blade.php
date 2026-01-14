@@ -70,13 +70,143 @@
     .loader-bar{margin-top: 14px;height: 10px;border-radius: 999px;background: rgba(2,6,23,.06);overflow:hidden;border: 1px solid rgba(2,6,23,.06);position: relative;}
     .loader-bar > span{display:block;height:100%;width: 10%;border-radius: 999px;background: linear-gradient(90deg, var(--brand), var(--accent), var(--brand2));transition: width .35s ease;position: relative;}
     .loader-bar > span::after{content:"";position:absolute; inset:0;background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.35), rgba(255,255,255,0));transform: translateX(-60%);animation: loaderShine 1.1s linear infinite;mix-blend-mode: overlay;}
-    @keyframes loaderShine{
-      to{ transform: translateX(160%); }
-    }
+    @keyframes loaderShine{ to{ transform: translateX(160%); } }
     .loader-row{margin-top: 12px;display:flex;align-items:center;justify-content:space-between;gap: 12px;position: relative;}
     .loader-step{font-weight: 900;color: #7a2626;font-size: 13px;white-space: nowrap;overflow:hidden;text-overflow: ellipsis;max-width: 70%;}
     .loader-spinner{width: 28px; height: 28px;border-radius: 50%;border: 3px solid rgba(158,54,58,.22);border-top-color: var(--brand);animation: spin .75s linear infinite;flex: 0 0 auto;}
     @keyframes spin{ to{ transform: rotate(360deg); } }
+
+    /* =========================
+      ✅ NEW: Home Contact Popup (shows every refresh)
+      ✅ FIXED: popup content can scroll + starts at top
+    ========================= */
+    .home-popup{
+      position: fixed;
+      inset: 0;
+      z-index: 100000;
+      display: none;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 18px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
+    .home-popup.is-open{ display:flex; }
+
+    .home-popup-backdrop{
+      position: fixed;
+      inset:0;
+      background: rgba(2,6,23,.55);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+    }
+
+    .home-popup-card{
+      position: relative;
+      background: rgba(255,255,255,.98);
+      border: 1px solid rgba(158,54,58,.22);
+      border-radius: 20px;
+      box-shadow: 0 22px 60px rgba(2,6,23,.30);
+      width: min(980px, 96vw);
+      max-height: calc(100vh - 36px);
+      margin: 18px auto;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .home-popup-card::before{
+      content:"";
+      position:absolute;
+      inset:-140px -140px auto auto;
+      width: 280px;
+      height: 280px;
+      background: radial-gradient(circle at 30% 30%, rgba(201,75,80,.22), rgba(201,75,80,0));
+      transform: rotate(12deg);
+      pointer-events:none;
+    }
+    .home-popup-head{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap: 12px;
+      padding: 18px 18px 10px;
+      position: relative;
+      flex: 0 0 auto;
+    }
+    .home-popup-title{
+      margin:0;
+      font-weight: 950;
+      color:#0f172a;
+      font-size: 18px;
+      line-height: 1.1;
+    }
+    .home-popup-sub{
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-weight: 800;
+      font-size: 13px;
+    }
+    .home-popup-close{
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      border: 1px solid rgba(2,6,23,.12);
+      background: rgba(255,255,255,.9);
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      cursor:pointer;
+    }
+    .home-popup-close:hover{ background:#f1f5f9; }
+
+    .home-popup-body{
+      padding: 0 18px 18px;
+      position: relative;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .home-popup-placeholder{
+      border: 1px dashed rgba(158,54,58,.32);
+      background: linear-gradient(135deg, rgba(158,54,58,.06), rgba(201,75,80,.03));
+      border-radius: 16px;
+      padding: 18px;
+      text-align: center;
+    }
+    .home-popup-placeholder h4{
+      margin: 0 0 8px;
+      font-weight: 950;
+      color: var(--brand);
+      font-size: 16px;
+    }
+    .home-popup-placeholder p{
+      margin: 0;
+      color: #334155;
+      font-weight: 800;
+      font-size: 13.5px;
+      line-height: 1.5;
+    }
+    .home-popup-placeholder code{
+      background: rgba(255,255,255,.65);
+      padding: 2px 6px;
+      border-radius: 8px;
+      font-weight: 950;
+      color: #7a2626;
+    }
+    @media (max-width: 576px){
+      .home-popup{ padding: 12px; }
+      .home-popup-card{
+        border-radius: 18px;
+        width: min(980px, 98vw);
+        max-height: calc(100vh - 24px);
+        margin: 12px auto;
+      }
+      .home-popup-head{ padding: 16px 14px 8px; }
+      .home-popup-body{ padding: 0 14px 14px; }
+    }
 
     /* =========================
       Motion / Reveal (loads one-by-one + on scroll)
@@ -86,8 +216,7 @@
     .reveal.reveal-right{ transform: translateX(22px); }
     .reveal.is-in{ opacity: 1; transform: translate3d(0,0,0); }
     @media (prefers-reduced-motion: reduce){
-      .reveal, .reveal.reveal-left, .reveal.reveal-right{opacity: 1 !important;transform: none !important;transition: none !important;
-      }
+      .reveal, .reveal.reveal-left, .reveal.reveal-right{opacity: 1 !important;transform: none !important;transition: none !important;}
       .loader-spinner{ animation: none !important; }
       .loader-bar > span::after{ animation: none !important; }
     }
@@ -96,15 +225,27 @@
       ✅ NEW: Home Sections Container
     ========================= */
     .home-sections-container {
-        display: flex;
-        flex-direction: column;
-        gap: 2.5rem;
-        margin-top: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 2.5rem;
+      margin-top: 1.5rem;
+    }
+
+    /* =========================
+      ✅ NEW: FULL-WIDTH TOP STACK (Notice strip + Hero)
+      - These two sections are OUTSIDE the .container now
+      - Rest of the homepage remains inside the normal container width
+    ========================= */
+    .home-topstack{
+      width: 100%;
+      display:flex;
+      flex-direction:column;
+      margin-bottom: 10px;
     }
 
     /* ===== hero carousel ===== */
     .hero-wrap{ position:relative; overflow:hidden; }
-    .hero-card{border-radius: var(--r-xl);border: 1px solid var(--line);background: var(--surface);box-shadow: var(--shadow);overflow:hidden;}
+    .hero-card{background: var(--surface);overflow:hidden;}
     .hero-slide{min-height: 500px;background-size: cover;background-position: center;position: relative;}
     .hero-slide::before{content:"";position:absolute; inset:0;background: linear-gradient(90deg, rgba(0,0,0,.65), rgba(0,0,0,.20));}
     .hero-inner{position:relative;padding: 60px 40px;max-width: 980px;color:#fff;}
@@ -128,30 +269,42 @@
       Top strip (NOTICE MARQUEE ONLY)
       ✅ FIXED: marquee settings applied via API settings now
     ========================= */
-    .notice-strip{background: linear-gradient(135deg, rgba(158,54,58,.12), rgba(201,75,80,.08));border: 1px solid rgba(158,54,58,.18);border-radius: 16px;padding: 12px 14px;box-shadow: 0 10px 22px rgba(2,6,23,.06);overflow:hidden;}
+    .notice-strip{background: #ffd600;padding: 5px 14px;overflow:hidden;}
     .notice-strip .strip-ico{width: 34px; height: 34px;display:inline-flex; align-items:center; justify-content:center;border-radius: 999px;background: rgba(158,54,58,.12);color: var(--brand);border: 1px solid rgba(158,54,58,.18);flex: 0 0 auto;}
     .notice-strip marquee{font-weight: 900;color: #7a2626;font-size: 14.5px;}
     .notice-strip marquee .nm-link{color: #7a2626;text-decoration: none;font-weight: 950;cursor: pointer;}
-    .notice-strip marquee .nm-link:hover{text-decoration: underline;color: var(--brand);}
+    .notice-strip marquee .nm-link:hover{color: #0D29AC;}
     .notice-strip marquee .nm-text{color: #7a2626;font-weight: 900;cursor: default;}
     .notice-strip marquee .nm-sep{opacity: .75;padding: 0 10px;user-select:none;}
-    /* =========================
-  ✅ Smooth Notice Marquee (settings-driven)
-========================= */
-.nm-viewport{ overflow:hidden; width:100%; }
-.nm-track{
-  display:flex;
-  align-items:center;
-  gap: 10px;
-  white-space: nowrap;
-  will-change: transform;
-}
-.nm-run{ display:inline-flex; align-items:center; gap: 10px; }
-.nm-text{font-weight: 900;color:#7a2626;font-size:14.5px;}
-.nm-link{color:#7a2626;text-decoration:none;font-weight:950;}
-.nm-link:hover{text-decoration:underline;color:var(--brand);}
-.nm-sep{opacity:.75;padding:0 10px;user-select:none;}
 
+    /* =========================
+      ✅ Smooth Notice Marquee (settings-driven)
+    ========================= */
+    .nm-viewport{ overflow:hidden; width:100%; }
+    .nm-track{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      white-space: nowrap;
+      will-change: transform;
+    }
+    .nm-run{ display:inline-flex; align-items:center; gap: 10px; }
+    .nm-text{font-weight: 900;color:#7a2626;font-size:14.5px;}
+    .nm-link{color:#7a2626;text-decoration:none;font-weight:950;}
+    .nm-link:hover{color: #0D29AC;}
+    .nm-sep{opacity:.75;padding:0 10px;user-select:none;}
+
+    /* ✅ NEW: Notice Marquee GIF (prefix for every item + suffix for last) */
+    .nm-gif{
+      width: 18px;
+      height: 18px;
+      object-fit: contain;
+      display: inline-block;
+      vertical-align: middle;
+      transform: translateY(-1px);
+    }
+    .nm-gif-start{ margin: 0 8px 0 0; }
+    .nm-gif-end{ margin: 0 0 0 8px; }
 
     /* ===== three info boxes ===== */
     .info-boxes{ }
@@ -172,24 +325,20 @@
       position: relative;
       height: 260px;
     }
-    
+
     /* ✅ FIXED: Create smooth scrolling animation */
     .info-box ul.scrolling-upwards {
       animation: scrollUp 20s linear infinite;
       animation-play-state: running;
     }
-    
+
     .info-box ul.scrolling-upwards:hover {
       animation-play-state: paused;
     }
-    
+
     @keyframes scrollUp {
-      0% {
-        transform: translateY(0);
-      }
-      100% {
-        transform: translateY(-50%);
-      }
+      0% { transform: translateY(0); }
+      100% { transform: translateY(-50%); }
     }
 
     /* =========================
@@ -212,24 +361,20 @@
       height: 260px;
       position: relative;
     }
-    
+
     /* ✅ FIXED: Create smooth scrolling animation for NVA cards */
     .nva-list.scrolling-upwards {
       animation: scrollUpList 25s linear infinite;
       animation-play-state: running;
     }
-    
+
     .nva-list.scrolling-upwards:hover {
       animation-play-state: paused;
     }
-    
+
     @keyframes scrollUpList {
-      0% {
-        transform: translateY(0);
-      }
-      100% {
-        transform: translateY(-50%);
-      }
+      0% { transform: translateY(0); }
+      100% { transform: translateY(-50%); }
     }
 
     .center-video-card{background: var(--surface);border-radius: 18px;border: 1px solid var(--line);box-shadow: var(--shadow);padding: 14px;height: 100%;overflow:hidden;}
@@ -324,7 +469,6 @@
       .success-scroller-item{flex: 0 0 calc((100% - var(--success-gap-3)) / 4);max-width: calc((100% - var(--success-gap-3)) / 4);}
     }
 
-    /* ✅ now can be <a> or <div> */
     .success-card{
       display:block;
       background: var(--surface);
@@ -360,21 +504,19 @@
 
     .muted-note{color: var(--muted);font-weight: 800;text-align:center;margin: 0;padding: 10px 0 0;}
 
-    /* small alert (for API error only) */
     .home-alert{margin-top: 18px;border-radius: 14px;border: 1px solid rgba(245,158,11,.35);background: linear-gradient(135deg, rgba(254,243,199,.85), rgba(254,215,170,.65));padding: 14px 16px;color: #92400e;font-weight: 900;display:none;}
     .home-alert code{font-weight: 950;color:#7c2d12;background: rgba(255,255,255,.55);padding: 2px 6px;border-radius: 8px;}
     .home-alert pre{margin: 8px 0 0;white-space: pre-wrap;background: rgba(255,255,255,.55);padding: 10px 12px;border-radius: 12px;font-size: 12.5px;line-height: 1.4;color: #7c2d12;}
 
     /* ✅ Recruiters wrapper like other sections */
-.recruiters-wrap{
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-xl);
-  box-shadow: var(--shadow);
-  padding: 22px 18px;
-  overflow: hidden;
-}
-
+    .recruiters-wrap{
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-xl);
+      box-shadow: var(--shadow);
+      padding: 22px 18px;
+      overflow: hidden;
+    }
 
     @media (max-width: 768px){
       .hero-inner{ padding: 40px 24px; }
@@ -386,22 +528,19 @@
       .cta-section{ max-width: 100%; }
       .cta-btn{ font-size: 14px; padding: 10px 12px; }
       .loader-card{ padding: 16px; border-radius: 18px; }
-      .home-sections-container {
+
+      .home-sections-container{
         gap: 1.5rem;
         margin-top: 1rem;
       }
-      
-      /* =========================
-        ✅ MOBILE SPECIFIC: Show only 1 card for testimonials (Successful Entrepreneurs)
-      ========================= */
+
+      /* ✅ MOBILE SPECIFIC: Show only 1 card for testimonials (Successful Entrepreneurs) */
       #entrepreneursCarousel .carousel-item .row .col-lg-6 {
         flex: 0 0 100%;
         max-width: 100%;
       }
-      
-      /* =========================
-        ✅ MOBILE SPECIFIC: Show only 1 card for alumni videos
-      ========================= */
+
+      /* ✅ MOBILE SPECIFIC: Show only 1 card for alumni videos */
       #alumniCarousel .carousel-item .row .col-lg-4 {
         flex: 0 0 100%;
         max-width: 100%;
@@ -433,6 +572,30 @@
     </div>
   </div>
 
+  {{-- ✅ NEW: Home Popup (every refresh) --}}
+  <div class="home-popup" id="homePopup" role="dialog" aria-modal="true" aria-labelledby="homePopupTitle" aria-hidden="true">
+    <div class="home-popup-backdrop" data-home-popup-close="1"></div>
+
+    <div class="home-popup-card" role="document">
+      <div class="home-popup-head">
+        <div>
+          <h3 class="home-popup-title" id="homePopupTitle">
+            <i class="fa-solid fa-envelope-open-text me-2"></i>Contact Us
+          </h3>
+        </div>
+
+        <button type="button" class="home-popup-close" aria-label="Close" data-home-popup-close="1">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="home-popup-body">
+        {{-- Later: replace placeholder with your include --}}
+        @include('modules.contactUs.viewContactUs')
+      </div>
+    </div>
+  </div>
+
   {{-- Top Header --}}
   @include('landing.components.topHeaderMenu')
 
@@ -442,65 +605,70 @@
   {{-- Header Menu --}}
   @include('landing.components.headerMenu')
 
+  {{-- Sticky Buttons --}}
+  @include('landing.components.stickyButtons')
+
   <main class="pb-5">
+
+    {{-- ✅ FULL-WIDTH: Notice Strip + Hero (outside container, 100% width) --}}
+    <div class="home-topstack">
+      {{-- ================= TOP NOTICE MARQUEE (NOTICE ONLY) ================= --}}
+      <section class="notice-strip reveal is-in" data-anim="up">
+        <div class="d-flex align-items-center gap-3">
+          <div class="strip-ico"><i class="fa-solid fa-bullhorn"></i></div>
+          <div class="flex-grow-1 nm-viewport" id="noticeMarqueeViewport">
+            <div class="nm-track" id="noticeMarqueeTrack">
+              <span class="nm-text">Loading notices…</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {{-- ================= HERO CAROUSEL ================= --}}
+      <section class="hero-wrap reveal is-in" data-anim="up">
+        <div class="hero-card">
+          <div id="homeHero" class="carousel slide">
+            <div class="carousel-indicators" id="heroIndicators">
+              {{-- Dynamic indicators --}}
+            </div>
+
+            <div class="carousel-inner" id="heroSlides">
+              {{-- Fallback slide (NO external image, so no 404) --}}
+              <div class="carousel-item active">
+                <div class="hero-slide" style="background-image:linear-gradient(135deg, rgba(158,54,58,.95), rgba(107,37,40,.92));">
+                  <div class="hero-inner">
+                    <div class="hero-kicker">
+                      <i class="fa-solid fa-graduation-cap"></i>
+                      <span>Loading…</span>
+                    </div>
+                    <h1 class="hero-title">{{ config('app.name','College Portal') }}</h1>
+                    <div class="hero-actions">
+                      <a href="{{ url('/admissions') }}" class="btn btn-hero">Apply Now</a>
+                      <a href="{{ url('/courses') }}" class="btn btn-hero">Explore Programs</a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <button class="carousel-control-prev" type="button" data-bs-target="#homeHero" data-bs-slide="prev">
+              <span class="carousel-control-prev-icon"></span>
+            </button>
+            <button class="carousel-control-next" type="button" data-bs-target="#homeHero" data-bs-slide="next">
+              <span class="carousel-control-next-icon"></span>
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    {{-- ✅ Everything else remains normal width (container) --}}
     <div class="container">
-      
-      {{-- ✅ NEW: Wrapped all sections in a container --}}
       <div class="home-sections-container">
 
         <div class="home-alert" id="homeApiAlert">
           Home API error. Please verify section endpoints in <code>$homeApis</code>.
         </div>
-
-        {{-- ================= TOP NOTICE MARQUEE (NOTICE ONLY) ================= --}}
-        <section class="notice-strip reveal is-in" data-anim="up">
-          <div class="d-flex align-items-center gap-3">
-            <div class="strip-ico"><i class="fa-solid fa-bullhorn"></i></div>
-            <div class="flex-grow-1 nm-viewport" id="noticeMarqueeViewport">
-  <div class="nm-track" id="noticeMarqueeTrack">
-    <span class="nm-text">Loading notices…</span>
-  </div>
-</div>
-          </div>
-        </section>
-
-        {{-- ================= HERO CAROUSEL ================= --}}
-        <section class="hero-wrap reveal is-in" data-anim="up">
-          <div class="hero-card">
-            <div id="homeHero" class="carousel slide">
-              <div class="carousel-indicators" id="heroIndicators">
-                {{-- Dynamic indicators --}}
-              </div>
-
-              <div class="carousel-inner" id="heroSlides">
-                {{-- Fallback slide (NO external image, so no 404) --}}
-                <div class="carousel-item active">
-                  <div class="hero-slide" style="background-image:linear-gradient(135deg, rgba(158,54,58,.95), rgba(107,37,40,.92));">
-                    <div class="hero-inner">
-                      <div class="hero-kicker">
-                        <i class="fa-solid fa-graduation-cap"></i>
-                        <span>Loading…</span>
-                      </div>
-                      <h1 class="hero-title">{{ config('app.name','College Portal') }}</h1>
-                      <div class="hero-actions">
-                        <a href="{{ url('/admissions') }}" class="btn btn-hero">Apply Now</a>
-                        <a href="{{ url('/courses') }}" class="btn btn-hero">Explore Programs</a>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <button class="carousel-control-prev" type="button" data-bs-target="#homeHero" data-bs-slide="prev">
-                <span class="carousel-control-prev-icon"></span>
-              </button>
-              <button class="carousel-control-next" type="button" data-bs-target="#homeHero" data-bs-slide="next">
-                <span class="carousel-control-next-icon"></span>
-              </button>
-            </div>
-          </div>
-        </section>
-
 
         {{-- ================= THREE INFO BOXES (Career / Why / Scholarship) ================= --}}
         <section class="info-boxes reveal is-in" data-anim="up" data-immediate="1">
@@ -603,7 +771,6 @@
           </div>
         </section>
 
-
         {{-- ================= COURSES OFFERED (LAZY) ================= --}}
         <section class="courses-section reveal" data-lazy-key="courses">
           <h2>Courses Offered</h2>
@@ -683,14 +850,12 @@
         </section>
 
         <section class="recruiters-section reveal" data-anim="up">
-  <div class="recruiters-wrap">
-    @include('modules.ourRecruiters.viewAllOurRecruiters')
-  </div>
-</section>
-
+          <div class="recruiters-wrap">
+            @include('modules.ourRecruiters.viewAllOurRecruiters')
+          </div>
+        </section>
 
       </div> {{-- End of home-sections-container --}}
-      
     </div>
   </main>
 
@@ -713,6 +878,9 @@
    */
 
   const HOME_APIS = @json($homeApis);
+
+  /* ✅ NEW: Notice marquee GIF from frontend (public/assets/...) */
+  const NOTICE_MARQUEE_GIF_SRC = @json(asset('assets/media/noticeMarquee/new.gif'));
 
   /* Attach common query params to every API call if present in URL */
   const PAGE_QS = new URLSearchParams(window.location.search);
@@ -738,6 +906,53 @@
   }
 
   /* =========================
+    ✅ Home Contact Popup (every refresh)
+    ✅ FIXED: popup scroll starts at top + allow scrolling inside popup
+  ========================= */
+  const HOME_POPUP = (() => {
+    const el = document.getElementById('homePopup');
+    if(!el) return { open(){}, close(){} };
+
+    const closeEls = el.querySelectorAll('[data-home-popup-close="1"]');
+
+    const open = () => {
+      if(el.classList.contains('is-open')) return;
+
+      el.classList.add('is-open');
+      el.setAttribute('aria-hidden','false');
+
+      try{
+        el.scrollTop = 0;
+        const body = el.querySelector('.home-popup-body');
+        if(body) body.scrollTop = 0;
+      }catch(e){}
+
+      document.body.style.overflow = 'hidden';
+    };
+
+    const close = () => {
+      el.classList.remove('is-open');
+      el.setAttribute('aria-hidden','true');
+      document.body.style.overflow = '';
+    };
+
+    closeEls.forEach(btn => btn.addEventListener('click', close));
+
+    document.addEventListener('keydown', (e) => {
+      if(e.key === 'Escape' && el.classList.contains('is-open')) close();
+    });
+
+    return { open, close };
+  })();
+
+  let __HOME_POPUP_SHOWN = false;
+  function showHomePopupOnce(){
+    if(__HOME_POPUP_SHOWN) return;
+    __HOME_POPUP_SHOWN = true;
+    setTimeout(() => HOME_POPUP.open(), 250);
+  }
+
+  /* =========================
     ✅ Page Loader controls
   ========================= */
   const LOADER = {
@@ -752,10 +967,11 @@
       if(!this.root) return;
       this.root.classList.add('is-done');
       this.root.setAttribute('aria-hidden','true');
+
+      try{ showHomePopupOnce(); }catch(e){}
     }
   };
 
-  // safety: never block forever
   setTimeout(() => { LOADER.done(); }, 12000);
 
   /* =========================
@@ -794,12 +1010,10 @@
     `)
   };
 
-  // set initial fallback imgs (no 404)
   document.getElementById('testimonialFallbackAvatar')?.setAttribute('src', PLACEHOLDERS.avatar);
   document.getElementById('successFallbackImage')?.setAttribute('src', PLACEHOLDERS.image);
   document.getElementById('courseFallbackImage')?.setAttribute('src', PLACEHOLDERS.image);
 
-  /* Any img that fails later -> fallback */
   function attachImgFallback(img, type){
     if(!img) return;
     img.addEventListener('error', () => {
@@ -828,146 +1042,138 @@
     return out;
   }
 
-  /**
-   * URL normalize:
-   * - keeps external URLs
-   * - ensures leading /
-   * - converts:
-   *   career_notices -> career-notices
-   *   why_us -> why-us
-   *   student_activities -> student-activities
-   *   placement_notices -> placement-notices
-   */
   function safeHref(u){
     const s0 = String(u ?? '').trim();
     if(!s0) return '#';
     if(/^https?:\/\//i.test(s0)) return s0;
 
     let s = s0.startsWith('/') ? s0 : ('/' + s0);
-
     s = s.replace(/\/placement_notices(?=\/|$)/gi, '/placement-notices');
     s = s.replace(/\/career_notices(?=\/|$)/gi, '/career-notices');
     s = s.replace(/\/why_us(?=\/|$)/gi, '/why-us');
     s = s.replace(/\/student_activities(?=\/|$)/gi, '/student-activities');
-
     return s;
   }
 
   function unwrapApi(json){
-  return (json && typeof json === 'object' && json.data && typeof json.data === 'object')
-    ? json.data
-    : json;
-}
+    return (json && typeof json === 'object' && json.data && typeof json.data === 'object')
+      ? json.data
+      : json;
+  }
 
-function pickNoticeMarqueePayload(j){
-  // supports BOTH shapes:
-  // 1) { notice_marquee: { items, settings } }  (GrandHomepageController)
-  // 2) { item: { notice_items_json, scroll_speed... } } (NoticeMarqueeController)
-  const root = unwrapApi(j || {});
-  return root.notice_marquee || root.item || root;
-}
+  function pickNoticeMarqueePayload(j){
+    const root = unwrapApi(j || {});
+    return root.notice_marquee || root.item || root;
+  }
 
-let nmAnim = null;
+  let nmAnim = null;
 
-function renderNoticeMarquee(apiJson){
-  const payload = pickNoticeMarqueePayload(apiJson);
-  const itemsRaw = payload?.items ?? payload?.notice_items_json ?? [];
-  const settings = payload?.settings ?? payload ?? {};
+  function renderNoticeMarquee(apiJson){
+    const payload = pickNoticeMarqueePayload(apiJson);
+    const itemsRaw = payload?.items ?? payload?.notice_items_json ?? [];
+    const settings = payload?.settings ?? payload ?? {};
 
-  const viewport = document.getElementById('noticeMarqueeViewport');
-  const track = document.getElementById('noticeMarqueeTrack');
-  if(!viewport || !track) return;
+    const viewport = document.getElementById('noticeMarqueeViewport');
+    const track = document.getElementById('noticeMarqueeTrack');
+    if(!viewport || !track) return;
 
-  const items = (Array.isArray(itemsRaw) ? itemsRaw : []).map(it => {
-    if(typeof it === 'string') return { text: it, url: '' };
-    if(it && typeof it === 'object'){
-      return {
-        text: (it.text ?? it.title ?? it.label ?? '').toString().trim(),
-        url:  (it.url  ?? it.link  ?? it.href  ?? '').toString().trim(),
+    const items = (Array.isArray(itemsRaw) ? itemsRaw : []).map(it => {
+      if(typeof it === 'string') return { text: it, url: '' };
+      if(it && typeof it === 'object'){
+        return {
+          text: (it.text ?? it.title ?? it.label ?? '').toString().trim(),
+          url:  (it.url  ?? it.link  ?? it.href  ?? '').toString().trim(),
+        };
+      }
+      return { text:'', url:'' };
+    }).filter(x => x.text);
+
+    const gifStart = NOTICE_MARQUEE_GIF_SRC
+      ? `<img class="nm-gif nm-gif-start" src="${esc(NOTICE_MARQUEE_GIF_SRC)}" alt="" aria-hidden="true">`
+      : '';
+
+    const gifEnd = NOTICE_MARQUEE_GIF_SRC
+      ? `<img class="nm-gif nm-gif-end" src="${esc(NOTICE_MARQUEE_GIF_SRC)}" alt="" aria-hidden="true">`
+      : '';
+
+    const html = items.length
+      ? items.map((x, i) => {
+          const t = esc(x.text);
+          const u = x.url ? safeHref(x.url) : '';
+          const node = u
+            ? `<a class="nm-link" href="${esc(u)}">${t}</a>`
+            : `<span class="nm-text">${t}</span>`;
+
+          // ✅ REQUIRED FORMAT:
+          // (gif) item1 .... (gif) item2 .... (gif)  -> last item gets suffix gif
+          const isLast = (i === items.length - 1);
+          const tail = isLast ? gifEnd : `<span class="nm-sep">•</span>`;
+          return `${gifStart}${node}${tail}`;
+        }).join('')
+      : `<span class="nm-text">No notices available.</span>`;
+
+    const loop = parseInt(settings.loop ?? 1, 10) === 1;
+    track.innerHTML = `
+      <div class="nm-run" data-run="1">${html}</div>
+      ${loop ? `<div class="nm-run" data-run="2" aria-hidden="true">${html}</div>` : ``}
+    `;
+
+    if(nmAnim){ try{ nmAnim.cancel(); }catch(e){} nmAnim = null; }
+    track.style.transform = 'translateX(0px)';
+
+    const auto = parseInt(settings.auto_scroll ?? 1, 10) === 1;
+    if(!auto) return;
+
+    const dir = String(settings.direction ?? 'left').toLowerCase() === 'right' ? 'right' : 'left';
+    const pxPerSec = Math.max(20, parseInt(settings.scroll_speed ?? 60, 10) || 60);
+    const latency = Math.max(0, parseInt(settings.scroll_latency_ms ?? 0, 10) || 0);
+    const pauseHover = parseInt(settings.pause_on_hover ?? 1, 10) === 1;
+
+    requestAnimationFrame(() => {
+      const run1 = track.querySelector('[data-run="1"]');
+      if(!run1) return;
+
+      const distance = run1.scrollWidth;
+      if(!distance) return;
+
+      const duration = Math.max(1200, Math.round((distance / pxPerSec) * 1000));
+      const from = (dir === 'left') ? 0 : -distance;
+      const to   = (dir === 'left') ? -distance : 0;
+
+      const playOnce = () => {
+        nmAnim = track.animate(
+          [{ transform: `translateX(${from}px)` }, { transform: `translateX(${to}px)` }],
+          { duration, iterations: 1, easing: 'linear', fill: 'forwards' }
+        );
+
+        nmAnim.onfinish = () => {
+          if(loop){
+            setTimeout(() => {
+              track.style.transform = `translateX(${from}px)`;
+              playOnce();
+            }, latency);
+          }
+        };
       };
-    }
-    return { text:'', url:'' };
-  }).filter(x => x.text);
 
-  // Build markup
-  const html = items.length
-    ? items.map((x, i) => {
-        const t = esc(x.text);
-        const u = x.url ? safeHref(x.url) : '';
-        const node = u
-          ? `<a class="nm-link" href="${esc(u)}">${t}</a>`
-          : `<span class="nm-text">${t}</span>`;
-        const sep = (i === items.length - 1) ? '' : `<span class="nm-sep">•</span>`;
-        return node + sep;
-      }).join('')
-    : `<span class="nm-text">No notices available.</span>`;
+      track.style.transform = `translateX(${from}px)`;
+      playOnce();
 
-  const loop = parseInt(settings.loop ?? 1, 10) === 1;
-  track.innerHTML = `
-    <div class="nm-run" data-run="1">${html}</div>
-    ${loop ? `<div class="nm-run" data-run="2" aria-hidden="true">${html}</div>` : ``}
-  `;
+      viewport.onmouseenter = null;
+      viewport.onmouseleave = null;
+      if(pauseHover){
+        viewport.onmouseenter = () => nmAnim && nmAnim.pause();
+        viewport.onmouseleave = () => nmAnim && nmAnim.play();
+      }
+    });
+  }
 
-  // Stop old animation
-  if(nmAnim){ try{ nmAnim.cancel(); }catch(e){} nmAnim = null; }
-  track.style.transform = 'translateX(0px)';
-
-  const auto = parseInt(settings.auto_scroll ?? 1, 10) === 1;
-  if(!auto) return;
-
-  const dir = String(settings.direction ?? 'left').toLowerCase() === 'right' ? 'right' : 'left';
-  const pxPerSec = Math.max(20, parseInt(settings.scroll_speed ?? 60, 10) || 60);
-  const latency = Math.max(0, parseInt(settings.scroll_latency_ms ?? 0, 10) || 0);
-  const pauseHover = parseInt(settings.pause_on_hover ?? 1, 10) === 1;
-
-  // Animate after layout
-  requestAnimationFrame(() => {
-    const run1 = track.querySelector('[data-run="1"]');
-    if(!run1) return;
-
-    const distance = run1.scrollWidth;
-    if(!distance) return;
-
-    const duration = Math.max(1200, Math.round((distance / pxPerSec) * 1000));
-    const from = (dir === 'left') ? 0 : -distance;
-    const to   = (dir === 'left') ? -distance : 0;
-
-    const playOnce = () => {
-      nmAnim = track.animate(
-        [{ transform: `translateX(${from}px)` }, { transform: `translateX(${to}px)` }],
-        { duration, iterations: 1, easing: 'linear', fill: 'forwards' }
-      );
-
-      nmAnim.onfinish = () => {
-        if(loop){
-          setTimeout(() => {
-            track.style.transform = `translateX(${from}px)`;
-            playOnce();
-          }, latency);
-        }
-      };
-    };
-
-    track.style.transform = `translateX(${from}px)`;
-    playOnce();
-
-    // Pause on hover (settings-driven)
-    viewport.onmouseenter = null;
-    viewport.onmouseleave = null;
-    if(pauseHover){
-      viewport.onmouseenter = () => nmAnim && nmAnim.pause();
-      viewport.onmouseleave = () => nmAnim && nmAnim.play();
-    }
-  });
-}
-
-async function loadNoticeMarquee(){
-  const url = withParams(HOME_APIS.noticeMarquee);
-  const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-  const json = await res.json();
-  renderNoticeMarquee(json);
-}
-
+  async function loadNoticeMarquee(){
+    const url = withParams(HOME_APIS.noticeMarquee);
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    const json = await res.json();
+    renderNoticeMarquee(json);
+  }
 
   function decodeHtmlEntities(str){
     const t = document.createElement('textarea');
@@ -1035,30 +1241,20 @@ async function loadNoticeMarquee(){
     }catch(e){}
   }
 
-  /* =========================
-    ✅ FIXED: Smooth upward scroller (using CSS animations)
-    - Works for: Career/Why/Scholarship + Notice/Announcements + Achievements/Activities/Placement
-    - Uses CSS animations for smooth, consistent scrolling
-    - Pauses on hover
-  ========================= */
   function initSmoothAutoScrollList(listId) {
     const ul = document.getElementById(listId);
     if(!ul) return;
 
-    // Remove any existing animations
     ul.classList.remove('scrolling-upwards');
-    
+
     const lis = Array.from(ul.querySelectorAll('li'));
     if(lis.length <= 7) {
-      // Not enough items to scroll, remove autoscroll class
       ul.classList.remove('autoscroll');
       return;
     }
 
-    // Add autoscroll class for styling
     ul.classList.add('autoscroll');
-    
-    // Clone items for seamless looping
+
     const children = Array.from(ul.children);
     children.forEach(ch => {
       const clone = ch.cloneNode(true);
@@ -1066,15 +1262,11 @@ async function loadNoticeMarquee(){
       ul.appendChild(clone);
     });
 
-    // Start scrolling animation
     setTimeout(() => {
       ul.classList.add('scrolling-upwards');
     }, 100);
   }
 
-  /* =========================
-    Reveal animation on view
-  ========================= */
   function initRevealObservers(){
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
     if(reduce){
@@ -1094,9 +1286,6 @@ async function loadNoticeMarquee(){
     document.querySelectorAll('.reveal:not(.is-in):not([data-lazy-key])').forEach(el => io.observe(el));
   }
 
-  /* =========================
-    Counter Animation
-  ========================= */
   function animateCounters(){
     const els = document.querySelectorAll('.stat-num[data-count]');
     els.forEach(el => {
@@ -1134,9 +1323,6 @@ async function loadNoticeMarquee(){
     statsObserver.observe(statsSection);
   }
 
-  /* =========================
-    Fetch (per-section) + cache
-  ========================= */
   async function fetchJson(url){
     const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
     if(!res.ok) throw new Error(`HTTP ${res.status} @ ${url}`);
@@ -1147,7 +1333,7 @@ async function loadNoticeMarquee(){
     return json;
   }
 
-  const SECTION_CACHE = new Map(); // key -> Promise(payload)
+  const SECTION_CACHE = new Map();
   function loadSection(key){
     if(SECTION_CACHE.has(key)) return SECTION_CACHE.get(key);
 
@@ -1164,9 +1350,6 @@ async function loadNoticeMarquee(){
     return p;
   }
 
-  /* =========================
-    Renderers
-  ========================= */
   function syncHeroBackgrounds(){
     const isMobile = window.matchMedia('(max-width: 768px)').matches;
     document.querySelectorAll('.hero-slide[data-hero-desktop]').forEach(el => {
@@ -1216,7 +1399,7 @@ async function loadNoticeMarquee(){
     indEl.style.display = showDots ? '' : 'none';
 
     if(!items.length){
-      return; // keep fallback slide
+      return;
     }
 
     indEl.innerHTML = items.map((_, i) => `
@@ -1266,12 +1449,10 @@ async function loadNoticeMarquee(){
     });
   }
 
-  /* one-by-one list render (nice feel) */
   function setList(listId, items, iconClass, emptyText, opts = {}){
     const el = document.getElementById(listId);
     if(!el) return;
 
-    // Remove any existing clones
     el.querySelectorAll('[data-clone="1"]').forEach(n => n.remove());
 
     const arr = Array.isArray(items) ? items : [];
@@ -1306,7 +1487,6 @@ async function loadNoticeMarquee(){
         </li>
       `).join('');
 
-      // ✅ FIXED: Init smooth upward scroller
       setTimeout(() => initSmoothAutoScrollList(listId), 100);
     };
 
@@ -1315,7 +1495,6 @@ async function loadNoticeMarquee(){
       return;
     }
 
-    // stagger render
     el.innerHTML = '';
     sliced.forEach((x, i) => {
       setTimeout(() => {
@@ -1327,14 +1506,11 @@ async function loadNoticeMarquee(){
         el.appendChild(li);
 
         if(i === sliced.length - 1){
-          // ✅ FIXED: Init smooth upward scroller after all items are rendered
           setTimeout(() => initSmoothAutoScrollList(listId), 150);
         }
       }, i * 45);
     });
   }
-
-
 
   function renderCenterIframe(center){
     const titleEl = document.getElementById('centerIframeTitle');
@@ -1387,9 +1563,6 @@ async function loadNoticeMarquee(){
     }
   }
 
-  /* =========================
-    ✅ Stats: limit 4; if 5+ => carousel using DB settings
-  ========================= */
   function renderStats(stats){
     const section = document.getElementById('statsSection');
     const titleEl = document.getElementById('statsTitle');
@@ -1397,9 +1570,7 @@ async function loadNoticeMarquee(){
     if(!section || !rowEl) return;
 
     const itemsRaw = Array.isArray(stats?.stats_items_json) ? stats.stats_items_json : [];
-    const items = itemsRaw
-      .slice()
-      .sort((a,b)=>(Number(a.sort_order||0)-Number(b.sort_order||0)));
+    const items = itemsRaw.slice().sort((a,b)=>(Number(a.sort_order||0)-Number(b.sort_order||0)));
 
     const title = stats?.metadata?.section_title || stats?.metadata?.title || 'Key Stats';
     if(titleEl) titleEl.textContent = String(title);
@@ -1499,9 +1670,6 @@ async function loadNoticeMarquee(){
     attachStatsObserver();
   }
 
-  /* =========================
-    Testimonials - Responsive per slide count
-  ========================= */
   function renderTestimonials(arr){
     const container = document.getElementById('testimonialContainer');
     if(!container) return;
@@ -1513,11 +1681,9 @@ async function loadNoticeMarquee(){
     }
 
     const cleaned = items.slice(0, 12);
-    
-    // ✅ RESPONSIVE: Mobile shows 1, Desktop shows 2 per slide
     const isMobile = window.innerWidth < 768;
     const perSlide = isMobile ? 1 : 2;
-    
+
     const groups = chunkArray(cleaned, perSlide);
     const hasMulti = groups.length > 1;
 
@@ -1582,17 +1748,9 @@ async function loadNoticeMarquee(){
     container.querySelectorAll('img.testimonial-avatar').forEach(img => attachImgFallback(img, 'avatar'));
 
     const carouselEl = document.getElementById('entrepreneursCarousel');
-    initCarouselInstance(carouselEl, {
-      interval: 6000,
-      ride: 'carousel',
-      pause: 'hover',
-      wrap: true
-    });
+    initCarouselInstance(carouselEl, { interval: 6000, ride: 'carousel', pause: 'hover', wrap: true });
   }
 
-  /* =========================
-    Alumni Speak - Responsive per slide count
-  ========================= */
   function renderAlumniSpeak(alumni){
     const titleEl = document.getElementById('alumniSpeakTitle');
     const container = document.getElementById('alumniVideoContainer');
@@ -1601,20 +1759,16 @@ async function loadNoticeMarquee(){
     if(titleEl) titleEl.textContent = alumni?.title ? String(alumni.title) : 'Alumni Speak';
 
     const vidsRaw = Array.isArray(alumni?.iframe_urls_json) ? alumni.iframe_urls_json : [];
-    const vids = vidsRaw
-      .slice()
-      .sort((a,b)=>(Number(a.sort_order||0)-Number(b.sort_order||0)))
-      .slice(0, 12);
+    const vids = vidsRaw.slice().sort((a,b)=>(Number(a.sort_order||0)-Number(b.sort_order||0))).slice(0, 12);
 
     if(!vids.length){
       container.innerHTML = `<div class="col-12"><p class="muted-note">No alumni videos available.</p></div>`;
       return;
     }
 
-    // ✅ RESPONSIVE: Mobile shows 1, Desktop shows 3 per slide
     const isMobile = window.innerWidth < 768;
     const perSlide = isMobile ? 1 : 3;
-    
+
     if(vids.length <= perSlide){
       container.innerHTML = vids.slice(0, 6).map(v => {
         const embed = v.video_id
@@ -1688,17 +1842,9 @@ async function loadNoticeMarquee(){
     `;
 
     const carouselEl = document.getElementById('alumniCarousel');
-    initCarouselInstance(carouselEl, {
-      interval: false,
-      ride: false,
-      pause: false,
-      wrap: false
-    });
+    initCarouselInstance(carouselEl, { interval: false, ride: false, pause: false, wrap: false });
   }
 
-  /* =========================
-    ✅ Success Stories: clickable => /success-stories/view/{uuid}
-  ========================= */
   function renderSuccessStories(arr){
     const container = document.getElementById('successStoriesContainer');
     if(!container) return;
@@ -1781,9 +1927,6 @@ async function loadNoticeMarquee(){
     container.querySelectorAll('img.course-img').forEach(img => attachImgFallback(img, 'image'));
   }
 
-  /* =========================
-    Error alert (show first failing API)
-  ========================= */
   let FIRST_API_ERROR = null;
   function showApiAlert(err){
     if(FIRST_API_ERROR) return;
@@ -1801,11 +1944,7 @@ async function loadNoticeMarquee(){
     `;
   }
 
-  /* =========================
-    Above-fold: load one-by-one
-  ========================= */
   async function loadImmediateSections(){
-    // A) HERO
     LOADER.set(18, 'Loading hero carousel…');
     try{
       const p = await loadSection('hero');
@@ -1816,52 +1955,34 @@ async function loadNoticeMarquee(){
       showApiAlert(e);
     }
 
-    // B) NOTICE MARQUEE
-LOADER.set(36, 'Loading notice marquee…');
-try{
-  await loadNoticeMarquee(); // ✅ uses HOME_APIS.noticeMarquee and calls renderNoticeMarquee(json)
-}catch(e){
-  console.warn(e);
-  showApiAlert(e);
+    LOADER.set(36, 'Loading notice marquee…');
+    try{
+      await loadNoticeMarquee();
+    }catch(e){
+      console.warn(e);
+      showApiAlert(e);
+      renderNoticeMarquee({ items: ['Welcome.'], settings: { auto_scroll: 0 } });
+    }
 
-  // ✅ fallback (still works with the smooth renderer)
-  renderNoticeMarquee({ items: ['Welcome.'], settings: { auto_scroll: 0 } });
-}
-
-
-    // C) THREE INFO BOXES
     LOADER.set(56, 'Loading quick links…');
     try{
       const p = await loadSection('infoBoxes');
 
-      // ✅ FIXED: smooth upward scroller with CSS animations
-      setList('careerList',      p.career_notices, 'fa-solid fa-chevron-right', 'No career notices.', {
-        stagger:true, max: 60
-      });
-      setList('whyMsitList',     p.why_us,         'fa-solid fa-check',         'No highlights.',     {
-        stagger:true, max: 60
-      });
-      setList('scholarshipList', p.scholarships,   'fa-solid fa-gift',          'No scholarships.',   {
-        stagger:true, max: 60
-      });
+      setList('careerList',      p.career_notices, 'fa-solid fa-chevron-right', 'No career notices.', { stagger:true, max: 60 });
+      setList('whyMsitList',     p.why_us,         'fa-solid fa-check',         'No highlights.',     { stagger:true, max: 60 });
+      setList('scholarshipList', p.scholarships,   'fa-solid fa-gift',          'No scholarships.',   { stagger:true, max: 60 });
     }catch(e){
       console.warn(e);
       showApiAlert(e);
     }
 
-    // D) NOTICE + CENTER IFRAME + ANNOUNCEMENTS
     LOADER.set(78, 'Loading notice board…');
     try{
       const p = await loadSection('nvaRow');
       renderCenterIframe(p.center_iframe || p.centerIframe || p.center || null);
 
-      // ✅ FIXED: smooth upward scroller with CSS animations
-      setList('noticeList',       p.notices,       'fa-solid fa-caret-right', 'No notices.', {
-        max: 80, stagger:true
-      });
-      setList('announcementList', p.announcements, 'fa-solid fa-caret-right', 'No announcements.', {
-        max: 80, stagger:true
-      });
+      setList('noticeList',       p.notices,       'fa-solid fa-caret-right', 'No notices.', { max: 80, stagger:true });
+      setList('announcementList', p.announcements, 'fa-solid fa-caret-right', 'No announcements.', { max: 80, stagger:true });
     }catch(e){
       console.warn(e);
       showApiAlert(e);
@@ -1871,9 +1992,6 @@ try{
     setTimeout(() => LOADER.done(), 250);
   }
 
-  /* =========================
-    Lazy Loading on Scroll
-  ========================= */
   const LAZY_CONFIG = {
     stats: {
       load: () => loadSection('stats'),
@@ -1882,13 +2000,8 @@ try{
     achvRow: {
       load: () => loadSection('achvRow'),
       render: (payload) => {
-        // ✅ FIXED: smooth upward scroller with CSS animations
-        setList('achievementList', payload.achievements,       'fa-solid fa-medal',    'No achievements.', {
-          stagger:true, max: 80
-        });
-        setList('activityList',    payload.student_activities, 'fa-solid fa-calendar', 'No activities.',   {
-          stagger:true, max: 80
-        });
+        setList('achievementList', payload.achievements,       'fa-solid fa-medal',    'No achievements.', { stagger:true, max: 80 });
+        setList('activityList',    payload.student_activities, 'fa-solid fa-calendar', 'No activities.',   { stagger:true, max: 80 });
 
         loadSection('placementNotices')
           .then(p2 => {
@@ -1926,24 +2039,15 @@ try{
     }
   };
 
-  /* =========================
-    Handle window resize for responsive carousels
-  ========================= */
   let storedTestimonials = null;
   let storedAlumni = null;
   let resizeTimeout;
-  
+
   function handleResponsiveResize() {
     clearTimeout(resizeTimeout);
     resizeTimeout = setTimeout(async () => {
-      // Re-render testimonials and alumni sections on resize
-      if (storedTestimonials) {
-        renderTestimonials(storedTestimonials);
-      }
-      
-      if (storedAlumni) {
-        renderAlumniSpeak(storedAlumni);
-      }
+      if (storedTestimonials) renderTestimonials(storedTestimonials);
+      if (storedAlumni) renderAlumniSpeak(storedAlumni);
     }, 250);
   }
 
@@ -1960,10 +2064,9 @@ try{
           if(!conf) continue;
           try{
             const payload = await conf.load();
-            // Store the data for responsive resizing
             if (key === 'testimonials') storedTestimonials = payload.successful_entrepreneurs || payload.items || payload;
             if (key === 'alumni') storedAlumni = payload.alumni_speak || payload;
-            
+
             conf.render(payload);
             sec.classList.add('is-in');
             sec.dataset.rendered = '1';
@@ -1999,10 +2102,9 @@ try{
 
         try{
           const payload = await conf.load();
-          // Store the data for responsive resizing
           if (key === 'testimonials') storedTestimonials = payload.successful_entrepreneurs || payload.items || payload;
           if (key === 'alumni') storedAlumni = payload.alumni_speak || payload;
-          
+
           setTimeout(() => {
             try{ conf.render(payload); }catch(err){}
           }, 70);
@@ -2016,16 +2118,12 @@ try{
     sections.forEach(sec => io.observe(sec));
   }
 
-  /* =========================
-    Boot
-  ========================= */
   async function bootHome(){
     try{
       initRevealObservers();
       await loadImmediateSections();
       initLazySections();
-      
-      // Add resize event listener for responsive carousels
+
       window.addEventListener('resize', handleResponsiveResize, { passive: true });
     }catch(err){
       console.error('Home boot error:', err);

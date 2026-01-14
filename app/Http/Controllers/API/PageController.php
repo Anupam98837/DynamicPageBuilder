@@ -97,120 +97,151 @@ class PageController extends Controller
      | List / Trash / Resolve
      |============================================ */
 
-    public function index(Request $request)
-    {
-        $page = max(1, (int) $request->query('page', 1));
-        $per  = min(100, max(5, (int) $request->query('per_page', 20)));
-        $q    = trim((string) $request->query('q', ''));
-
-        $status         = $request->query('status', null);
-        $pageType       = $request->query('page_type', null);
-        $layoutKey      = $request->query('layout_key', null);
-        $onlyIncludable = (int) $request->query('only_includable', 0) === 1;
-        $publishedParam = $request->query('published', null); // '1' => published, '0' => not-yet
-
-        $sort      = (string) $request->query('sort', 'created_at');
-        $direction = strtolower((string) $request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
-
-        $allowedSort = ['created_at', 'updated_at', 'title', 'slug', 'published_at'];
-        if (! in_array($sort, $allowedSort, true)) {
-            $sort = 'created_at';
-        }
-$base = DB::table('pages')
-    ->whereNull('deleted_at')
-    ->whereIn('status', ['Active', 'Inactive']); // 🔒 block Archived
-
-            
-
-        if ($q !== '') {
-            $base->where(function ($x) use ($q) {
-                $x->where('title', 'like', "%{$q}%")
-                    ->orWhere('slug', 'like', "%{$q}%")
-                    ->orWhere('shortcode', 'like', "%{$q}%")
-                    ->orWhere('includable_id', 'like', "%{$q}%");
-            });
-        } 
-
-        if ($status !== null && $status !== '') {
-            $base->where('status', $status);
-        }
-
-        if ($pageType !== null && $pageType !== '') {
-            $base->where('page_type', $pageType);
-        }
-
-        if ($layoutKey !== null && $layoutKey !== '') {
-            $base->where('layout_key', $layoutKey);
-        }
-
-        if ($onlyIncludable) {
-            $base->whereNotNull('includable_id');
-        }
-
-        $now = Carbon::now();
-        if ($publishedParam !== null) {
-            if ((string) $publishedParam === '1') {
-                $base->whereNotNull('published_at')
-                    ->where('published_at', '<=', $now);
-            } elseif ((string) $publishedParam === '0') {
-                $base->where(function ($q2) use ($now) {
-                    $q2->whereNull('published_at')
+     public function index(Request $request)
+     {
+         $page = max(1, (int) $request->query('page', 1));
+         $per  = min(100, max(5, (int) $request->query('per_page', 20)));
+         $q    = trim((string) $request->query('q', ''));
+     
+         $status         = $request->query('status', null);
+         $pageType       = $request->query('page_type', null);
+         $layoutKey      = $request->query('layout_key', null);
+         $onlyIncludable = (int) $request->query('only_includable', 0) === 1;
+         $publishedParam = $request->query('published', null); // '1' => published, '0' => not-yet
+     
+         // ✅ MISSING BEFORE (needed for your UI dropdown)
+         $departmentId   = $request->query('department_id', null);
+     
+         $sort      = (string) $request->query('sort', 'created_at');
+         $direction = strtolower((string) $request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+     
+         $allowedSort = ['created_at', 'updated_at', 'title', 'slug', 'published_at'];
+         if (! in_array($sort, $allowedSort, true)) {
+             $sort = 'created_at';
+         }
+     
+         // ✅ Only Active/Inactive in normal list (Archived blocked)
+         $base = DB::table('pages')
+             ->whereNull('deleted_at')
+             ->whereIn('status', ['Active', 'Inactive']);
+     
+         if ($q !== '') {
+             $base->where(function ($x) use ($q) {
+                 $x->where('title', 'like', "%{$q}%")
+                   ->orWhere('slug', 'like', "%{$q}%")
+                   ->orWhere('shortcode', 'like', "%{$q}%")
+                   ->orWhere('includable_id', 'like', "%{$q}%");
+             });
+         }
+     
+         if ($status !== null && $status !== '') {
+             $base->where('status', $status);
+         }
+     
+         if ($pageType !== null && $pageType !== '') {
+             $base->where('page_type', $pageType);
+         }
+     
+         if ($layoutKey !== null && $layoutKey !== '') {
+             $base->where('layout_key', $layoutKey);
+         }
+     
+         // ✅ Added dept filter
+         if ($departmentId !== null && $departmentId !== '') {
+             $base->where('department_id', (int) $departmentId);
+         }
+     
+         if ($onlyIncludable) {
+             $base->whereNotNull('includable_id');
+         }
+     
+         $now = Carbon::now();
+         if ($publishedParam !== null) {
+             if ((string) $publishedParam === '1') {
+                 $base->whereNotNull('published_at')
+                      ->where('published_at', '<=', $now);
+             } elseif ((string) $publishedParam === '0') {
+                 $base->where(function ($q2) use ($now) {
+                     $q2->whereNull('published_at')
                         ->orWhere('published_at', '>', $now);
-                });
-            }
-        }
+                 });
+             }
+         }
+     
+         $total = (clone $base)->count();
+     
+         $rows = $base->orderBy($sort, $direction)
+             ->orderBy('id', 'asc')
+             ->forPage($page, $per)
+             ->get();
+     
+         // ✅ Added last_page + current_page + from/to for frontend pager
+         $lastPage = (int) ceil(($total ?: 0) / $per);
+         $lastPage = max(1, $lastPage);
+         $from = $total ? (($page - 1) * $per + 1) : 0;
+         $to   = $total ? min($total, $page * $per) : 0;
+     
+         return response()->json([
+             'success' => true,
+             'data' => $rows,
+             'pagination' => [
+                 'current_page' => $page,
+                 'last_page'    => $lastPage,
+                 'page'         => $page,     // keep old keys for backward compatibility
+                 'per_page'     => $per,
+                 'total'        => $total,
+                 'from'         => $from,
+                 'to'           => $to,
+             ],
+         ]);
+     }
+     
 
-        $total = (clone $base)->count();
-        $rows = $base->orderBy($sort, $direction)
-            ->orderBy('id', 'asc')
-            ->forPage($page, $per)
-            ->get();
-
-        return response()->json([
-            'success' => true,
-            'data' => $rows,
-            'pagination' => [
-                'page'     => $page,
-                'per_page' => $per,
-                'total'    => $total,
-            ],
-        ]);
-    }
-
-    public function indexTrash(Request $request)
-    {
-        $page = max(1, (int) $request->query('page', 1));
-        $per  = min(100, max(5, (int) $request->query('per_page', 20)));
-        $q    = trim((string) $request->query('q', ''));
-
-        $base = DB::table('pages')
-            ->whereNotNull('deleted_at');
-
-        if ($q !== '') {
-            $base->where(function ($x) use ($q) {
-                $x->where('title', 'like', "%{$q}%")
-                    ->orWhere('slug', 'like', "%{$q}%")
-                    ->orWhere('shortcode', 'like', "%{$q}%")
-                    ->orWhere('includable_id', 'like', "%{$q}%");
-            });
-        }
-
-        $total = (clone $base)->count();
-        $rows = $base->orderBy('deleted_at', 'desc')
-            ->orderBy('id', 'asc')
-            ->forPage($page, $per)
-            ->get();
-
-        return response()->json([
-            'success' => true,
-            'data' => $rows,
-            'pagination' => [
-                'page'     => $page,
-                'per_page' => $per,
-                'total'    => $total,
-            ],
-        ]);
-    }
+     public function indexTrash(Request $request)
+     {
+         $page = max(1, (int) $request->query('page', 1));
+         $per  = min(100, max(5, (int) $request->query('per_page', 20)));
+         $q    = trim((string) $request->query('q', ''));
+     
+         $base = DB::table('pages')
+             ->whereNotNull('deleted_at');
+     
+         if ($q !== '') {
+             $base->where(function ($x) use ($q) {
+                 $x->where('title', 'like', "%{$q}%")
+                   ->orWhere('slug', 'like', "%{$q}%")
+                   ->orWhere('shortcode', 'like', "%{$q}%")
+                   ->orWhere('includable_id', 'like', "%{$q}%");
+             });
+         }
+     
+         $total = (clone $base)->count();
+     
+         $rows = $base->orderBy('deleted_at', 'desc')
+             ->orderBy('id', 'asc')
+             ->forPage($page, $per)
+             ->get();
+     
+         $lastPage = (int) ceil(($total ?: 0) / $per);
+         $lastPage = max(1, $lastPage);
+         $from = $total ? (($page - 1) * $per + 1) : 0;
+         $to   = $total ? min($total, $page * $per) : 0;
+     
+         return response()->json([
+             'success' => true,
+             'data' => $rows,
+             'pagination' => [
+                 'current_page' => $page,
+                 'last_page'    => $lastPage,
+                 'page'         => $page,     // keep old keys too
+                 'per_page'     => $per,
+                 'total'        => $total,
+                 'from'         => $from,
+                 'to'           => $to,
+             ],
+         ]);
+     }
+     
 
     /**
      * Resolve by slug for frontend rendering.
@@ -263,7 +294,7 @@ $base = DB::table('pages')
     $data = $request->validate([
         'title'            => 'required|string|max:200',
         'slug'             => 'sometimes|nullable|string|max:200',
-        'shortcode'        => 'sometimes|nullable|string|max:12',
+        'shortcode'        => 'sometimes|string|max:12',
         'page_type'        => 'sometimes|string|max:30',
         'content_html'     => 'sometimes|nullable|string',
         'includable_id'    => 'sometimes|nullable|string|max:120',
@@ -607,16 +638,26 @@ public function archivedIndex(Request $request)
         ->forPage($page, $per)
         ->get();
 
+    $lastPage = (int) ceil(($total ?: 0) / $per);
+    $lastPage = max(1, $lastPage);
+    $from = $total ? (($page - 1) * $per + 1) : 0;
+    $to   = $total ? min($total, $page * $per) : 0;
+
     return response()->json([
         'success' => true,
         'data' => $rows,
         'pagination' => [
-            'page' => $page,
-            'per_page' => $per,
-            'total' => $total,
+            'current_page' => $page,
+            'last_page'    => $lastPage,
+            'page'         => $page,    // backward compatible
+            'per_page'     => $per,
+            'total'        => $total,
+            'from'         => $from,
+            'to'           => $to,
         ]
     ]);
 }
+
 public function restorePage(Request $request, $identifier)
 {
     $page = $this->resolvePage($identifier, true);

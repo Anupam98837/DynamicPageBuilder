@@ -43,7 +43,6 @@
         /* ✅ restricted to 1280 everywhere */
         max-width: var(--menu-max-w);
         margin: 0 auto;
-        padding: 0 10px;
     }
 
     .dynamic-navbar .menu-row {

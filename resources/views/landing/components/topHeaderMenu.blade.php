@@ -41,7 +41,6 @@
 
         max-width: var(--menu-max-w);
         margin: 0 auto;
-        padding: 0 10px;
     }
 
     #thmNavbar .menu-row{

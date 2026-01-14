@@ -112,8 +112,7 @@
 
   // --- Pick rows for each slot ---
   $addressRow = $contactRows->first(fn($r) => in_array($norm($r->key ?? ''), ['address','location','map'], true));
-
-  $callRow = $contactRows->first(fn($r) => in_array($norm($r->key ?? ''), ['phone','mobile','tel','telephone','call'], true));
+  $callRow    = $contactRows->first(fn($r) => in_array($norm($r->key ?? ''), ['phone','mobile','tel','telephone','call'], true));
 
   // Recruitment: prefer explicit recruit/placement key, else "email" row whose name indicates placement/recruitment
   $recruitRow = $contactRows->first(function($r) use ($norm){
@@ -164,6 +163,10 @@
   ));
 
   $mapSrc = 'https://www.google.com/maps?q=' . urlencode($mapQuery) . '&output=embed';
+
+  // ✅ Legal authority texts (exact as you asked)
+  $legalText1 = 'I agree to the Terms and conditions *';
+  $legalText2 = 'I agree to receive communication on newsletters-promotional content-offers an events through SMS-RCS *';
 @endphp
 
 <style>
@@ -244,6 +247,31 @@
     box-shadow: 0 0 0 3px rgba(143,45,47,.15);
   }
 
+  .cu-consent{
+    grid-column: 1 / -1;
+    margin-top: 6px;
+    padding-top: 8px;
+    border-top: 1px dashed rgba(15,23,42,.12);
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  .cu-check{
+    display:flex;
+    gap:10px;
+    align-items:flex-start;
+    font-size:13.5px;
+    color:#2f3d46;
+    line-height:1.45;
+  }
+  .cu-check input{
+    width:18px; height:18px;
+    margin-top:2px;
+    accent-color: var(--contact-accent);
+    flex:0 0 auto;
+  }
+  .cu-check b{ font-weight:900; color:var(--contact-ink); }
+
   .cu-actions{
     grid-column: 1 / -1;
     display:flex; gap:10px; align-items:center; justify-content:flex-start;
@@ -263,6 +291,13 @@
   }
   .cu-btn:hover{ background: var(--contact-accent-2); }
   .cu-note{ color:var(--contact-muted); font-size:13px; }
+
+  /* ✅ Disabled submit styling (still same button, but clearly disabled) */
+  .cu-btn:disabled{
+    opacity:.55;
+    cursor:not-allowed;
+    filter: grayscale(.05);
+  }
 
   .cu-find{ margin-top:26px; text-align:center; }
   .cu-find h2{ margin:0 0 12px; font-weight:900; color:var(--contact-ink); font-size:24px; }
@@ -382,11 +417,16 @@
 
     <form id="contactForm" class="cu-form">
       <div>
-        <label for="name">Full Name *</label>
-        <input id="name" type="text" placeholder="Your full name" required>
+        <label for="first_name">First Name *</label>
+        <input id="first_name" type="text" placeholder="Your first name" required>
       </div>
 
       <div>
+        <label for="last_name">Last Name</label>
+        <input id="last_name" type="text" placeholder="Your last name (optional)">
+      </div>
+
+      <div class="full">
         <label for="email">Email *</label>
         <input id="email" type="email" placeholder="your@email.com" required>
       </div>
@@ -401,8 +441,21 @@
         <textarea id="message" placeholder="Write your message..." required></textarea>
       </div>
 
+      {{-- ✅ Consent checkboxes (must be checked to enable submit) --}}
+      <div class="cu-consent">
+        <label class="cu-check" for="consent_terms">
+          <input id="consent_terms" type="checkbox">
+          <span>{{ $legalText1 }}</span>
+        </label>
+
+        <label class="cu-check" for="consent_promotions">
+          <input id="consent_promotions" type="checkbox">
+          <span>{{ $legalText2 }}</span>
+        </label>
+      </div>
+
       <div class="cu-actions">
-        <button class="cu-btn" type="submit">
+        <button id="submitBtn" class="cu-btn" type="submit" disabled>
           <i class="fa-solid fa-paper-plane"></i> Send Message
         </button>
         <span class="cu-note">We never share your details.</span>
@@ -431,61 +484,124 @@
 @if($show_form)
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
-  document.getElementById('contactForm').addEventListener('submit', async function(e){
-    e.preventDefault();
+  (function(){
+    const form = document.getElementById('contactForm');
+    const btn  = document.getElementById('submitBtn');
 
-    const btn = this.querySelector('button[type="submit"]');
-    const name    = document.getElementById('name').value.trim();
-    const email   = document.getElementById('email').value.trim();
-    const phone   = document.getElementById('phone').value.trim();
-    const message = document.getElementById('message').value.trim();
+    const firstNameEl = document.getElementById('first_name');
+    const lastNameEl  = document.getElementById('last_name');
+    const emailEl     = document.getElementById('email');
+    const phoneEl     = document.getElementById('phone');
+    const msgEl       = document.getElementById('message');
 
-    if(!name || !email || !message){
-      Swal.fire('Error','Please fill all required fields','error');
-      return;
+    const termsEl     = document.getElementById('consent_terms');
+    const promoEl     = document.getElementById('consent_promotions');
+
+    // ✅ texts must be posted as discussed
+    const LEGAL_TEXT_1 = @json($legalText1);
+    const LEGAL_TEXT_2 = @json($legalText2);
+
+    function canSubmit(){
+      const okRequired = firstNameEl.value.trim() && emailEl.value.trim() && msgEl.value.trim();
+      const okConsent  = termsEl.checked && promoEl.checked;
+      return !!(okRequired && okConsent);
     }
 
-    const payload = { name, email, phone, message };
+    function syncBtn(){
+      btn.disabled = !canSubmit();
+    }
 
-    try{
-      btn.disabled = true;
-      btn.style.opacity = '.85';
+    // enable/disable submit live
+    [firstNameEl, emailEl, msgEl, termsEl, promoEl, lastNameEl, phoneEl].forEach(el => {
+      el.addEventListener('input', syncBtn);
+      el.addEventListener('change', syncBtn);
+    });
+    syncBtn();
 
-      const res = await fetch('/api/contact-us', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(payload)
-      });
+    form.addEventListener('submit', async function(e){
+      e.preventDefault();
 
-      const data = await res.json().catch(() => ({}));
+      const first_name = firstNameEl.value.trim();
+      const last_name  = lastNameEl.value.trim();
+      const email      = emailEl.value.trim();
+      const phone      = phoneEl.value.trim();
+      const message    = msgEl.value.trim();
 
-      if(res.ok){
-        Swal.fire('Success','Message sent successfully','success');
-        this.reset();
-      }else{
-        let msg = data.message || 'Validation failed';
-
-        // Laravel 422 errors pretty message
-        if (data.errors && typeof data.errors === 'object') {
-          const k = Object.keys(data.errors)[0];
-          if (k && Array.isArray(data.errors[k]) && data.errors[k][0]) {
-            msg = data.errors[k][0];
-          }
-        }
-
-        Swal.fire('Error', msg, 'error');
-        console.error(data);
+      if(!first_name || !email || !message){
+        Swal.fire('Error','Please fill all required fields','error');
+        return;
       }
-    }catch(err){
-      console.error(err);
-      Swal.fire('Error','Something went wrong. Please try again.','error');
-    }finally{
-      btn.disabled = false;
-      btn.style.opacity = '1';
-    }
-  });
+
+      // ✅ Hard requirement: both must be checked, otherwise blocked
+      if(!(termsEl.checked && promoEl.checked)){
+        Swal.fire('Error','Please accept the required agreements to continue.','error');
+        syncBtn();
+        return;
+      }
+
+      // ✅ payload updated (first_name/last_name + legal_authority_json)
+      const legal_authority_json = [
+        { key: 'terms',      text: LEGAL_TEXT_1, accepted: true },
+        { key: 'promotions', text: LEGAL_TEXT_2, accepted: true },
+      ];
+
+      const payload = {
+        first_name,
+        last_name: (last_name !== '' ? last_name : null),
+        email,
+        phone: (phone !== '' ? phone : null),
+        message,
+        legal_authority_json
+      };
+
+      try{
+        btn.disabled = true;
+        btn.style.opacity = '.85';
+
+        const res = await fetch('/api/contact-us', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if(res.ok){
+  Swal.fire('Success','Message sent successfully','success');
+  form.reset();
+
+  // ✅ FIX: force-disable immediately after reset
+  btn.disabled = true;
+
+  syncBtn(); // keeps it disabled until required fields + both consents are checked again
+}else{
+          let msg = data.message || 'Validation failed';
+
+          // Laravel 422 errors pretty message
+          if (data.errors && typeof data.errors === 'object') {
+            const k = Object.keys(data.errors)[0];
+            if (k && Array.isArray(data.errors[k]) && data.errors[k][0]) {
+              msg = data.errors[k][0];
+            }
+          }
+
+          Swal.fire('Error', msg, 'error');
+          console.error(data);
+          syncBtn();
+        }
+      }catch(err){
+        console.error(err);
+        Swal.fire('Error','Something went wrong. Please try again.','error');
+        syncBtn();
+      }finally{
+        btn.style.opacity = '1';
+        // do not force enable; keep it tied to consent + required fields
+        syncBtn();
+      }
+    });
+  })();
 </script>
 @endif

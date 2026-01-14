@@ -18,10 +18,16 @@ class ContactUsController extends Controller
     public function store(Request $request)
     {
         $v = Validator::make($request->all(), [
-            'name'    => ['required', 'string', 'max:255'],
-            'email'   => ['required', 'email', 'max:255'],
-            'phone'   => ['nullable', 'string', 'max:20'],
-            'message' => ['required', 'string'],
+            'first_name' => ['required', 'string', 'max:255'],
+            'last_name'  => ['nullable', 'string', 'max:255'],
+            'email'      => ['required', 'email', 'max:255'],
+            'phone'      => ['nullable', 'string', 'max:20'],
+            'message'    => ['required', 'string'],
+
+            // ✅ JSON array of consent/legal authority
+            // Accepts array from frontend; we store as JSON.
+            'legal_authority_json'   => ['nullable', 'array'],
+            'legal_authority_json.*' => ['nullable'],
         ]);
 
         if ($v->fails()) {
@@ -31,14 +37,35 @@ class ContactUsController extends Controller
             ], 422);
         }
 
+        // ✅ If frontend didn't send legal_authority_json, store a default structure (optional)
+        $legal = $request->input('legal_authority_json');
+
+        if ($legal === null) {
+            $legal = [
+                [
+                    'key'      => 'terms',
+                    'text'     => 'I agree to the Terms and conditions *',
+                    'accepted' => null,
+                ],
+                [
+                    'key'      => 'promotions',
+                    'text'     => 'I agree to receive communication on newsletters-promotional content-offers an events through SMS-RCS *',
+                    'accepted' => null,
+                ],
+            ];
+        }
+
         DB::table('contact_us')->insert([
-            'name'       => $request->name,
-            'email'      => $request->email,
-            'phone'      => $request->phone,
-            'message'    => $request->message,
-            'is_read'    => 0, // default unread
-            'created_at' => Carbon::now(),
-            'updated_at' => Carbon::now(),
+            'first_name'           => $request->first_name,
+            'last_name'            => $request->last_name,
+            'email'                => $request->email,
+            'phone'                => $request->phone,
+            'message'              => $request->message,
+            'legal_authority_json' => json_encode($legal, JSON_UNESCAPED_UNICODE),
+
+            'is_read'              => 0, // default unread
+            'created_at'           => Carbon::now(),
+            'updated_at'           => Carbon::now(),
         ]);
 
         return response()->json([
@@ -59,7 +86,8 @@ class ContactUsController extends Controller
         $sortBy   = $request->query('sort_by', 'created_at');
         $sortDir  = strtolower($request->query('sort_dir', 'desc')) === 'asc' ? 'asc' : 'desc';
 
-        $allowedSorts = ['id', 'name', 'email', 'phone', 'created_at'];
+        // ✅ updated allowed sorts (no "name" anymore)
+        $allowedSorts = ['id', 'first_name', 'last_name', 'email', 'phone', 'created_at'];
         if (!in_array($sortBy, $allowedSorts)) {
             $sortBy = 'created_at';
         }
@@ -69,7 +97,8 @@ class ContactUsController extends Controller
         if ($q !== '') {
             $query->where(function ($w) use ($q) {
                 $like = '%' . $q . '%';
-                $w->where('name', 'LIKE', $like)
+                $w->where('first_name', 'LIKE', $like)
+                  ->orWhere('last_name', 'LIKE', $like)
                   ->orWhere('email', 'LIKE', $like)
                   ->orWhere('phone', 'LIKE', $like)
                   ->orWhere('message', 'LIKE', $like);
@@ -83,6 +112,16 @@ class ContactUsController extends Controller
             ->offset(($page - 1) * $perPage)
             ->limit($perPage)
             ->get();
+
+        // ✅ decode json for API response (keeps frontend easy)
+        $data = $data->map(function ($row) {
+            if (property_exists($row, 'legal_authority_json')) {
+                $row->legal_authority_json = $row->legal_authority_json
+                    ? json_decode($row->legal_authority_json, true)
+                    : null;
+            }
+            return $row;
+        });
 
         return response()->json([
             'success' => true,
@@ -118,11 +157,18 @@ class ContactUsController extends Controller
             DB::table('contact_us')
                 ->where('id', $id)
                 ->update([
-                    'is_read' => 1,
+                    'is_read'    => 1,
                     'updated_at' => Carbon::now(),
                 ]);
 
             $msg->is_read = 1;
+        }
+
+        // ✅ decode json
+        if (property_exists($msg, 'legal_authority_json')) {
+            $msg->legal_authority_json = $msg->legal_authority_json
+                ? json_decode($msg->legal_authority_json, true)
+                : null;
         }
 
         return response()->json([
@@ -156,7 +202,7 @@ class ContactUsController extends Controller
         DB::table('contact_us')
             ->where('id', $id)
             ->update([
-                'is_read' => 1,
+                'is_read'    => 1,
                 'updated_at' => Carbon::now(),
             ]);
 
@@ -195,7 +241,8 @@ class ContactUsController extends Controller
         $sortBy   = $request->query('sort_by', 'created_at');
         $sortDir  = strtolower($request->query('sort_dir', 'desc')) === 'asc' ? 'asc' : 'desc';
 
-        $allowedSorts = ['id', 'name', 'email', 'phone', 'created_at'];
+        // ✅ updated allowed sorts (no "name" anymore)
+        $allowedSorts = ['id', 'first_name', 'last_name', 'email', 'phone', 'created_at'];
         if (!in_array($sortBy, $allowedSorts)) {
             $sortBy = 'created_at';
         }
@@ -205,7 +252,8 @@ class ContactUsController extends Controller
         if ($q !== '') {
             $query->where(function ($w) use ($q) {
                 $like = '%' . $q . '%';
-                $w->where('name', 'LIKE', $like)
+                $w->where('first_name', 'LIKE', $like)
+                  ->orWhere('last_name', 'LIKE', $like)
                   ->orWhere('email', 'LIKE', $like)
                   ->orWhere('phone', 'LIKE', $like)
                   ->orWhere('message', 'LIKE', $like);
@@ -222,10 +270,12 @@ class ContactUsController extends Controller
 
             fputcsv($handle, [
                 'ID',
-                'Name',
+                'First Name',
+                'Last Name',
                 'Email',
                 'Phone',
                 'Message',
+                'Legal Authority JSON',
                 'Created At'
             ]);
 
@@ -233,10 +283,12 @@ class ContactUsController extends Controller
                 foreach ($rows as $row) {
                     fputcsv($handle, [
                         $row->id,
-                        $row->name,
+                        $row->first_name ?? '',
+                        $row->last_name ?? '',
                         $row->email,
                         $row->phone,
-                        preg_replace("/\r|\n/", ' ', $row->message),
+                        preg_replace("/\r|\n/", ' ', (string) $row->message),
+                        $row->legal_authority_json ?? '',
                         $row->created_at,
                     ]);
                 }
@@ -245,7 +297,7 @@ class ContactUsController extends Controller
             fclose($handle);
 
         }, $fileName, [
-            'Content-Type' => 'text/csv',
+            'Content-Type'  => 'text/csv',
             'Cache-Control' => 'no-store, no-cache',
         ]);
     }
