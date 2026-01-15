@@ -271,15 +271,20 @@ class GrandHomepageController extends Controller
         return response()->json(['success' => true, 'alumni_speak' => $normalized['alumni_speak'] ?? null]);
     }
 
-    public function successStories(Request $request)
-    {
-        [$deptId, $limit, $now] = $this->baseParams($request);
+public function successStories(Request $request)
+{
+    [$deptId, $limit, $now] = $this->baseParams($request);
 
-        $cacheKey = $this->cacheKey('success_stories', $deptId, $limit);
-        $data = Cache::remember($cacheKey, now()->addSeconds(60), fn() => $this->fetchSuccessStories($now, $deptId, $limit));
+    $cacheKey = $this->cacheKey('success_stories', $deptId, $limit);
+    $data = Cache::remember($cacheKey, now()->addSeconds(60), fn() => $this->fetchSuccessStories($now, $deptId, $limit));
 
-        return response()->json(['success' => true, 'success_stories' => $data]);
-    }
+    return response()->json([
+        'success' => true,
+        'selected_department' => $this->selectedDepartmentMeta($deptId), // ✅ added
+        'success_stories' => $data
+    ]);
+}
+
 
     public function recruiters(Request $request)
     {
@@ -798,6 +803,29 @@ private function fetchSuccessStories($now, ?int $deptId, int $limit): array
     }
 
     return $fetch($base);
+}
+private function selectedDepartmentMeta(?int $deptId): ?array
+{
+    if (!$deptId) return null;
+
+    $titleCol = $this->hasColumn('departments', 'title')
+        ? 'title'
+        : ($this->hasColumn('departments', 'name') ? 'name' : null);
+
+    $q = DB::table('departments')->where('id', (int)$deptId);
+
+    $row = $titleCol
+        ? $q->select('id', 'uuid', 'slug', DB::raw("$titleCol as title"))->first()
+        : $q->select('id', 'uuid', 'slug')->first();
+
+    if (!$row) return ['id' => (int)$deptId, 'title' => null];
+
+    return [
+        'id' => (int) ($row->id ?? $deptId),
+        'uuid' => $row->uuid ?? null,
+        'slug' => $row->slug ?? null,
+        'title' => $row->title ?? null,
+    ];
 }
 
 

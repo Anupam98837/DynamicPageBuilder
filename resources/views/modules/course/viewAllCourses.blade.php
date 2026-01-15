@@ -20,6 +20,8 @@
       - Dept dropdown + deep-link ?d-{uuid} supported
       - Dept filtering FIXED (frontend filter by department_id / department_uuid)
       - ✅ Count chip removed + head kept in one row (desktop)
+      - ✅ NEW: Level filter (program_level)
+      - ✅ Removed: Created text/date from cards
     ========================================================= */
 
     .csx-wrap{
@@ -119,13 +121,20 @@
       box-shadow: 0 0 0 4px rgba(201,75,80,.18);
     }
 
-    /* Dept dropdown (same as reference UI) */
+    /* Select dropdown (shared) */
     .csx-select{
       position: relative;
       min-width: 260px;
       max-width: 360px;
       flex: 0 1 320px;
     }
+    /* ✅ Level select slightly smaller so head row still fits */
+    .csx-select.csx-level{
+      min-width: 210px;
+      max-width: 260px;
+      flex: 0 1 260px;
+    }
+
     .csx-select__icon{
       position:absolute;
       left: 14px;
@@ -266,16 +275,6 @@
       hyphens:auto;
     }
 
-    .csx-date{
-      margin-top:auto;
-      color:#94a3b8;
-      font-size: 13px;
-      padding-top: 12px;
-      display:flex;
-      align-items:center;
-      gap: 6px;
-    }
-
     .csx-link{
       position:absolute;
       inset:0;
@@ -360,6 +359,7 @@
       .csx-title{ font-size: 24px; white-space: normal; }
       .csx-search{ min-width: 220px; flex: 1 1 240px; }
       .csx-select{ min-width: 220px; flex: 1 1 240px; }
+      .csx-select.csx-level{ min-width: 220px; flex: 1 1 240px; }
       .csx-wrap{ --csx-media-h: 210px; }
       .csx-media .csx-fallback{ font-size: 22px; }
     }
@@ -392,6 +392,15 @@
         <div class="csx-search">
           <i class="fa fa-magnifying-glass"></i>
           <input id="csxSearch" type="search" placeholder="Search courses (title/summary/body/career scope)…">
+        </div>
+
+        {{-- ✅ NEW: Level filter (program_level) --}}
+        <div class="csx-select csx-level" title="Filter by level">
+          <i class="fa-solid fa-layer-group csx-select__icon"></i>
+          <select id="csxLevel" aria-label="Filter by level">
+            <option value="">All Levels</option>
+          </select>
+          <i class="fa-solid fa-chevron-down csx-select__caret"></i>
         </div>
 
         <div class="csx-select" title="Filter by department">
@@ -439,6 +448,7 @@
       pager: $('csxPager'),
       search: $('csxSearch'),
       dept: $('csxDept'),
+      level: $('csxLevel'), // ✅ NEW
       sub: $('csxSub'),
     };
 
@@ -451,6 +461,7 @@
       deptUuid: '',
       deptId: null,
       deptName: '',
+      level: '', // ✅ NEW: normalized program_level (e.g. "ug", "pg")
     };
 
     let activeController = null;
@@ -476,13 +487,6 @@
       const div = document.createElement('div');
       div.innerHTML = raw;
       return (div.textContent || div.innerText || '').replace(/\s+/g, ' ').trim();
-    }
-
-    function fmtDate(iso){
-      if (!iso) return '';
-      const d = new Date(iso);
-      if (Number.isNaN(d.getTime())) return '';
-      return new Intl.DateTimeFormat('en-IN', { day:'2-digit', month:'short', year:'numeric' }).format(d);
     }
 
     function normalizeUrl(url){
@@ -525,6 +529,62 @@
       return [];
     }
 
+    // ✅ NEW: program_level helpers
+    function normalizeLevel(v){
+      return (v ?? '').toString().trim().toLowerCase();
+    }
+    function levelLabel(v){
+      const s = (v ?? '').toString().trim();
+      if (!s) return '';
+      const low = s.toLowerCase();
+      if (low === 'ug') return 'UG';
+      if (low === 'pg') return 'PG';
+      return s
+        .replace(/[_-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    function updateSubline(){
+      const base = 'Browse all published programs & courses.';
+      if (!els.sub) return;
+
+      const parts = [];
+      if (state.deptName) parts.push(`Courses for ${state.deptName}`);
+      if (state.level) parts.push(`Level: ${levelLabel(state.level)}`);
+
+      els.sub.textContent = parts.length ? parts.join(' · ') : base;
+    }
+
+    function hydrateLevelOptions(){
+      const sel = els.level;
+      if (!sel) return;
+
+      const levels = new Map(); // norm -> label
+      (Array.isArray(allCourses) ? allCourses : []).forEach(it => {
+        const norm = normalizeLevel(it?.program_level || '');
+        if (!norm) return;
+        levels.set(norm, levelLabel(norm));
+      });
+
+      const list = Array.from(levels.entries())
+        .map(([value, label]) => ({ value, label }))
+        .sort((a,b) => a.label.localeCompare(b.label));
+
+      sel.innerHTML =
+        `<option value="">All Levels</option>` +
+        list.map(x => `<option value="${escAttr(x.value)}">${esc(x.label)}</option>`).join('');
+
+      // keep current selection if still valid
+      if (state.level && levels.has(state.level)){
+        sel.value = state.level;
+      } else {
+        state.level = '';
+        sel.value = '';
+      }
+    }
+
     function cardHtml(item){
       const titleRaw = item?.title || 'Course';
       const title = esc(titleRaw);
@@ -545,7 +605,6 @@
       }
 
       const excerpt = esc(excerptText || '');
-      const created = fmtDate(item?.created_at || null);
 
       const uuid = item?.uuid ? String(item.uuid) : '';
       const href = uuid ? (VIEW_BASE + '/' + encodeURIComponent(uuid)) : '#';
@@ -568,11 +627,6 @@
           <div class="csx-body">
             <div class="csx-h">${title}</div>
             <p class="csx-p">${excerpt}</p>
-
-            <div class="csx-date">
-              <i class="fa-regular fa-calendar"></i>
-              <span>Created: ${esc(created || '—')}</span>
-            </div>
           </div>
 
           ${uuid
@@ -633,7 +687,7 @@
         state.deptUuid = '';
         state.deptId = null;
         state.deptName = '';
-        if (els.sub) els.sub.textContent = 'Browse all published programs & courses.';
+        updateSubline();
         return;
       }
 
@@ -644,12 +698,7 @@
       state.deptUuid = uuid;
       state.deptId = meta.id ?? null;
       state.deptName = meta.title ?? '';
-
-      if (els.sub){
-        els.sub.textContent = state.deptName
-          ? ('Courses for ' + state.deptName)
-          : 'Courses (filtered)';
-      }
+      updateSubline();
     }
 
     async function loadDepartments(){
@@ -734,6 +783,12 @@
         items = items.filter(it => String(it?.department_uuid || '') === deptUuidStr);
       }
 
+      // ✅ NEW: Level filter by program_level (e.g. "ug", "pg")
+      if (state.level){
+        const lvl = String(state.level);
+        items = items.filter(it => normalizeLevel(it?.program_level || '') === lvl);
+      }
+
       // search on title + summary + career_scope + body
       if (q){
         items = items.filter(it => {
@@ -755,15 +810,21 @@
       if (!items.length){
         grid.style.display = 'none';
         st.style.display = '';
+
         const deptLine = state.deptName
           ? `<div style="margin-top:6px;font-size:12.5px;opacity:.95;">Department: <b>${esc(state.deptName)}</b></div>`
           : '';
+        const levelLine = state.level
+          ? `<div style="margin-top:4px;font-size:12.5px;opacity:.95;">Level: <b>${esc(levelLabel(state.level))}</b></div>`
+          : '';
+
         st.innerHTML = `
           <div style="font-size:34px;opacity:.6;margin-bottom:6px;">
             <i class="fa-regular fa-face-frown"></i>
           </div>
           No courses found.
           ${deptLine}
+          ${levelLine}
         `;
         return;
       }
@@ -847,6 +908,11 @@
 
       // load once, then filter client-side
       await ensureCoursesLoaded(false);
+
+      // ✅ NEW: build level filter options from loaded courses
+      hydrateLevelOptions();
+      updateSubline();
+
       repaint();
 
       // search (debounced)
@@ -858,6 +924,16 @@
           state.page = 1;
           repaint();
         }, 260);
+      });
+
+      // ✅ NEW: level change
+      els.level && els.level.addEventListener('change', () => {
+        const v = normalizeLevel(els.level.value || '');
+        state.level = v;
+        state.page = 1;
+        updateSubline();
+        repaint();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       });
 
       // dept change

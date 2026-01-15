@@ -21,7 +21,7 @@
 
   /* Wrapper */
   .orc-wrap{
-    max-width: 1320px;               /* ✅ match reference width */
+    max-width: 1320px;
     margin: 18px auto 54px;
     padding: 0 12px;
     background: transparent;
@@ -42,12 +42,8 @@
     gap: 12px;
     align-items: center;
     justify-content: space-between;
-
-    /* ✅ keep header in one row (desktop) */
     flex-wrap: nowrap;
   }
-
-  /* keep left block stable */
   .orc-head > div:first-child{ flex: 0 0 auto; }
 
   .orc-title{
@@ -72,8 +68,6 @@
     display:flex;
     gap: 10px;
     align-items:center;
-
-    /* ✅ keep tools in one row (desktop) */
     flex-wrap: nowrap;
     justify-content: flex-end;
     flex: 1 1 auto;
@@ -110,7 +104,7 @@
     box-shadow: 0 0 0 4px rgba(201,75,80,.18);
   }
 
-  /* ✅ Dept dropdown (pill) */
+  /* Dept dropdown (pill) */
   .orc-select{
     position: relative;
     min-width: 260px;
@@ -157,11 +151,10 @@
   }
 
   /* =========================================================
-     ✅ Masonry-style grid (different size boxes) — RESTORED
+     Masonry-style grid (different size boxes)
   ========================================================= */
   .orc-grid{
     display: grid;
-    /* gap: 14px; */                 /* keep as you had */
     grid-template-columns: repeat(9, minmax(0, 1fr));
     align-items: start;
   }
@@ -199,6 +192,7 @@
   }
 
   .orc-tile__inner{ display:block; width:100%; height:100%; background:#fff; }
+
   .orc-tile img{
     width: 100%;
     height: 100%;
@@ -255,10 +249,8 @@
   .orc-sk-tile:nth-child(6n + 6){ --w: 3; }
 
   @media (max-width: 992px){
-    /* allow wrap on smaller screens to avoid overflow */
     .orc-head{ flex-wrap: wrap; align-items: flex-end; }
     .orc-tools{ flex-wrap: wrap; justify-content: flex-start; }
-
     .orc-grid, .orc-skeleton{ grid-template-columns: repeat(6, minmax(0,1fr)); }
     .orc-tile, .orc-sk-tile{ grid-column: span 3; }
   }
@@ -321,7 +313,7 @@
   }
 
   /* =========================
-     ✅ Enhanced Modal UI (scoped) — kept
+     Enhanced Modal UI (scoped)
      ========================= */
   .orc-modal{
     position: fixed;
@@ -685,7 +677,6 @@
         <input id="recSearch" type="search" placeholder="Search recruiters (name/industry/location)…">
       </div>
 
-      {{-- ✅ Dept dropdown added --}}
       <div class="orc-select" title="Filter by department">
         <i class="fa-solid fa-building-columns orc-select__icon"></i>
         <select id="recDept" aria-label="Filter by department">
@@ -706,7 +697,7 @@
   </div>
 </div>
 
-{{-- ✅ Enhanced Modal (kept) --}}
+{{-- Enhanced Modal --}}
 <div id="recModal"
      class="orc-modal orc-scope"
      aria-hidden="true"
@@ -755,17 +746,35 @@
           </div>
         </div>
 
+        <div class="orc-modal__section">
+          <div class="orc-modal__section-title">
+            <i class="fa-solid fa-briefcase"></i>
+            Job Roles
+          </div>
+          <div id="recModalRoles" class="orc-modal__description" style="max-height: 220px;">
+            <p style="color: var(--orc-muted); font-style: italic;">No roles available.</p>
+          </div>
+        </div>
+
         <div class="orc-modal__info-grid">
+          <div class="orc-modal__info-item">
+            <i class="fa-solid fa-building-columns"></i>
+            <span class="orc-modal__info-label">Department</span>
+            <span id="recModalDepartment" class="orc-modal__info-value">—</span>
+          </div>
+
           <div class="orc-modal__info-item">
             <i class="fa-solid fa-industry"></i>
             <span class="orc-modal__info-label">Industry</span>
             <span id="recModalIndustry" class="orc-modal__info-value">—</span>
           </div>
+
           <div class="orc-modal__info-item">
             <i class="fa-solid fa-location-dot"></i>
-            <span class="orc-modal__info-label">Location</span>
+            <span class="orc-modal__info-label">HQ</span>
             <span id="recModalLocation" class="orc-modal__info-value">—</span>
           </div>
+
           <div class="orc-modal__info-item">
             <i class="fa-solid fa-users"></i>
             <span class="orc-modal__info-label">Hired</span>
@@ -790,7 +799,7 @@
           <i class="fa-solid fa-external-link"></i>
           Visit Website
         </a>
-        <button type="button" class="orc-modal__btn secondary" style="display:none" data-close="1">
+        <button type="button" class="orc-modal__btn secondary" data-close="1">
           <i class="fa-solid fa-xmark"></i>
           Close
         </button>
@@ -841,9 +850,9 @@
     let activeController = null;
 
     // cache
-    let allRecruiters = null;          // array
-    let deptByUuid = new Map();        // uuid -> {id, title, uuid}
-    let itemByKey = new Map();         // key -> recruiter object for modal
+    let allRecruiters = null;
+    let deptByUuid = new Map();
+    let itemByKey = new Map();
 
     // Modal elements
     const modal = $('recModal');
@@ -860,6 +869,8 @@
     const modalHired = $('recModalHired');
     const modalDate = $('recModalDate');
     const modalUpdated = $('recModalUpdated');
+    const modalDepartment = $('recModalDepartment');
+    const modalRoles = $('recModalRoles');
 
     function esc(str){
       return (str ?? '').toString().replace(/[&<>"']/g, s => ({
@@ -886,8 +897,6 @@
       if (/^(data:|blob:|https?:\/\/)/i.test(u)) return u;
       if (u.startsWith('//')) return 'https:' + u;
       if (u.startsWith('/')) return window.location.origin + u;
-
-      // if looks like domain, assume https
       if (u.includes('.') && !u.includes(' ')) return 'https://' + u.replace(/^\/+/, '');
       return window.location.origin + '/' + u.replace(/^\/+/, '');
     }
@@ -898,6 +907,11 @@
         if (v !== null && v !== undefined && String(v).trim() !== '') return v;
       }
       return '';
+    }
+
+    function pickMeta(it, keys){
+      const meta = (it && typeof it === 'object' && it.metadata && typeof it.metadata === 'object') ? it.metadata : {};
+      return pick(meta, keys);
     }
 
     function formatDate(dateString){
@@ -938,16 +952,34 @@
       const desc = stripHtml(descRaw);
 
       const logoRaw =
-        pick(it, ['logo_url','image_url','image_full_url','logo','image','src','url']) ||
+        pick(it, ['logo_url_full','logo_url','image_url','image_full_url','logo','image','src','url']) ||
+        pickMeta(it, ['logo_url_full','logo_url','logo','image','src','url']) ||
         (it?.attachment?.url ?? '');
       const logo = logoRaw ? normalizeUrl(logoRaw) : '';
 
-      const websiteRaw = pick(it, ['website','link','web_url','site','company_url']) || '';
+      const websiteRaw =
+        pick(it, ['website','link','web_url','site','company_url']) ||
+        pickMeta(it, ['website','link','web_url','site','company_url']);
       const website = websiteRaw ? normalizeUrl(websiteRaw) : '';
 
-      const industry = pick(it, ['industry','sector','category']) || '';
-      const location = pick(it, ['location','city','country','headquarters']) || '';
-      const hired = pick(it, ['students_hired','hired_count','placements']) || '';
+      const department = pick(it, ['department_title','department','dept_title']) || '—';
+
+      const industry =
+        pick(it, ['industry','sector','category']) ||
+        pickMeta(it, ['industry','sector','category']) ||
+        '—';
+
+      const location =
+        pick(it, ['location','city','country','headquarters','hq']) ||
+        pickMeta(it, ['hq','location','city','country','headquarters']) ||
+        '—';
+
+      const hired =
+        pick(it, ['students_hired','hired_count','placements']) ||
+        pickMeta(it, ['students_hired','hired_count','placements']) ||
+        '';
+
+      const rolesArr = Array.isArray(it?.job_roles_json) ? it.job_roles_json : [];
 
       const created = pick(it, ['created_at','date_added','joined_date']) || '';
       const updated = pick(it, ['updated_at','last_updated']) || '';
@@ -965,9 +997,36 @@
         }
       }
 
+      if (modalRoles){
+        if (rolesArr.length){
+          modalRoles.innerHTML = `
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              ${rolesArr.map(r => {
+                const role = (r?.role ?? '').toString().trim();
+                const ctc  = (r?.ctc ?? '').toString().trim();
+                const roleText = role ? esc(role) : '—';
+                const ctcText  = ctc ? esc(ctc) : '—';
+                return `
+                  <div style="border:1px solid var(--orc-line);border-radius:12px;padding:10px 12px;background:rgba(2,6,23,.02);">
+                    <div style="font-weight:900;color:var(--orc-ink);">${roleText}</div>
+                    <div style="margin-top:2px;color:var(--orc-muted);font-size:13px;">
+                      CTC: <b style="color:var(--orc-ink)">${ctcText}</b>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `;
+        } else {
+          modalRoles.innerHTML = '<p style="color: var(--orc-muted); font-style: italic;">No roles available.</p>';
+        }
+      }
+
+      if (modalDepartment) modalDepartment.textContent = department || '—';
       if (modalIndustry) modalIndustry.textContent = industry || '—';
       if (modalLocation) modalLocation.textContent = location || '—';
       if (modalHired) modalHired.textContent = hired !== '' ? formatNumber(hired) : '—';
+
       if (modalDate) modalDate.textContent = created ? formatDate(created) : '—';
       if (modalUpdated) modalUpdated.textContent = updated ? formatDate(updated) : '—';
 
@@ -1010,8 +1069,7 @@
       modal.setAttribute('aria-hidden', 'false');
       setBodyScroll(true);
 
-      // safety fallback if image never triggers events
-      setTimeout(() => showModalLoading(false), 400);
+      setTimeout(() => showModalLoading(false), 500);
     }
 
     function closeModal(){
@@ -1059,7 +1117,6 @@
     }
 
     function extractDeptUuidFromUrl(){
-      // matches "?d-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" anywhere in URL/search
       const hay = (window.location.search || '') + ' ' + (window.location.href || '');
       const m = hay.match(/d-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
       return m ? m[1] : '';
@@ -1142,7 +1199,6 @@
       showSkeleton();
 
       try{
-        // fetch a larger page so frontend filtering always works
         const u = new URL(API, window.location.origin);
         u.searchParams.set('page', '1');
         u.searchParams.set('per_page', '500');
@@ -1161,8 +1217,6 @@
       const q = (state.q || '').toString().trim().toLowerCase();
       let items = Array.isArray(allRecruiters) ? allRecruiters.slice() : [];
 
-      // ✅ Dept filter:
-      // when dept selected -> show ONLY recruiters that match dept id/uuid
       if (state.deptUuid && state.deptId !== null && state.deptId !== undefined && String(state.deptId) !== ''){
         const deptIdStr = String(state.deptId);
         const deptUuidStr = String(state.deptUuid);
@@ -1173,17 +1227,23 @@
           return (did === deptIdStr) || (duu && duu === deptUuidStr);
         });
       } else if (state.deptUuid){
-        // if deptId missing, try uuid-only
         const deptUuidStr = String(state.deptUuid);
         items = items.filter(it => String(it?.department_uuid || '') === deptUuidStr);
       }
 
-      // Search
       if (q){
         items = items.filter(it => {
           const name = String(pick(it, ['name','title','company','label']) || '').toLowerCase();
-          const industry = String(pick(it, ['industry','sector','category']) || '').toLowerCase();
-          const location = String(pick(it, ['location','city','country','headquarters']) || '').toLowerCase();
+          const industry = String(
+            pick(it, ['industry','sector','category']) ||
+            pickMeta(it, ['industry','sector','category']) ||
+            ''
+          ).toLowerCase();
+          const location = String(
+            pick(it, ['location','city','country','headquarters','hq']) ||
+            pickMeta(it, ['hq','location','city','country','headquarters']) ||
+            ''
+          ).toLowerCase();
           const desc = stripHtml(pick(it, ['description','about','summary','content','details','body']) || '').toLowerCase();
           return name.includes(q) || industry.includes(q) || location.includes(q) || desc.includes(q);
         });
@@ -1192,23 +1252,31 @@
       return items;
     }
 
+    // ✅ if logo exists -> show ONLY image (no name)
+    // ✅ if image fails -> fallback shows name
     function bindTileImages(gridEl){
       gridEl.querySelectorAll('img.orc-logo').forEach(img => {
         const tile = img.closest('.orc-tile');
         const fallback = tile ? tile.querySelector('.orc-tile__fallback') : null;
 
-        if (img.complete && img.naturalWidth > 0){
+        const showFallback = () => {
+          if (fallback) fallback.style.display = 'flex';
+        };
+        const hideFallback = () => {
           if (fallback) fallback.style.display = 'none';
+        };
+
+        // if cached + already loaded
+        if (img.complete && img.naturalWidth > 0){
+          hideFallback();
           return;
         }
 
-        img.addEventListener('load', () => {
-          if (fallback) fallback.style.display = 'none';
-        }, { once:true });
+        img.addEventListener('load', () => hideFallback(), { once:true });
 
         img.addEventListener('error', () => {
           img.remove();
-          if (fallback) fallback.style.display = 'flex';
+          showFallback();
         }, { once:true });
       });
     }
@@ -1242,10 +1310,15 @@
         itemByKey.set(key, it);
 
         const name = pick(it, ['name','title','company','label']) || 'Recruiter';
+
         const logoRaw =
-          pick(it, ['logo_url','image_url','image_full_url','logo','image','src','url']) ||
+          pick(it, ['logo_url_full','logo_url','image_url','image_full_url','logo','image','src','url']) ||
+          pickMeta(it, ['logo_url_full','logo_url','logo','image','src','url']) ||
           (it?.attachment?.url ?? '');
         const logo = logoRaw ? normalizeUrl(logoRaw) : '';
+
+        // ✅ If logo exists, do NOT show name (only show image)
+        const fallbackStyle = logo ? 'style="display:none"' : '';
 
         return `
           <div class="orc-tile"
@@ -1254,8 +1327,13 @@
                data-key="${escAttr(key)}"
                aria-label="View ${escAttr(name)} details">
             <div class="orc-tile__inner">
-              <div class="orc-tile__fallback">${esc(name)}</div>
-              ${logo ? `<img class="orc-logo" src="${escAttr(logo)}" alt="${escAttr(name)}" loading="lazy">` : ``}
+              <div class="orc-tile__fallback" ${fallbackStyle}>${esc(name)}</div>
+              ${logo ? `<img class="orc-logo"
+                            src="${escAttr(logo)}"
+                            alt="${escAttr(name)}"
+                            loading="lazy"
+                            decoding="async"
+                            referrerpolicy="no-referrer">` : ``}
             </div>
           </div>
         `;
@@ -1324,7 +1402,6 @@
       renderPager();
     }
 
-    // tile click -> modal
     function openFromTile(tile){
       const key = tile?.getAttribute('data-key') || '';
       const it = itemByKey.get(key);
@@ -1346,7 +1423,6 @@
       openFromTile(tile);
     });
 
-    // pagination click
     document.addEventListener('click', (e) => {
       const b = e.target.closest('button.orc-pagebtn[data-page]');
       if (!b) return;
@@ -1357,11 +1433,9 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
 
-    // init
     document.addEventListener('DOMContentLoaded', async () => {
       await loadDepartments();
 
-      // ✅ deep-link ?d-{uuid}
       const deepDeptUuid = extractDeptUuidFromUrl();
       if (deepDeptUuid && deptByUuid.has(deepDeptUuid)){
         setDeptSelection(deepDeptUuid);
@@ -1369,11 +1443,9 @@
         setDeptSelection('');
       }
 
-      // load once, filter client-side
       await ensureRecruitersLoaded(false);
       repaint();
 
-      // search (debounced)
       let t = null;
       els.search && els.search.addEventListener('input', () => {
         clearTimeout(t);
@@ -1384,7 +1456,6 @@
         }, 260);
       });
 
-      // dept change
       els.dept && els.dept.addEventListener('change', () => {
         const v = (els.dept.value || '').toString();
         if (v === '__loading') return;

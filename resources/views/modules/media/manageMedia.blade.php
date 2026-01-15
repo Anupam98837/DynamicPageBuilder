@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Media Manager</title>
- 
+
   <!-- Bootstrap CSS -->
   <link
     href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
@@ -15,15 +15,73 @@
     href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
     rel="stylesheet"
   />
- 
+
   <meta name="csrf-token" content="{{ csrf_token() }}">
- 
+
   <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}">
   <link rel="stylesheet" href="{{ asset('assets/css/manageMedia/manageMedia.css') }}">
+
+  <!-- ✅ UI only: PDF preview in thumb (WhatsApp-like) -->
+  <style>
+    /* keep scoped */
+    #mediaCards .thumb-container{
+      position:relative;
+      overflow:hidden;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+
+    /* PDF preview canvas */
+    #mediaCards .pdf-thumb-wrap{
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background: rgba(0,0,0,.04);
+    }
+    #mediaCards canvas.pdf-thumb-canvas{
+      max-width:100%;
+      max-height:100%;
+      display:block;
+    }
+
+    /* PDF badge (bottom-right) */
+    #mediaCards .pdf-badge{
+      position:absolute;
+      right:10px;
+      bottom:10px;
+      padding:6px 10px;
+      border-radius:999px;
+      font-size:12px;
+      background:rgba(0,0,0,.55);
+      color:#fff;
+      backdrop-filter: blur(6px);
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      z-index:2;
+      pointer-events:none;
+    }
+
+    /* fallback icon for non-images / when pdf render fails */
+    #mediaCards .fallback-icon{
+      width:100%;
+      height:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:34px;
+      color: rgba(0,0,0,.55);
+    }
+    html.theme-dark #mediaCards .fallback-icon{ color: rgba(255,255,255,.65); }
+  </style>
 </head>
+
 <body class="bg-light">
   <div class="container py-5">
- 
+
     <!-- Nav Tabs -->
     <ul class="nav nav-tabs" id="mediaTab">
       <li class="nav-item">
@@ -37,16 +95,16 @@
         </button>
       </li>
     </ul>
- 
+
     <div class="tab-content">
- 
+
       <!-- Library Pane -->
       <div class="tab-pane fade show active" id="libraryPane">
         <div class="card-container mt-3" id="mediaCards">
           <!-- cards injected here -->
         </div>
       </div>
- 
+
       <!-- Upload Pane -->
       <div class="tab-pane fade" id="uploadPane">
         <div class="mt-3">
@@ -60,230 +118,404 @@
           <ul class="list-group" id="uploadList"></ul>
         </div>
       </div>
- 
+
     </div>
   </div>
- 
+
   <!-- Dependencies -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
- <script>
-  // ✅ Get token (both storages)
-  const token =
-    (localStorage.getItem('token') || sessionStorage.getItem('token') || '').trim();
 
-  if (!token) {
-    Swal.fire({
-      icon: 'warning',
-      title: 'Login required',
-      text: 'Please login to continue.',
-      allowOutsideClick: false
-    }).then(() => (window.location.href = '/'));
-  }
-
-  // ✅ Safe JSON fetch helper (handles non-JSON errors too)
-  async function fetchJSON(url, options = {}) {
-    const res = await fetch(url, {
-      ...options,
-      headers: {
-        Accept: 'application/json',
-        ...(options.headers || {}),
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    const ct = (res.headers.get('content-type') || '').toLowerCase();
-    const body = ct.includes('application/json') ? await res.json() : await res.text();
-
-    if (!res.ok) {
-      const msg =
-        (typeof body === 'object' && body?.message) ? body.message :
-        (typeof body === 'string' && body) ? body :
-        `Request failed (${res.status})`;
-      throw new Error(msg);
+  <!-- ✅ PDF.js (for real PDF thumbnail rendering) -->
+  <script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+  <script>
+    // Worker for PDF.js
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
     }
+  </script>
 
-    return body;
-  }
+  <script>
+    // ✅ Get token (both storages)
+    const token =
+      (localStorage.getItem('token') || sessionStorage.getItem('token') || '').trim();
 
-  const API = {
-    list:   () => fetchJSON('/api/media'),
-    upload: (form) => fetchJSON('/api/media', { method: 'POST', body: form }),
-    remove: (id) => fetchJSON(`/api/media/${id}`, { method: 'DELETE' }),
-  };
-
-  function fmtSize(b) {
-    b = Number(b || 0);
-    if (b < 1024) return b + ' B';
-    if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
-    return (b / (1024 * 1024)).toFixed(1) + ' MB';
-  }
-
-  // ——— Library ———
-  async function loadLibrary() {
-    const container = document.getElementById('mediaCards');
-    container.innerHTML = '';
-
-    try {
-      const res = await API.list();
-
-      const ok = (res?.status === 'success') || (res?.success === true);
-      if (!ok) throw new Error(res?.message || 'Could not load media');
-
-      const items = Array.isArray(res?.data) ? res.data : [];
-
-      // ✅ Empty state (don’t show error)
-      if (!items.length) {
-        container.innerHTML = `
-          <div class="text-center text-muted py-5">
-            <i class="fa-solid fa-photo-film fa-2x mb-2"></i>
-            <div>No media uploaded yet.</div>
-          </div>
-        `;
-        return;
-      }
-
-      items.forEach(item => {
-        const card = document.createElement('div');
-        card.className = 'media-card';
-        card.dataset.id = item.id; // ✅ use real id for delete
-
-        card.innerHTML = `
-          <div class="thumb-container">
-            <img src="${item.url}" loading="lazy"
-              onerror="
-                this.style.display='none';
-                this.parentNode.querySelector('.fallback-icon').style.display='flex';
-              " />
-            <div class="fallback-icon" style="display:none">
-              <i class="fa-solid fa-file-image"></i>
-            </div>
-          </div>
-
-          <div class="card-body">
-            <div class="title">${String(item.url).split('/').pop()}</div>
-          </div>
-
-          <div class="overlay">
-            <div class="url">${item.url}</div>
-            <div class="size">${fmtSize(item.size)}</div>
-            <button class="btn btn-copy btn-sm" type="button">
-              <i class="fa-solid fa-copy me-1"></i>Copy URL
-            </button>
-          </div>
-        `;
-
-        // Copy handler
-        card.querySelector('.btn-copy').onclick = (e) => {
-          e.stopPropagation();
-          navigator.clipboard.writeText(item.url)
-            .then(() => Swal.fire({ icon: 'success', title: 'Copied!', timer: 1200, showConfirmButton: false }))
-            .catch(() => Swal.fire('Error', 'Copy failed', 'error'));
-        };
-
-        // Click opens file
-        card.onclick = () => window.open(item.url, '_blank');
-
-        container.append(card);
-      });
-
-    } catch (err) {
-      Swal.fire('Error', err?.message || 'Could not load media', 'error');
-    }
-  }
-
-  // ——— Delete on long-press ———
-  let pressTimer;
-  document.addEventListener('mousedown', e => {
-    const card = e.target.closest('.media-card');
-    if (!card) return;
-
-    pressTimer = setTimeout(async () => {
-      const id = parseInt(card.dataset.id || '0', 10);
-      if (!id) return;
-
-      const { isConfirmed } = await Swal.fire({
-        title: 'Delete this file?',
+    if (!token) {
+      Swal.fire({
         icon: 'warning',
-        showCancelButton: true
+        title: 'Login required',
+        text: 'Please login to continue.',
+        allowOutsideClick: false
+      }).then(() => (window.location.href = '/'));
+    }
+
+    // ✅ Safe JSON fetch helper (handles non-JSON errors too)
+    async function fetchJSON(url, options = {}) {
+      const res = await fetch(url, {
+        ...options,
+        headers: {
+          Accept: 'application/json',
+          ...(options.headers || {}),
+          Authorization: `Bearer ${token}`,
+        },
       });
 
-      if (!isConfirmed) return;
+      const ct = (res.headers.get('content-type') || '').toLowerCase();
+      const body = ct.includes('application/json') ? await res.json() : await res.text();
 
-      try {
-        const r2 = await API.remove(id);
-        const ok = (r2?.status === 'success') || (r2?.success === true);
-        if (ok) {
-          Swal.fire('Deleted', r2.message || 'Deleted', 'success');
-          loadLibrary();
-        } else {
-          Swal.fire('Error', r2.message || 'Delete failed', 'error');
-        }
-      } catch (err) {
-        Swal.fire('Error', err?.message || 'Delete failed', 'error');
+      if (!res.ok) {
+        const msg =
+          (typeof body === 'object' && body?.message) ? body.message :
+          (typeof body === 'string' && body) ? body :
+          `Request failed (${res.status})`;
+        throw new Error(msg);
       }
 
-    }, 800);
-  });
-  document.addEventListener('mouseup', () => clearTimeout(pressTimer));
+      return body;
+    }
 
-  // ——— Upload Pane ———
-  const dropZone = document.getElementById('dropZone'),
-        fileInput = document.getElementById('fileInput'),
-        uploadList = document.getElementById('uploadList');
+    const API = {
+      list:   () => fetchJSON('/api/media'),
+      upload: (form) => fetchJSON('/api/media', { method: 'POST', body: form }),
+      remove: (id) => fetchJSON(`/api/media/${id}`, { method: 'DELETE' }),
+    };
 
-  document.getElementById('pickFileBtn').onclick = () => fileInput.click();
-  fileInput.onchange = () => handleFiles([...fileInput.files]);
+    function fmtSize(b) {
+      b = Number(b || 0);
+      if (b < 1024) return b + ' B';
+      if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
+      return (b / (1024 * 1024)).toFixed(1) + ' MB';
+    }
 
-  ['dragenter', 'dragover'].forEach(evt =>
-    dropZone.addEventListener(evt, e => { e.preventDefault(); dropZone.classList.add('dragover'); })
-  );
-  ['dragleave', 'drop'].forEach(evt =>
-    dropZone.addEventListener(evt, e => { e.preventDefault(); dropZone.classList.remove('dragover'); })
-  );
-  dropZone.addEventListener('drop', e => handleFiles([...e.dataTransfer.files]));
+    // ✅ Helpers (type detect)
+    function safeNameFromUrl(url) {
+      return String(url || '').split('?')[0].split('#')[0].split('/').pop() || 'file';
+    }
 
-  function addUploadItem(name) {
-    const li = document.createElement('li');
-    li.className = 'list-group-item d-flex justify-content-between';
-    li.innerHTML = `<span>${name}</span>`;
-    const badge = document.createElement('span');
-    badge.className = 'badge bg-secondary';
-    badge.textContent = 'waiting';
-    li.append(badge);
-    uploadList.append(li);
-    return badge;
-  }
-
-  async function handleFiles(files) {
-    for (let f of files) {
-      const badge = addUploadItem(f.name);
-      const form = new FormData();
-      form.append('file', f);
-
+    function getExt(url) {
       try {
-        const json = await API.upload(form);
-        const ok = (json?.status === 'success') || (json?.success === true);
-
-        badge.className = ok ? 'badge bg-success' : 'badge bg-danger';
-        badge.textContent = ok ? 'done' : 'error';
+        const u = new URL(url, window.location.origin);
+        const p = u.pathname || '';
+        const last = p.split('/').pop() || '';
+        const ext = (last.split('.').pop() || '').toLowerCase();
+        return ext === last.toLowerCase() ? '' : ext;
       } catch {
-        badge.className = 'badge bg-danger';
-        badge.textContent = 'error';
+        const clean = String(url || '').split('?')[0].split('#')[0];
+        const last = clean.split('/').pop() || '';
+        const ext = (last.split('.').pop() || '').toLowerCase();
+        return ext === last.toLowerCase() ? '' : ext;
       }
     }
-    await loadLibrary();
-  }
 
-  // ——— Initialize ———
-  document.addEventListener('DOMContentLoaded', () => {
-    loadLibrary();
-    document.getElementById('library-tab')
-      .addEventListener('shown.bs.tab', loadLibrary);
-  });
-</script>
+    function detectKind(item) {
+      const mime = String(item?.mime_type || item?.mime || '').toLowerCase().trim();
+      if (mime.startsWith('image/')) return 'image';
+      if (mime === 'application/pdf') return 'pdf';
+      if (mime) return 'file';
+
+      const ext = getExt(item?.url || '');
+      if (['png','jpg','jpeg','gif','webp','bmp','svg'].includes(ext)) return 'image';
+      if (ext === 'pdf') return 'pdf';
+      return 'file';
+    }
+
+    function fileIconClass(item) {
+      const ext = getExt(item?.url || '');
+      if (ext === 'pdf') return 'fa-file-pdf';
+      if (['doc','docx'].includes(ext)) return 'fa-file-word';
+      if (['xls','xlsx','csv'].includes(ext)) return 'fa-file-excel';
+      if (['ppt','pptx'].includes(ext)) return 'fa-file-powerpoint';
+      if (['zip','rar','7z','tar','gz'].includes(ext)) return 'fa-file-zipper';
+      if (['txt','md','log'].includes(ext)) return 'fa-file-lines';
+      if (['mp3','wav','m4a','aac','ogg'].includes(ext)) return 'fa-file-audio';
+      if (['mp4','mov','mkv','webm','avi'].includes(ext)) return 'fa-file-video';
+      return 'fa-file';
+    }
+
+    // ✅ Fetch PDF as arrayBuffer (with Bearer). If that fails, try without auth (public files).
+    async function fetchPdfArrayBuffer(url) {
+      // try with token first
+      try {
+        const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        if (!r.ok) throw new Error('auth fetch failed');
+        return await r.arrayBuffer();
+      } catch {
+        const r2 = await fetch(url);
+        if (!r2.ok) throw new Error(`PDF fetch failed (${r2.status})`);
+        return await r2.arrayBuffer();
+      }
+    }
+
+    // ✅ Render first page into canvas (WhatsApp-like preview)
+    async function renderPdfThumb(url, canvas, wrapEl) {
+      if (!window.pdfjsLib) throw new Error('pdfjs missing');
+
+      const data = await fetchPdfArrayBuffer(url);
+      const pdf = await pdfjsLib.getDocument({ data }).promise;
+      const page = await pdf.getPage(1);
+
+      // fit into thumb container size
+      const boxW = Math.max(1, wrapEl.clientWidth);
+      const boxH = Math.max(1, wrapEl.clientHeight);
+
+      const viewport1 = page.getViewport({ scale: 1 });
+      const scale = Math.min(boxW / viewport1.width, boxH / viewport1.height);
+
+      const viewport = page.getViewport({ scale });
+
+      const ctx = canvas.getContext('2d', { alpha: false });
+
+      // set real resolution (sharp)
+      canvas.width = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+
+      await page.render({ canvasContext: ctx, viewport }).promise;
+    }
+
+    // ✅ simple queue so multiple PDFs don’t render at once and freeze UI
+    const pdfQueue = [];
+    let pdfBusy = false;
+
+    function enqueuePdfRender(job) {
+      pdfQueue.push(job);
+      runPdfQueue();
+    }
+
+    async function runPdfQueue() {
+      if (pdfBusy) return;
+      pdfBusy = true;
+      while (pdfQueue.length) {
+        const job = pdfQueue.shift();
+        try { await job(); } catch { /* keep silent; fallback already present */ }
+      }
+      pdfBusy = false;
+    }
+
+    // ——— Library ———
+    async function loadLibrary() {
+      const container = document.getElementById('mediaCards');
+      container.innerHTML = '';
+
+      try {
+        const res = await API.list();
+
+        const ok = (res?.status === 'success') || (res?.success === true);
+        if (!ok) throw new Error(res?.message || 'Could not load media');
+
+        const items = Array.isArray(res?.data) ? res.data : [];
+
+        // ✅ Empty state (don’t show error)
+        if (!items.length) {
+          container.innerHTML = `
+            <div class="text-center text-muted py-5">
+              <i class="fa-solid fa-photo-film fa-2x mb-2"></i>
+              <div>No media uploaded yet.</div>
+            </div>
+          `;
+          return;
+        }
+
+        items.forEach(item => {
+          const card = document.createElement('div');
+          card.className = 'media-card';
+          card.dataset.id = item.id; // ✅ use real id for delete
+
+          const kind = detectKind(item);
+          const filename = safeNameFromUrl(item.url);
+          const icon = fileIconClass(item);
+
+          // ✅ Thumb area:
+          // - image: normal img
+          // - pdf: canvas preview (rendered by pdf.js)
+          // - others: icon
+          let thumbHTML = '';
+
+          if (kind === 'image') {
+            thumbHTML = `
+              <img src="${item.url}" loading="lazy"
+                onerror="
+                  this.style.display='none';
+                  this.parentNode.querySelector('.fallback-icon').style.display='flex';
+                " />
+              <div class="fallback-icon" style="display:none">
+                <i class="fa-solid fa-file-image"></i>
+              </div>
+            `;
+          } else if (kind === 'pdf') {
+            // placeholder icon first, then render canvas over it
+            thumbHTML = `
+              <div class="fallback-icon">
+                <i class="fa-solid fa-file-pdf"></i>
+              </div>
+
+              <div class="pdf-thumb-wrap">
+                <canvas class="pdf-thumb-canvas"></canvas>
+              </div>
+
+              <div class="pdf-badge">
+                <i class="fa-solid fa-file-pdf"></i> PDF
+              </div>
+            `;
+          } else {
+            thumbHTML = `
+              <div class="fallback-icon">
+                <i class="fa-solid ${icon}"></i>
+              </div>
+            `;
+          }
+
+          card.innerHTML = `
+            <div class="thumb-container">
+              ${thumbHTML}
+            </div>
+
+            <div class="card-body">
+              <div class="title">${filename}</div>
+            </div>
+
+            <div class="overlay">
+              <div class="url">${item.url}</div>
+              <div class="size">${fmtSize(item.size)}</div>
+              <button class="btn btn-copy btn-sm" type="button">
+                <i class="fa-solid fa-copy me-1"></i>Copy URL
+              </button>
+            </div>
+          `;
+
+          // Copy handler (UNCHANGED)
+          card.querySelector('.btn-copy').onclick = (e) => {
+            e.stopPropagation();
+            navigator.clipboard.writeText(item.url)
+              .then(() => Swal.fire({ icon: 'success', title: 'Copied!', timer: 1200, showConfirmButton: false }))
+              .catch(() => Swal.fire('Error', 'Copy failed', 'error'));
+          };
+
+          // Click opens file (UNCHANGED)
+          card.onclick = () => window.open(item.url, '_blank');
+
+          container.append(card);
+
+          // ✅ Render PDF preview AFTER adding card (so sizes exist)
+          if (kind === 'pdf') {
+            const wrap = card.querySelector('.pdf-thumb-wrap');
+            const canvas = card.querySelector('canvas.pdf-thumb-canvas');
+
+            if (wrap && canvas) {
+              enqueuePdfRender(async () => {
+                try {
+                  // if card removed before render
+                  if (!document.body.contains(card)) return;
+
+                  await renderPdfThumb(item.url, canvas, wrap);
+
+                  // if render succeeded, hide fallback icon (optional)
+                  const fb = card.querySelector('.thumb-container .fallback-icon');
+                  if (fb) fb.style.display = 'none';
+                } catch (e) {
+                  // render failed => keep fallback icon, remove wrap
+                  if (wrap) wrap.remove();
+                }
+              });
+            }
+          }
+        });
+
+      } catch (err) {
+        Swal.fire('Error', err?.message || 'Could not load media', 'error');
+      }
+    }
+
+    // ——— Delete on long-press ———
+    let pressTimer;
+    document.addEventListener('mousedown', e => {
+      const card = e.target.closest('.media-card');
+      if (!card) return;
+
+      pressTimer = setTimeout(async () => {
+        const id = parseInt(card.dataset.id || '0', 10);
+        if (!id) return;
+
+        const { isConfirmed } = await Swal.fire({
+          title: 'Delete this file?',
+          icon: 'warning',
+          showCancelButton: true
+        });
+
+        if (!isConfirmed) return;
+
+        try {
+          const r2 = await API.remove(id);
+          const ok = (r2?.status === 'success') || (r2?.success === true);
+          if (ok) {
+            Swal.fire('Deleted', r2.message || 'Deleted', 'success');
+            loadLibrary();
+          } else {
+            Swal.fire('Error', r2.message || 'Delete failed', 'error');
+          }
+        } catch (err) {
+          Swal.fire('Error', err?.message || 'Delete failed', 'error');
+        }
+
+      }, 800);
+    });
+    document.addEventListener('mouseup', () => clearTimeout(pressTimer));
+
+    // ——— Upload Pane ———
+    const dropZone = document.getElementById('dropZone'),
+          fileInput = document.getElementById('fileInput'),
+          uploadList = document.getElementById('uploadList');
+
+    document.getElementById('pickFileBtn').onclick = () => fileInput.click();
+    fileInput.onchange = () => handleFiles([...fileInput.files]);
+
+    ['dragenter', 'dragover'].forEach(evt =>
+      dropZone.addEventListener(evt, e => { e.preventDefault(); dropZone.classList.add('dragover'); })
+    );
+    ['dragleave', 'drop'].forEach(evt =>
+      dropZone.addEventListener(evt, e => { e.preventDefault(); dropZone.classList.remove('dragover'); })
+    );
+    dropZone.addEventListener('drop', e => handleFiles([...e.dataTransfer.files]));
+
+    function addUploadItem(name) {
+      const li = document.createElement('li');
+      li.className = 'list-group-item d-flex justify-content-between';
+      li.innerHTML = `<span>${name}</span>`;
+      const badge = document.createElement('span');
+      badge.className = 'badge bg-secondary';
+      badge.textContent = 'waiting';
+      li.append(badge);
+      uploadList.append(li);
+      return badge;
+    }
+
+    async function handleFiles(files) {
+      for (let f of files) {
+        const badge = addUploadItem(f.name);
+        const form = new FormData();
+        form.append('file', f);
+
+        try {
+          const json = await API.upload(form);
+          const ok = (json?.status === 'success') || (json?.success === true);
+
+          badge.className = ok ? 'badge bg-success' : 'badge bg-danger';
+          badge.textContent = ok ? 'done' : 'error';
+        } catch {
+          badge.className = 'badge bg-danger';
+          badge.textContent = 'error';
+        }
+      }
+      await loadLibrary();
+    }
+
+    // ——— Initialize ———
+    document.addEventListener('DOMContentLoaded', () => {
+      loadLibrary();
+      document.getElementById('library-tab')
+        .addEventListener('shown.bs.tab', loadLibrary);
+    });
+  </script>
 
 </body>
 </html>
- 
- 
