@@ -1,3 +1,4 @@
+{{-- resources/views/home.blade.php --}}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -105,6 +106,25 @@ $homeApis = $homeApis ?? [
     cursor: pointer;
 }
 
+/* ✅ NEW: smooth fade when rotating */
+.popup-header-rotate.is-fading{
+    opacity: 0;
+    transform: translateY(-2px);
+}
+
+/* ✅ NEW: Popup helper description text (below rotating line) */
+.popup-header-desc{
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-weight: 650;
+    font-size: 12.5px;
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
 /* ... (rest of existing CSS remains unchanged) ... */
 </style>
 </head>
@@ -145,6 +165,11 @@ $homeApis = $homeApis ?? [
     <div class="popup-header-text">
         <h3 class="popup-header-title mh-skel" id="popupHeaderTitle">Contact Us</h3>
         <p class="popup-header-rotate mh-skel" id="popupHeaderRotate"></p>
+
+        {{-- ✅ NEW: helper text below rotating text --}}
+        <p class="popup-header-desc" id="popupHeaderDesc">
+            Have questions about admissions, courses, or campus life? Fill out the quick enquiry form and our team will get back to you with all the information you need. Let us help you take the next step in your academic career with confidence.
+        </p>
     </div>
 </div>
 
@@ -560,6 +585,86 @@ try{ showHomePopupOnce(); }catch(e){}
 setTimeout(() => { LOADER.done(); }, 12000);
 
 /* =========================
+✅ NEW: Popup rotating text engine (AUTO rotate)
+✅ FIXED: Handles rotating_text_json coming as string/array/object
+========================= */
+let __POPUP_ROTATE_TIMER = null;
+
+function stopPopupRotate(){
+try{
+if(__POPUP_ROTATE_TIMER){
+clearInterval(__POPUP_ROTATE_TIMER);
+__POPUP_ROTATE_TIMER = null;
+}
+}catch(e){}
+}
+
+function normalizeRotateLines(raw){
+if(raw == null) return [];
+
+let v = raw;
+
+// if backend sends JSON string like '["one","two"]'
+if(typeof v === 'string'){
+const s = v.trim();
+if(!s) return [];
+try{
+const parsed = JSON.parse(s);
+v = parsed;
+}catch(e){
+ // fallback: split by newline / pipe / comma
+return s.split(/\r?\n|\||,/g).map(x => String(x||'').trim()).filter(Boolean);
+}
+}
+
+// if object wrapper like {lines:[...]} or {items:[...]}
+if(v && typeof v === 'object' && !Array.isArray(v)){
+v = v.lines || v.items || v.texts || [];
+}
+
+if(!Array.isArray(v)) return [];
+
+return v.map(x => String(x ?? '').trim()).filter(Boolean);
+}
+
+function startPopupRotate(lines, el, intervalMs = 2600){
+stopPopupRotate();
+if(!el) return;
+
+const arr = Array.isArray(lines) ? lines : [];
+if(!arr.length){
+el.textContent = '';
+return;
+}
+
+let idx = 0;
+el.textContent = arr[0];
+
+if(arr.length === 1){
+return; // nothing to rotate
+}
+
+const ms = Math.max(1200, parseInt(intervalMs || 2600, 10) || 2600);
+
+// ✅ click also rotates (kept), but ensure only one handler
+el.onclick = null;
+el.onclick = () => {
+idx = (idx + 1) % arr.length;
+el.textContent = arr[idx];
+};
+
+__POPUP_ROTATE_TIMER = setInterval(() => {
+idx = (idx + 1) % arr.length;
+
+el.classList.add('is-fading');
+setTimeout(() => {
+el.textContent = arr[idx];
+el.classList.remove('is-fading');
+}, 160);
+}, ms);
+}
+
+/* =========================
 ✅ NEW: Function to load header data for popup
 ========================= */
 async function loadHeaderDataForPopup() {
@@ -578,47 +683,51 @@ async function loadHeaderDataForPopup() {
 
         const res = await fetch(endpointBase.replace(/\/+$/,'') + '?' + qs.toString(), { headers });
         const js = await res.json().catch(() => ({}));
-        
+
         const items = Array.isArray(js?.data) ? js.data : [];
         const item = items[0] || null;
 
-        if (!res.ok || !item) {
-            // Use defaults if no data
-            document.getElementById('popupHeaderTitle').textContent = 'Contact Us';
-            return;
-        }
-
-        // Update popup header elements
+        // Elements
         const popupLogo = document.getElementById('popupHeaderLogo');
         const popupTitle = document.getElementById('popupHeaderTitle');
         const popupRotate = document.getElementById('popupHeaderRotate');
 
+        if (!res.ok || !item) {
+            // Use defaults if no data
+            if(popupTitle) popupTitle.textContent = 'Contact Us';
+            if(popupRotate) popupRotate.textContent = '';
+            stopPopupRotate();
+            return;
+        }
+
         // Set logo
         const logoUrl = item.primary_logo_full_url || item.primary_logo_url || '';
-        if (logoUrl) {
+        if (popupLogo && logoUrl) {
             popupLogo.src = normalizeUrl(logoUrl);
             popupLogo.classList.remove('mh-skel');
         }
 
         // Set title
         const headerText = (item.header_text || 'Contact Us').toString().trim();
-        popupTitle.textContent = headerText;
-        popupTitle.classList.remove('mh-skel');
+        if(popupTitle){
+            popupTitle.textContent = headerText;
+            popupTitle.classList.remove('mh-skel');
+        }
 
-        // Set rotating text
-        const rotateLines = item.rotating_text_json || [];
-        if (Array.isArray(rotateLines) && rotateLines.length > 0) {
-            popupRotate.textContent = rotateLines[0];
+        // ✅ FIXED: Rotating text auto rotation (not single line)
+        const rotateLinesRaw = (item.rotating_text_json ?? item.rotating_text ?? item.rotating_lines ?? []);
+        const rotateLines = normalizeRotateLines(rotateLinesRaw);
+
+        if (popupRotate) {
             popupRotate.classList.remove('mh-skel');
-            
-            // Optional: Add rotation effect if multiple lines
-            if (rotateLines.length > 1) {
-                let rotateIdx = 0;
-                popupRotate.style.cursor = 'pointer';
-                popupRotate.addEventListener('click', () => {
-                    rotateIdx = (rotateIdx + 1) % rotateLines.length;
-                    popupRotate.textContent = rotateLines[rotateIdx];
-                });
+
+            // if empty, keep it blank
+            if (!rotateLines.length) {
+                popupRotate.textContent = '';
+                stopPopupRotate();
+            } else {
+                // Start auto-rotate
+                startPopupRotate(rotateLines, popupRotate, item.rotating_text_interval_ms || 2600);
             }
         }
 
@@ -1403,11 +1512,11 @@ class="${i===0?'active':''}" ${i===0?'aria-current="true"':''} aria-label="Slide
 </div>
 
 <button class="carousel-control-prev" type="button" data-bs-target="#entrepreneursCarousel" data-bs-slide="prev" style="${hasMulti ? '' : 'display:none'}">
-<span class="carousel-control-prev-icon" aria-hidden="true"></span>
+<span class="carousel-control-prev-icon"></span>
 <span class="visually-hidden">Previous</span>
 </button>
 <button class="carousel-control-next" type="button" data-bs-target="#entrepreneursCarousel" data-bs-slide="next" style="${hasMulti ? '' : 'display:none'}">
-<span class="carousel-control-next-icon" aria-hidden="true"></span>
+<span class="carousel-control-next-icon"></span>
 <span class="visually-hidden">Next</span>
 </button>
 
@@ -1500,11 +1609,11 @@ allowfullscreen></iframe>
 </div>
 
 <button class="carousel-control-prev" type="button" data-bs-target="#alumniCarousel" data-bs-slide="prev" style="${hasMulti ? '' : 'display:none'}">
-<span class="carousel-control-prev-icon" aria-hidden="true"></span>
+<span class="carousel-control-prev-icon"></span>
 <span class="visually-hidden">Previous</span>
 </button>
 <button class="carousel-control-next" type="button" data-bs-target="#alumniCarousel" data-bs-slide="next" style="${hasMulti ? '' : 'display:none'}">
-<span class="carousel-control-next-icon" aria-hidden="true"></span>
+<span class="carousel-control-next-icon"></span>
 <span class="visually-hidden">Next</span>
 </button>
 </div>
