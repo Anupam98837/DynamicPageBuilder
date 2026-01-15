@@ -876,56 +876,36 @@ td.col-slug code{
     // Permissions
     const ACTOR = { role: '' };
     let canCreate=false, canEdit=false, canDelete=false;
-    // Add publishing permissions
-    let canPublish = false;
+// Add publishing permissions
+let canPublish = false;
 
-    // ✅ UPDATED PERMISSION LOGIC:
-    // - Faculty/HOD/TA/IT can CREATE + EDIT
-    // - Only Admin/Super Admin/Director/Principal can DELETE + PUBLISH
-    function computePermissions(){
-      const r = (ACTOR.role || '').toLowerCase();
+function computePermissions(){
+  const r = (ACTOR.role || '').toLowerCase();
+  const createDeleteRoles = ['admin','super_admin','director','principal'];
+  const writeRoles = ['admin','super_admin','director','principal','hod','faculty','technical_assistant','it_person'];
 
-      const publishDeleteRoles = ['admin','super_admin','director','principal'];
-      const writeRoles = ['admin','super_admin','director','principal','hod','faculty','technical_assistant','it_person'];
+  canCreate = createDeleteRoles.includes(r);
+  canDelete = createDeleteRoles.includes(r);
+  canEdit   = writeRoles.includes(r);
+  canPublish = createDeleteRoles.includes(r);  // Only these roles can publish
 
-      canCreate  = writeRoles.includes(r);          // ✅ now faculty/hod can add
-      canEdit    = writeRoles.includes(r);
-      canDelete  = publishDeleteRoles.includes(r);
-      canPublish = publishDeleteRoles.includes(r);
+  if (writeControls) writeControls.style.display = canCreate ? 'flex' : 'none';
+  
+  // Update publish option visibility in status dropdown
+  updatePublishOption();
+}
 
-      if (writeControls) writeControls.style.display = canCreate ? 'flex' : 'none';
-
-      updatePublishOption();
+function updatePublishOption(){
+  if (!fStatus) return;
+  const publishOption = fStatus.querySelector('option[value="published"]');
+  if (publishOption){
+    publishOption.style.display = canPublish ? '' : 'none';
+    // If current value is published but user can't publish, change to draft
+    if (!canPublish && fStatus.value === 'published'){
+      fStatus.value = 'draft';
     }
-
-    // ✅ publish option handling:
-    // - If user CANNOT publish, hide/disable Published option unless it's already published (editing existing)
-    // - If already published + user can't publish => lock status select (prevents accidental unpublish)
-    function updatePublishOption(){
-      if (!fStatus) return;
-      const publishOption = fStatus.querySelector('option[value="published"]');
-      if (!publishOption) return;
-
-      if (canPublish){
-        publishOption.style.display = '';
-        publishOption.disabled = false;
-        if (!itemForm?.dataset?.mode || itemForm.dataset.mode !== 'view') fStatus.disabled = false;
-        return;
-      }
-
-      // cannot publish
-      publishOption.disabled = true;
-
-      const currentVal = (fStatus.value || '').toLowerCase();
-      if (currentVal === 'published'){
-        publishOption.style.display = '';
-        // lock status to prevent accidental change
-        if (itemForm?.dataset?.mode !== 'view') fStatus.disabled = true;
-      } else {
-        publishOption.style.display = 'none';
-        if (itemForm?.dataset?.mode !== 'view') fStatus.disabled = false;
-      }
-    }
+  }
+}
 
     async function fetchMe(){
       try{
@@ -1011,46 +991,45 @@ td.col-slug code{
     }
 
     async function loadDepartments(selected=''){
-      if (!fDepartmentId) return;
+  if (!fDepartmentId) return;
 
-      fDepartmentId.innerHTML = `<option value="">Loading departments…</option>`;
-      fDepartmentId.disabled = true;
+  fDepartmentId.innerHTML = `<option value="">Loading departments…</option>`;
+  fDepartmentId.disabled = true;
 
-      try{
-        const res = await fetchWithTimeout('/api/departments', {
-          headers: {
-            ...authHeaders(),
-            'X-UI-Mode': 'dropdown',
-            'X-Dropdown': '1'
-          }
-        }, 15000);
-
-        const js = await res.json().catch(()=> ({}));
-        if (!res.ok) throw new Error(js?.message || 'Failed to load departments');
-
-        const list = Array.isArray(js.data) ? js.data : [];
-
-        let html = `<option value="">Select department</option>`;
-        html += list.map(d => {
-          const id = (d.id ?? '').toString();
-          const label = (d.title || d.name || d.slug || d.uuid || ('Dept #' + id)).toString();
-          return `<option value="${esc(id)}">${esc(label)}</option>`;
-        }).join('');
-
-        fDepartmentId.innerHTML = html;
-        fDepartmentId.disabled = false;
-
-        if (selected){
-          const opt = fDepartmentId.querySelector(`option[value="${CSS.escape(String(selected))}"]`);
-          if (opt) fDepartmentId.value = String(selected);
-        }
-      }catch(ex){
-        fDepartmentId.innerHTML = `<option value="">Select department</option>`;
-        fDepartmentId.disabled = false;
-        err(ex?.name === 'AbortError' ? 'Department load timed out' : (ex.message || 'Failed to load departments'));
+  try{
+    const res = await fetchWithTimeout('/api/departments', {
+      headers: {
+        ...authHeaders(),
+        'X-UI-Mode': 'dropdown',
+        'X-Dropdown': '1'
       }
-    }
+    }, 15000);
 
+    const js = await res.json().catch(()=> ({}));
+    if (!res.ok) throw new Error(js?.message || 'Failed to load departments');
+
+    const list = Array.isArray(js.data) ? js.data : [];
+
+    let html = `<option value="">Select department</option>`;
+    html += list.map(d => {
+      const id = (d.id ?? '').toString();
+      const label = (d.title || d.name || d.slug || d.uuid || ('Dept #' + id)).toString();
+      return `<option value="${esc(id)}">${esc(label)}</option>`;
+    }).join('');
+
+    fDepartmentId.innerHTML = html;
+    fDepartmentId.disabled = false;
+
+    if (selected){
+      const opt = fDepartmentId.querySelector(`option[value="${CSS.escape(String(selected))}"]`);
+      if (opt) fDepartmentId.value = String(selected);
+    }
+  }catch(ex){
+    fDepartmentId.innerHTML = `<option value="">Select department</option>`;
+    fDepartmentId.disabled = false;
+    err(ex?.name === 'AbortError' ? 'Department load timed out' : (ex.message || 'Failed to load departments'));
+  }
+}
     // State
     const state = {
       filters: { q:'', status:'', featured:'', sort:'-created_at' },
@@ -1141,50 +1120,49 @@ td.col-slug code{
     // ✅ Same pattern as reference (Contact Info):
     // action toggle has NO data-bs-toggle; we manually open with Popper strategy:fixed
     function rowActions(tabKey, status, featured){
-      let menu = `
-        <div class="dropdown text-end">
-          <button type="button"
-            class="btn btn-light btn-sm sa-dd-toggle"
-            aria-expanded="false" title="Actions">
-            <i class="fa fa-ellipsis-vertical"></i>
-          </button>
-          <ul class="dropdown-menu dropdown-menu-end">
-            <li><button type="button" class="dropdown-item" data-action="view"><i class="fa fa-eye"></i> View</button></li>`;
+  let menu = `
+    <div class="dropdown text-end">
+      <button type="button"
+        class="btn btn-light btn-sm sa-dd-toggle"
+        aria-expanded="false" title="Actions">
+        <i class="fa fa-ellipsis-vertical"></i>
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li><button type="button" class="dropdown-item" data-action="view"><i class="fa fa-eye"></i> View</button></li>`;
 
-      if (tabKey !== 'trash' && canEdit){
-        menu += `<li><button type="button" class="dropdown-item" data-action="edit"><i class="fa fa-pen-to-square"></i> Edit</button></li>`;
+  if (tabKey !== 'trash' && canEdit){
+    menu += `<li><button type="button" class="dropdown-item" data-action="edit"><i class="fa fa-pen-to-square"></i> Edit</button></li>`;
+    
+    // Toggle Featured option
+    const featuredLabel = featured ? 'Unfeature' : 'Feature';
+    const featuredIcon = featured ? 'fa-star-half-stroke' : 'fa-star';
+    menu += `<li><button type="button" class="dropdown-item" data-action="toggleFeatured"><i class="fa ${featuredIcon}"></i> ${featuredLabel}</button></li>`;
 
-        // Toggle Featured option
-        const featuredLabel = featured ? 'Unfeature' : 'Feature';
-        const featuredIcon = featured ? 'fa-star-half-stroke' : 'fa-star';
-        menu += `<li><button type="button" class="dropdown-item" data-action="toggleFeatured"><i class="fa ${featuredIcon}"></i> ${featuredLabel}</button></li>`;
-
-        // Add "Make Published" option ONLY for publishers when status is not published
-        const statusLower = (status || '').toString().toLowerCase();
-        if (canPublish && statusLower !== 'published'){
-          menu += `<li><button type="button" class="dropdown-item" data-action="make-publish"><i class="fa fa-circle-check"></i> Make Published</button></li>`;
-        } else if (statusLower === 'published' && canPublish) {
-          menu += `<li><button type="button" class="dropdown-item" data-action="mark-draft"><i class="fa fa-circle-pause"></i> Mark as Draft</button></li>`;
-        }
-      }
-
-      if (tabKey !== 'trash'){
-        if (canDelete){
-          menu += `<li><hr class="dropdown-divider"></li>
-            <li><button type="button" class="dropdown-item text-danger" data-action="delete"><i class="fa fa-trash"></i> Delete</button></li>`;
-        }
-      } else {
-        menu += `<li><hr class="dropdown-divider"></li>
-          <li><button type="button" class="dropdown-item" data-action="restore"><i class="fa fa-rotate-left"></i> Restore</button></li>`;
-        if (canDelete){
-          menu += `<li><button type="button" class="dropdown-item text-danger" data-action="force"><i class="fa fa-skull-crossbones"></i> Delete Permanently</button></li>`;
-        }
-      }
-
-      menu += `</ul></div>`;
-      return menu;
+    // Add "Make Published" option ONLY for publishers when status is not published
+    const statusLower = (status || '').toString().toLowerCase();
+    if (canPublish && statusLower !== 'published'){
+      menu += `<li><button type="button" class="dropdown-item" data-action="make-publish"><i class="fa fa-circle-check"></i> Make Published</button></li>`;
+    } else if (statusLower === 'published' && canPublish) {
+      menu += `<li><button type="button" class="dropdown-item" data-action="mark-draft"><i class="fa fa-circle-pause"></i> Mark as Draft</button></li>`;
     }
+  }
 
+  if (tabKey !== 'trash'){
+    if (canDelete){
+      menu += `<li><hr class="dropdown-divider"></li>
+        <li><button type="button" class="dropdown-item text-danger" data-action="delete"><i class="fa fa-trash"></i> Delete</button></li>`;
+    }
+  } else {
+    menu += `<li><hr class="dropdown-divider"></li>
+      <li><button type="button" class="dropdown-item" data-action="restore"><i class="fa fa-rotate-left"></i> Restore</button></li>`;
+    if (canDelete){
+      menu += `<li><button type="button" class="dropdown-item text-danger" data-action="force"><i class="fa fa-skull-crossbones"></i> Delete Permanently</button></li>`;
+    }
+  }
+
+  menu += `</ul></div>`;
+  return menu;
+}
     function renderTable(tabKey){
       const tbody = tabKey==='active' ? tbodyActive : (tabKey==='inactive' ? tbodyInactive : tbodyTrash);
       const rows = state.tabs[tabKey].items || [];
@@ -1210,8 +1188,7 @@ td.col-slug code{
         const views = (r.views_count ?? 0);
         const deleted = r.deleted_at || '—';
 
-        const menu = rowActions(tabKey, status, featured);
-
+const menu = rowActions(tabKey, status, featured);
         if (tabKey === 'trash'){
           return `
             <tr data-uuid="${esc(uuid)}">
@@ -1595,47 +1572,42 @@ td.col-slug code{
     }
 
     function resetForm(){
-      itemForm?.reset();
-      fUuid.value = '';
-      fId.value = '';
-      itemForm.dataset.originalStatus = ''; // ✅ store original status for permission-safe submit
+  itemForm?.reset();
+  fUuid.value = '';
+  fId.value = '';
+  if (fCoverRemove) fCoverRemove.value = '0';
 
-      if (fCoverRemove) fCoverRemove.value = '0';
+  // Reset department dropdown
+  if (fDepartmentId){
+    fDepartmentId.innerHTML = `<option value="">Loading departments…</option>`;
+    fDepartmentId.value = '';
+  }
 
-      // Reset department dropdown
-      if (fDepartmentId){
-        fDepartmentId.innerHTML = `<option value="">Loading departments…</option>`;
-        fDepartmentId.value = '';
-      }
+  slugDirty = false;
+  settingSlug = false;
 
-      slugDirty = false;
-      settingSlug = false;
+  if (rte.editor) rte.editor.innerHTML = '';
+  if (rte.code) rte.code.value = '';
+  if (rte.hidden) rte.hidden.value = '';
+  setRteMode('text');
+  setRteEnabled(true);
 
-      if (rte.editor) rte.editor.innerHTML = '';
-      if (rte.code) rte.code.value = '';
-      if (rte.hidden) rte.hidden.value = '';
-      setRteMode('text');
-      setRteEnabled(true);
+  if (currentAttachmentsInfo) currentAttachmentsInfo.style.display = 'none';
+  if (currentAttachmentsText) currentAttachmentsText.textContent = '—';
 
-      if (currentAttachmentsInfo) currentAttachmentsInfo.style.display = 'none';
-      if (currentAttachmentsText) currentAttachmentsText.textContent = '—';
+  clearCoverPreview(true);
 
-      clearCoverPreview(true);
+  itemForm?.querySelectorAll('input,select,textarea').forEach(el => {
+    if (el.id === 'saUuid' || el.id === 'saId' || el.id === 'saCoverRemove') return;
+    if (el.type === 'file') el.disabled = false;
+    else if (el.tagName === 'SELECT') el.disabled = false;
+    else el.readOnly = false;
+  });
 
-      itemForm?.querySelectorAll('input,select,textarea').forEach(el => {
-        if (el.id === 'saUuid' || el.id === 'saId' || el.id === 'saCoverRemove') return;
-        if (el.type === 'file') el.disabled = false;
-        else if (el.tagName === 'SELECT') el.disabled = false;
-        else el.readOnly = false;
-      });
-
-      if (saveBtn) saveBtn.style.display = '';
-      itemForm.dataset.mode = 'edit';
-      itemForm.dataset.intent = 'create';
-
-      // ✅ apply publish option rules on fresh form
-      updatePublishOption();
-    }
+  if (saveBtn) saveBtn.style.display = '';
+  itemForm.dataset.mode = 'edit';
+  itemForm.dataset.intent = 'create';
+}
 
     function normalizeAttachments(r){
       let a = r?.attachments || r?.attachments_json || null;
@@ -1644,79 +1616,74 @@ td.col-slug code{
     }
 
     function fillFormFromRow(r, viewOnly=false){
-      fUuid.value = r.uuid || '';
-      fId.value = r.id || '';
-      if (fCoverRemove) fCoverRemove.value = '0';
+  fUuid.value = r.uuid || '';
+  fId.value = r.id || '';
+  if (fCoverRemove) fCoverRemove.value = '0';
 
-      fTitle.value = r.title || '';
-      fSlug.value = r.slug || '';
+  fTitle.value = r.title || '';
+  fSlug.value = r.slug || '';
 
-      // ✅ store original status (important for non-publishers editing published)
-      itemForm.dataset.originalStatus = (r.status || '').toString().toLowerCase();
+  // Set department value (will be applied when dropdown loads)
+  const deptId = r.department_id || r?.department?.id || r?.departmentId || '';
+  
+  fStatus.value = (r.status || 'draft');
+  fFeatured.value = String((r.is_featured_home ?? 0) ? 1 : 0);
 
-      // Set department value (will be applied when dropdown loads)
-      const deptId = r.department_id || r?.department?.id || r?.departmentId || '';
+  fPublishAt.value = toLocal(r.publish_at);
+  fExpireAt.value = toLocal(r.expire_at);
 
-      fStatus.value = (r.status || 'draft');
-      fFeatured.value = String((r.is_featured_home ?? 0) ? 1 : 0);
+  const bodyHtml = (r.body ?? '') || '';
+  if (rte.editor) rte.editor.innerHTML = ensurePreHasCode(bodyHtml);
+  syncEditorToCode();
+  setRteMode('text');
 
-      fPublishAt.value = toLocal(r.publish_at);
-      fExpireAt.value = toLocal(r.expire_at);
+  const coverUrl = r.cover_image_url || r.cover_image || '';
+  if (coverUrl){
+    clearCoverPreview(true);
+    setCoverPreview(coverUrl, '');
+    if (btnRemoveCover) btnRemoveCover.style.display = viewOnly ? 'none' : '';
+  } else {
+    clearCoverPreview(true);
+  }
 
-      const bodyHtml = (r.body ?? '') || '';
-      if (rte.editor) rte.editor.innerHTML = ensurePreHasCode(bodyHtml);
-      syncEditorToCode();
-      setRteMode('text');
+  const atts = normalizeAttachments(r);
+  if (atts.length){
+    if (currentAttachmentsInfo) currentAttachmentsInfo.style.display = '';
+    if (currentAttachmentsText) currentAttachmentsText.textContent = `${atts.length} file(s) attached`;
+  } else {
+    if (currentAttachmentsInfo) currentAttachmentsInfo.style.display = 'none';
+    if (currentAttachmentsText) currentAttachmentsText.textContent = '—';
+  }
 
-      const coverUrl = r.cover_image_url || r.cover_image || '';
-      if (coverUrl){
-        clearCoverPreview(true);
-        setCoverPreview(coverUrl, '');
-        if (btnRemoveCover) btnRemoveCover.style.display = viewOnly ? 'none' : '';
-      } else {
-        clearCoverPreview(true);
-      }
+  slugDirty = true;
 
-      const atts = normalizeAttachments(r);
-      if (atts.length){
-        if (currentAttachmentsInfo) currentAttachmentsInfo.style.display = '';
-        if (currentAttachmentsText) currentAttachmentsText.textContent = `${atts.length} file(s) attached`;
-      } else {
-        if (currentAttachmentsInfo) currentAttachmentsInfo.style.display = 'none';
-        if (currentAttachmentsText) currentAttachmentsText.textContent = '—';
-      }
+  // Load departments and set the selected one
+  loadDepartments(deptId);
 
-      slugDirty = true;
+  // Update publish option visibility
+  if (!viewOnly) {
+    setTimeout(() => updatePublishOption(), 50);
+  }
 
-      // Load departments and set the selected one
-      loadDepartments(deptId);
-
-      // ✅ Apply publish option rules (hide/lock published correctly)
-      updatePublishOption();
-
-      if (viewOnly){
-        itemForm?.querySelectorAll('input,select,textarea').forEach(el => {
-          if (el.id === 'saUuid' || el.id === 'saId' || el.id === 'saCoverRemove') return;
-          if (el.type === 'file') el.disabled = true;
-          else if (el.tagName === 'SELECT') el.disabled = true;
-          else el.readOnly = true;
-        });
-        setRteEnabled(false);
-        if (saveBtn) saveBtn.style.display = 'none';
-        if (btnRemoveCover) btnRemoveCover.style.display = 'none';
-        itemForm.dataset.mode = 'view';
-        itemForm.dataset.intent = 'view';
-      } else {
-        setRteEnabled(true);
-        if (saveBtn) saveBtn.style.display = '';
-        itemForm.dataset.mode = 'edit';
-        itemForm.dataset.intent = 'edit';
-
-        // ✅ non-publishers editing published should keep status locked (handled by updatePublishOption)
-        updatePublishOption();
-      }
-    }
-
+  if (viewOnly){
+    itemForm?.querySelectorAll('input,select,textarea').forEach(el => {
+      if (el.id === 'saUuid' || el.id === 'saId' || el.id === 'saCoverRemove') return;
+      if (el.type === 'file') el.disabled = true;
+      else if (el.tagName === 'SELECT') el.disabled = true;
+      else el.readOnly = true;
+    });
+    setRteEnabled(false);
+    if (saveBtn) saveBtn.style.display = 'none';
+    if (btnRemoveCover) btnRemoveCover.style.display = 'none';
+    itemForm.dataset.mode = 'view';
+    itemForm.dataset.intent = 'view';
+  } else {
+    setRteEnabled(true);
+    if (saveBtn) saveBtn.style.display = '';
+    itemForm.dataset.mode = 'edit';
+    itemForm.dataset.intent = 'edit';
+  }
+}
     fTitle?.addEventListener('input', debounce(() => {
       if (itemForm?.dataset.mode === 'view') return;
       if (fUuid.value) return;
@@ -1737,15 +1704,11 @@ td.col-slug code{
       if (!canCreate) return;
       resetForm();
 
-      // ✅ ensure departments are loaded before opening
+      // ✅ ensure departments are loaded before opening (added)
       await loadDepartments();
 
       if (itemModalTitle) itemModalTitle.textContent = 'Add Student Activity';
       itemForm.dataset.intent = 'create';
-
-      // ✅ ensure correct publish option state for this role
-      updatePublishOption();
-
       itemModal && itemModal.show();
     });
 
@@ -1799,12 +1762,12 @@ td.col-slug code{
       if (act === 'view' || act === 'edit'){
         if (act === 'edit' && !canEdit) return;
 
+        // ✅ ensure departments are loaded before filling (added)
         await loadDepartments();
 
         resetForm();
         if (itemModalTitle) itemModalTitle.textContent = (act === 'view') ? 'View Student Activity' : 'Edit Student Activity';
         fillFormFromRow(row, act === 'view');
-
         itemModal && itemModal.show();
         return;
       }
@@ -1831,82 +1794,83 @@ td.col-slug code{
         return;
       }
 
-      if (act === 'make-publish'){
-        if (!canPublish) return;
+      if (act === 'markPublished'){ if (!canEdit) return; await updateStatus(uuid, 'published'); return; }
+      if (act === 'markDraft'){ if (!canEdit) return; await updateStatus(uuid, 'draft'); return; }
+if (act === 'make-publish'){
+  if (!canPublish) return;
+  
+  const conf = await Swal.fire({
+    title: 'Publish this student activity?',
+    text: 'This will make the student activity visible to the public.',
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Publish',
+    confirmButtonColor: '#10b981'
+  });
+  if (!conf.isConfirmed) return;
 
-        const conf = await Swal.fire({
-          title: 'Publish this student activity?',
-          text: 'This will make the student activity visible to the public.',
-          icon: 'question',
-          showCancelButton: true,
-          confirmButtonText: 'Publish',
-          confirmButtonColor: '#10b981'
-        });
-        if (!conf.isConfirmed) return;
+  showLoading(true);
+  try{
+    const fd = new FormData();
+    fd.append('status', 'published');
+    fd.append('_method', 'PUT');
 
-        showLoading(true);
-        try{
-          const fd = new FormData();
-          fd.append('status', 'published');
-          fd.append('_method', 'PUT');
+    const res = await fetchWithTimeout(`/api/student-activities/${encodeURIComponent(uuid)}`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: fd
+    }, 15000);
 
-          const res = await fetchWithTimeout(`/api/student-activities/${encodeURIComponent(uuid)}`, {
-            method: 'POST',
-            headers: authHeaders(),
-            body: fd
-          }, 15000);
+    const js = await res.json().catch(()=> ({}));
+    if (!res.ok || js.success === false) throw new Error(js?.message || 'Publish failed');
 
-          const js = await res.json().catch(()=> ({}));
-          if (!res.ok || js.success === false) throw new Error(js?.message || 'Publish failed');
+    ok('Student activity published successfully');
+    await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
+  }catch(ex){
+    err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
+  }finally{
+    showLoading(false);
+  }
+  return;
+}
 
-          ok('Student activity published successfully');
-          await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
-        }catch(ex){
-          err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
-        }finally{
-          showLoading(false);
-        }
-        return;
-      }
+if (act === 'mark-draft'){
+  if (!canPublish) return;
+  
+  const conf = await Swal.fire({
+    title: 'Mark as Draft?',
+    text: 'This will hide the student activity from the public.',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'Mark as Draft',
+    confirmButtonColor: '#f59e0b'
+  });
+  if (!conf.isConfirmed) return;
 
-      if (act === 'mark-draft'){
-        if (!canPublish) return;
+  showLoading(true);
+  try{
+    const fd = new FormData();
+    fd.append('status', 'draft');
+    fd.append('_method', 'PUT');
 
-        const conf = await Swal.fire({
-          title: 'Mark as Draft?',
-          text: 'This will hide the student activity from the public.',
-          icon: 'warning',
-          showCancelButton: true,
-          confirmButtonText: 'Mark as Draft',
-          confirmButtonColor: '#f59e0b'
-        });
-        if (!conf.isConfirmed) return;
+    const res = await fetchWithTimeout(`/api/student-activities/${encodeURIComponent(uuid)}`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: fd
+    }, 15000);
 
-        showLoading(true);
-        try{
-          const fd = new FormData();
-          fd.append('status', 'draft');
-          fd.append('_method', 'PUT');
+    const js = await res.json().catch(()=> ({}));
+    if (!res.ok || js.success === false) throw new Error(js?.message || 'Update failed');
 
-          const res = await fetchWithTimeout(`/api/student-activities/${encodeURIComponent(uuid)}`, {
-            method: 'POST',
-            headers: authHeaders(),
-            body: fd
-          }, 15000);
-
-          const js = await res.json().catch(()=> ({}));
-          if (!res.ok || js.success === false) throw new Error(js?.message || 'Update failed');
-
-          ok('Marked as draft');
-          await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
-        }catch(ex){
-          err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
-        }finally{
-          showLoading(false);
-        }
-        return;
-      }
-
+    ok('Marked as draft');
+    await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
+  }catch(ex){
+    err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
+  }finally{
+    showLoading(false);
+  }
+  return;
+}
       if (act === 'delete'){
         if (!canDelete) return;
         const conf = await Swal.fire({
@@ -2001,112 +1965,112 @@ td.col-slug code{
       }
     });
 
-    // =========================
-    // Submit (create/edit)
-    // =========================
-    itemForm?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (saving) return;
-      saving = true;
+// =========================
+// Submit (create/edit)
+// =========================
+itemForm?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  if (saving) return;
+  saving = true;
 
-      try{
-        if (itemForm.dataset.mode === 'view') return;
+  try{
+    if (itemForm.dataset.mode === 'view') return;
 
-        const intent = itemForm.dataset.intent || 'create';
-        const isEdit = intent === 'edit' && !!fUuid.value;
+    const intent = itemForm.dataset.intent || 'create';
+    const isEdit = intent === 'edit' && !!fUuid.value;
 
-        if (isEdit && !canEdit) return;
-        if (!isEdit && !canCreate) return;
+    if (isEdit && !canEdit) return;
+    if (!isEdit && !canCreate) return;
 
-        const title = (fTitle.value || '').trim();
-        const slug = (fSlug.value || '').trim();
+    const title = (fTitle.value || '').trim();
+    const slug  = (fSlug.value || '').trim();
 
-        // ✅ department id
-        const deptId = (fDepartmentId?.value || '').toString().trim();
+    // ✅ department id
+    const deptId = (fDepartmentId?.value || '').toString().trim();
 
-        let status = (fStatus.value || 'draft').trim();
-        const featured = (fFeatured.value || '0').trim();
+    const status   = (fStatus.value || 'draft').trim();
+    const featured = (fFeatured.value || '0').trim();
 
-        const rawBody = (rte.mode === 'code') ? (rte.code.value || '') : (rte.editor.innerHTML || '');
-        const cleanBody = ensurePreHasCode(rawBody).trim();
-        if (rte.hidden) rte.hidden.value = cleanBody;
+    const rawBody  = (rte.mode === 'code') ? (rte.code.value || '') : (rte.editor.innerHTML || '');
+    const cleanBody = ensurePreHasCode(rawBody).trim();
+    if (rte.hidden) rte.hidden.value = cleanBody;
 
-        if (!title){ err('Title is required'); fTitle.focus(); return; }
-        if (!deptId){ err('Department is required'); fDepartmentId?.focus(); return; }
-        if (!cleanBody){ err('Body is required'); rteFocus(); return; }
+    if (!title){ err('Title is required'); fTitle.focus(); return; }
+    if (!cleanBody){ err('Body is required'); rteFocus(); return; }
 
-        // ✅ IMPORTANT: non-publishers can't set published for new items,
-        // and editing published should KEEP published (no auto downgrade)
-        if (!canPublish){
-          const original = (itemForm.dataset.originalStatus || '').toLowerCase();
-          if (!isEdit){
-            if ((status || '').toLowerCase() === 'published') status = 'draft';
-          } else {
-            if (original === 'published') status = 'published';
-          }
-        }
+    // ✅ fd MUST be created BEFORE appending
+    const fd = new FormData();
 
-        const fd = new FormData();
-        fd.append('title', title);
-        if (slug) fd.append('slug', slug);
+    fd.append('title', title);
+    if (slug) fd.append('slug', slug);
 
-        fd.append('department_id', deptId);
+    // ✅ send department only if selected
+    // - if edit and user cleared it -> send empty to clear on backend
+    if (deptId) {
+      fd.append('department_id', deptId);
+    } else if (isEdit) {
+      fd.append('department_id', '');
+    }
 
-        fd.append('status', status);
-        fd.append('is_featured_home', featured === '1' ? '1' : '0');
-        if ((fPublishAt.value || '').trim()) fd.append('publish_at', fPublishAt.value);
-        if ((fExpireAt.value || '').trim()) fd.append('expire_at', fExpireAt.value);
-        fd.append('body', cleanBody);
+    fd.append('status', status);
+    fd.append('is_featured_home', featured === '1' ? '1' : '0');
 
-        // cover remove
-        if (isEdit && (fCoverRemove?.value === '1')) fd.append('cover_image_remove', '1');
+    if ((fPublishAt.value || '').trim()) fd.append('publish_at', fPublishAt.value);
+    if ((fExpireAt.value || '').trim())  fd.append('expire_at', fExpireAt.value);
 
-        // cover upload
-        const cover = fCover.files?.[0] || null;
-        if (cover) fd.append('cover_image', cover);
+    fd.append('body', cleanBody);
 
-        // attachments upload
-        Array.from(fAttachments.files || []).forEach(f => fd.append('attachments[]', f));
+    // cover remove
+    if (isEdit && (fCoverRemove?.value === '1')) fd.append('cover_image_remove', '1');
 
-        let url = '/api/student-activities';
-        if (isEdit){
-          url = `/api/student-activities/${encodeURIComponent(fUuid.value)}`;
-          fd.append('_method', 'PUT');
-        }
+    // cover upload
+    const cover = fCover.files?.[0] || null;
+    if (cover) fd.append('cover_image', cover);
 
-        setBtnLoading(saveBtn, true);
-        showLoading(true);
+    // attachments upload
+    Array.from(fAttachments.files || []).forEach(f => fd.append('attachments[]', f));
 
-        const res = await fetchWithTimeout(url, {
-          method: 'POST',
-          headers: authHeaders(),
-          body: fd
-        }, 20000);
+    let url = '/api/student-activities';
+    if (isEdit){
+      url = `/api/student-activities/${encodeURIComponent(fUuid.value)}`;
+      fd.append('_method', 'PUT');
+    }
 
-        const js = await res.json().catch(()=> ({}));
-        if (!res.ok || js.success === false){
-          let msg = js?.message || 'Save failed';
-          if (js?.errors){
-            const k = Object.keys(js.errors)[0];
-            if (k && js.errors[k] && js.errors[k][0]) msg = js.errors[k][0];
-          }
-          throw new Error(msg);
-        }
+    setBtnLoading(saveBtn, true);
+    showLoading(true);
 
-        ok(isEdit ? 'Updated' : 'Created');
-        itemModal && itemModal.hide();
+    const res = await fetchWithTimeout(url, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: fd
+    }, 20000);
 
-        state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
-        await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
-      }catch(ex){
-        err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
-      }finally{
-        saving = false;
-        setBtnLoading(saveBtn, false);
-        showLoading(false);
+    const js = await res.json().catch(()=> ({}));
+    if (!res.ok || js.success === false){
+      let msg = js?.message || 'Save failed';
+      if (js?.errors){
+        const k = Object.keys(js.errors)[0];
+        if (k && js.errors[k] && js.errors[k][0]) msg = js.errors[k][0];
       }
-    });
+      throw new Error(msg);
+    }
+
+    ok(isEdit ? 'Updated' : 'Created');
+    itemModal && itemModal.hide();
+
+    state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
+    await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
+
+  }catch(ex){
+    err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
+  }finally{
+    saving = false;
+    setBtnLoading(saveBtn, false);
+    showLoading(false);
+  }
+});
+
 
     // Init
     (async () => {
@@ -2114,6 +2078,7 @@ td.col-slug code{
       try{
         await fetchMe();
 
+        // ✅ preload departments once (added)
         await loadDepartments();
 
         await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
