@@ -560,8 +560,8 @@ td.col-slug code{
               </div>
               {{-- Department --}}
 <div class="col-12" id="deptFieldWrap">
-  <label class="form-label">Department <span class="text-danger">*</span></label>
-  <select class="form-select" id="department_id" required>
+  <label class="form-label">Department</label>
+  <select class="form-select" id="department_id">
     <option value="">Loading departments…</option>
   </select>
   <div class="form-text">Select the department this scholarship belongs to.</div>
@@ -986,7 +986,7 @@ async function loadDepartments(){
   if (!Array.isArray(list)) list = [];
 
   // render options
-  let html = `<option value="">Select Department</option>`;
+  let html = `<option value="">No Department (optional)</option>`;
   list.forEach(d => {
     const id   = d.id ?? d.department_id ?? d.uuid ?? '';
     const name = d.name ?? d.title ?? d.department_name ?? d.dept_name ?? (`Department ${id}`);
@@ -1917,14 +1917,14 @@ if (act === 'make-publish'){
 
         if (!title){ err('Title is required'); titleInput.focus(); return; }
         if (!cleanBody){ err('Description is required'); rteFocus(); return; }
-        const departmentId = (deptSelect?.value || '').toString().trim();
-if (!departmentId){
-  err('Department is required');
-  deptSelect?.focus();
-  return;
-}
 const fd = new FormData();
-fd.append('department_id', departmentId);
+
+// ✅ Department optional now
+const departmentId = (deptSelect?.value || '').toString().trim();
+if (departmentId !== '') {
+  fd.append('department_id', departmentId);
+}
+
 
         
         fd.append('title', title);
