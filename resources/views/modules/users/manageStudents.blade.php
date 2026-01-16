@@ -612,6 +612,20 @@ td .fw-semibold{color:var(--ink)}
               <input id="acad_session" class="form-control" maxlength="40" placeholder="e.g. 2025-2029">
             </div>
 
+            <div class="col-md-4">
+  <label class="form-label">Attendance (%)</label>
+  <input id="acad_attendance_percentage"
+         type="number"
+         class="form-control"
+         min="0"
+         max="100"
+         step="0.01"
+         placeholder="e.g. 87.50">
+  <div class="form-text">Optional (0 to 100)</div>
+  <div class="invalid-feedback">Attendance must be between 0 and 100.</div>
+</div>
+
+
             <div class="col-12">
               <label class="form-label">Metadata (optional JSON)</label>
               <textarea id="acad_metadata" class="form-control" rows="2" placeholder='{"note":"optional"}'></textarea>
@@ -831,6 +845,7 @@ const importStudentsFile = document.getElementById('importStudentsFile');
   const acadAdmDate = document.getElementById('acad_admission_date');
   const acadBatch = document.getElementById('acad_batch');
   const acadSession = document.getElementById('acad_session');
+  const acadAttendance = document.getElementById('acad_attendance_percentage');
   const acadMeta = document.getElementById('acad_metadata');
 
   const ROLE_LABEL = { student: 'Student', students: 'Student' };
@@ -1880,6 +1895,15 @@ importStudentsFile?.addEventListener('change', async () => {
     return okk;
   }
 
+  if (acadAttendance && acadAttendance.value !== '') {
+  const v = parseFloat(acadAttendance.value);
+  if (Number.isNaN(v) || v < 0 || v > 100) {
+    acadAttendance.classList.add('is-invalid');
+    okk = false;
+  }
+}
+
+
   function fillAcademicFromUserDept() {
     const depVal = (deptInput.value || '').toString();
     if (acadDept && depVal) acadDept.value = depVal;
@@ -1928,6 +1952,12 @@ importStudentsFile?.addEventListener('change', async () => {
     acadAdmDate.value = rec?.admission_date ? String(rec.admission_date).slice(0,10) : '';
     acadBatch.value = rec?.batch || '';
     acadSession.value = rec?.session || '';
+    if (acadAttendance) {
+  acadAttendance.value =
+    (rec?.attendance_percentage !== null && rec?.attendance_percentage !== undefined)
+      ? String(rec.attendance_percentage)
+      : '';
+}
     if (rec?.metadata && typeof rec.metadata === 'object') acadMeta.value = JSON.stringify(rec.metadata);
     else acadMeta.value = rec?.metadata ? String(rec.metadata) : '';
 
@@ -2120,6 +2150,9 @@ importStudentsFile?.addEventListener('change', async () => {
       admission_date: acadAdmDate.value || null,
       batch: acadBatch.value.trim() || null,
       session: acadSession.value.trim() || null,
+      attendance_percentage: (acadAttendance && acadAttendance.value !== '')
+  ? Math.max(0, Math.min(100, parseFloat(acadAttendance.value)))
+  : null,
       status: acadStatus.value || null,
       metadata: acadMeta.value.trim() || null
     };

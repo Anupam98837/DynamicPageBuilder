@@ -424,8 +424,9 @@ Route::get('/contact-us-visibility/manage', function () {
     return view('pages.users.pages.contactUs.manageContactVisibility');
 });
 
-
-
+Route::get('/enquiry', function () {
+    return view('landing.pages.enquiry.createEnquiry');
+});
  
 Route::get('/students/manage', function () {
     return view('pages.users.pages.users.manageStudents');
@@ -449,8 +450,4 @@ Route::get('/faculty-preview-order', function () {
  
 Route::get('/sticky-buttons/manage', function () {
     return view('pages.users.pages.stickyButtons.manageStickyButtons');
-});
- 
-Route::get('/enquiry', function () {
-    return view('modules.enquiry.createEnquiry');
 });

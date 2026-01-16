@@ -125,6 +125,106 @@ $homeApis = $homeApis ?? [
     overflow: hidden;
 }
 
+/* ==========================================================
+✅ UPDATED (ONLY): AUTO + MANUAL SCROLL FOR ALL LIST SECTIONS
+- consistent slow/medium speed (JS based)
+- NO GAP at the end (seamless loop)
+- scrollbar always available for manual mouse scrolling
+- pauses on hover/user interaction, resumes smoothly
+========================================================== */
+.nva-body,
+.info-ul-viewport{
+    max-height: 260px;
+    overflow-y: auto;           /* ✅ manual scroll always available */
+    overflow-x: hidden;
+    position: relative;
+    padding-right: 4px;
+    scrollbar-gutter: stable;   /* ✅ prevents layout shift when scrollbar appears */
+    overscroll-behavior: contain;
+}
+
+/* Custom scrollbar (same theme for both) */
+.nva-body::-webkit-scrollbar,
+.info-ul-viewport::-webkit-scrollbar {
+    width: 6px;
+}
+
+.nva-body::-webkit-scrollbar-track,
+.info-ul-viewport::-webkit-scrollbar-track {
+    background: #f8f9fa;
+    border-radius: 4px;
+    margin: 4px 0;
+}
+
+.nva-body::-webkit-scrollbar-thumb,
+.info-ul-viewport::-webkit-scrollbar-thumb {
+    background: #9E363A;
+    border-radius: 4px;
+    opacity: 0.5;
+}
+
+.nva-body::-webkit-scrollbar-thumb:hover,
+.info-ul-viewport::-webkit-scrollbar-thumb:hover {
+    background: #6B2528;
+    opacity: 0.8;
+}
+
+/* Firefox scrollbar */
+.nva-body,
+.info-ul-viewport {
+    scrollbar-width: thin;
+    scrollbar-color: #9E363A #f8f9fa;
+}
+
+/* ✅ FIXED: Ensure nva-list items are properly spaced */
+.nva-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.nva-list li {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    transition: all 0.2s ease;
+}
+
+.nva-list li:last-child {
+    border-bottom: none;
+}
+
+.nva-list li:hover {
+    background: rgba(158, 54, 58, 0.05);
+    border-radius: 6px;
+    transform: translateX(2px);
+}
+
+.nva-list li i {
+    color: #9E363A;
+    font-size: 12px;
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+.nva-list li span,
+.nva-list li a {
+    color: #333;
+    font-size: 13.5px;
+    line-height: 1.4;
+    font-weight: 500;
+    text-decoration: none;
+    flex: 1;
+    word-break: break-word;
+}
+
+.nva-list li a:hover {
+    color: #9E363A;
+    text-decoration: underline;
+}
+
 /* ... (rest of existing CSS remains unchanged) ... */
 </style>
 </head>
@@ -1010,36 +1110,188 @@ new bootstrap.Carousel(el, opts || {});
 }catch(e){}
 }
 
-function initSmoothAutoScrollList(listId) {
-const ul = document.getElementById(listId);
-if(!ul) return;
+/* ==========================================================
+✅ UPDATED (ONLY): ONE AUTO-SCROLL ENGINE FOR ALL LISTS
+Career / Why / Scholarship / Notice / Announcements /
+Achievements / Students Activity / Placement Notice
 
-// ✅ FIX (ONLY): if this UL lives under an <h5>, clip it inside the viewport so it can't overlap the heading
-const viewport = ul.closest('.info-ul-viewport');
+✅ Fixes:
+- Always consistent speed
+- No blank GAP at bottom
+- Manual scrollbar always works
+- Auto pauses on hover / user interaction
+========================================================== */
+const AUTO_SCROLL = (() => {
+  const SPEED_PX_PER_SEC   = 14;    // ✅ slow-medium stable speed
+  const RESUME_DELAY_MS    = 1200;  // ✅ resume after manual interaction
+  const MIN_ITEMS_FOR_AUTO = 7;
 
-ul.classList.remove('scrolling-upwards');
+  const scrollers = new Set();
+  let rafId = null;
 
-const lis = Array.from(ul.querySelectorAll('li'));
-if(lis.length <= 7) {
-ul.classList.remove('autoscroll');
-if(viewport) viewport.classList.remove('autoscroll-viewport');
-return;
-}
+  const prefersReduced = () =>
+    window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-ul.classList.add('autoscroll');
-if(viewport) viewport.classList.add('autoscroll-viewport');
+  function removeClones(ul){
+    ul.querySelectorAll('[data-autoscroll-clone="1"]').forEach(n => n.remove());
+  }
 
-const children = Array.from(ul.children);
-children.forEach(ch => {
-const clone = ch.cloneNode(true);
-clone.setAttribute('data-clone','1');
-ul.appendChild(clone);
-});
+  function countOriginalItems(ul){
+    return ul.querySelectorAll('li:not([data-autoscroll-clone="1"])').length;
+  }
 
-setTimeout(() => {
-ul.classList.add('scrolling-upwards');
-}, 100);
-}
+  function buildClones(ul){
+    const originals = Array.from(ul.children).filter(el => el.nodeType === 1 && el.getAttribute('data-autoscroll-clone') !== '1');
+    originals.forEach(li => {
+      const clone = li.cloneNode(true);
+      clone.setAttribute('data-autoscroll-clone','1');
+      clone.setAttribute('aria-hidden','true');
+      ul.appendChild(clone);
+    });
+  }
+
+  function destroy(viewport){
+    const st = viewport?.__autoScrollState;
+    if(!st) return;
+
+    try{
+      st._handlers.forEach(([evt, fn]) => st.viewport.removeEventListener(evt, fn));
+    }catch(e){}
+
+    delete viewport.__autoScrollState;
+    scrollers.delete(st);
+  }
+
+  function ensure(viewport, ul){
+    if(!viewport || !ul) return;
+
+    // kill previous if exists
+    destroy(viewport);
+
+    if(prefersReduced()) return;
+
+    // ensure manual scrolling always works
+    viewport.style.overflowY = 'auto';
+
+    // clean any older CSS-animation classes
+    ul.classList.remove('autoscroll', 'scrolling-upwards');
+
+    // remove previous clones then measure properly
+    removeClones(ul);
+
+    const originalCount = countOriginalItems(ul);
+    if(originalCount <= MIN_ITEMS_FOR_AUTO) return;
+
+    const viewportH = viewport.clientHeight || 260;
+    const originalHeight = ul.scrollHeight;
+
+    // if not overflowing, no need auto scroll
+    if(originalHeight <= viewportH + 8) return;
+
+    // ✅ seamless loop: append one full copy
+    buildClones(ul);
+
+    const st = {
+      viewport,
+      ul,
+      originalHeight: Math.max(1, originalHeight), // wrap point
+      speed: SPEED_PX_PER_SEC,
+      hovering: false,
+      pausedUntil: 0,
+      last: performance.now(),
+      _handlers: []
+    };
+
+    const pause = (ms = RESUME_DELAY_MS) => {
+      st.pausedUntil = performance.now() + ms;
+    };
+
+    const onEnter = () => { st.hovering = true; };
+    const onLeave = () => { st.hovering = false; pause(RESUME_DELAY_MS); };
+    const onWheel = () => pause(RESUME_DELAY_MS);
+    const onPointerDown = () => pause(RESUME_DELAY_MS);
+    const onTouchStart = () => pause(RESUME_DELAY_MS);
+    const onKey = () => pause(RESUME_DELAY_MS);
+
+    viewport.addEventListener('mouseenter', onEnter, { passive:true });
+    viewport.addEventListener('mouseleave', onLeave, { passive:true });
+    viewport.addEventListener('wheel', onWheel, { passive:true });
+    viewport.addEventListener('pointerdown', onPointerDown, { passive:true });
+    viewport.addEventListener('touchstart', onTouchStart, { passive:true });
+    viewport.addEventListener('keydown', onKey, { passive:true });
+
+    st._handlers.push(['mouseenter', onEnter]);
+    st._handlers.push(['mouseleave', onLeave]);
+    st._handlers.push(['wheel', onWheel]);
+    st._handlers.push(['pointerdown', onPointerDown]);
+    st._handlers.push(['touchstart', onTouchStart]);
+    st._handlers.push(['keydown', onKey]);
+
+    viewport.scrollTop = 0;
+
+    viewport.__autoScrollState = st;
+    scrollers.add(st);
+
+    startLoop();
+  }
+
+  function startLoop(){
+    if(rafId != null) return;
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function tick(now){
+    rafId = requestAnimationFrame(tick);
+
+    if(!scrollers.size) return;
+
+    scrollers.forEach(st => {
+      const vp = st.viewport;
+      const ul = st.ul;
+
+      // cleanup if removed
+      if(!vp || !ul || !document.body.contains(vp)){
+        destroy(vp);
+        return;
+      }
+
+      const dt = Math.max(0, now - st.last);
+      st.last = now;
+
+      // pause while hovering (user manual scroll)
+      if(st.hovering) return;
+
+      // pause after manual interaction
+      if(now < st.pausedUntil) return;
+
+      const delta = (st.speed * dt) / 1000;
+
+      // wrap check (pre)
+      if(vp.scrollTop >= st.originalHeight){
+        vp.scrollTop = vp.scrollTop - st.originalHeight;
+      }
+
+      vp.scrollTop += delta;
+
+      // wrap check (post)
+      if(vp.scrollTop >= st.originalHeight){
+        vp.scrollTop = vp.scrollTop - st.originalHeight;
+      }
+    });
+  }
+
+  function bindUl(ul){
+    if(!ul) return;
+    const viewport = ul.closest('.info-ul-viewport') || ul.closest('.nva-body');
+    ensure(viewport, ul);
+  }
+
+  function refreshAll(){
+    document.querySelectorAll('.info-ul-viewport ul, .nva-body ul').forEach(bindUl);
+  }
+
+  return { bindUl, refreshAll, destroy };
+})();
 
 function initRevealObservers(){
 const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
@@ -1232,7 +1484,8 @@ function setList(listId, items, iconClass, emptyText, opts = {}){
 const el = document.getElementById(listId);
 if(!el) return;
 
-el.querySelectorAll('[data-clone="1"]').forEach(n => n.remove());
+// ✅ remove older clones from previous run
+el.querySelectorAll('[data-autoscroll-clone="1"]').forEach(n => n.remove());
 
 const arr = Array.isArray(items) ? items : [];
 const max = Number(opts.max ?? 50);
@@ -1240,6 +1493,9 @@ const max = Number(opts.max ?? 50);
 if(!arr.length){
 el.classList.remove('autoscroll', 'scrolling-upwards');
 el.innerHTML = `<li><i class="${esc(iconClass)}"></i> <span>${esc(emptyText || 'No items available')}</span></li>`;
+
+// ✅ refresh scroller state after rendering
+setTimeout(() => AUTO_SCROLL.bindUl(el), 0);
 return;
 }
 
@@ -1266,7 +1522,8 @@ ${x.hasLink ? `<a href="${esc(x.href)}">${esc(x.title)}</a>` : `<span>${esc(x.ti
 </li>
 `).join('');
 
-setTimeout(() => initSmoothAutoScrollList(listId), 100);
+// ✅ bind/refresh auto-scroll once DOM is ready
+setTimeout(() => AUTO_SCROLL.bindUl(el), 60);
 };
 
 if(reduce || opts.stagger === false){
@@ -1285,7 +1542,7 @@ ${x.hasLink ? `<a href="${esc(x.href)}">${esc(x.title)}</a>` : `<span>${esc(x.ti
 el.appendChild(li);
 
 if(i === sliced.length - 1){
-setTimeout(() => initSmoothAutoScrollList(listId), 150);
+setTimeout(() => AUTO_SCROLL.bindUl(el), 80);
 }
 }, i * 45);
 });
@@ -1946,6 +2203,9 @@ loadHeaderDataForPopup().catch(() => {});
 initRevealObservers();
 await loadImmediateSections();
 initLazySections();
+
+// ✅ ensure auto-scroll is applied to any already-rendered lists
+AUTO_SCROLL.refreshAll();
 
 window.addEventListener('resize', handleResponsiveResize, { passive: true });
 }catch(err){
