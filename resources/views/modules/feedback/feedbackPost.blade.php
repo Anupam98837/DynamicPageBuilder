@@ -995,13 +995,17 @@
   }
 
   // =========================
-  // Picker modal
+  // ✅ Picker modal (FIXED)
+  // - Keeps selection ON even when you search/filter
+  // - When you reopen modal, previously selected remain auto-selected
+  // - Works for questions, faculty, and students
   // =========================
-  let pickerInitial = new Set();
+  let pickerInitial = new Set();     // snapshot when modal opened
+  let pickerSelected = new Set();    // ✅ LIVE selected set inside modal (never resets on search)
 
   function updatePickSelectedCount(){
-    const checked = document.querySelectorAll('#pickList input[type="checkbox"][data-id]:checked').length;
-    $('pickSelectedCount').textContent = `${checked} selected`;
+    // ✅ show total selected (not only visible checkboxes)
+    $('pickSelectedCount').textContent = `${pickerSelected.size} selected`;
   }
 
   function getPickGroupValue(){
@@ -1010,7 +1014,7 @@
     return String(el.value || '').trim();
   }
 
-  function renderPickList(items, preCheckedSet){
+  function renderPickList(items, selectedSet){
     const q = String($('pickSearch').value || '').trim().toLowerCase();
     const g = getPickGroupValue();
 
@@ -1036,7 +1040,7 @@
     }
 
     root.innerHTML = list.map(it => {
-      const on = preCheckedSet.has(it.id);
+      const on = selectedSet.has(it.id);
       return `
         <div class="modal-user-item">
           <div class="modal-user-info">
@@ -1145,21 +1149,17 @@
     }
 
     $('pickTitle').textContent = title;
-    pickerInitial = new Set(pre);
 
-    renderPickList(items, pickerInitial);
+    // ✅ IMPORTANT FIX:
+    // - pickerSelected holds LIVE selection in modal (persists across search renders)
+    // - pickerInitial is just snapshot (optional)
+    pickerInitial = new Set(pre);
+    pickerSelected = new Set(pre);
 
     $('pickModal').dataset.items = JSON.stringify(items);
+    renderPickList(items, pickerSelected);
 
     modal.show();
-  }
-
-  function getPickerCheckedSet(){
-    return new Set(
-      Array.from(document.querySelectorAll('#pickList input[type="checkbox"][data-id]:checked'))
-        .map(x => idNum(x.dataset.id))
-        .filter(Boolean)
-    );
   }
 
   // =========================
@@ -1269,39 +1269,67 @@
 
     bindChipRemove();
 
+    // ✅ Search filter rerender MUST NOT wipe selection
     $('pickSearch').addEventListener('input', debounce(() => {
       const items = JSON.parse($('pickModal').dataset.items || '[]');
-      renderPickList(items, pickerInitial);
+      renderPickList(items, pickerSelected); // ✅ keep live selection
     }, 200));
 
     $('pickGroup').addEventListener('change', () => {
       const items = JSON.parse($('pickModal').dataset.items || '[]');
-      renderPickList(items, pickerInitial);
+      renderPickList(items, pickerSelected); // ✅ keep live selection
     });
 
+    // ✅ Select All (visible list only) -> add to pickerSelected
     $('btnPickSelectAll').addEventListener('click', () => {
-      document.querySelectorAll('#pickList input[type="checkbox"][data-id]').forEach(cb => cb.checked = true);
+      const items = JSON.parse($('pickModal').dataset.items || '[]');
+      // mark all visible checkboxes ON
+      document.querySelectorAll('#pickList input[type="checkbox"][data-id]').forEach(cb => {
+        cb.checked = true;
+        const id = idNum(cb.dataset.id);
+        if (id) pickerSelected.add(id);
+      });
       updatePickSelectedCount();
+      // rerender to keep UI consistent with set
+      renderPickList(items, pickerSelected);
     });
 
+    // ✅ Clear All (visible list only) -> remove from pickerSelected
     $('btnPickClearAll').addEventListener('click', () => {
-      document.querySelectorAll('#pickList input[type="checkbox"][data-id]').forEach(cb => cb.checked = false);
+      const items = JSON.parse($('pickModal').dataset.items || '[]');
+      document.querySelectorAll('#pickList input[type="checkbox"][data-id]').forEach(cb => {
+        cb.checked = false;
+        const id = idNum(cb.dataset.id);
+        if (id) pickerSelected.delete(id);
+      });
+      updatePickSelectedCount();
+      renderPickList(items, pickerSelected);
+    });
+
+    // ✅ When toggling one checkbox ON/OFF, update pickerSelected immediately
+    document.addEventListener('change', (e) => {
+      const cb = e.target.closest('#pickList input[type="checkbox"][data-id]');
+      if (!cb) return;
+
+      const id = idNum(cb.dataset.id);
+      if (!id) return;
+
+      if (cb.checked) pickerSelected.add(id);
+      else pickerSelected.delete(id);
+
       updatePickSelectedCount();
     });
 
-    document.addEventListener('change', (e) => {
-      if (e.target.matches('#pickList input[type="checkbox"][data-id]')) updatePickSelectedCount();
-    });
-
+    // ✅ Apply button uses pickerSelected (not DOM) so search/filter won't lose selection
     $('pickForm').addEventListener('submit', (e) => {
       e.preventDefault();
 
       const mode = $('pickMode').value;
-      const checked = getPickerCheckedSet();
+      const finalSet = new Set(pickerSelected);
 
-      if (mode === 'questions') state.selectedQuestionIds = new Set(checked);
-      if (mode === 'faculty')   state.selectedFacultyIds  = new Set(checked);
-      if (mode === 'students')  state.selectedStudentIds  = new Set(checked);
+      if (mode === 'questions') state.selectedQuestionIds = finalSet;
+      if (mode === 'faculty')   state.selectedFacultyIds  = finalSet;
+      if (mode === 'students')  state.selectedStudentIds  = finalSet;
 
       renderChips();
       bootstrap.Modal.getInstance($('pickModal'))?.hide();

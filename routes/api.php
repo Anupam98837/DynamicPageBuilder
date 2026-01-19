@@ -63,6 +63,7 @@ use App\Http\Controllers\API\StudentAcademicDetailsController;
 use App\Http\Controllers\API\DashboardController;
 use App\Http\Controllers\API\FacultyPreviewOrderController;
 use App\Http\Controllers\API\StickyButtonController;
+use App\Http\Controllers\API\MasterApprovalController;
 
 /*
 |--------------------------------------------------------------------------
@@ -780,6 +781,8 @@ Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assi
 
 // Public (no auth)
 Route::prefix('public')->group(function () {
+
+    Route::get('/announcements/approved', [AnnouncementController::class, 'indexApproved']);
     Route::get('/announcements', [AnnouncementController::class, 'publicIndex']);
     Route::get('/announcements/{identifier}', [AnnouncementController::class, 'publicShow']);
 
@@ -2055,3 +2058,29 @@ Route::prefix('public')->group(function () {
     Route::get('/sticky-buttons/{identifier}', [StickyButtonController::class, 'publicShow'])
         ->where('identifier', '[0-9]+|[0-9a-fA-F\-]{36}');
 });
+
+
+
+/*
+|--------------------------------------------------------------------------
+| Master Approval Routes (Authority Control)
+|--------------------------------------------------------------------------
+*/
+
+
+Route::middleware('checkRole:admin,director,principal,hod,technical_assistant,it_person')->group(function () {
+
+    // ✅ Overview (supports: ?status=pending|approved|all)
+    Route::get('/master-approval', [MasterApprovalController::class, 'overview']);
+
+    // ✅ FINAL combined data API (all modules data with is_approved)
+    Route::get('/master-approval/final', [MasterApprovalController::class, 'final']);
+
+    // ✅ Approve / Reject (updates the correct module table by UUID)
+    Route::post('/master-approval/{uuid}/approve', [MasterApprovalController::class, 'approve']);
+    Route::post('/master-approval/{uuid}/reject', [MasterApprovalController::class, 'reject']);
+});
+
+
+
+Route::get('/announcements/approved', [AnnouncementController::class, 'indexApproved']);

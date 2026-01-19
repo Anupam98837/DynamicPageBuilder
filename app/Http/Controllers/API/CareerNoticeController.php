@@ -363,24 +363,35 @@ class CareerNoticeController extends Controller
             if (json_last_error() === JSON_ERROR_NONE) $metadata = $decoded;
         }
 
+        // ✅ AUTHORITY CONTROL AUTO-SYNC:
+        // if is_featured_home = 1 => request_for_approval = 1
+        // if is_featured_home = 0 => request_for_approval = 0
+        $featured = (int) ($validated['is_featured_home'] ?? 0);
+        $requestForApproval = $featured === 1 ? 1 : 0;
+
         $id = DB::table('career_notices')->insertGetId([
-            'uuid'             => $uuid,
-            'title'            => $validated['title'],
-            'slug'             => $slug,
-            'body'             => $validated['body'],
-            'cover_image'      => $coverPath,
-            'attachments_json' => !empty($attachments) ? json_encode($attachments) : null,
-            'is_featured_home' => (int) ($validated['is_featured_home'] ?? 0),
-            'status'           => (string) ($validated['status'] ?? 'draft'),
-            'publish_at'       => !empty($validated['publish_at']) ? Carbon::parse($validated['publish_at']) : null,
-            'expire_at'        => !empty($validated['expire_at']) ? Carbon::parse($validated['expire_at']) : null,
-            'views_count'      => 0,
-            'created_by'       => $actor['id'] ?: null,
-            'created_at'       => $now,
-            'updated_at'       => $now,
-            'created_at_ip'    => $request->ip(),
-            'updated_at_ip'    => $request->ip(),
-            'metadata'         => $metadata !== null ? json_encode($metadata) : null,
+            'uuid'               => $uuid,
+            'title'              => $validated['title'],
+            'slug'               => $slug,
+            'body'               => $validated['body'],
+            'cover_image'        => $coverPath,
+            'attachments_json'   => !empty($attachments) ? json_encode($attachments) : null,
+            'is_featured_home'   => $featured,
+            'status'             => (string) ($validated['status'] ?? 'draft'),
+
+            // ✅ new flags
+            'request_for_approval' => $requestForApproval,
+            'is_approved'          => 0,
+
+            'publish_at'         => !empty($validated['publish_at']) ? Carbon::parse($validated['publish_at']) : null,
+            'expire_at'          => !empty($validated['expire_at']) ? Carbon::parse($validated['expire_at']) : null,
+            'views_count'        => 0,
+            'created_by'         => $actor['id'] ?: null,
+            'created_at'         => $now,
+            'updated_at'         => $now,
+            'created_at_ip'      => $request->ip(),
+            'updated_at_ip'      => $request->ip(),
+            'metadata'           => $metadata !== null ? json_encode($metadata) : null,
         ]);
 
         $row = DB::table('career_notices')->where('id', $id)->first();
@@ -425,8 +436,14 @@ class CareerNoticeController extends Controller
             if (array_key_exists($k, $validated)) $update[$k] = $validated[$k];
         }
 
+        // ✅ AUTHORITY CONTROL AUTO-SYNC (UPDATE):
+        // if is_featured_home is explicitly updated:
+        //  - set request_for_approval = 1 when featured
+        //  - set request_for_approval = 0 when unfeatured
         if (array_key_exists('is_featured_home', $validated)) {
-            $update['is_featured_home'] = (int) $validated['is_featured_home'];
+            $newFeatured = (int) $validated['is_featured_home'];
+            $update['is_featured_home'] = $newFeatured;
+            $update['request_for_approval'] = $newFeatured === 1 ? 1 : 0;
         }
 
         if (array_key_exists('publish_at', $validated)) {
@@ -544,10 +561,14 @@ class CareerNoticeController extends Controller
 
         $new = ((int) ($row->is_featured_home ?? 0)) ? 0 : 1;
 
+        // ✅ AUTHORITY CONTROL AUTO-SYNC (TOGGLE):
+        // if is_featured_home becomes 1 => request_for_approval = 1
+        // if becomes 0 => request_for_approval = 0
         DB::table('career_notices')->where('id', (int) $row->id)->update([
-            'is_featured_home' => $new,
-            'updated_at'       => now(),
-            'updated_at_ip'    => $request->ip(),
+            'is_featured_home'     => $new,
+            'request_for_approval' => ($new === 1 ? 1 : 0),
+            'updated_at'           => now(),
+            'updated_at_ip'        => $request->ip(),
         ]);
 
         $fresh = DB::table('career_notices')->where('id', (int) $row->id)->first();

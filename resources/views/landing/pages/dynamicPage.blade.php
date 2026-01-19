@@ -119,7 +119,15 @@
             box-shadow: var(--shadow-2, 0 8px 22px rgba(0,0,0,.08));
             padding: 18px;
         }
-        .dp-title{ font-weight: 800; margin: 0 0 12px; color: var(--ink, #111); }
+
+        /* ✅ Title centered */
+        .dp-title{
+            font-weight: 800;
+            margin: 0 0 12px;
+            color: var(--ink, #111);
+            text-align: center;
+        }
+
         .dp-muted{ color: var(--muted-color, #6b7280); font-size: 13px; margin-bottom: 12px; }
         .dp-loading{ padding: 28px 0; text-align: center; color: var(--muted-color, #6b7280); }
 
@@ -147,7 +155,7 @@
             {{-- Sidebar --}}
             <aside class="col-lg-3 d-none" id="sidebarCol" aria-label="Page Sidebar">
                 <div class="hallienz-side">
-                    <div class="hallienz-side__head" id="sidebarHeading">The Hallienz</div>
+                    <div class="hallienz-side__head" id="sidebarHeading">Menu</div>
                     <ul class="hallienz-side__list" id="submenuList"></ul>
                 </div>
             </aside>
@@ -160,16 +168,18 @@
                         <div class="mt-2" id="loadingText">Loading page…</div>
                     </div>
 
-                    {{-- fallback error box (for non-404 errors too) --}}
+                    {{-- fallback error box --}}
                     <div id="pageError" class="alert alert-danger d-none mb-0"></div>
 
-                    {{-- ✅ Not Found Partial Holder (NEW) --}}
+                    {{-- Not Found Partial Holder --}}
                     <div id="pageNotFoundWrap" class="d-none">
                         @include('partials.pageNotFound')
                     </div>
 
                     <div id="pageWrap" class="d-none">
-                        <div class="dp-muted" id="pageMeta"></div>
+                        {{-- ✅ meta hidden (slug/shortcode removed) --}}
+                        <div class="dp-muted d-none" id="pageMeta"></div>
+
                         <h1 class="dp-title" id="pageTitle">Dynamic Page</h1>
                         <div id="pageHtml"></div>
                     </div>
@@ -193,14 +203,13 @@
     const SITE_BASE = @json(url('/'));
 
     // ------------------------------------------------------------------
-    // ✅ auth cache + global API auth injection (fixes "stuck at loading")
+    // ✅ auth cache + global API auth injection
     // ------------------------------------------------------------------
     const TOKEN = (localStorage.getItem('token') || sessionStorage.getItem('token') || '');
     const ROLE  = (sessionStorage.getItem('role') || localStorage.getItem('role') || '');
 
     window.__AUTH_CACHE__ = window.__AUTH_CACHE__ || { token: TOKEN, role: ROLE };
 
-    // Patch fetch to auto attach Authorization for any /api/* calls (modules use fetch)
     (function patchFetch(){
         const origFetch = window.fetch;
         window.fetch = async function(input, init = {}){
@@ -218,12 +227,10 @@
                     }
                 }
             } catch(e){}
-            const res = await origFetch(input, init);
-            return res;
+            return await origFetch(input, init);
         };
     })();
 
-    // Patch XMLHttpRequest to auto attach Authorization (axios/jQuery often use XHR)
     (function patchXHR(){
         const origOpen = XMLHttpRequest.prototype.open;
         const origSend = XMLHttpRequest.prototype.send;
@@ -247,11 +254,29 @@
     })();
 
     // ------------------------------------------------------------------
+    // ✅ FIX: read header_menu_id from URL query (?header_menu_id=1)
+    // ------------------------------------------------------------------
+    function readHeaderMenuIdFromUrl(){
+        try{
+            const qs = new URLSearchParams(window.location.search || '');
+            const v =
+                qs.get('header_menu_id') ||
+                qs.get('menu_id') ||
+                qs.get('headerMenuId') ||
+                qs.get('header_menu') ||
+                qs.get('headerMenu');
+            return parseInt(v || '0', 10) || 0;
+        }catch(e){
+            return 0;
+        }
+    }
+
+    // ------------------------------------------------------------------
     // DOM refs
     // ------------------------------------------------------------------
     const elLoading   = document.getElementById('pageLoading');
     const elError     = document.getElementById('pageError');
-    const elNotFound  = document.getElementById('pageNotFoundWrap'); // ✅ NEW
+    const elNotFound  = document.getElementById('pageNotFoundWrap');
     const elWrap      = document.getElementById('pageWrap');
     const elTitle     = document.getElementById('pageTitle');
     const elMeta      = document.getElementById('pageMeta');
@@ -262,6 +287,17 @@
     const contentCol  = document.getElementById('contentCol');
     const submenuList = document.getElementById('submenuList');
     const sidebarHead = document.getElementById('sidebarHeading');
+
+    function setMeta(text){
+        const t = String(text || '').trim();
+        if (!t){
+            elMeta.textContent = '';
+            elMeta.classList.add('d-none');
+            return;
+        }
+        elMeta.textContent = t;
+        elMeta.classList.remove('d-none');
+    }
 
     function showLoading(msg){
         elLoadingText.textContent = msg || 'Loading…';
@@ -279,7 +315,7 @@
         if (elNotFound) elNotFound.classList.add('d-none');
     }
 
-    function showNotFound(slug){ // ✅ NEW
+    function showNotFound(slug){
         try{
             const slot = document.querySelector('[data-dp-notfound-slug]');
             if (slot) slot.textContent = slug || '';
@@ -303,7 +339,7 @@
     }
 
     async function fetchJsonWithStatus(url){
-        const t = withTimeout(20000); // 20s timeout
+        const t = withTimeout(20000);
         try{
             const res = await fetch(url, {
                 method: 'GET',
@@ -318,16 +354,13 @@
             return { ok: res.ok, status: res.status, data };
         } catch(e){
             return { ok:false, status: 0, data: { error: e?.message || 'Network error' } };
-        } finally {
-            t.cancel();
-        }
+        } finally { t.cancel(); }
     }
 
     function cleanPathSegments(){
         return window.location.pathname.replace(/^\/+|\/+$/g,'').split('/').filter(Boolean);
     }
 
-    // ✅ NEW: submenu is stored in PATH like: /page/test-page&submenu=test?d-uuid
     function stripSubmenuFromPath(pathname){
         return String(pathname || '').replace(/&submenu=[^\/?#]*/g, '');
     }
@@ -337,6 +370,7 @@
         return m ? decodeURIComponent(m[1]) : '';
     }
 
+    // ✅ Supports: /link/page/institute OR /page/institute
     function getSlugCandidate(){
         const qs = new URLSearchParams(window.location.search);
         const qSlug = qs.get('slug') || qs.get('page_slug') || qs.get('selfslug') || qs.get('shortcode');
@@ -345,16 +379,11 @@
         const segs = cleanPathSegments();
         const strip = (s) => String(s || '').split('&submenu=')[0];
 
-        const first = strip(segs[0] || '');
+        const idx = segs.findIndex(x => String(x || '').toLowerCase() === 'page');
+        if (idx !== -1 && segs[idx + 1]) return strip(segs[idx + 1]);
 
-        if (segs.length === 1 && first.toLowerCase() === 'test') return '';
-        if (segs.length >= 2 && first.toLowerCase() === 'test') return strip(segs[1]);
-
-        const lastRaw = segs[segs.length - 1] || '';
-        const last = strip(lastRaw);
-
-        if (last.toLowerCase() === 'test') return '';
-        return last;
+        const last = strip(segs[segs.length - 1] || '');
+        return last || '';
     }
 
     function pick(obj, keys){
@@ -362,12 +391,6 @@
             if (obj && obj[k] !== undefined && obj[k] !== null) return obj[k];
         }
         return null;
-    }
-
-    function boolYes(v){
-        if (v === true || v === 1) return true;
-        const s = String(v ?? '').toLowerCase().trim();
-        return (s === 'yes' || s === 'y' || s === 'true' || s === '1');
     }
 
     function toLowerSafe(v){
@@ -379,7 +402,7 @@
     }
 
     // ------------------------------------------------------------------
-    // ✅ Dept token + mapping helpers (uses /api/public/departments)
+    // Dept helpers (kept)
     // ------------------------------------------------------------------
     function isDeptToken(x){
         return /^d-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(x || '').trim());
@@ -390,13 +413,12 @@
         return u.startsWith('d-') ? u : ('d-' + u);
     }
 
-    // Read existing ?d-uuid from current URL (works even if it is stored as a key)
     function readDeptTokenFromUrl(){
         try{
             const usp = new URLSearchParams(window.location.search || '');
             for (const [k, v] of usp.entries()){
-                if (isDeptToken(k)) return k;               // ?d-uuid (as key)
-                if (k === 'd' && isDeptToken(v)) return v;  // (optional) ?d=d-uuid
+                if (isDeptToken(k)) return k;
+                if (k === 'd' && isDeptToken(v)) return v;
             }
         }catch(e){}
 
@@ -408,51 +430,47 @@
         return '';
     }
 
-    // ✅ query builder: dept token must be FIRST => "?d-uuid&foo=bar"
-    // (submenu is NOT kept here anymore)
     function buildSearchWithDept(params, deptToken){
-        // remove any dept token keys
         for (const k of Array.from(params.keys())){
             if (isDeptToken(k)) params.delete(k);
         }
-
-        // remove any legacy submenu query param
         params.delete('submenu');
-
-        // remove optional legacy d= token
         if (params.get('d') && isDeptToken(params.get('d'))) params.delete('d');
 
-        const normal = params.toString(); // key=value params
+        const normal = params.toString();
         const t = String(deptToken || '').trim();
 
         const parts = [];
-        if (t && isDeptToken(t)) parts.push(encodeURIComponent(t)); // ✅ first => "?d-uuid"
-        if (normal) parts.push(normal);                             // then => "&foo=bar"
+        if (t && isDeptToken(t)) parts.push(encodeURIComponent(t));
+        if (normal) parts.push(normal);
 
         return parts.length ? ('?' + parts.join('&')) : '';
     }
 
-    // ✅ Push state:
-    // URL becomes: /page/<slug>&submenu=<submenu>?d-<uuid>
+    // ✅ FIX: keep header_menu_id ALWAYS when pushing submenu state
     function pushUrlStateSubmenu(submenuSlug, deptTokenMaybe){
         const u = new URL(window.location.href);
 
-        // 1) PATH: store submenu in pathname
         let path = stripSubmenuFromPath(u.pathname);
         const s = String(submenuSlug || '').trim();
         if (s) path += '&submenu=' + encodeURIComponent(s);
 
-        // 2) QUERY: dept token first + keep other params (except submenu/dept tokens)
         const params = new URLSearchParams(u.search);
+
+        // ✅ ensure header_menu_id stays even if it was missing
+        const hm = (window.__DP_PAGE_SCOPE__ && window.__DP_PAGE_SCOPE__.header_menu_id)
+            ? parseInt(window.__DP_PAGE_SCOPE__.header_menu_id || 0, 10)
+            : readHeaderMenuIdFromUrl();
+        if (hm > 0 && !params.get('header_menu_id')) {
+            params.set('header_menu_id', String(hm));
+        }
 
         const deptTokenFinal = (deptTokenMaybe && isDeptToken(deptTokenMaybe))
             ? deptTokenMaybe
             : readDeptTokenFromUrl();
 
         const search = buildSearchWithDept(params, deptTokenFinal);
-        const nextUrl = path + search + u.hash;
-
-        window.history.pushState({}, '', nextUrl);
+        window.history.pushState({}, '', path + search + u.hash);
     }
 
     function normalizeDepartmentsPayload(body){
@@ -468,7 +486,6 @@
     }
 
     async function loadPublicDepartmentsMap(){
-        // cache
         if (window.__DP_DEPT_ID_UUID_MAP__ && Object.keys(window.__DP_DEPT_ID_UUID_MAP__).length) {
             return window.__DP_DEPT_ID_UUID_MAP__;
         }
@@ -495,16 +512,19 @@
         return map;
     }
 
-    // ✅ Resolve page (public)
-    async function resolvePublicPage(slug){
+    // ✅ FIX: resolvePublicPage now supports header_menu_id
+    async function resolvePublicPage(slug, headerMenuId = 0){
         const raw = String(slug || '').trim();
         if (!raw) return null;
 
         const u = new URL(API_BASE + '/public/pages/resolve', window.location.origin);
         u.searchParams.set('slug', raw);
 
-        const r = await fetchJsonWithStatus(u.toString());
+        // ✅ attach header_menu_id if provided
+        const hm = parseInt(headerMenuId || 0, 10);
+        if (hm > 0) u.searchParams.set('header_menu_id', String(hm));
 
+        const r = await fetchJsonWithStatus(u.toString());
         if (r.ok) return r.data?.page || null;
         if (r.status === 404) return null;
 
@@ -533,10 +553,6 @@
         return normalizeTree(c);
     }
 
-    /* ==============================
-     * HTML injection helpers
-     * ============================== */
-
     function setInnerHTMLWithScripts(el, html){
         el.innerHTML = '';
         const tpl = document.createElement('template');
@@ -558,64 +574,53 @@
         document.querySelectorAll('[data-dp-asset="script"]').forEach(n => n.remove());
     }
 
-function injectModuleStyles(stylesHtml){
-    document.querySelectorAll('[data-dp-asset="style"]').forEach(n => n.remove());
+    function injectModuleStyles(stylesHtml){
+        document.querySelectorAll('[data-dp-asset="style"]').forEach(n => n.remove());
 
-    const tpl = document.createElement('template');
-    tpl.innerHTML = String(stylesHtml || '');
+        const tpl = document.createElement('template');
+        tpl.innerHTML = String(stylesHtml || '');
 
-    const SITE_ORIGIN = (() => {
-        try { return new URL(SITE_BASE, window.location.origin).origin; }
-        catch(e){ return window.location.origin; }
-    })();
+        const SITE_ORIGIN = (() => {
+            try { return new URL(SITE_BASE, window.location.origin).origin; }
+            catch(e){ return window.location.origin; }
+        })();
 
-    const isSameOrigin = (url) => {
-        try {
-            const u = new URL(url, window.location.href);
-            return u.origin === SITE_ORIGIN;
-        } catch(e){
+        const isSameOrigin = (url) => {
+            try {
+                const u = new URL(url, window.location.href);
+                return u.origin === SITE_ORIGIN;
+            } catch(e){
+                return false;
+            }
+        };
+
+        const isBlockedStyleHref = (href) => {
+            const h = String(href || '').toLowerCase();
+            if (h.includes('bootstrap')) return true;
+            if (h.includes('font-awesome') || h.includes('fontawesome')) return true;
+            if (h.includes('/assets/css/common/main.css')) return true;
+            if (h.includes('cdn.jsdelivr.net')) return true;
+            if (h.includes('cdnjs.cloudflare.com')) return true;
             return false;
-        }
-    };
+        };
 
-    const isBlockedStyleHref = (href) => {
-        const h = String(href || '').toLowerCase();
+        [...tpl.content.children].forEach((node) => {
+            const tag = (node.tagName || '').toUpperCase();
+            if (!['LINK','STYLE','META'].includes(tag)) return;
 
-        // Block common duplicates that break your header theme when injected last
-        if (h.includes('bootstrap')) return true;
-        if (h.includes('font-awesome') || h.includes('fontawesome')) return true;
-        if (h.includes('/assets/css/common/main.css')) return true;
+            if (tag === 'LINK'){
+                const rel = String(node.getAttribute('rel') || '').toLowerCase();
+                const href = node.getAttribute('href') || '';
+                if (rel !== 'stylesheet') return;
+                if (!href) return;
+                if (isBlockedStyleHref(href)) return;
+                if (/^https?:\/\//i.test(href) && !isSameOrigin(href)) return;
+            }
 
-        // Block common CDNs (module should not re-add global libs)
-        if (h.includes('cdn.jsdelivr.net')) return true;
-        if (h.includes('cdnjs.cloudflare.com')) return true;
-
-        return false;
-    };
-
-    [...tpl.content.children].forEach((node) => {
-        const tag = (node.tagName || '').toUpperCase();
-        if (!['LINK','STYLE','META'].includes(tag)) return;
-
-        if (tag === 'LINK'){
-            const rel = String(node.getAttribute('rel') || '').toLowerCase();
-            const href = node.getAttribute('href') || '';
-
-            if (rel !== 'stylesheet') return;
-            if (!href) return;
-
-            // Skip duplicates + external libs
-            if (isBlockedStyleHref(href)) return;
-
-            // Allow same-origin styles only (relative URLs are same-origin)
-            if (/^https?:\/\//i.test(href) && !isSameOrigin(href)) return;
-        }
-
-        node.setAttribute('data-dp-asset', 'style');
-        document.head.appendChild(node);
-    });
-}
-
+            node.setAttribute('data-dp-asset', 'style');
+            document.head.appendChild(node);
+        });
+    }
 
     function runWithDomReadyShim(fn){
         const origAdd = document.addEventListener;
@@ -630,66 +635,57 @@ function injectModuleStyles(stylesHtml){
 
         try { fn(); } finally { document.addEventListener = origAdd; }
     }
-function injectModuleScripts(scriptsHtml){
-    document.querySelectorAll('[data-dp-asset="script"]').forEach(n => n.remove());
 
-    const tpl = document.createElement('template');
-    tpl.innerHTML = String(scriptsHtml || '');
+    function injectModuleScripts(scriptsHtml){
+        document.querySelectorAll('[data-dp-asset="script"]').forEach(n => n.remove());
 
-    const SITE_ORIGIN = (() => {
-        try { return new URL(SITE_BASE, window.location.origin).origin; }
-        catch(e){ return window.location.origin; }
-    })();
+        const tpl = document.createElement('template');
+        tpl.innerHTML = String(scriptsHtml || '');
 
-    const isSameOrigin = (url) => {
-        try {
-            const u = new URL(url, window.location.href);
-            return u.origin === SITE_ORIGIN;
-        } catch(e){
-            return false;
-        }
-    };
+        const SITE_ORIGIN = (() => {
+            try { return new URL(SITE_BASE, window.location.origin).origin; }
+            catch(e){ return window.location.origin; }
+        })();
 
-    const isBlockedScriptSrc = (src) => {
-        const s = String(src || '').toLowerCase();
-
-        // Block duplicates that are already loaded globally in test.blade.php
-        if (s.includes('bootstrap')) return true;
-        if (s.includes('sweetalert2')) return true;
-
-        // Block common CDNs
-        if (s.includes('cdn.jsdelivr.net')) return true;
-        if (s.includes('cdnjs.cloudflare.com')) return true;
-
-        return false;
-    };
-
-    const scripts = tpl.content.querySelectorAll('script');
-
-    runWithDomReadyShim(() => {
-        scripts.forEach((oldScript) => {
-            const src = oldScript.getAttribute('src') || '';
-
-            // If script has src, enforce safe rules
-            if (src){
-                if (isBlockedScriptSrc(src)) return;
-
-                // Allow same-origin scripts only
-                if (/^https?:\/\//i.test(src) && !isSameOrigin(src)) return;
+        const isSameOrigin = (url) => {
+            try {
+                const u = new URL(url, window.location.href);
+                return u.origin === SITE_ORIGIN;
+            } catch(e){
+                return false;
             }
+        };
 
-            const s = document.createElement('script');
-            for (const attr of oldScript.attributes) s.setAttribute(attr.name, attr.value);
-            s.textContent = oldScript.textContent || '';
-            s.setAttribute('data-dp-asset', 'script');
-            document.body.appendChild(s);
+        const isBlockedScriptSrc = (src) => {
+            const s = String(src || '').toLowerCase();
+            if (s.includes('bootstrap')) return true;
+            if (s.includes('sweetalert2')) return true;
+            if (s.includes('cdn.jsdelivr.net')) return true;
+            if (s.includes('cdnjs.cloudflare.com')) return true;
+            return false;
+        };
+
+        const scripts = tpl.content.querySelectorAll('script');
+
+        runWithDomReadyShim(() => {
+            scripts.forEach((oldScript) => {
+                const src = oldScript.getAttribute('src') || '';
+                if (src){
+                    if (isBlockedScriptSrc(src)) return;
+                    if (/^https?:\/\//i.test(src) && !isSameOrigin(src)) return;
+                }
+
+                const s = document.createElement('script');
+                for (const attr of oldScript.attributes) s.setAttribute(attr.name, attr.value);
+                s.textContent = oldScript.textContent || '';
+                s.setAttribute('data-dp-asset', 'script');
+                document.body.appendChild(s);
+            });
         });
-    });
-}
-
+    }
 
     /* ==============================
-     * Submenu AJAX loader
+     * ✅ Submenu loader (NOW supports header_menu_id)
      * ============================== */
 
     async function loadSubmenuRightContent(submenuSlug, pageScope){
@@ -701,6 +697,10 @@ function injectModuleScripts(scriptsHtml){
         const u = new URL(API_BASE + '/public/page-submenus/render', window.location.origin);
         u.searchParams.set('slug', sslug);
 
+        // ✅ FIX: always pass header_menu_id (scope -> url fallback)
+        const hm = parseInt(pageScope?.header_menu_id || 0, 10) || readHeaderMenuIdFromUrl();
+        if (hm > 0) u.searchParams.set('header_menu_id', String(hm));
+
         if (pageScope?.page_id) u.searchParams.set('page_id', pageScope.page_id);
         else if (pageScope?.page_slug) u.searchParams.set('page_slug', pageScope.page_slug);
 
@@ -711,11 +711,7 @@ function injectModuleScripts(scriptsHtml){
                 ? (r.data.message || r.data.error)
                 : ('Load failed: ' + r.status);
 
-            if ((r.status === 401 || r.status === 403) && !TOKEN) {
-                showError(msg + ' (Login token missing)');
-            } else {
-                showError(msg);
-            }
+            showError(msg);
             return;
         }
 
@@ -723,11 +719,7 @@ function injectModuleScripts(scriptsHtml){
         const type = payload.type;
 
         elTitle.textContent = payload.title || 'Dynamic Page';
-        elMeta.textContent = [
-            payload?.meta?.submenu_slug ? ('Submenu: ' + payload.meta.submenu_slug) : null,
-            payload?.meta?.page_slug ? ('Page: ' + payload.meta.page_slug) : null,
-            payload?.meta?.includable ? ('View: ' + payload.meta.includable) : null,
-        ].filter(Boolean).join(' • ');
+        setMeta('');
 
         if (type === 'includable') {
             injectModuleStyles(payload?.assets?.styles || '');
@@ -777,7 +769,7 @@ function injectModuleScripts(scriptsHtml){
     }
 
     /* ==============================
-     * Sidebar renderer (recursive)
+     * Sidebar renderer (recursive) - UPDATED
      * ============================== */
 
     function renderTree(nodes, currentLower, parentUl, level = 0){
@@ -801,7 +793,6 @@ function injectModuleScripts(scriptsHtml){
             a.dataset.submenuSlug = nodeSlug;
             a.setAttribute('data-submenu-slug', nodeSlug);
 
-            // ✅ store department_id from tree node + optional uuid if backend sends it
             const nodeDeptId = parseInt(pick(node, ['department_id','dept_id']) || 0, 10);
             if (nodeDeptId > 0) a.dataset.deptId = String(nodeDeptId);
 
@@ -830,15 +821,12 @@ function injectModuleScripts(scriptsHtml){
 
                 await loadSubmenuRightContent(sslug, window.__DP_PAGE_SCOPE__ || null);
 
-                // ✅ resolve dept uuid from /api/public/departments and push: /...&submenu=... ?d-uuid
                 const deptId = parseInt(a.dataset.deptId || '0', 10);
                 const deptUuid =
                     (a.dataset.deptUuid || '').trim() ||
                     (deptId > 0 ? (window.__DP_DEPT_ID_UUID_MAP__?.[String(deptId)] || '') : '');
 
                 const deptToken = deptTokenFromUuid(deptUuid);
-
-                // keep dept token if exists; add if we have it
                 pushUrlStateSubmenu(sslug, deptToken);
             });
 
@@ -888,103 +876,150 @@ function injectModuleScripts(scriptsHtml){
         return anyActiveInThisList;
     }
 
-    async function loadSidebarIfAny(page, currentLower){
-        const submenuExists = boolYes(pick(page, ['submenu_exists']));
-        if (!submenuExists) {
-            sidebarCol.classList.add('d-none');
-            contentCol.className = 'col-12';
-            return;
-        }
+    function findFirstSubmenuSlug(nodes){
+        const stack = Array.isArray(nodes) ? [...nodes] : [];
+        while (stack.length){
+            const n = stack.shift();
+            const s = String(pick(n, ['slug']) || '').trim();
+            if (s) return s;
 
+            const children = normalizeChildren(n);
+            if (children.length) stack.unshift(...children);
+        }
+        return '';
+    }
+
+    function filterTreeByHeaderMenuId(nodes, headerMenuId){
+        const hid = parseInt(headerMenuId || 0, 10);
+        if (!hid || !Array.isArray(nodes)) return nodes || [];
+
+        const out = [];
+
+        nodes.forEach(n => {
+            const nodeMenuId = parseInt(pick(n, ['header_menu_id','menu_id','headerMenuId']) || 0, 10);
+            const kids = filterTreeByHeaderMenuId(normalizeChildren(n), hid);
+
+            const keepById = (!nodeMenuId || nodeMenuId === hid);
+
+            if (keepById || kids.length){
+                const cloned = Object.assign({}, n);
+
+                if (kids.length){
+                    cloned.children = kids;
+                    cloned.submenus = kids;
+                    cloned.items = kids;
+                    cloned.nodes = kids;
+                }
+
+                out.push(cloned);
+            }
+        });
+
+        return out;
+    }
+
+    // ✅ FIX: loadSidebarIfAny - REMOVED the first "Home - Page" link
+    async function loadSidebarIfAny(page){
         const pageId   = pick(page, ['id']);
         const pageSlug = pick(page, ['slug']);
 
+        const headerMenuFromPage = parseInt(pick(page, ['header_menu_id','headerMenuId','menu_id']) || 0, 10);
+        const headerMenuFromUrl  = readHeaderMenuIdFromUrl();
+
+        const headerMenuId = headerMenuFromUrl > 0 ? headerMenuFromUrl : headerMenuFromPage;
+
+        if (!pageId && !pageSlug && !headerMenuId){
+            sidebarCol.classList.add('d-none');
+            contentCol.className = 'col-12';
+            return { hasSidebar:false, firstSubmenuSlug:'' };
+        }
+
         const treeUrl = new URL(API_BASE + '/public/page-submenus/tree', window.location.origin);
+
+        // ✅ FIX: attach header_menu_id ALWAYS if exists
+        if (headerMenuId > 0) treeUrl.searchParams.set('header_menu_id', String(headerMenuId));
+
         if (pageId) treeUrl.searchParams.set('page_id', pageId);
         else if (pageSlug) treeUrl.searchParams.set('page_slug', pageSlug);
 
         const r = await fetchJsonWithStatus(treeUrl.toString());
+
         if (!r.ok) {
             sidebarCol.classList.add('d-none');
             contentCol.className = 'col-12';
-            return;
+            return { hasSidebar:false, firstSubmenuSlug:'' };
         }
 
-        const nodes = normalizeTree(r.data);
+        let nodes = normalizeTree(r.data);
+        nodes = filterTreeByHeaderMenuId(nodes, headerMenuId);
+
         if (!nodes.length) {
             sidebarCol.classList.add('d-none');
             contentCol.className = 'col-12';
-            return;
+            return { hasSidebar:false, firstSubmenuSlug:'' };
         }
 
         sidebarCol.classList.remove('d-none');
         contentCol.className = 'col-12 col-lg-9';
 
         submenuList.innerHTML = '';
-        sidebarHead.textContent = 'The Hallienz';
+        
+        // ✅ FIX: Use page title as sidebar heading instead of "The Hallienz"
+        const pageTitle = pick(page, ['title']) || 'Menu';
+        sidebarHead.textContent = pageTitle;
 
-        // Top link = reload page html
-        const topLi = document.createElement('li');
-        topLi.className = 'hallienz-side__item';
+        // ✅ FIX: REMOVED the entire "Home - Page" link section
+        // ✅ Now directly render the tree without any parent page link
+        renderTree(nodes, '', submenuList, 0);
 
-        const topRow = document.createElement('div');
-        topRow.className = 'hallienz-side__row';
+        const firstSubmenuSlug = findFirstSubmenuSlug(nodes);
+        return { hasSidebar:true, firstSubmenuSlug };
+    }
 
-        const topA = document.createElement('a');
-        topA.className = 'hallienz-side__link';
-        topA.style.paddingLeft = '14px';
-        topA.href = 'javascript:void(0)';
-
-        const activeSlug = String(pick(page, ['slug']) || currentLower || '').trim();
-        topA.innerHTML = '<span class="hallienz-side__text">Home – ' + (pick(page, ['title']) || 'Page') + '</span>';
-
-        topA.addEventListener('click', async (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-
-            clearModuleAssets();
-
-            document.querySelectorAll('.hallienz-side__link.active').forEach(x => x.classList.remove('active'));
-            topA.classList.add('active');
-
-            const slugCandidate = activeSlug || currentLower;
-            if (!slugCandidate) return;
-
-            showLoading('Loading page…');
-
-            const page2 = await resolvePublicPage(slugCandidate);
-            if (!page2) {
-                showNotFound(slugCandidate);
-                return;
+    function openAncestorsOfLink(linkEl){
+        try{
+            let node = linkEl?.closest('.hallienz-side__item');
+            while(node){
+                node.classList.add('open');
+                node = node.parentElement?.closest?.('.hallienz-side__item') || null;
             }
+        }catch(e){}
+    }
 
-            const title = pick(page2, ['title']) || slugCandidate;
-            const shortcode = pick(page2, ['shortcode']);
-            const slug = pick(page2, ['slug']);
-
-            elTitle.textContent = title;
-            elMeta.textContent = [
-                slug ? ('Slug: ' + slug) : null,
-                shortcode ? ('Shortcode: ' + shortcode) : null
-            ].filter(Boolean).join(' • ');
-
-            const html = pick(page2, ['content_html']) || '';
-            setInnerHTMLWithScripts(elHtml, html || '<p class="text-muted mb-0">No content_html returned from pages resolve API.</p>');
-
-            elLoading.classList.add('d-none');
-            elWrap.classList.remove('d-none');
-            if (elNotFound) elNotFound.classList.add('d-none');
-            hideError();
-
-            // ✅ remove submenu from PATH but keep dept token (?d-uuid)
-            pushUrlStateSubmenu('', null);
+    // ✅ FIX: Setup header menu click tracking
+    function setupHeaderMenuClicks() {
+        // Listen for clicks on header menu links
+        document.addEventListener('click', function(e) {
+            // Check if clicked element is a header menu link
+            const headerLink = e.target.closest('a[data-header-menu]') || 
+                              e.target.closest('a[href*="header_menu_id"]');
+            
+            if (headerLink) {
+                // Prevent default behavior to handle via JS
+                e.preventDefault();
+                
+                // Extract header_menu_id from data attribute or href
+                let menuId = headerLink.getAttribute('data-menu-id') || 
+                           headerLink.getAttribute('data-header-menu-id');
+                
+                // If not in data attribute, try to parse from href
+                if (!menuId) {
+                    const href = headerLink.getAttribute('href') || '';
+                    const url = new URL(href, window.location.origin);
+                    menuId = url.searchParams.get('header_menu_id');
+                }
+                
+                if (menuId) {
+                    // Update current URL with header_menu_id and remove submenu
+                    const currentUrl = new URL(window.location);
+                    currentUrl.searchParams.set('header_menu_id', menuId);
+                    currentUrl.searchParams.delete('submenu');
+                    
+                    // Navigate to new URL
+                    window.location.href = currentUrl.toString();
+                }
+            }
         });
-
-        topRow.appendChild(topA);
-        topLi.appendChild(topRow);
-        submenuList.appendChild(topLi);
-
-        renderTree(nodes, currentLower, submenuList, 0);
     }
 
     async function init(){
@@ -995,37 +1030,37 @@ function injectModuleScripts(scriptsHtml){
 
         if (!slugCandidate) {
             elLoading.classList.add('d-none');
-            showError("No page slug provided. Use /test?slug=about-us (or /test/about-us if your route supports it).");
+            showError("No page slug provided. Use /link/page/<slug>  OR  /page/<slug>  OR  ?slug=about-us");
             return;
         }
 
-        // ✅ preload department map (id -> uuid) using /api/public/departments
         await loadPublicDepartmentsMap();
 
         showLoading('Loading page…');
 
-        const page = await resolvePublicPage(slugCandidate);
+        // ✅ FIX: resolve page WITH header_menu_id from URL
+        const headerMenuFromUrl = readHeaderMenuIdFromUrl();
+        const page = await resolvePublicPage(slugCandidate, headerMenuFromUrl);
+
         if (!page) {
             showNotFound(slugCandidate);
             return;
         }
 
+        // ✅ FIX: store final header_menu_id in scope (URL overrides page)
+        const headerMenuFinal =
+            headerMenuFromUrl > 0
+                ? headerMenuFromUrl
+                : (parseInt(pick(page, ['header_menu_id','headerMenuId','menu_id']) || 0, 10) || 0);
+
         window.__DP_PAGE_SCOPE__ = {
             page_id: pick(page, ['id']) || null,
-            page_slug: pick(page, ['slug']) || null
+            page_slug: pick(page, ['slug']) || null,
+            header_menu_id: headerMenuFinal || null
         };
 
-        const title = pick(page, ['title']) || slugCandidate;
-        const shortcode = pick(page, ['shortcode']);
-        const slug = pick(page, ['slug']);
-
-        elTitle.textContent = title;
-        elMeta.textContent = [
-            slug ? ('Slug: ' + slug) : null,
-            shortcode ? ('Shortcode: ' + shortcode) : null,
-            !TOKEN ? 'Token: missing (modules may fail to load)' : null,
-            !ROLE ? 'Role: missing (some modules may hide UI)' : null,
-        ].filter(Boolean).join(' • ');
+        elTitle.textContent = pick(page, ['title']) || slugCandidate;
+        setMeta('');
 
         const html = pick(page, ['content_html']) || '';
         setInnerHTMLWithScripts(elHtml, html || '<p class="text-muted mb-0">No content_html returned from pages resolve API.</p>');
@@ -1034,35 +1069,50 @@ function injectModuleScripts(scriptsHtml){
         elWrap.classList.remove('d-none');
         if (elNotFound) elNotFound.classList.add('d-none');
 
-        await loadSidebarIfAny(page, currentLower);
+        const sideInfo = await loadSidebarIfAny(page);
 
-        // ✅ auto-load submenu from PATH: /...&submenu=xxx?d-uuid
         let submenuSlug = (readSubmenuFromPathname() || '').trim();
 
-        // (optional backward compat: old ?submenu=xxx)
         if (!submenuSlug){
             const qs = new URLSearchParams(window.location.search);
             submenuSlug = (qs.get('submenu') || '').trim();
         }
 
+        // ✅ FIX: Only load submenu if explicitly specified in URL
+        // Otherwise, keep showing the main page content that user clicked from header
         if (submenuSlug) {
             const link = document.querySelector('.hallienz-side__link[data-submenu-slug="' + safeCssEscape(submenuSlug) + '"]');
             if (link) {
                 document.querySelectorAll('.hallienz-side__link.active').forEach(x => x.classList.remove('active'));
                 link.classList.add('active');
+                openAncestorsOfLink(link);
             }
             await loadSubmenuRightContent(submenuSlug, window.__DP_PAGE_SCOPE__);
         }
+        // If no submenu in URL, DON'T auto-load first submenu - keep page content visible
     }
 
+    // Initialize the page
     init().catch((e) => {
         console.error(e);
         showError(e?.message || 'Something went wrong.');
     });
 
+    // Setup header menu click tracking
+    document.addEventListener('DOMContentLoaded', function() {
+        setupHeaderMenuClicks();
+    });
+
+    // Handle browser back/forward
+    window.addEventListener('popstate', function() {
+        init().catch((e) => {
+            console.error(e);
+            showError(e?.message || 'Something went wrong.');
+        });
+    });
+
 })();
 </script>
-
 
 @stack('scripts')
 </body>

@@ -584,7 +584,12 @@ class PlacementNoticeController extends Controller
         $deptIds = $validated['department_ids'] ?? null;
         $deptIds = $this->normalizeDepartmentIds($deptIds);
 
-        $id = DB::table('placement_notices')->insertGetId([
+        // ✅ Authority control auto-sync:
+        // if is_featured_home = 1 => request_for_approval = 1
+        // if is_featured_home = 0 => request_for_approval = 0
+        $featuredFlag = (int) ($validated['is_featured_home'] ?? 0);
+
+        $insert = [
             'uuid'              => $uuid,
             'department_ids'    => $deptIds !== null ? json_encode($deptIds) : null,
             'recruiter_id'      => $validated['recruiter_id'] ?? null,
@@ -599,7 +604,7 @@ class PlacementNoticeController extends Controller
             'apply_url'         => $validated['apply_url'] ?? null,
             'last_date_to_apply'=> !empty($validated['last_date_to_apply']) ? Carbon::parse($validated['last_date_to_apply'])->toDateString() : null,
 
-            'is_featured_home'  => (int) ($validated['is_featured_home'] ?? 0),
+            'is_featured_home'  => $featuredFlag,
             'sort_order'        => (int) ($validated['sort_order'] ?? 0),
             'status'            => (string) ($validated['status'] ?? 'draft'),
             'publish_at'        => !empty($validated['publish_at']) ? Carbon::parse($validated['publish_at']) : null,
@@ -614,7 +619,14 @@ class PlacementNoticeController extends Controller
             'updated_at_ip'     => $request->ip(),
 
             'metadata'          => $metadata !== null ? json_encode($metadata) : null,
-        ]);
+        ];
+
+        // ✅ only set if migration column exists (safe)
+        if (Schema::hasColumn('placement_notices', 'request_for_approval')) {
+            $insert['request_for_approval'] = $featuredFlag ? 1 : 0;
+        }
+
+        $id = DB::table('placement_notices')->insertGetId($insert);
 
         $fresh = DB::table('placement_notices')->where('id', $id)->first();
 
@@ -697,9 +709,19 @@ class PlacementNoticeController extends Controller
         if (array_key_exists('sort_order', $validated)) {
             $update['sort_order'] = (int) $validated['sort_order'];
         }
+
+        // ✅ Authority control auto-sync:
+        // if is_featured_home = 1 => request_for_approval = 1
+        // if is_featured_home = 0 => request_for_approval = 0
         if (array_key_exists('is_featured_home', $validated)) {
-            $update['is_featured_home'] = (int) $validated['is_featured_home'];
+            $featuredFlag = (int) $validated['is_featured_home'];
+            $update['is_featured_home'] = $featuredFlag;
+
+            if (Schema::hasColumn('placement_notices', 'request_for_approval')) {
+                $update['request_for_approval'] = $featuredFlag ? 1 : 0;
+            }
         }
+
         if (array_key_exists('last_date_to_apply', $validated)) {
             $update['last_date_to_apply'] = !empty($validated['last_date_to_apply'])
                 ? Carbon::parse($validated['last_date_to_apply'])->toDateString()
@@ -796,11 +818,20 @@ class PlacementNoticeController extends Controller
 
         $new = ((int) ($row->is_featured_home ?? 0)) ? 0 : 1;
 
-        DB::table('placement_notices')->where('id', (int) $row->id)->update([
+        $update = [
             'is_featured_home' => $new,
             'updated_at'       => now(),
             'updated_at_ip'    => $request->ip(),
-        ]);
+        ];
+
+        // ✅ Authority control auto-sync:
+        // if is_featured_home = 1 => request_for_approval = 1
+        // if is_featured_home = 0 => request_for_approval = 0
+        if (Schema::hasColumn('placement_notices', 'request_for_approval')) {
+            $update['request_for_approval'] = $new ? 1 : 0;
+        }
+
+        DB::table('placement_notices')->where('id', (int) $row->id)->update($update);
 
         $fresh = DB::table('placement_notices')->where('id', (int) $row->id)->first();
 

@@ -451,3 +451,7 @@ Route::get('/faculty-preview-order', function () {
 Route::get('/sticky-buttons/manage', function () {
     return view('pages.users.pages.stickyButtons.manageStickyButtons');
 });
+ 
+Route::get('/master-approval/manage', function () {
+    return view('pages.users.pages.masterApproval.manageMasterApproval');
+});

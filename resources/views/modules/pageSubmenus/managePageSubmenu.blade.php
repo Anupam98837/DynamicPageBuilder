@@ -8,9 +8,10 @@
   $psCreateUrl    = url('/page/submenu/create');
   $psEditPattern  = url('/page/submenu/create') . '?edit={id}';
 
-  // API URLs (from your API block)
-  $apiBase  = url('/api/page-submenus');
-  $apiTree  = url('/api/page-submenus/tree?only_active=1'); // will append page_id/page_slug in JS
+  // API URLs
+  $apiBase         = url('/api/page-submenus');
+  $apiTree         = url('/api/page-submenus/tree?only_active=1'); // kept for compatibility (not used now)
+  $apiHeaderMenus  = url('/api/header-menus');
 @endphp
 
 @push('styles')
@@ -161,7 +162,8 @@
        data-create-url="{{ $psCreateUrl }}"
        data-edit-pattern="{{ $psEditPattern }}"
        data-api-base="{{ $apiBase }}"
-       data-api-tree="{{ $apiTree }}">
+       data-api-tree="{{ $apiTree }}"
+       data-api-header-menus="{{ $apiHeaderMenus }}">
 
     {{-- ===== Global toolbar ===== --}}
     <div class="row align-items-center g-2 mb-3 mfa-toolbar panel">
@@ -207,11 +209,11 @@
         <div class="row align-items-center g-2 mb-3 mfa-toolbar panel">
           <div class="col-12 col-xl d-flex align-items-center flex-wrap gap-2">
 
-            {{-- ✅ Page selector (required for API: page_id/page_slug) --}}
+            {{-- ✅ Header Menu selector --}}
             <div class="d-flex align-items-center gap-2">
-              <label class="text-muted small mb-0">Page</label>
-              <select class="form-select js-page" style="width:260px;">
-                <option value="">Loading pages…</option>
+              <label class="text-muted small mb-0">Header Menu</label>
+              <select class="form-select js-header-menu" style="width:320px;">
+                <option value="">Loading header menus…</option>
               </select>
             </div>
 
@@ -228,7 +230,7 @@
             </div>
 
           </div>
-          
+
           <div class="col-12 col-xxl-auto ms-xxl-auto d-flex justify-content-xxl-end gap-2">
             <button class="btn btn-primary js-reset"><i class="fa fa-rotate-left me-1"></i>Reset</button>
             <button class="btn btn-light js-reorder"><i class="fa fa-up-down-left-right me-1"></i>Reorder</button>
@@ -288,7 +290,7 @@
                 <thead class="sticky-top">
                   <tr>
                     <th>TITLE & SLUG</th>
-                    <th style="width:20%;">PAGE</th>
+                    <th style="width:22%;">HEADER MENU</th>
                     <th style="width:18%;">PARENT</th>
                     <th style="width:140px;">CREATED</th>
                     <th class="text-end" style="width:190px;">ACTIONS</th>
@@ -331,7 +333,7 @@
                 <thead class="sticky-top">
                   <tr>
                     <th>TITLE & SLUG</th>
-                    <th style="width:20%;">PAGE</th>
+                    <th style="width:22%;">HEADER MENU</th>
                     <th style="width:18%;">PARENT</th>
                     <th style="width:140px;">DELETED AT</th>
                     <th class="text-end" style="width:230px;">ACTIONS</th>
@@ -408,9 +410,10 @@
         return;
       }
 
-      const API_BASE = ROOT.dataset.apiBase;
-      const API_TREE = ROOT.dataset.apiTree;
-      const EDIT_PATTERN = ROOT.dataset.editPattern;
+      const API_BASE         = ROOT.dataset.apiBase;
+      const API_TREE         = ROOT.dataset.apiTree; // kept but NOT used now
+      const API_HEADER_MENUS = ROOT.dataset.apiHeaderMenus;
+      const EDIT_PATTERN     = ROOT.dataset.editPattern;
 
       const qs  = (sel) => ROOT.querySelector(sel);
       const qsa = (sel) => Array.from(ROOT.querySelectorAll(sel));
@@ -468,65 +471,96 @@
       }
 
       /* =========================
-        REQUIRED PAGE CONTEXT
+        ✅ REQUIRED HEADER MENU CONTEXT
       ========================= */
-      const pageSel = qs('.js-page');
-      let pageId = '';
-      let pageSlug = '';
+      const headerMenuSel = qs('.js-header-menu');
+      let headerMenuId = '';
 
-      function getPageParams() {
-        if (pageId) return { page_id: pageId, page_slug: pageSlug || '' };
-        if (pageSlug) return { page_slug: pageSlug };
+      function getScopeParams() {
+        if (headerMenuId) return { header_menu_id: headerMenuId };
         return {};
       }
 
-      async function loadPages() {
-        if (!pageSel) return;
+      function normalizeHeaderMenuItems(j) {
+        const direct =
+          Array.isArray(j?.data) ? j.data :
+          Array.isArray(j?.items) ? j.items :
+          Array.isArray(j?.header_menus) ? j.header_menus :
+          Array.isArray(j) ? j :
+          [];
+        return direct;
+      }
 
-        pageSel.innerHTML = `<option value="">Loading pages…</option>`;
-        pageSel.disabled = true;
+      function flattenTree(list) {
+        const out = [];
+        (function walk(nodes, lvl){
+          (nodes || []).forEach(n => {
+            out.push({ ...n, __lvl: lvl || 0 });
+            if (Array.isArray(n.children) && n.children.length) walk(n.children, (lvl||0)+1);
+          });
+        })(list || [], 0);
+        return out;
+      }
+
+      async function loadHeaderMenus() {
+        if (!headerMenuSel) return;
+
+        headerMenuSel.innerHTML = `<option value="">Loading header menus…</option>`;
+        headerMenuSel.disabled = true;
 
         try {
-          const j = await fetchJSON(API_BASE + '/pages?_ts=' + Date.now());
+          let j = null;
+          try {
+            j = await fetchJSON(API_HEADER_MENUS + '?_ts=' + Date.now());
+          } catch(e) {
+            j = await fetchJSON(API_HEADER_MENUS + '/tree?_ts=' + Date.now());
+          }
 
-          // Accept common shapes:
-          const items =
-            Array.isArray(j?.data) ? j.data :
-            Array.isArray(j?.pages) ? j.pages :
-            Array.isArray(j) ? j :
-            [];
+          let items = normalizeHeaderMenuItems(j);
+          if (items.length && (items[0]?.children && Array.isArray(items[0].children))) {
+            items = flattenTree(items);
+          }
 
           if (!items.length) {
-            pageSel.innerHTML = `<option value="">No pages found</option>`;
-            pageSel.disabled = true;
-            pageId = '';
-            pageSlug = '';
+            headerMenuSel.innerHTML = `<option value="">No header menus found</option>`;
+            headerMenuSel.disabled = false;
+            headerMenuId = '';
             return;
           }
 
-          const opts = items.map(p => {
-            const id = p.id ?? p.page_id ?? '';
-            const slug = p.slug ?? p.page_slug ?? '';
-            const title = p.title ?? p.name ?? slug ?? ('#' + id);
-            return `<option value="${esc(id)}" data-slug="${esc(slug)}">${esc(title)}${slug ? '  ('+esc(slug)+')' : ''}</option>`;
+          const opts = items.map(hm => {
+            const id    = hm.id ?? hm.header_menu_id ?? '';
+            const title =
+              hm.title ??
+              hm.label ??
+              hm.name ??
+              hm.menu_title ??
+              hm.text ??
+              (id ? ('Header Menu #' + id) : 'Header Menu');
+
+            const lvl = Number(hm.__lvl || 0);
+            const pad = lvl > 0 ? ('—'.repeat(Math.min(6, lvl)) + ' ') : '';
+
+            return `<option value="${esc(id)}">${esc(pad + title)}</option>`;
           }).join('');
 
-          pageSel.innerHTML = `<option value="">Select page…</option>` + opts;
-          pageSel.disabled = false;
+          headerMenuSel.innerHTML = `<option value="">Select header menu…</option>` + opts;
+          headerMenuSel.disabled = false;
 
-          // auto pick first real page
-          const first = pageSel.querySelector('option[value]:not([value=""])');
+          const first = headerMenuSel.querySelector('option[value]:not([value=""])');
           if (first) {
-            pageSel.value = first.value;
-            pageId = String(first.value || '');
-            pageSlug = first.getAttribute('data-slug') || '';
+            headerMenuSel.value = first.value;
+            headerMenuId = String(first.value || '');
+          } else {
+            headerMenuId = '';
           }
 
         } catch (e) {
           console.error(e);
-          pageSel.innerHTML = `<option value="">Failed to load pages</option>`;
-          pageSel.disabled = true;
-          err(e.message || 'Failed to load pages');
+          headerMenuSel.innerHTML = `<option value="">Failed to load header menus</option>`;
+          headerMenuSel.disabled = false;
+          headerMenuId = '';
+          err(e.message || 'Failed to load header menus');
         }
       }
 
@@ -563,18 +597,18 @@
       /* =========================
         ACTIVE TREE
       ========================= */
-      const perPageSel  = qs('.js-per-page');
-      const qInput      = qs('.js-q');
-      const btnReset    = qs('.js-reset');
-      const btnReorder  = qs('.js-reorder');
-      const btnSaveOrd  = qs('.js-save-order');
-      const btnCancelOrd= qs('.js-cancel-order');
+      const perPageSel   = qs('.js-per-page');
+      const qInput       = qs('.js-q');
+      const btnReset     = qs('.js-reset');
+      const btnReorder   = qs('.js-reorder');
+      const btnSaveOrd   = qs('.js-save-order');
+      const btnCancelOrd = qs('.js-cancel-order');
 
-      const treeWrap    = qs('.js-tree');
-      const loader      = qs('.js-loader');
-      const empty       = qs('.js-empty');
-      const meta        = qs('.js-meta');
-      const pager       = qs('.js-pager');
+      const treeWrap = qs('.js-tree');
+      const loader   = qs('.js-loader');
+      const empty    = qs('.js-empty');
+      const meta     = qs('.js-meta');
+      const pager    = qs('.js-pager');
 
       let reorderMode = false;
       let sortables = [];
@@ -613,7 +647,7 @@
         function nodeMatches(n) {
           const hay = [
             n.title, n.slug, n.shortcode,
-            n.page_title, n.page_slug, n.page_shortcode, n.page_url,
+            n.header_menu_title, n.header_menu_label, n.header_menu_name,
             n.description
           ].filter(Boolean).join(' ').toLowerCase();
           return hay.includes(t);
@@ -656,7 +690,7 @@
             draggable: '.hm-item',
             ghostClass: 'drag-ghost',
             chosenClass: 'drag-chosen',
-            group: { name: 'ps-siblings', put: false }, // ✅ no parent changes
+            group: { name: 'ps-siblings', put: false },
             fallbackOnBody: true,
             swapThreshold: 0.65
           });
@@ -750,13 +784,6 @@
           ? `<span class="badge badge-success ms-2">Active</span>`
           : `<span class="badge badge-secondary ms-2">Inactive</span>`;
 
-        const pageBits = [
-          n.page_title ? `Page: ${esc(n.page_title)}` : '',
-          n.page_url ? `URL: ${esc(n.page_url)}` : '',
-          n.page_slug ? `/${esc(n.page_slug)}` : '',
-          n.page_shortcode ? `PageCode: ${esc(n.page_shortcode)}` : ''
-        ].filter(Boolean).join(' • ');
-
         main.innerHTML = `
           <div class="hm-title">
             ${esc(n.title || '-')}
@@ -766,7 +793,6 @@
           </div>
           <div class="hm-meta">
             ${n.slug ? `/${esc(n.slug)}` : ''}
-            ${pageBits ? `${n.slug ? ' • ' : ''}${pageBits}` : ''}
           </div>
         `;
 
@@ -844,17 +870,47 @@
         else destroySortables();
       }
 
+      // ✅ build tree from flat list (parent_id)
+      function buildTreeFromFlat(items) {
+        const map = new Map();
+        const roots = [];
+
+        const rows = (items || []).map(r => ({ ...r, children: [] }));
+        rows.forEach(r => map.set(Number(r.id), r));
+
+        rows.forEach(r => {
+          const pid = r.parent_id ? Number(r.parent_id) : null;
+          if (pid && map.has(pid)) {
+            map.get(pid).children.push(r);
+          } else {
+            roots.push(r);
+          }
+        });
+
+        function sortRec(list) {
+          list.sort((a,b) => (Number(a.position||0) - Number(b.position||0)) || (Number(a.id||0) - Number(b.id||0)));
+          list.forEach(n => { if (n.children?.length) sortRec(n.children); });
+        }
+        sortRec(roots);
+
+        return roots;
+      }
+
       let activeLoadPromise = null;
 
+      // ✅ IMPORTANT FIX:
+      // We DO NOT call /tree anymore (it still demands page_id/page_slug).
+      // We load active items via /api/page-submenus?active=1&header_menu_id=xx and build tree here.
       async function loadActiveTree() {
         if (activeLoadPromise) return activeLoadPromise;
 
-        const params = getPageParams();
-        if (!params.page_id && !params.page_slug) {
+        const params = getScopeParams();
+
+        if (!params.header_menu_id) {
           treeAll = [];
           treeWrap.innerHTML = '';
           empty.style.display = '';
-          meta.textContent = 'Select a page to view submenus';
+          meta.textContent = 'Select a header menu to view submenus';
           loaded.active = true;
           dirty.active = false;
           return;
@@ -863,20 +919,36 @@
         activeLoadPromise = (async () => {
           setLoading(true);
           try {
-            const sep = API_TREE.includes('?') ? '&' : '?';
-            const url =
-              API_TREE +
-              sep +
-              'page_id=' + encodeURIComponent(params.page_id || '') +
-              '&page_slug=' + encodeURIComponent(params.page_slug || '') +
-              '&_ts=' + Date.now();
+            const per = 200;
+            let page = 1;
+            let all = [];
 
-            const j = await fetchJSON(url);
-            treeAll = Array.isArray(j.data) ? j.data : [];
+            while (true) {
+              const usp = new URLSearchParams();
+              usp.set('per_page', String(per));
+              usp.set('page', String(page));
+              usp.set('active', '1');
+              usp.set('header_menu_id', String(params.header_menu_id));
+              usp.set('sort', 'position');
+              usp.set('direction', 'asc');
+              usp.set('_ts', String(Date.now()));
+
+              const j = await fetchJSON(API_BASE + '?' + usp.toString());
+              const items = Array.isArray(j.data) ? j.data : [];
+
+              all = all.concat(items);
+
+              if (items.length < per) break;
+              page++;
+              if (page > 80) break; // safety
+            }
+
+            treeAll = buildTreeFromFlat(all);
             renderActiveTree();
 
             loaded.active = true;
             dirty.active = false;
+
           } catch (e) {
             console.error(e);
             treeAll = [];
@@ -927,8 +999,8 @@
         return (r.parent_id ? `#${r.parent_id}` : 'Root');
       }
 
-      function pageInfo(r) {
-        return r.page_url || (r.page_slug ? ('/' + r.page_slug) : (r.slug ? ('/' + r.slug) : '-'));
+      function headerMenuInfo(r) {
+        return r.header_menu_title || r.header_menu_label || r.header_menu_name || (r.header_menu_id ? ('#' + r.header_menu_id) : '-');
       }
 
       function archivedRow(r) {
@@ -939,7 +1011,7 @@
             <div class="fw-semibold">${esc(r.title || '-')}</div>
             ${slugLine}
           </td>
-          <td>${esc(pageInfo(r))}</td>
+          <td>${esc(headerMenuInfo(r))}</td>
           <td>${esc(parentInfo(r))}</td>
           <td>${fmtDate(r.created_at)}</td>
           <td class="text-end">
@@ -963,7 +1035,7 @@
             <div class="fw-semibold">${esc(r.title || '-')}</div>
             ${slugLine}
           </td>
-          <td>${esc(pageInfo(r))}</td>
+          <td>${esc(headerMenuInfo(r))}</td>
           <td>${esc(parentInfo(r))}</td>
           <td>${fmtDate(r.deleted_at)}</td>
           <td class="text-end">
@@ -1032,9 +1104,8 @@
           usp.set('sort', 'created_at');
           usp.set('direction', 'desc');
 
-          const params = getPageParams();
-          if (params.page_id) usp.set('page_id', params.page_id);
-          if (params.page_slug) usp.set('page_slug', params.page_slug);
+          const params = getScopeParams();
+          if (params.header_menu_id) usp.set('header_menu_id', params.header_menu_id);
 
           const j = await fetchJSON(API_BASE + '?' + usp.toString());
           const items = Array.isArray(j.data) ? j.data : [];
@@ -1081,13 +1152,16 @@
           usp.set('per_page', per);
           usp.set('page', state.bin.page);
 
-          const params = getPageParams();
-          if (params.page_id) usp.set('page_id', params.page_id);
-          if (params.page_slug) usp.set('page_slug', params.page_slug);
-
           const j = await fetchJSON(API_BASE + '/trash?' + usp.toString());
-          const items = Array.isArray(j.data) ? j.data : [];
+
+          let items = Array.isArray(j.data) ? j.data : [];
           const pag = j.pagination || {page:1, per_page: per, total: items.length};
+
+          const params = getScopeParams();
+          if (params.header_menu_id) {
+            const hmNum = Number(params.header_menu_id);
+            items = items.filter(x => Number(x.header_menu_id || 0) === hmNum);
+          }
 
           if (!items.length) emptyBin.style.display = '';
 
@@ -1095,9 +1169,9 @@
           items.forEach(r => frag.appendChild(binRow(r)));
           rowsBin.appendChild(frag);
 
-          const total = Number(pag.total || 0);
+          const total = Number(pag.total || items.length);
           const pages = Math.max(1, Math.ceil(total / Number(pag.per_page || per)));
-          metaBin.textContent = `Showing page ${pag.page} of ${pages} — ${total} result(s)`;
+          metaBin.textContent = `Showing page ${pag.page} of ${pages} — ${items.length} item(s)`;
 
           buildPagerGeneric(pagerBin, Number(pag.page||1), pages, (t)=>{
             state.bin.page = Math.max(1,t);
@@ -1141,13 +1215,10 @@
         renderActiveTree();
       });
 
-      pageSel?.addEventListener('change', () => {
-        const opt = pageSel.options[pageSel.selectedIndex];
-        pageId = String(pageSel.value || '');
-        pageSlug = opt ? (opt.getAttribute('data-slug') || '') : '';
+      headerMenuSel?.addEventListener('change', () => {
+        headerMenuId = String(headerMenuSel.value || '');
         activePage = 1;
 
-        // switching page affects all tabs
         loaded.active = false; loaded.archived = false; loaded.bin = false;
         markDirty(['active','archived','bin']);
         refreshVisible();
@@ -1326,7 +1397,7 @@
 
       // initial
       (async () => {
-        await loadPages();
+        await loadHeaderMenus();
         await loadActiveTree();
       })();
 

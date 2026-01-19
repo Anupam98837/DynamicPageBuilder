@@ -447,25 +447,34 @@ class AchievementController extends Controller
             if (json_last_error() === JSON_ERROR_NONE) $metadata = $decoded;
         }
 
+        // ✅ AUTHORITY CONTROL RULE:
+        // is_featured_home = 1 => request_for_approval = 1
+        // is_featured_home = 0 => request_for_approval = 0
+        $isFeatured = (int) ($validated['is_featured_home'] ?? 0);
+
         $id = DB::table('achievements')->insertGetId([
-            'uuid'             => $uuid,
-            'department_id'    => $validated['department_id'] ?? null,
-            'title'            => $validated['title'],
-            'slug'             => $slug,
-            'body'             => $validated['body'],
-            'cover_image'      => $coverPath,
-            'attachments_json' => !empty($attachments) ? json_encode($attachments) : null,
-            'is_featured_home' => (int) ($validated['is_featured_home'] ?? 0),
-            'status'           => (string) ($validated['status'] ?? 'draft'),
-            'publish_at'       => !empty($validated['publish_at']) ? Carbon::parse($validated['publish_at']) : null,
-            'expire_at'        => !empty($validated['expire_at']) ? Carbon::parse($validated['expire_at']) : null,
-            'views_count'      => 0,
-            'created_by'       => $actor['id'] ?: null,
-            'created_at'       => $now,
-            'updated_at'       => $now,
-            'created_at_ip'    => $request->ip(),
-            'updated_at_ip'    => $request->ip(),
-            'metadata'         => $metadata !== null ? json_encode($metadata) : null,
+            'uuid'               => $uuid,
+            'department_id'      => $validated['department_id'] ?? null,
+            'title'              => $validated['title'],
+            'slug'               => $slug,
+            'body'               => $validated['body'],
+            'cover_image'        => $coverPath,
+            'attachments_json'   => !empty($attachments) ? json_encode($attachments) : null,
+            'is_featured_home'   => $isFeatured,
+
+            // ✅ added
+            'request_for_approval' => $isFeatured,
+
+            'status'             => (string) ($validated['status'] ?? 'draft'),
+            'publish_at'         => !empty($validated['publish_at']) ? Carbon::parse($validated['publish_at']) : null,
+            'expire_at'          => !empty($validated['expire_at']) ? Carbon::parse($validated['expire_at']) : null,
+            'views_count'        => 0,
+            'created_by'         => $actor['id'] ?: null,
+            'created_at'         => $now,
+            'updated_at'         => $now,
+            'created_at_ip'      => $request->ip(),
+            'updated_at_ip'      => $request->ip(),
+            'metadata'           => $metadata !== null ? json_encode($metadata) : null,
         ]);
 
         $row = DB::table('achievements')->where('id', $id)->first();
@@ -531,6 +540,9 @@ class AchievementController extends Controller
 
         if (array_key_exists('is_featured_home', $validated)) {
             $update['is_featured_home'] = (int) $validated['is_featured_home'];
+
+            // ✅ AUTHORITY CONTROL RULE (ONLY when is_featured_home is being updated)
+            $update['request_for_approval'] = (int) $validated['is_featured_home'];
         }
 
         if (array_key_exists('publish_at', $validated)) {
@@ -650,9 +662,13 @@ class AchievementController extends Controller
         $new = ((int) ($row->is_featured_home ?? 0)) ? 0 : 1;
 
         DB::table('achievements')->where('id', (int) $row->id)->update([
-            'is_featured_home' => $new,
-            'updated_at'       => now(),
-            'updated_at_ip'    => $request->ip(),
+            'is_featured_home'     => $new,
+
+            // ✅ AUTHORITY CONTROL RULE (sync automatically)
+            'request_for_approval' => $new,
+
+            'updated_at'           => now(),
+            'updated_at_ip'        => $request->ip(),
         ]);
 
         $fresh = DB::table('achievements')->where('id', (int) $row->id)->first();

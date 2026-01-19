@@ -226,6 +226,26 @@
 }
 .fac-tabbtn.is-missing .nm{ color:#b91c1c; }
 
+/* =========================
+ * ✅ READ-ONLY MODE for already submitted posts
+ * - Shows selected data but user cannot change radios
+ * - "Update" button becomes disabled
+ * ========================= */
+.fb-readonly .rate-col{
+  opacity:.72;
+  cursor:not-allowed !important;
+}
+.fb-readonly .rate-col:hover{background:transparent}
+.fb-readonly input[type="radio"]{
+  pointer-events:none;
+}
+.fb-readonly .fac-tabsbar{opacity:.98}
+.fb-readonly .fb-post-submit-btn{
+  opacity:.65;
+  cursor:not-allowed !important;
+  pointer-events:none;
+}
+
 @media (max-width: 768px){
   .fbsub-panel .d-flex{flex-direction:column;gap:12px !important}
   .fb-table{min-width:860px}
@@ -266,7 +286,7 @@
   <div class="card fbsub-card">
     <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
       <div class="fw-semibold"><i class="fa fa-layer-group me-2"></i>Feedback Posts</div>
-      <div class="small text-muted">Open a post • select faculty tab • choose rating per question • Submit/Update works for that post.</div>
+      <div class="small text-muted">Open a post • select faculty tab • choose rating per question • Submit works for that post.</div>
     </div>
 
     <div class="card-body">
@@ -302,8 +322,8 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 (() => {
-  if (window.__FEEDBACK_SUBMIT_PAGE_V11__) return;
-  window.__FEEDBACK_SUBMIT_PAGE_V11__ = true;
+  if (window.__FEEDBACK_SUBMIT_PAGE_V12__) return;
+  window.__FEEDBACK_SUBMIT_PAGE_V12__ = true;
 
   const $ = (id) => document.getElementById(id);
 
@@ -469,7 +489,7 @@
     const sub = list.filter(p => !!p.is_submitted).length;
     const pen = list.length - sub;
     $('postBadge').textContent = `Showing: ${list.length} • Pending: ${pen} • Submitted: ${sub}`;
-    $('summaryText').textContent = 'Open a post → select faculty tab → choose rating per question → Submit/Update.';
+    $('summaryText').textContent = 'Open a post → select faculty tab → choose rating per question → Submit works for that post.';
   }
 
   function ensureRatingSlot(postKey, qid, fid){
@@ -560,6 +580,9 @@
   }
 
   function syncMissingTabMarker(post, postKey, fid){
+    // ✅ if already submitted => NO missing markers needed
+    if (post?.is_submitted) return;
+
     const bar = document.querySelector(`[data-posttabs="${CSS.escape(String(postKey))}"]`);
     if (!bar) return;
 
@@ -589,6 +612,9 @@
 
     const post = state.posts.find(p => String(p?.uuid || p?.id) === String(postKey));
     clearHighlights(postKey);
+
+    // ✅ if submitted, do not highlight anything (read-only)
+    if (post?.is_submitted) return;
 
     // if we know the faculty, switch to that tab so user sees the exact missing place
     if (fid !== null && fid !== undefined && post){
@@ -648,16 +674,17 @@
     const postKey = String(post?.uuid || post?.id || '');
     if (!postKey) return { message:'Invalid feedback post.', qid:null, fid:null };
 
+    // ✅ If already submitted => restrict update completely
+    if (post?.is_submitted){
+      return { message:'This feedback is already submitted and cannot be updated.', qid:null, fid:null };
+    }
+
     const qIds = pickArray(post?.question_ids).map(idNum).filter(Boolean);
     if (!qIds.length) return { message:'No questions found in this feedback post.', qid:null, fid:null };
 
     const ans = collectPayloadAnswers(postKey);
 
-    // ✅ REQUIRED CHANGE:
     // Users can submit ONLY if ALL faculty tabs (for this post) are fully filled:
-    // - For each question:
-    //   - if it has allowed faculty list => every allowed faculty must have a rating
-    //   - else => Overall (fid=0) must have a rating
     for (const qid of qIds){
       const block = ans[String(qid)] || {};
       const allowed = getAllowedFacultyIdsForQuestion(post, qid);
@@ -694,6 +721,8 @@
     const qIds = pickArray(post?.question_ids).map(idNum).filter(Boolean);
     const qMap = new Map((state.questions || []).map(q => [idNum(q?.id), q]));
 
+    const isReadOnly = !!post?.is_submitted;
+
     if (!qIds.length){
       return `
         <div class="text-center text-muted py-4">
@@ -709,7 +738,7 @@
     });
 
     return `
-      <div class="fb-table-wrap">
+      <div class="fb-table-wrap ${isReadOnly ? 'fb-readonly' : ''}">
         <table class="table fb-table">
           <thead>
             <tr>
@@ -748,6 +777,7 @@
                                 name="${esc(name)}"
                                 value="${esc(String(opt.v))}"
                                 ${checked ? 'checked' : ''}
+                                ${isReadOnly ? 'disabled' : ''}
                                 data-post="${esc(String(postKey))}"
                                 data-qid="${esc(String(qid))}"
                                 data-fid="${esc(String(fid))}"
@@ -776,11 +806,15 @@
     const sem = semesterTitle(post);
     const sub = subjectTitle(post);
 
-    const buttonLabel = post?.is_submitted ? 'Update' : 'Submit';
-    const buttonIcon  = post?.is_submitted ? 'fa-pen-to-square' : 'fa-paper-plane';
+    // ✅ If already submitted => show disabled button + readonly UI
+    const isReadOnly = !!post?.is_submitted;
+
+    const buttonLabel = isReadOnly ? 'Already Submitted' : 'Submit';
+    const buttonIcon  = isReadOnly ? 'fa-check' : 'fa-paper-plane';
+    const buttonDisabled = isReadOnly ? 'disabled aria-disabled="true"' : '';
 
     const submittedLine = (post?.is_submitted && post?.submission?.submitted_at)
-      ? `<div class="text-mini mt-1"><i class="fa fa-check me-1" style="opacity:.8"></i>Submitted At: ${esc(String(post.submission.submitted_at))} • Editable</div>`
+      ? `<div class="text-mini mt-1"><i class="fa fa-check me-1" style="opacity:.8"></i>Submitted At: ${esc(String(post.submission.submitted_at))}</div>`
       : '';
 
     const tabs = buildFacultyTabsTop(post);
@@ -788,36 +822,38 @@
     const activeFid = state.activeFacultyByPost[postKey];
 
     return `
-      <div class="d-flex align-items-start justify-content-between flex-wrap gap-2">
-        <div>
-          <div class="fw-semibold"><i class="fa fa-calendar-alt me-2"></i>${esc(sem)} <span class="text-mini">•</span> <i class="fa fa-book ms-2 me-2"></i>${esc(sub)}</div>
-          ${submittedLine}
+      <div class="${isReadOnly ? 'fb-readonly' : ''}">
+        <div class="d-flex align-items-start justify-content-between flex-wrap gap-2">
+          <div>
+            <div class="fw-semibold"><i class="fa fa-calendar-alt me-2"></i>${esc(sem)} <span class="text-mini">•</span> <i class="fa fa-book ms-2 me-2"></i>${esc(sub)}</div>
+            ${submittedLine}
+          </div>
+
+          <button class="btn btn-primary fb-post-submit-btn" data-post="${esc(String(postKey))}" ${buttonDisabled}>
+            <i class="fa ${buttonIcon} me-1"></i>${buttonLabel}
+          </button>
         </div>
 
-        <button class="btn btn-primary fb-post-submit-btn" data-post="${esc(String(postKey))}">
-          <i class="fa ${buttonIcon} me-1"></i>${buttonLabel}
-        </button>
-      </div>
+        <hr class="hr-soft my-3"/>
 
-      <hr class="hr-soft my-3"/>
+        <div class="fac-tabsbar" data-posttabs="${esc(String(postKey))}">
+          ${tabs.map(t => {
+            const isActive = (String(t.id) === String(activeFid));
+            return `
+              <button type="button"
+                class="fac-tabbtn ${isActive ? 'active' : ''}"
+                data-post="${esc(String(postKey))}"
+                data-fid="${esc(String(t.id))}">
+                ${t._overall ? `<i class="fa-solid fa-star"></i>` : `<i class="fa-solid fa-user-tie"></i>`}
+                <span class="nm" title="${esc(String(t.name))}">${esc(String(t.name))}</span>
+              </button>
+            `;
+          }).join('')}
+        </div>
 
-      <div class="fac-tabsbar" data-posttabs="${esc(String(postKey))}">
-        ${tabs.map(t => {
-          const isActive = (String(t.id) === String(activeFid));
-          return `
-            <button type="button"
-              class="fac-tabbtn ${isActive ? 'active' : ''}"
-              data-post="${esc(String(postKey))}"
-              data-fid="${esc(String(t.id))}">
-              ${t._overall ? `<i class="fa-solid fa-star"></i>` : `<i class="fa-solid fa-user-tie"></i>`}
-              <span class="nm" title="${esc(String(t.name))}">${esc(String(t.name))}</span>
-            </button>
-          `;
-        }).join('')}
-      </div>
-
-      <div id="tablePane_${esc(String(postKey))}">
-        ${renderQuestionsTable(post, postKey, activeFid)}
+        <div id="tablePane_${esc(String(postKey))}">
+          ${renderQuestionsTable(post, postKey, activeFid)}
+        </div>
       </div>
     `;
   }
@@ -899,11 +935,11 @@
         slot.innerHTML = renderPostBody(post, postKey);
         clearHighlights(postKey);
 
-        // ✅ after render, mark missing faculty tabs (so user knows which tab still incomplete)
-        const tabs = buildFacultyTabsTop(post);
-        tabs.forEach(t => {
-          syncMissingTabMarker(post, postKey, t.id);
-        });
+        // ✅ pending only => mark missing tabs
+        if (!post?.is_submitted){
+          const tabs = buildFacultyTabsTop(post);
+          tabs.forEach(t => syncMissingTabMarker(post, postKey, t.id));
+        }
       });
     });
   }
@@ -911,6 +947,12 @@
   async function submitPost(postKey){
     const post = state.posts.find(p => String(p?.uuid || p?.id) === String(postKey));
     if (!post){ err('Feedback post not found.'); return; }
+
+    // ✅ If already submitted => restrict update completely
+    if (post?.is_submitted){
+      err('This feedback is already submitted and cannot be updated.');
+      return;
+    }
 
     const v = validateBeforeSubmit(post);
     if (v){
@@ -954,9 +996,7 @@
         throw new Error(js?.message || 'Submit failed');
       }
 
-      ok((js?.message || '').toLowerCase() === 'updated'
-        ? 'Feedback updated successfully'
-        : 'Feedback submitted successfully');
+      ok('Feedback submitted successfully');
 
       await loadBase(true);
 
@@ -1046,8 +1086,10 @@
         pane.innerHTML = renderQuestionsTable(post, postKey, fid);
       }
 
-      // ✅ keep markers updated for this tab (in case it still has missing)
-      syncMissingTabMarker(post, postKey, fid);
+      // ✅ pending only => keep markers updated
+      if (!post?.is_submitted){
+        syncMissingTabMarker(post, postKey, fid);
+      }
     });
   }
 
@@ -1057,6 +1099,11 @@
       if (!r) return;
 
       const postKey = r.dataset.post;
+
+      const post = state.posts.find(p => String(p?.uuid || p?.id) === String(postKey));
+      // ✅ If submitted => restrict change
+      if (post?.is_submitted) return;
+
       const qid = idNum(r.dataset.qid);
       const fid = idNum(r.dataset.fid);
       const val = idNum(r.value);
@@ -1079,7 +1126,6 @@
       }
 
       // ✅ update missing marker for this faculty tab after selection
-      const post = state.posts.find(p => String(p?.uuid || p?.id) === String(postKey));
       if (post){
         syncMissingTabMarker(post, postKey, fid);
       }
@@ -1090,6 +1136,10 @@
     document.addEventListener('click', (e) => {
       const b = e.target.closest('.fb-post-submit-btn');
       if (!b) return;
+
+      // ✅ if disabled (readonly post), do nothing
+      if (b.hasAttribute('disabled') || b.getAttribute('aria-disabled') === 'true') return;
+
       const postKey = b.dataset.post;
       if (!postKey){ err('Invalid post.'); return; }
       submitPost(postKey);

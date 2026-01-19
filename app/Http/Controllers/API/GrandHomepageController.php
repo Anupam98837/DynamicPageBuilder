@@ -271,20 +271,19 @@ class GrandHomepageController extends Controller
         return response()->json(['success' => true, 'alumni_speak' => $normalized['alumni_speak'] ?? null]);
     }
 
-public function successStories(Request $request)
-{
-    [$deptId, $limit, $now] = $this->baseParams($request);
+    public function successStories(Request $request)
+    {
+        [$deptId, $limit, $now] = $this->baseParams($request);
 
-    $cacheKey = $this->cacheKey('success_stories', $deptId, $limit);
-    $data = Cache::remember($cacheKey, now()->addSeconds(60), fn() => $this->fetchSuccessStories($now, $deptId, $limit));
+        $cacheKey = $this->cacheKey('success_stories', $deptId, $limit);
+        $data = Cache::remember($cacheKey, now()->addSeconds(60), fn() => $this->fetchSuccessStories($now, $deptId, $limit));
 
-    return response()->json([
-        'success' => true,
-        'selected_department' => $this->selectedDepartmentMeta($deptId), // ✅ added
-        'success_stories' => $data
-    ]);
-}
-
+        return response()->json([
+            'success' => true,
+            'selected_department' => $this->selectedDepartmentMeta($deptId), // ✅ added
+            'success_stories' => $data
+        ]);
+    }
 
     public function recruiters(Request $request)
     {
@@ -300,93 +299,91 @@ public function successStories(Request $request)
      | Fetchers (section data)
      |========================================================= */
 
-// GrandHomepageController.php
+    // GrandHomepageController.php
 
-private function fetchNoticeMarquee($now): ?array
-{
-    $q = DB::table('notice_marquee');
+    private function fetchNoticeMarquee($now): ?array
+    {
+        $q = DB::table('notice_marquee');
 
-    if ($this->hasColumn('notice_marquee', 'deleted_at')) {
-        $q->whereNull('deleted_at');
-    }
-
-    // status is often "0"/"1" in this table
-    $q->where(function ($w) {
-        $w->where('status', '1')
-          ->orWhere('status', 1)
-          ->orWhereIn('status', ['published', 'active']); // legacy
-    });
-
-    if ($this->hasColumn('notice_marquee', 'publish_at')) {
-        $q->where(function ($w) use ($now) {
-            $w->whereNull('publish_at')->orWhere('publish_at', '<=', $now);
-        });
-    }
-
-    if ($this->hasColumn('notice_marquee', 'expire_at')) {
-        $q->where(function ($w) use ($now) {
-            $w->whereNull('expire_at')->orWhere('expire_at', '>', $now);
-        });
-    }
-
-    if ($this->hasColumn('notice_marquee', 'updated_at')) {
-        $q->orderByDesc('updated_at');
-    } elseif ($this->hasColumn('notice_marquee', 'publish_at')) {
-        $q->orderByDesc('publish_at');
-    }
-
-    $noticeMarqueeRow = $q->orderByDesc('id')->first();
-    if (! $noticeMarqueeRow) return null;
-
-    // ✅ normalize items to consistent shape: {text,url} + backward aliases
-    $rawItems = $this->json($this->getVal($noticeMarqueeRow, 'notice_items_json'), []);
-    $normItems = [];
-
-    foreach ((array)$rawItems as $it) {
-        if (is_string($it)) {
-            $txt = trim($it);
-            if ($txt === '') continue;
-            $normItems[] = [
-                'text'  => $txt,
-                'url'   => '',
-                'title' => $txt,
-                'link'  => '',
-                'href'  => '',
-            ];
-            continue;
+        if ($this->hasColumn('notice_marquee', 'deleted_at')) {
+            $q->whereNull('deleted_at');
         }
 
-        $arr = is_array($it) ? $it : (array)$it;
+        // status is often "0"/"1" in this table
+        $q->where(function ($w) {
+            $w->where('status', '1')
+                ->orWhere('status', 1)
+                ->orWhereIn('status', ['published', 'active']); // legacy
+        });
 
-        $text = trim((string)($arr['text'] ?? $arr['title'] ?? $arr['label'] ?? $arr['name'] ?? $arr['message'] ?? ''));
-        $url  = trim((string)($arr['url'] ?? $arr['link'] ?? $arr['href'] ?? ''));
+        if ($this->hasColumn('notice_marquee', 'publish_at')) {
+            $q->where(function ($w) use ($now) {
+                $w->whereNull('publish_at')->orWhere('publish_at', '<=', $now);
+            });
+        }
 
-        if ($text === '' && $url === '') continue;
+        if ($this->hasColumn('notice_marquee', 'expire_at')) {
+            $q->where(function ($w) use ($now) {
+                $w->whereNull('expire_at')->orWhere('expire_at', '>', $now);
+            });
+        }
 
-        $normItems[] = [
-            'text'  => $text,
-            'url'   => $url,
-            'title' => $text,  // aliases for old frontends
-            'link'  => $url,
-            'href'  => $url,
-            'sort_order' => $arr['sort_order'] ?? null,
+        if ($this->hasColumn('notice_marquee', 'updated_at')) {
+            $q->orderByDesc('updated_at');
+        } elseif ($this->hasColumn('notice_marquee', 'publish_at')) {
+            $q->orderByDesc('publish_at');
+        }
+
+        $noticeMarqueeRow = $q->orderByDesc('id')->first();
+        if (! $noticeMarqueeRow) return null;
+
+        // ✅ normalize items to consistent shape: {text,url} + backward aliases
+        $rawItems = $this->json($this->getVal($noticeMarqueeRow, 'notice_items_json'), []);
+        $normItems = [];
+
+        foreach ((array)$rawItems as $it) {
+            if (is_string($it)) {
+                $txt = trim($it);
+                if ($txt === '') continue;
+                $normItems[] = [
+                    'text'  => $txt,
+                    'url'   => '',
+                    'title' => $txt,
+                    'link'  => '',
+                    'href'  => '',
+                ];
+                continue;
+            }
+
+            $arr = is_array($it) ? $it : (array)$it;
+
+            $text = trim((string)($arr['text'] ?? $arr['title'] ?? $arr['label'] ?? $arr['name'] ?? $arr['message'] ?? ''));
+            $url  = trim((string)($arr['url'] ?? $arr['link'] ?? $arr['href'] ?? ''));
+
+            if ($text === '' && $url === '') continue;
+
+            $normItems[] = [
+                'text'  => $text,
+                'url'   => $url,
+                'title' => $text,  // aliases for old frontends
+                'link'  => $url,
+                'href'  => $url,
+                'sort_order' => $arr['sort_order'] ?? null,
+            ];
+        }
+
+        return [
+            'items' => $normItems,
+            'settings' => [
+                'auto_scroll'       => (int) $this->getVal($noticeMarqueeRow, 'auto_scroll', 1),
+                'scroll_speed'      => (int) $this->getVal($noticeMarqueeRow, 'scroll_speed', 60),
+                'scroll_latency_ms' => (int) $this->getVal($noticeMarqueeRow, 'scroll_latency_ms', 0),
+                'loop'              => (int) $this->getVal($noticeMarqueeRow, 'loop', 1),
+                'pause_on_hover'    => (int) $this->getVal($noticeMarqueeRow, 'pause_on_hover', 1),
+                'direction'         => (string) $this->getVal($noticeMarqueeRow, 'direction', 'left'),
+            ],
         ];
     }
-
-    return [
-        'items' => $normItems,
-        'settings' => [
-            'auto_scroll'       => (int) $this->getVal($noticeMarqueeRow, 'auto_scroll', 1),
-            'scroll_speed'      => (int) $this->getVal($noticeMarqueeRow, 'scroll_speed', 60),
-            'scroll_latency_ms' => (int) $this->getVal($noticeMarqueeRow, 'scroll_latency_ms', 0),
-            'loop'              => (int) $this->getVal($noticeMarqueeRow, 'loop', 1),
-            'pause_on_hover'    => (int) $this->getVal($noticeMarqueeRow, 'pause_on_hover', 1),
-            'direction'         => (string) $this->getVal($noticeMarqueeRow, 'direction', 'left'),
-        ],
-    ];
-}
-
-
 
     private function fetchHeroCarousel($now, int $limit): array
     {
@@ -463,87 +460,86 @@ private function fetchNoticeMarquee($now): ?array
     }
 
     private function fetchCourses($now, ?int $deptId, int $limit): array
-{
-    $base = DB::table('courses')
-        ->when($this->hasColumn('courses', 'deleted_at'), fn($q) => $q->whereNull('deleted_at'))
-        ->where('status', 'published')
-        ->where(function ($q) use ($now) {
-            $q->whereNull('publish_at')->orWhere('publish_at', '<=', $now);
-        })
-        ->where(function ($q) use ($now) {
-            $q->whereNull('expire_at')->orWhere('expire_at', '>', $now);
-        });
+    {
+        $base = DB::table('courses')
+            ->when($this->hasColumn('courses', 'deleted_at'), fn($q) => $q->whereNull('deleted_at'))
+            ->where('status', 'published')
+            ->where(function ($q) use ($now) {
+                $q->whereNull('publish_at')->orWhere('publish_at', '<=', $now);
+            })
+            ->where(function ($q) use ($now) {
+                $q->whereNull('expire_at')->orWhere('expire_at', '>', $now);
+            });
 
-    // ✅ dept filter: include global + dept rows (homepage-friendly)
-    if ($deptId && $this->hasColumn('courses', 'department_id')) {
-        $base->where(function ($q) use ($deptId) {
-            $q->whereNull('department_id')->orWhere('department_id', (int) $deptId);
-        });
+        // ✅ dept filter: include global + dept rows (homepage-friendly)
+        if ($deptId && $this->hasColumn('courses', 'department_id')) {
+            $base->where(function ($q) use ($deptId) {
+                $q->whereNull('department_id')->orWhere('department_id', (int) $deptId);
+            });
+        }
+
+        $map = function ($r) {
+            return [
+                'uuid' => $this->getVal($r, 'uuid'),
+                'department_id' => $this->getVal($r, 'department_id'),
+                'title' => $this->getVal($r, 'title'),
+                'slug' => $this->getVal($r, 'slug'),
+                'summary' => $this->getVal($r, 'summary'),
+                'body' => $this->getVal($r, 'body'),
+
+                'cover_image' => $this->assetUrl($this->getVal($r, 'cover_image')),
+                'attachments_json' => $this->json($this->getVal($r, 'attachments_json'), []),
+
+                'program_level' => $this->getVal($r, 'program_level'),
+                'program_type' => $this->getVal($r, 'program_type'),
+                'mode' => $this->getVal($r, 'mode'),
+                'duration_value' => (int) $this->getVal($r, 'duration_value', 0),
+                'duration_unit' => $this->getVal($r, 'duration_unit'),
+                'credits' => $this->getVal($r, 'credits'),
+
+                'eligibility' => $this->getVal($r, 'eligibility'),
+                'highlights' => $this->getVal($r, 'highlights'),
+                'syllabus_url' => $this->assetUrl($this->getVal($r, 'syllabus_url')),
+                'career_scope' => $this->getVal($r, 'career_scope'),
+
+                'is_featured_home' => (int) $this->getVal($r, 'is_featured_home', 0),
+                'sort_order' => (int) $this->getVal($r, 'sort_order', 0),
+                'status' => $this->getVal($r, 'status'),
+
+                'publish_at' => $this->iso($this->getVal($r, 'publish_at')),
+                'expire_at' => $this->iso($this->getVal($r, 'expire_at')),
+                'views_count' => (int) $this->getVal($r, 'views_count', 0),
+                'created_at' => $this->iso($this->getVal($r, 'created_at')),
+                'updated_at' => $this->iso($this->getVal($r, 'updated_at')),
+                'metadata' => $this->json($this->getVal($r, 'metadata'), null),
+
+                'url' => 'courses/view/' . ($this->getVal($r, 'uuid') ?: ($this->getVal($r, 'slug') ?: '')),
+            ];
+        };
+
+        $fetch = function ($q) use ($limit, $map) {
+            // homepage ordering (featured first + sort_order + latest)
+            if ($this->hasColumn('courses', 'is_featured_home')) $q->orderBy('is_featured_home', 'desc');
+            if ($this->hasColumn('courses', 'sort_order'))       $q->orderBy('sort_order', 'asc');
+
+            $q->orderByRaw('COALESCE(publish_at, created_at) desc');
+
+            return $q->orderByDesc('id')
+                ->limit($limit)
+                ->get()
+                ->map($map)
+                ->values()
+                ->all();
+        };
+
+        // ✅ try featured-only first, fallback to all published
+        if ($this->hasColumn('courses', 'is_featured_home')) {
+            $featuredRows = $fetch((clone $base)->where('is_featured_home', 1));
+            if (!empty($featuredRows)) return $featuredRows;
+        }
+
+        return $fetch($base);
     }
-
-    $map = function ($r) {
-        return [
-            'uuid' => $this->getVal($r, 'uuid'),
-            'department_id' => $this->getVal($r, 'department_id'),
-            'title' => $this->getVal($r, 'title'),
-            'slug' => $this->getVal($r, 'slug'),
-            'summary' => $this->getVal($r, 'summary'),
-            'body' => $this->getVal($r, 'body'),
-
-            'cover_image' => $this->assetUrl($this->getVal($r, 'cover_image')),
-            'attachments_json' => $this->json($this->getVal($r, 'attachments_json'), []),
-
-            'program_level' => $this->getVal($r, 'program_level'),
-            'program_type' => $this->getVal($r, 'program_type'),
-            'mode' => $this->getVal($r, 'mode'),
-            'duration_value' => (int) $this->getVal($r, 'duration_value', 0),
-            'duration_unit' => $this->getVal($r, 'duration_unit'),
-            'credits' => $this->getVal($r, 'credits'),
-
-            'eligibility' => $this->getVal($r, 'eligibility'),
-            'highlights' => $this->getVal($r, 'highlights'),
-            'syllabus_url' => $this->assetUrl($this->getVal($r, 'syllabus_url')),
-            'career_scope' => $this->getVal($r, 'career_scope'),
-
-            'is_featured_home' => (int) $this->getVal($r, 'is_featured_home', 0),
-            'sort_order' => (int) $this->getVal($r, 'sort_order', 0),
-            'status' => $this->getVal($r, 'status'),
-
-            'publish_at' => $this->iso($this->getVal($r, 'publish_at')),
-            'expire_at' => $this->iso($this->getVal($r, 'expire_at')),
-            'views_count' => (int) $this->getVal($r, 'views_count', 0),
-            'created_at' => $this->iso($this->getVal($r, 'created_at')),
-            'updated_at' => $this->iso($this->getVal($r, 'updated_at')),
-            'metadata' => $this->json($this->getVal($r, 'metadata'), null),
-
-            'url' => 'courses/view/' . ($this->getVal($r, 'uuid') ?: ($this->getVal($r, 'slug') ?: '')),
-        ];
-    };
-
-    $fetch = function ($q) use ($limit, $map) {
-        // homepage ordering (featured first + sort_order + latest)
-        if ($this->hasColumn('courses', 'is_featured_home')) $q->orderBy('is_featured_home', 'desc');
-        if ($this->hasColumn('courses', 'sort_order'))       $q->orderBy('sort_order', 'asc');
-
-        $q->orderByRaw('COALESCE(publish_at, created_at) desc');
-
-        return $q->orderByDesc('id')
-            ->limit($limit)
-            ->get()
-            ->map($map)
-            ->values()
-            ->all();
-    };
-
-    // ✅ try featured-only first, fallback to all published
-    if ($this->hasColumn('courses', 'is_featured_home')) {
-        $featuredRows = $fetch((clone $base)->where('is_featured_home', 1));
-        if (!empty($featuredRows)) return $featuredRows;
-    }
-
-    return $fetch($base);
-}
-
 
     private function fetchStats($now): ?array
     {
@@ -585,91 +581,90 @@ private function fetchNoticeMarquee($now): ?array
     }
 
     private function fetchSuccessfulEntrepreneurs($now, ?int $deptId, int $limit): array
-{
-    $base = DB::table('successful_entrepreneurs')
-        ->when($this->hasColumn('successful_entrepreneurs', 'deleted_at'), fn($q) => $q->whereNull('deleted_at'))
-        ->where('status', 'published');
+    {
+        $base = DB::table('successful_entrepreneurs')
+            ->when($this->hasColumn('successful_entrepreneurs', 'deleted_at'), fn($q) => $q->whereNull('deleted_at'))
+            ->where('status', 'published');
 
-    // publish window (guard columns)
-    if ($this->hasColumn('successful_entrepreneurs', 'publish_at')) {
-        $base->where(function ($q) use ($now) {
-            $q->whereNull('publish_at')->orWhere('publish_at', '<=', $now);
-        });
-    }
-    if ($this->hasColumn('successful_entrepreneurs', 'expire_at')) {
-        $base->where(function ($q) use ($now) {
-            $q->whereNull('expire_at')->orWhere('expire_at', '>', $now);
-        });
-    }
-
-    // ✅ dept filter: include global + dept (homepage-friendly)
-    if ($deptId && $this->hasColumn('successful_entrepreneurs', 'department_id')) {
-        $base->where(function ($q) use ($deptId) {
-            $q->whereNull('department_id')->orWhere('department_id', $deptId);
-        });
-    }
-
-    $mapRow = function ($r) {
-        return [
-            'uuid' => $this->getVal($r, 'uuid'),
-            'department_id' => $this->getVal($r, 'department_id'),
-            'user_id' => $this->getVal($r, 'user_id'),
-            'slug' => $this->getVal($r, 'slug'),
-            'name' => $this->getVal($r, 'name'),
-            'title' => $this->getVal($r, 'title'),
-            'description' => $this->getVal($r, 'description'),
-            'photo_url' => $this->assetUrl($this->getVal($r, 'photo_url')),
-            'company_name' => $this->getVal($r, 'company_name'),
-            'company_logo_url' => $this->assetUrl($this->getVal($r, 'company_logo_url')),
-            'company_website_url' => $this->getVal($r, 'company_website_url'),
-            'industry' => $this->getVal($r, 'industry'),
-            'founded_year' => $this->getVal($r, 'founded_year'),
-            'achievement_date' => $this->getVal($r, 'achievement_date'),
-            'highlights' => $this->getVal($r, 'highlights'),
-            'social_links_json' => $this->json($this->getVal($r, 'social_links_json'), []),
-
-            'is_featured_home' => (int) $this->getVal($r, 'is_featured_home', 0),
-            'sort_order' => (int) $this->getVal($r, 'sort_order', 0),
-            'status' => $this->getVal($r, 'status'),
-
-            'publish_at' => $this->iso($this->getVal($r, 'publish_at')),
-            'expire_at' => $this->iso($this->getVal($r, 'expire_at')),
-            'views_count' => (int) $this->getVal($r, 'views_count', 0),
-            'created_at' => $this->iso($this->getVal($r, 'created_at')),
-            'updated_at' => $this->iso($this->getVal($r, 'updated_at')),
-            'metadata' => $this->json($this->getVal($r, 'metadata'), null),
-        ];
-    };
-
-    $fetch = function ($q) use ($limit, $mapRow) {
-        if ($this->hasColumn('successful_entrepreneurs', 'sort_order')) {
-            $q->orderBy('sort_order');
-        }
-        // public-like ordering
+        // publish window (guard columns)
         if ($this->hasColumn('successful_entrepreneurs', 'publish_at')) {
-            $q->orderByRaw('COALESCE(publish_at, created_at) desc');
-        } else {
-            $q->orderByDesc('created_at');
+            $base->where(function ($q) use ($now) {
+                $q->whereNull('publish_at')->orWhere('publish_at', '<=', $now);
+            });
+        }
+        if ($this->hasColumn('successful_entrepreneurs', 'expire_at')) {
+            $base->where(function ($q) use ($now) {
+                $q->whereNull('expire_at')->orWhere('expire_at', '>', $now);
+            });
         }
 
-        return $q->orderByDesc('id')
-            ->limit($limit)
-            ->get()
-            ->map($mapRow)
-            ->values()
-            ->all();
-    };
+        // ✅ dept filter: include global + dept (homepage-friendly)
+        if ($deptId && $this->hasColumn('successful_entrepreneurs', 'department_id')) {
+            $base->where(function ($q) use ($deptId) {
+                $q->whereNull('department_id')->orWhere('department_id', $deptId);
+            });
+        }
 
-    // ✅ try featured first, fallback to all
-    if ($this->hasColumn('successful_entrepreneurs', 'is_featured_home')) {
-        $featured = (clone $base)->where('is_featured_home', 1);
-        $rows = $fetch($featured);
-        if (!empty($rows)) return $rows;
+        $mapRow = function ($r) {
+            return [
+                'uuid' => $this->getVal($r, 'uuid'),
+                'department_id' => $this->getVal($r, 'department_id'),
+                'user_id' => $this->getVal($r, 'user_id'),
+                'slug' => $this->getVal($r, 'slug'),
+                'name' => $this->getVal($r, 'name'),
+                'title' => $this->getVal($r, 'title'),
+                'description' => $this->getVal($r, 'description'),
+                'photo_url' => $this->assetUrl($this->getVal($r, 'photo_url')),
+                'company_name' => $this->getVal($r, 'company_name'),
+                'company_logo_url' => $this->assetUrl($this->getVal($r, 'company_logo_url')),
+                'company_website_url' => $this->getVal($r, 'company_website_url'),
+                'industry' => $this->getVal($r, 'industry'),
+                'founded_year' => $this->getVal($r, 'founded_year'),
+                'achievement_date' => $this->getVal($r, 'achievement_date'),
+                'highlights' => $this->getVal($r, 'highlights'),
+                'social_links_json' => $this->json($this->getVal($r, 'social_links_json'), []),
+
+                'is_featured_home' => (int) $this->getVal($r, 'is_featured_home', 0),
+                'sort_order' => (int) $this->getVal($r, 'sort_order', 0),
+                'status' => $this->getVal($r, 'status'),
+
+                'publish_at' => $this->iso($this->getVal($r, 'publish_at')),
+                'expire_at' => $this->iso($this->getVal($r, 'expire_at')),
+                'views_count' => (int) $this->getVal($r, 'views_count', 0),
+                'created_at' => $this->iso($this->getVal($r, 'created_at')),
+                'updated_at' => $this->iso($this->getVal($r, 'updated_at')),
+                'metadata' => $this->json($this->getVal($r, 'metadata'), null),
+            ];
+        };
+
+        $fetch = function ($q) use ($limit, $mapRow) {
+            if ($this->hasColumn('successful_entrepreneurs', 'sort_order')) {
+                $q->orderBy('sort_order');
+            }
+            // public-like ordering
+            if ($this->hasColumn('successful_entrepreneurs', 'publish_at')) {
+                $q->orderByRaw('COALESCE(publish_at, created_at) desc');
+            } else {
+                $q->orderByDesc('created_at');
+            }
+
+            return $q->orderByDesc('id')
+                ->limit($limit)
+                ->get()
+                ->map($mapRow)
+                ->values()
+                ->all();
+        };
+
+        // ✅ try featured first, fallback to all
+        if ($this->hasColumn('successful_entrepreneurs', 'is_featured_home')) {
+            $featured = (clone $base)->where('is_featured_home', 1);
+            $rows = $fetch($featured);
+            if (!empty($rows)) return $rows;
+        }
+
+        return $fetch($base);
     }
-
-    return $fetch($base);
-}
-
 
     private function fetchAlumniSpeak($now, ?int $deptId): ?array
     {
@@ -715,120 +710,119 @@ private function fetchNoticeMarquee($now): ?array
         ];
     }
 
-private function fetchSuccessStories($now, ?int $deptId, int $limit): array
-{
-    // pick a safe title column from departments
-    $deptTitleCol = $this->hasColumn('departments', 'title')
-        ? 'title'
-        : ($this->hasColumn('departments', 'name') ? 'name' : null);
+    private function fetchSuccessStories($now, ?int $deptId, int $limit): array
+    {
+        // pick a safe title column from departments
+        $deptTitleCol = $this->hasColumn('departments', 'title')
+            ? 'title'
+            : ($this->hasColumn('departments', 'name') ? 'name' : null);
 
-    $base = DB::table('success_stories as s')
-        ->select('s.*') // IMPORTANT: avoid column collisions after join
-        ->when($this->hasColumn('success_stories', 'deleted_at'), fn($q) => $q->whereNull('s.deleted_at'))
-        ->where('s.status', 'published');
+        $base = DB::table('success_stories as s')
+            ->select('s.*') // IMPORTANT: avoid column collisions after join
+            ->when($this->hasColumn('success_stories', 'deleted_at'), fn($q) => $q->whereNull('s.deleted_at'))
+            ->where('s.status', 'published');
 
-    // ✅ join departments to get department title
-    if ($deptTitleCol) {
-        $base->leftJoin('departments as d', 'd.id', '=', 's.department_id')
-             ->addSelect(DB::raw("d.$deptTitleCol as department_title"));
-    }
-
-    // publish window (guard columns)
-    if ($this->hasColumn('success_stories', 'publish_at')) {
-        $base->where(function ($q) use ($now) {
-            $q->whereNull('s.publish_at')->orWhere('s.publish_at', '<=', $now);
-        });
-    }
-    if ($this->hasColumn('success_stories', 'expire_at')) {
-        $base->where(function ($q) use ($now) {
-            $q->whereNull('s.expire_at')->orWhere('s.expire_at', '>', $now);
-        });
-    }
-
-    // ✅ dept filter: include global + dept rows for homepage
-    if ($deptId && $this->hasColumn('success_stories', 'department_id')) {
-        $base->where(function ($q) use ($deptId) {
-            $q->whereNull('s.department_id')->orWhere('s.department_id', (int)$deptId);
-        });
-    }
-
-    $map = function ($r) {
-        return [
-            'uuid' => $this->getVal($r, 'uuid'),
-            'department_id' => $this->getVal($r, 'department_id'),
-            'department_title' => $this->getVal($r, 'department_title'), // ✅ added
-
-            'slug' => $this->getVal($r, 'slug'),
-            'name' => $this->getVal($r, 'name'),
-            'title' => $this->getVal($r, 'title'),
-            'description' => $this->getVal($r, 'description'),
-            'quote' => $this->getVal($r, 'quote'),
-            'date' => $this->iso($this->getVal($r, 'date')),
-            'year' => $this->getVal($r, 'year'),
-            'photo_url' => $this->assetUrl($this->getVal($r, 'photo_url')),
-            'social_links_json' => $this->json($this->getVal($r, 'social_links_json'), []),
-
-            'is_featured_home' => (int) $this->getVal($r, 'is_featured_home', 0),
-            'sort_order' => (int) $this->getVal($r, 'sort_order', 0),
-            'publish_at' => $this->iso($this->getVal($r, 'publish_at')),
-            'expire_at' => $this->iso($this->getVal($r, 'expire_at')),
-            'views_count' => (int) $this->getVal($r, 'views_count', 0),
-            'created_at' => $this->iso($this->getVal($r, 'created_at')),
-            'updated_at' => $this->iso($this->getVal($r, 'updated_at')),
-            'metadata' => $this->json($this->getVal($r, 'metadata'), null),
-        ];
-    };
-
-    $fetch = function ($q) use ($limit, $map) {
-        if ($this->hasColumn('success_stories', 'is_featured_home')) $q->orderBy('s.is_featured_home', 'desc');
-        if ($this->hasColumn('success_stories', 'sort_order'))       $q->orderBy('s.sort_order', 'asc');
-
-        if ($this->hasColumn('success_stories', 'publish_at')) {
-            $q->orderByRaw('COALESCE(s.publish_at, s.created_at) desc');
-        } else {
-            $q->orderByDesc('s.created_at');
+        // ✅ join departments to get department title
+        if ($deptTitleCol) {
+            $base->leftJoin('departments as d', 'd.id', '=', 's.department_id')
+                ->addSelect(DB::raw("d.$deptTitleCol as department_title"));
         }
 
-        return $q->orderByDesc('s.id')
-            ->limit($limit)
-            ->get()
-            ->map($map)
-            ->values()
-            ->all();
-    };
+        // publish window (guard columns)
+        if ($this->hasColumn('success_stories', 'publish_at')) {
+            $base->where(function ($q) use ($now) {
+                $q->whereNull('s.publish_at')->orWhere('s.publish_at', '<=', $now);
+            });
+        }
+        if ($this->hasColumn('success_stories', 'expire_at')) {
+            $base->where(function ($q) use ($now) {
+                $q->whereNull('s.expire_at')->orWhere('s.expire_at', '>', $now);
+            });
+        }
 
-    if ($this->hasColumn('success_stories', 'is_featured_home')) {
-        $rows = $fetch((clone $base)->where('s.is_featured_home', 1));
-        if (!empty($rows)) return $rows;
+        // ✅ dept filter: include global + dept rows for homepage
+        if ($deptId && $this->hasColumn('success_stories', 'department_id')) {
+            $base->where(function ($q) use ($deptId) {
+                $q->whereNull('s.department_id')->orWhere('s.department_id', (int)$deptId);
+            });
+        }
+
+        $map = function ($r) {
+            return [
+                'uuid' => $this->getVal($r, 'uuid'),
+                'department_id' => $this->getVal($r, 'department_id'),
+                'department_title' => $this->getVal($r, 'department_title'), // ✅ added
+
+                'slug' => $this->getVal($r, 'slug'),
+                'name' => $this->getVal($r, 'name'),
+                'title' => $this->getVal($r, 'title'),
+                'description' => $this->getVal($r, 'description'),
+                'quote' => $this->getVal($r, 'quote'),
+                'date' => $this->iso($this->getVal($r, 'date')),
+                'year' => $this->getVal($r, 'year'),
+                'photo_url' => $this->assetUrl($this->getVal($r, 'photo_url')),
+                'social_links_json' => $this->json($this->getVal($r, 'social_links_json'), []),
+
+                'is_featured_home' => (int) $this->getVal($r, 'is_featured_home', 0),
+                'sort_order' => (int) $this->getVal($r, 'sort_order', 0),
+                'publish_at' => $this->iso($this->getVal($r, 'publish_at')),
+                'expire_at' => $this->iso($this->getVal($r, 'expire_at')),
+                'views_count' => (int) $this->getVal($r, 'views_count', 0),
+                'created_at' => $this->iso($this->getVal($r, 'created_at')),
+                'updated_at' => $this->iso($this->getVal($r, 'updated_at')),
+                'metadata' => $this->json($this->getVal($r, 'metadata'), null),
+            ];
+        };
+
+        $fetch = function ($q) use ($limit, $map) {
+            if ($this->hasColumn('success_stories', 'is_featured_home')) $q->orderBy('s.is_featured_home', 'desc');
+            if ($this->hasColumn('success_stories', 'sort_order'))       $q->orderBy('s.sort_order', 'asc');
+
+            if ($this->hasColumn('success_stories', 'publish_at')) {
+                $q->orderByRaw('COALESCE(s.publish_at, s.created_at) desc');
+            } else {
+                $q->orderByDesc('s.created_at');
+            }
+
+            return $q->orderByDesc('s.id')
+                ->limit($limit)
+                ->get()
+                ->map($map)
+                ->values()
+                ->all();
+        };
+
+        if ($this->hasColumn('success_stories', 'is_featured_home')) {
+            $rows = $fetch((clone $base)->where('s.is_featured_home', 1));
+            if (!empty($rows)) return $rows;
+        }
+
+        return $fetch($base);
     }
 
-    return $fetch($base);
-}
-private function selectedDepartmentMeta(?int $deptId): ?array
-{
-    if (!$deptId) return null;
+    private function selectedDepartmentMeta(?int $deptId): ?array
+    {
+        if (!$deptId) return null;
 
-    $titleCol = $this->hasColumn('departments', 'title')
-        ? 'title'
-        : ($this->hasColumn('departments', 'name') ? 'name' : null);
+        $titleCol = $this->hasColumn('departments', 'title')
+            ? 'title'
+            : ($this->hasColumn('departments', 'name') ? 'name' : null);
 
-    $q = DB::table('departments')->where('id', (int)$deptId);
+        $q = DB::table('departments')->where('id', (int)$deptId);
 
-    $row = $titleCol
-        ? $q->select('id', 'uuid', 'slug', DB::raw("$titleCol as title"))->first()
-        : $q->select('id', 'uuid', 'slug')->first();
+        $row = $titleCol
+            ? $q->select('id', 'uuid', 'slug', DB::raw("$titleCol as title"))->first()
+            : $q->select('id', 'uuid', 'slug')->first();
 
-    if (!$row) return ['id' => (int)$deptId, 'title' => null];
+        if (!$row) return ['id' => (int)$deptId, 'title' => null];
 
-    return [
-        'id' => (int) ($row->id ?? $deptId),
-        'uuid' => $row->uuid ?? null,
-        'slug' => $row->slug ?? null,
-        'title' => $row->title ?? null,
-    ];
-}
-
-
+        return [
+            'id' => (int) ($row->id ?? $deptId),
+            'uuid' => $row->uuid ?? null,
+            'slug' => $row->slug ?? null,
+            'title' => $row->title ?? null,
+        ];
+    }
 
     /* =========================================================
      | Normalizers (same as yours, reused)
@@ -1079,6 +1073,26 @@ private function selectedDepartmentMeta(?int $deptId): ?array
      | Lists + Recruiters (yours, with placement URL fix)
      |========================================================= */
 
+    // ✅ NEW: only these sections must return approved items (is_approved == 1)
+    private function approvalGatedTables(): array
+    {
+        return [
+            'announcements',
+            'achievements',
+            'notices',
+            'student_activities',
+            'career_notices',
+            'why_us',
+            'scholarships',
+            'placement_notices',
+        ];
+    }
+
+    private function shouldFilterApproved(string $table): bool
+    {
+        return in_array($table, $this->approvalGatedTables(), true);
+    }
+
     private function simpleList($now, string $table, ?int $deptId, int $limit, string $urlPrefix)
     {
         $q = DB::table($table);
@@ -1088,6 +1102,11 @@ private function selectedDepartmentMeta(?int $deptId): ?array
         if ($this->hasColumn($table, 'status')) {
             if ($table === 'center_iframes') $q->whereIn('status', ['active', 'published']);
             else $q->where('status', 'published');
+        }
+
+        // ✅ CHANGE: only approved items for specific sections
+        if ($this->shouldFilterApproved($table) && $this->hasColumn($table, 'is_approved')) {
+            $q->where('is_approved', 1);
         }
 
         if ($this->hasColumn($table, 'publish_at')) {
@@ -1126,8 +1145,14 @@ private function selectedDepartmentMeta(?int $deptId): ?array
     {
         $q = DB::table('placement_notices')
             ->when($this->hasColumn('placement_notices', 'deleted_at'), fn($qq) => $qq->whereNull('deleted_at'))
-            ->where('status', 'published')
-            ->where(function ($qq) use ($now) {
+            ->where('status', 'published');
+
+        // ✅ CHANGE: only approved items for placement notices
+        if ($this->hasColumn('placement_notices', 'is_approved')) {
+            $q->where('is_approved', 1);
+        }
+
+        $q->where(function ($qq) use ($now) {
                 $qq->whereNull('publish_at')->orWhere('publish_at', '<=', $now);
             })
             ->where(function ($qq) use ($now) {

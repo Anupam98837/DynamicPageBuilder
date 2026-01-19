@@ -357,6 +357,12 @@ class WhyUsController extends Controller
             if (json_last_error() === JSON_ERROR_NONE) $metadata = $decoded;
         }
 
+        // ✅ Authority Control Sync:
+        // When is_featured_home = 1 => request_for_approval = 1
+        // When is_featured_home = 0 => request_for_approval = 0
+        $featured = (int) ($validated['is_featured_home'] ?? 0);
+        $requestForApproval = $featured ? 1 : 0;
+
         $id = DB::table('why_us')->insertGetId([
             'uuid'             => $uuid,
             'title'            => $validated['title'],
@@ -365,8 +371,11 @@ class WhyUsController extends Controller
             'cover_image'      => $coverPath,
             'attachments_json' => !empty($attachments) ? json_encode($attachments) : null,
 
-            'is_featured_home' => (int) ($validated['is_featured_home'] ?? 0),
-            'status'           => (string) ($validated['status'] ?? 'draft'),
+            'is_featured_home'     => $featured,
+            'status'               => (string) ($validated['status'] ?? 'draft'),
+            'request_for_approval' => $requestForApproval, // ✅ NEW
+            // 'is_approved'        => 0, // default 0 in DB, no need to set
+
             'publish_at'       => !empty($validated['publish_at']) ? Carbon::parse($validated['publish_at']) : null,
             'expire_at'        => !empty($validated['expire_at']) ? Carbon::parse($validated['expire_at']) : null,
 
@@ -424,7 +433,12 @@ class WhyUsController extends Controller
         }
 
         if (array_key_exists('is_featured_home', $validated)) {
-            $update['is_featured_home'] = (int) $validated['is_featured_home'];
+            $newFeatured = (int) $validated['is_featured_home'];
+            $update['is_featured_home'] = $newFeatured;
+
+            // ✅ Authority Control Sync:
+            // Whenever is_featured_home is updated, auto sync request_for_approval
+            $update['request_for_approval'] = $newFeatured ? 1 : 0;
         }
 
         if (array_key_exists('publish_at', $validated)) {
@@ -544,9 +558,10 @@ class WhyUsController extends Controller
         $new = ((int) ($row->is_featured_home ?? 0)) ? 0 : 1;
 
         DB::table('why_us')->where('id', (int) $row->id)->update([
-            'is_featured_home' => $new,
-            'updated_at'       => now(),
-            'updated_at_ip'    => $request->ip(),
+            'is_featured_home'     => $new,
+            'request_for_approval' => $new ? 1 : 0, // ✅ NEW: auto sync
+            'updated_at'           => now(),
+            'updated_at_ip'        => $request->ip(),
         ]);
 
         $fresh = DB::table('why_us')->where('id', (int) $row->id)->first();

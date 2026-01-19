@@ -773,6 +773,69 @@
             return `${u.origin}${u.pathname}${newSearch}${u.hash || ''}`;
         }
 
+        /* =========================================================
+           ✅ NEW: Root Header Menu ID Resolver (keeps scope consistent)
+           - If clicking child menu, still keep top-level header_menu_id
+           ========================================================= */
+        getRootHeaderMenuId(item) {
+            if (!item || !item.id) return 0;
+
+            let cur = item;
+            let safety = 0;
+
+            while (cur && cur.parent_id && safety < 20) {
+                const p = this.nodeById.get(Number(cur.parent_id));
+                if (!p) break;
+                cur = p;
+                safety++;
+            }
+
+            return Number(cur?.id || item.id || 0);
+        }
+
+        /* =========================================================
+           ✅ NEW: Append header_menu_id for same-origin internal links
+           - Coexists with your ?d-{uuid} token
+           ========================================================= */
+        applyHeaderMenuId(url, headerMenuId) {
+            headerMenuId = Number(headerMenuId || 0);
+            if (!headerMenuId) return url;
+            if (!url || url === '#') return url;
+
+            let u;
+            try {
+                u = new URL(url, window.location.origin);
+            } catch (e) {
+                const sep = url.includes('?') ? '&' : '?';
+                // keep hash safe
+                const hashIndex = url.indexOf('#');
+                if (hashIndex !== -1) {
+                    const base = url.slice(0, hashIndex);
+                    const hash = url.slice(hashIndex);
+                    return `${base}${sep}header_menu_id=${headerMenuId}${hash}`;
+                }
+                return `${url}${sep}header_menu_id=${headerMenuId}`;
+            }
+
+            // only for same-origin internal links
+            if (u.origin !== window.location.origin) return url;
+
+            const raw = (u.search || '').replace(/^\?/, '');
+            const parts = raw ? raw.split('&').filter(Boolean) : [];
+
+            const kept = parts.filter(p => {
+                const key = (p.split('=')[0] || '').trim();
+                if (!key) return false;
+                if (key === 'header_menu_id') return false;
+                return true;
+            });
+
+            const token = `header_menu_id=${headerMenuId}`;
+            const newSearch = kept.length ? (`?${kept.join('&')}&${token}`) : (`?${token}`);
+
+            return `${u.origin}${u.pathname}${newSearch}${u.hash || ''}`;
+        }
+
         async loadMenu() {
             this.showLoading('Loading menu…');
 
@@ -979,7 +1042,7 @@
                 a.href = this.getMenuItemUrl(item);
                 a.textContent = item.title;
 
-                // ✅ keep existing behavior, but open using computed href (so d-uuid is preserved)
+                // ✅ keep existing behavior, but open using computed href (so d-uuid + header_menu_id preserved)
                 if (item.page_url && item.page_url.startsWith('http')) {
                     a.addEventListener('click', (e) => {
                         e.preventDefault();
@@ -1095,7 +1158,7 @@
                 const hasChildren = item.children && item.children.length > 0;
                 if (hasChildren) a.classList.add('has-children');
 
-                // ✅ keep behavior, but open using computed href (so d-uuid is preserved)
+                // ✅ keep behavior, but open using computed href (so d-uuid + header_menu_id preserved)
                 if (item.page_url && item.page_url.startsWith('http')) {
                     a.addEventListener('click', (e) => {
                         e.preventDefault();
@@ -1374,6 +1437,10 @@
             const deptUuid = this.getItemDeptUuid(item);
             url = this.applyDepartmentUuid(url, deptUuid);
 
+            // ✅ NEW: append header_menu_id (root/top-level) for submenu scoping
+            const rootHeaderId = this.getRootHeaderMenuId(item);
+            url = this.applyHeaderMenuId(url, rootHeaderId);
+
             return url;
         }
 
@@ -1434,7 +1501,7 @@
 
             const href = link.getAttribute('href') || '#';
 
-            // ✅ keep behavior, but open using computed href (so d-uuid is preserved)
+            // ✅ keep behavior, but open using computed href (so d-uuid + header_menu_id preserved)
             if (item.page_url && item.page_url.startsWith('http')) {
                 link.addEventListener('click', (e) => {
                     e.preventDefault();

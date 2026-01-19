@@ -245,6 +245,11 @@
             <a href="/students/manage" class="w3-link">Students</a>
  
           </div>
+
+          <!-- Master Approval -->
+<a href="/master-approval/manage" class="w3-link">
+  <i class="fa-solid fa-clipboard-check"></i><span>Master Approval</span>
+</a>
          
         </div>
 

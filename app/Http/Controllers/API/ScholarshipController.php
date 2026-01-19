@@ -448,25 +448,33 @@ class ScholarshipController extends Controller
             if (json_last_error() === JSON_ERROR_NONE) $metadata = $decoded;
         }
 
+        // ✅ AUTHORITY CONTROL SYNC (FEATURED -> REQUEST FOR APPROVAL)
+        $isFeatured = (int) ($validated['is_featured_home'] ?? 0);
+        $requestForApproval = $isFeatured === 1 ? 1 : 0;
+
         $id = DB::table('scholarships')->insertGetId([
-            'uuid'             => $uuid,
-            'department_id'    => $validated['department_id'] ?? null,
-            'title'            => $validated['title'],
-            'slug'             => $slug,
-            'body'             => $validated['body'],
-            'cover_image'      => $coverPath,
-            'attachments_json' => !empty($attachments) ? json_encode($attachments) : null,
-            'is_featured_home' => (int) ($validated['is_featured_home'] ?? 0),
-            'status'           => (string) ($validated['status'] ?? 'draft'),
-            'publish_at'       => !empty($validated['publish_at']) ? Carbon::parse($validated['publish_at']) : null,
-            'expire_at'        => !empty($validated['expire_at']) ? Carbon::parse($validated['expire_at']) : null,
-            'views_count'      => 0,
-            'created_by'       => $actor['id'] ?: null,
-            'created_at'       => $now,
-            'updated_at'       => $now,
-            'created_at_ip'    => $request->ip(),
-            'updated_at_ip'    => $request->ip(),
-            'metadata'         => $metadata !== null ? json_encode($metadata) : null,
+            'uuid'               => $uuid,
+            'department_id'      => $validated['department_id'] ?? null,
+            'title'              => $validated['title'],
+            'slug'               => $slug,
+            'body'               => $validated['body'],
+            'cover_image'        => $coverPath,
+            'attachments_json'   => !empty($attachments) ? json_encode($attachments) : null,
+            'is_featured_home'   => $isFeatured,
+
+            // ✅ NEW: auto-sync
+            'request_for_approval' => $requestForApproval,
+
+            'status'             => (string) ($validated['status'] ?? 'draft'),
+            'publish_at'         => !empty($validated['publish_at']) ? Carbon::parse($validated['publish_at']) : null,
+            'expire_at'          => !empty($validated['expire_at']) ? Carbon::parse($validated['expire_at']) : null,
+            'views_count'        => 0,
+            'created_by'         => $actor['id'] ?: null,
+            'created_at'         => $now,
+            'updated_at'         => $now,
+            'created_at_ip'      => $request->ip(),
+            'updated_at_ip'      => $request->ip(),
+            'metadata'           => $metadata !== null ? json_encode($metadata) : null,
         ]);
 
         $row = DB::table('scholarships')->where('id', $id)->first();
@@ -528,9 +536,16 @@ class ScholarshipController extends Controller
         if (array_key_exists('department_id', $validated)) {
             $update['department_id'] = $validated['department_id'] !== null ? (int) $validated['department_id'] : null;
         }
+
+        // ✅ AUTHORITY CONTROL SYNC (when is_featured_home is updated)
         if (array_key_exists('is_featured_home', $validated)) {
-            $update['is_featured_home'] = (int) $validated['is_featured_home'];
+            $isFeatured = (int) $validated['is_featured_home'];
+            $update['is_featured_home'] = $isFeatured;
+
+            // ✅ auto-sync request_for_approval
+            $update['request_for_approval'] = $isFeatured === 1 ? 1 : 0;
         }
+
         if (array_key_exists('publish_at', $validated)) {
             $update['publish_at'] = !empty($validated['publish_at']) ? Carbon::parse($validated['publish_at']) : null;
         }
@@ -646,9 +661,13 @@ class ScholarshipController extends Controller
         $new = ((int) ($row->is_featured_home ?? 0)) ? 0 : 1;
 
         DB::table('scholarships')->where('id', (int) $row->id)->update([
-            'is_featured_home' => $new,
-            'updated_at'       => now(),
-            'updated_at_ip'    => $request->ip(),
+            'is_featured_home'     => $new,
+
+            // ✅ AUTHORITY CONTROL SYNC
+            'request_for_approval' => $new,
+
+            'updated_at'           => now(),
+            'updated_at_ip'        => $request->ip(),
         ]);
 
         $fresh = DB::table('scholarships')->where('id', (int) $row->id)->first();

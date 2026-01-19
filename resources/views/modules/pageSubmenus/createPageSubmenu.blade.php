@@ -88,11 +88,13 @@
 
     <div class="card-body">
 
-      {{-- ===== BELONGS TO PAGE (REQUIRED) ===== --}}
+      {{-- ===== BELONGS TO PAGE (NOW OPTIONAL + HIDDEN) ===== --}}
       <div class="section-label">Belongs To Page</div>
       <div class="row g-3">
-        <div class="col-12 col-md-4">
-          <label class="form-label">Page ID <span class="text-danger">*</span></label>
+
+        {{-- ✅ Page ID is now OPTIONAL + hidden from UI --}}
+        <div class="col-12 col-md-4 d-none" id="pageIdWrap" style="display:none!important;">
+          <label class="form-label">Page ID <span class="pill ms-1">optional</span></label>
           <div class="input-group">
             <span class="input-group-text"><i class="fa-solid fa-file-lines"></i></span>
             <select class="form-select" id="page_id">
@@ -100,12 +102,27 @@
             </select>
           </div>
           <small class="text-muted tiny">
-            This submenu will be created under this page (required). Parent picker tree also loads from this Page ID.
+            Optional. (Legacy) Not used for parent picking anymore.
           </small>
           <div class="err" data-for="page_id"></div>
         </div>
 
-        {{-- ✅ NEW: Department dropdown --}}
+        {{-- ✅ Header Menu Parent dropdown --}}
+        <div class="col-12 col-md-4">
+          <label class="form-label">Header Menu (Parent) <span class="text-danger">*</span></label>
+          <div class="input-group">
+            <span class="input-group-text"><i class="fa-solid fa-bars"></i></span>
+            <select class="form-select" id="header_menu_id">
+              <option value="">Loading header menus…</option>
+            </select>
+          </div>
+          <small class="text-muted tiny">
+            Select the <b>main header menu</b> where this submenu will appear.
+          </small>
+          <div class="err" data-for="header_menu_id"></div>
+        </div>
+
+        {{-- ✅ Department dropdown --}}
         <div class="col-12 col-md-4">
           <label class="form-label">Department <span class="pill ms-1">optional</span></label>
           <div class="input-group">
@@ -115,19 +132,19 @@
             </select>
           </div>
           <small class="text-muted tiny" id="deptHint">
-            If the selected Page already has a department, it will be auto-selected and locked.
+            Department is optional.
           </small>
           <div class="err" data-for="department_id"></div>
         </div>
 
-        <div class="col-12 col-md-4">
+        <div class="col-12">
           <label class="form-label">Page Slug <span class="pill ms-1">optional</span></label>
           <div class="input-group">
             <span class="input-group-text"><i class="fa-solid fa-link"></i></span>
             <input type="text" class="form-control" id="belongs_page_slug" maxlength="200" placeholder="(optional) just for reference">
           </div>
           <small class="text-muted tiny">
-            Optional note/reference only. Creation uses <b>Page ID</b>.
+            Optional reference only.
           </small>
         </div>
       </div>
@@ -189,6 +206,9 @@
               <i class="fa-solid fa-xmark me-1"></i>Clear
             </button>
           </div>
+          <small class="text-muted tiny" id="parentHint">
+            Choose a parent from <b>all existing page submenus</b> and nest under it (optional).
+          </small>
           <input type="hidden" id="parent_id">
           <div class="err" data-for="parent_id"></div>
         </div>
@@ -376,9 +396,11 @@
     pageId: byId('page_id'),
     belongsPageSlug: byId('belongs_page_slug'),
 
-    // ✅ NEW: department
+    // header menu
+    headerMenuId: byId('header_menu_id'),
+
+    // department
     deptId: byId('department_id'),
-    deptHint: byId('deptHint'),
 
     // submenu
     title: byId('title'),
@@ -423,7 +445,7 @@
   const afterSaveRedirect = '/page/submenu/manage';
 
   /* ============================
-     ✅ EDIT MODE: ID comes from Manage page
+     ✅ EDIT MODE
      URL example: /page-submenus/create?edit=12
   ============================ */
   const usp = new URLSearchParams(window.location.search || '');
@@ -431,10 +453,11 @@
   const IS_EDIT = EDIT_ID_RAW !== '' && !isNaN(Number(EDIT_ID_RAW));
   const EDIT_ID = IS_EDIT ? Number(EDIT_ID_RAW) : null;
 
-  let initialData = null;
+  // legacy (hidden)
+  const PAGE_ID_RAW = (usp.get('page_id') || usp.get('page') || usp.get('pid') || '').trim();
+  const PAGE_ID_FROM_QUERY = (PAGE_ID_RAW !== '' && !isNaN(Number(PAGE_ID_RAW))) ? Number(PAGE_ID_RAW) : null;
 
-  // ✅ NEW: current dept lock state
-  let DEPT_LOCKED_BY_PAGE = false;
+  let initialData = null;
 
   /* ---------- utilities ---------- */
   function showBusy(on){ busy.classList.toggle('show', !!on); }
@@ -477,6 +500,7 @@
       finally{ inflight = false; }
     };
   }
+
   function getPageId(){
     const v = parseInt(String(els.pageId.value||'').trim(), 10);
     return Number.isFinite(v) && v > 0 ? v : 0;
@@ -486,35 +510,21 @@
     return (opt && opt.getAttribute('data-slug')) ? opt.getAttribute('data-slug') : '';
   }
 
-  // ✅ NEW: read department_id from selected page option if present
-  function selectedPageDeptId(){
-    const opt = els.pageId?.options?.[els.pageId.selectedIndex];
-    const raw = opt ? opt.getAttribute('data-department-id') : '';
-    const v = parseInt(String(raw||'').trim(), 10);
-    return Number.isFinite(v) && v > 0 ? v : 0;
-  }
-
-  function ensurePageOption(id, title, slug, departmentId){
+  function ensurePageOption(id, title, slug){
     const existing = Array.from(els.pageId.options).find(o => String(o.value) === String(id));
     if (existing) return;
 
     const t = (title || '').toString().trim();
     const s = (slug || '').toString().trim();
-
     const label = (t ? t : (s ? ('/' + s) : 'Untitled page')) + (t && s ? ('  •  /' + s) : '');
 
     const opt = document.createElement('option');
     opt.value = String(id);
     opt.setAttribute('data-slug', s);
-
-    const dep = parseInt(String(departmentId||'').trim(), 10);
-    if (Number.isFinite(dep) && dep > 0) opt.setAttribute('data-department-id', String(dep));
-
     opt.textContent = label;
     els.pageId.appendChild(opt);
   }
 
-  // ✅ NEW: ensure dept option exists (defensive)
   function ensureDeptOption(id, title){
     const existing = Array.from(els.deptId.options).find(o => String(o.value) === String(id));
     if (existing) return;
@@ -525,27 +535,41 @@
     els.deptId.appendChild(opt);
   }
 
-  // ✅ NEW: get selected dept id from dropdown
+  function ensureHeaderMenuOption(id, title){
+    const existing = Array.from(els.headerMenuId.options).find(o => String(o.value) === String(id));
+    if (existing) return;
+
+    const opt = document.createElement('option');
+    opt.value = String(id);
+    opt.textContent = (title || ('Header Menu #' + id));
+    els.headerMenuId.appendChild(opt);
+  }
+
   function getDepartmentId(){
     const v = parseInt(String(els.deptId.value||'').trim(), 10);
     return Number.isFinite(v) && v > 0 ? v : 0;
   }
 
-  // ✅ NEW: lock/unlock department dropdown
-  function setDepartmentLock(locked, deptId, msg){
-    DEPT_LOCKED_BY_PAGE = !!locked;
-
-    if (locked && deptId > 0){
-      els.deptId.value = String(deptId);
-      els.deptId.disabled = true;
-      els.deptHint.textContent = msg || 'Department is inherited from the selected Page and cannot be changed here.';
-    } else {
-      els.deptId.disabled = false;
-      els.deptHint.textContent = msg || 'If the selected Page already has a department, it will be auto-selected and locked.';
-    }
+  function getHeaderMenuId(){
+    const v = parseInt(String(els.headerMenuId.value||'').trim(), 10);
+    return Number.isFinite(v) && v > 0 ? v : 0;
   }
 
-  /* ---------- pages dropdown (API: GET /api/page-submenus/pages) ---------- */
+  /* ✅ FIX: Parent picker should NEVER be blocked now */
+function updateParentPickerAvailability(){
+  const hm = getHeaderMenuId();
+
+  // Parent picker depends on header menu scope
+  const ok = hm > 0;
+
+  els.btnPickParent.disabled = !ok;
+  els.btnPickParent.title = ok
+    ? 'Choose parent submenu'
+    : 'Select Header Menu first to load available parents';
+}
+
+
+  /* ---------- pages dropdown (legacy) ---------- */
   function setPagesDropdownStateLoading(){
     els.pageId.innerHTML = '';
     const opt = document.createElement('option');
@@ -566,7 +590,7 @@
     if (Array.isArray(j?.data)) return j.data;
     if (Array.isArray(j?.pages)) return j.pages;
     if (Array.isArray(j?.items)) return j.items;
-    if (Array.isArray(j?.data?.data)) return j.data.data; // pagination
+    if (Array.isArray(j?.data?.data)) return j.data.data;
     return [];
   }
   function setPagesDropdownOptions(pages){
@@ -583,18 +607,12 @@
       const title = (p?.title ?? p?.name ?? p?.page_title ?? '').toString().trim();
       const slug  = (p?.slug ?? p?.page_slug ?? '').toString().trim();
 
-      // ✅ NEW: if API includes department_id, store on option
-      const deptId = parseInt(p?.department_id ?? p?.dept_id ?? 0, 10);
-
       const label = (title ? title : (slug ? ('/' + slug) : 'Untitled page')) + (title && slug ? ('  •  /' + slug) : '');
 
       const opt = document.createElement('option');
       opt.value = String(id);
       opt.setAttribute('data-slug', slug);
-      if (Number.isFinite(deptId) && deptId > 0){
-        opt.setAttribute('data-department-id', String(deptId));
-      }
-      opt.textContent = label; // ✅ no "#id" shown
+      opt.textContent = label;
       els.pageId.appendChild(opt);
     });
 
@@ -617,16 +635,131 @@
           setPagesDropdownOptions(arr);
           return;
         }
-      }catch(e){
-        // try next
-      }
+      }catch(e){}
     }
 
     setPagesDropdownStateError();
-    err('Unable to load pages list for Page ID dropdown.');
   }
 
-  // ✅ NEW: load departments dropdown
+  /* ---------- ✅ header menu dropdown (ONLY MAIN MENUS) ---------- */
+  function setHeaderMenusDropdownStateLoading(){
+    els.headerMenuId.innerHTML = '';
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = 'Loading header menus…';
+    els.headerMenuId.appendChild(opt);
+    els.headerMenuId.disabled = true;
+  }
+  function setHeaderMenusDropdownStateError(){
+    els.headerMenuId.innerHTML = '';
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = 'Unable to load header menus';
+    els.headerMenuId.appendChild(opt);
+    els.headerMenuId.disabled = false;
+  }
+  function extractHeaderMenusArray(j){
+    if (Array.isArray(j?.data)) return j.data;
+    if (Array.isArray(j?.menus)) return j.menus;
+    if (Array.isArray(j?.header_menus)) return j.header_menus;
+    if (Array.isArray(j?.items)) return j.items;
+    if (Array.isArray(j?.data?.data)) return j.data.data;
+    return [];
+  }
+  function isMainHeaderMenu(m){
+    const pid = parseInt(
+      m?.parent_id ??
+      m?.parentId ??
+      m?.menu_parent_id ??
+      m?.header_menu_parent_id ??
+      m?.headerMenuParentId ??
+      0, 10
+    );
+    if (Number.isFinite(pid) && pid > 0) return false;
+
+    const lvl = parseInt(
+      m?.level ??
+      m?.depth ??
+      m?.menu_level ??
+      m?.menu_depth ??
+      0, 10
+    );
+    if (Number.isFinite(lvl) && lvl > 0) return false;
+
+    if (m?.is_child === true || m?.isChild === true) return false;
+
+    return true;
+  }
+  function filterMainHeaderMenus(items){
+    const list = (items || []).filter(isMainHeaderMenu);
+    return list.length ? list : (items || []);
+  }
+  function setHeaderMenusDropdownOptions(items){
+    els.headerMenuId.innerHTML = '';
+    const opt0 = document.createElement('option');
+    opt0.value = '';
+    opt0.textContent = 'Select a header menu…';
+    els.headerMenuId.appendChild(opt0);
+
+    const mainOnly = filterMainHeaderMenus(items);
+
+    (mainOnly || []).forEach(m=>{
+      const id = parseInt(m?.id ?? m?.menu_id ?? m?.header_menu_id, 10);
+      if (!Number.isFinite(id) || id <= 0) return;
+
+      const title = (m?.title ?? m?.name ?? m?.menu_title ?? m?.label ?? '').toString().trim();
+      const slug  = (m?.slug ?? m?.menu_slug ?? '').toString().trim();
+      const label = title ? title : (slug ? ('/' + slug) : ('Header Menu #' + id));
+
+      const opt = document.createElement('option');
+      opt.value = String(id);
+      opt.textContent = label;
+      els.headerMenuId.appendChild(opt);
+    });
+
+    els.headerMenuId.disabled = false;
+  }
+  async function loadHeaderMenusDropdown(){
+    setHeaderMenusDropdownStateLoading();
+
+    const candidates = [
+      '/api/header-menus/parents?_ts=' + Date.now(),
+      '/api/header-menus?only_parents=1&_ts=' + Date.now(),
+      '/api/header-menus?top_level=1&_ts=' + Date.now(),
+      '/api/top-header-menus?only_parents=1&_ts=' + Date.now(),
+      '/api/top-header-menus?_ts=' + Date.now(),
+      '/api/public/header-menus?top_level=1&_ts=' + Date.now(),
+      '/api/public/header-menus?_ts=' + Date.now(),
+      '/api/header-menus/parents',
+      '/api/header-menus?only_parents=1',
+      '/api/header-menus?top_level=1',
+      '/api/top-header-menus?only_parents=1',
+      '/api/top-header-menus',
+      '/api/public/header-menus?top_level=1',
+      '/api/public/header-menus'
+    ];
+
+    for (const url of candidates){
+      try{
+        const j = await fetchJSON(url);
+        const arr = extractHeaderMenusArray(j);
+        if (Array.isArray(arr) && arr.length){
+          setHeaderMenusDropdownOptions(arr);
+          return;
+        }
+      }catch(e){}
+    }
+
+    setHeaderMenusDropdownStateError();
+  }
+
+  els.headerMenuId.addEventListener('change', ()=>{
+  setParent('', 'Self (Root)');     // reset parent
+  updateParentPickerAvailability(); // disable/enable parent picker
+});
+
+
+  /* ---------- departments dropdown ---------- */
   function setDeptDropdownStateLoading(){
     els.deptId.innerHTML = '';
     const opt = document.createElement('option');
@@ -641,13 +774,13 @@
     opt.value = '';
     opt.textContent = 'Unable to load departments';
     els.deptId.appendChild(opt);
-    els.deptId.disabled = false; // still allow manual selection if you later add options
+    els.deptId.disabled = false;
   }
   function extractDepartmentsArray(j){
     if (Array.isArray(j?.data)) return j.data;
     if (Array.isArray(j?.departments)) return j.departments;
     if (Array.isArray(j?.items)) return j.items;
-    if (Array.isArray(j?.data?.data)) return j.data.data; // pagination-safe
+    if (Array.isArray(j?.data?.data)) return j.data.data;
     return [];
   }
   function setDeptDropdownOptions(depts){
@@ -692,83 +825,11 @@
           setDeptDropdownOptions(arr);
           return;
         }
-      }catch(e){
-        // try next
-      }
+      }catch(e){}
     }
 
     setDeptDropdownStateError();
-    // don’t toast hard error (could be endpoint not present), just keep hint
-    els.deptHint.textContent = 'Departments API not found. Add a departments endpoint or adjust the URL candidates in JS.';
   }
-
-  // ✅ NEW: detect page department (from option attr OR from page show API)
-  async function fetchPageDepartmentId(pageId){
-    // 1) from selected option data attr (fast)
-    const fromOpt = selectedPageDeptId();
-    if (fromOpt > 0) return fromOpt;
-
-    // 2) from page show endpoint(s)
-    const candidates = [
-      '/api/pages/' + encodeURIComponent(pageId),
-      '/api/pages/show/' + encodeURIComponent(pageId),
-      '/api/page/' + encodeURIComponent(pageId),
-    ];
-
-    for (const url of candidates){
-      try{
-        const j = await fetchJSON(url);
-        const p = (j && typeof j === 'object' && 'data' in j) ? j.data : j;
-
-        const dep =
-          parseInt(p?.department_id ?? p?.dept_id ?? p?.departmentId ?? 0, 10);
-
-        if (Number.isFinite(dep) && dep > 0) return dep;
-      }catch(e){
-        // try next
-      }
-    }
-
-    return 0;
-  }
-
-  // ✅ NEW: apply lock based on selected page
-  async function syncDepartmentFromSelectedPage(){
-    const pid = getPageId();
-    if (!pid){
-      setDepartmentLock(false, 0, 'Select a Page first. If that Page has a department, it will auto-lock here.');
-      return;
-    }
-
-    const depId = await fetchPageDepartmentId(pid);
-
-    if (depId > 0){
-      // ensure option exists
-      ensureDeptOption(depId, '');
-      setDepartmentLock(true, depId, 'Department is inherited from the selected Page (locked).');
-    } else {
-      setDepartmentLock(false, 0, 'This Page has no department. Select one here (optional).');
-      // if previously locked, keep current value only if it was not forced; else clear
-      if (DEPT_LOCKED_BY_PAGE){
-        els.deptId.value = '';
-      }
-    }
-  }
-
-  // when page changes, reset parent selection (parent tree is page-specific)
-  els.pageId.addEventListener('change', async ()=>{
-    clearErrors();
-    setParent('', 'Self (Root)');
-
-    // convenience: auto-fill belongs_page_slug only if empty
-    if (!els.belongsPageSlug.value.trim()){
-      const s = selectedPageSlug();
-      if (s) els.belongsPageSlug.value = s;
-    }
-
-    // ✅ NEW: lock/unlock dept based on this page
-    await syncDepartmentFromSelectedPage();
-  });
 
   /* ---------- slug auto (submenu slug) ---------- */
   function maybeUpdateSlug(){
@@ -785,7 +846,7 @@
   els.btnRegen.addEventListener('click', ()=>{ els.slug.value = slugify(els.title.value); });
 
   /* ---------- destination single-select lock ---------- */
-  const DEST_KEYS = ['pageUrl','includablePath','pageSlug','pageShortcode']; // precedence
+  const DEST_KEYS = ['pageUrl','includablePath','pageSlug','pageShortcode'];
   function getDestValues(){
     return {
       pageUrl: (els.pageUrl.value || '').trim(),
@@ -806,7 +867,6 @@
     const v = getDestValues();
     const activeKey = pickActiveDestKey(preferKey);
 
-    // enable all first
     els.pageUrl.disabled = false;
     els.includablePath.disabled = false;
     els.pageSlug.disabled = false;
@@ -814,7 +874,6 @@
 
     if (!activeKey) return activeKey;
 
-    // disable others (keep values; payload will send only active field)
     if (activeKey !== 'pageUrl') els.pageUrl.disabled = true;
     if (activeKey !== 'includablePath') els.includablePath.disabled = true;
     if (activeKey !== 'pageSlug') els.pageSlug.disabled = true;
@@ -828,15 +887,8 @@
   els.pageShortcode.addEventListener('input', ()=> syncDestinationLocks('pageShortcode'));
   els.includablePath.addEventListener('change', ()=> syncDestinationLocks('includablePath'));
 
-  /* ==========================================================
-     ✅ includable paths dropdown is now DYNAMIC (as you already have)
-     ========================================================== */
-
-  // 🔧 FALLBACK LIST (you can insert modules here anytime)
-  const INCLUDABLE_PATHS_FALLBACK = [
-    // "modules.pageEditor.pageEditor",
-    // "modules.someModule.index",
-  ];
+  /* ---------- includable paths dropdown ---------- */
+  const INCLUDABLE_PATHS_FALLBACK = [];
 
   function normalizeIncludableItem(x){
     if (typeof x === 'string') {
@@ -1036,131 +1088,106 @@
     };
   }
 
-  async function loadTree(){
-    const pid = getPageId();
-    if (!pid){
-      showError('page_id', 'Page ID is required to load the parent tree.');
-      els.pageId.focus();
+/* ✅ FIXED: Parent picker shows ALL page submenus inside selected Header Menu scope */
+async function loadTree(){
+  els.treeRoot.innerHTML = '';
+  els.treeEmpty.style.display='none';
+  els.treeLoader.classList.add('show');
+  setBtnBusy(els.btnReloadTree, true);
+
+  try{
+    const headerMenuId = getHeaderMenuId();
+    const pageId = getPageId(); // optional (hidden legacy)
+
+    if (!headerMenuId){
+      els.treeLoader.classList.remove('show');
+      setBtnBusy(els.btnReloadTree, false);
+      err('Select Header Menu first to load parent submenus');
       return;
     }
 
-    els.treeRoot.innerHTML = '';
-    els.treeEmpty.style.display='none';
-    els.treeLoader.classList.add('show');
-    setBtnBusy(els.btnReloadTree, true);
+    // ✅ scope rules (matches validateParent() backend)
+    // if pageId is empty -> show only page_id = NULL items (global for that header menu)
+    const pageScope = (pageId > 0) ? String(pageId) : 'null';
 
-    try{
-      const j = await fetchJSON('/api/page-submenus/tree?only_active=0&page_id=' + encodeURIComponent(pid));
-      renderTree(Array.isArray(j.data) ? j.data : []);
-    }catch(e){
-      console.error(e);
-      els.treeEmpty.style.display='block';
-      els.treeRoot.innerHTML='';
-    }finally{
-      els.treeLoader.classList.remove('show');
-      setBtnBusy(els.btnReloadTree, false);
+    // ✅ Use INDEX API instead of TREE API (tree API requires page_id/page_slug)
+    const url =
+      `/api/page-submenus?per_page=2000&sort=position&direction=asc` +
+      `&header_menu_id=${headerMenuId}` +
+      `&page_id=${pageScope}` +
+      `&_ts=${Date.now()}`;
+
+    const j = await fetchJSON(url);
+    let items = Array.isArray(j?.data) ? j.data : [];
+
+    // ✅ in edit mode: prevent selecting self as parent
+    if (IS_EDIT && EDIT_ID){
+      items = items.filter(x => String(x.id) !== String(EDIT_ID));
     }
+
+    // ✅ Build tree from flat list
+    const map = new Map();
+    items.forEach(it=>{
+      map.set(it.id, { ...it, children: [] });
+    });
+
+    const roots = [];
+
+    map.forEach(node=>{
+      const pid = node.parent_id ? Number(node.parent_id) : 0;
+      if (pid > 0 && map.has(pid)){
+        map.get(pid).children.push(node);
+      } else {
+        roots.push(node);
+      }
+    });
+
+    // ✅ sort by position inside tree (optional)
+    function sortTree(arr){
+      arr.sort((a,b)=>(Number(a.position||0) - Number(b.position||0)) || (Number(a.id||0) - Number(b.id||0)));
+      arr.forEach(n=>{
+        if (Array.isArray(n.children)) sortTree(n.children);
+      });
+    }
+    sortTree(roots);
+
+    renderTree(roots);
+
+  }catch(e){
+    console.error(e);
+    els.treeEmpty.style.display='block';
+    els.treeRoot.innerHTML='';
+  }finally{
+    els.treeLoader.classList.remove('show');
+    setBtnBusy(els.btnReloadTree, false);
+  }
+}
+
+
+els.btnPickParent.addEventListener('click', ()=>{
+  clearErrors();
+
+  if (!getHeaderMenuId()){
+    showError('header_menu_id', 'Select Header Menu first');
+    els.headerMenuId.focus();
+    return;
   }
 
-  els.btnPickParent.addEventListener('click', ()=>{
-    clearErrors();
-    loadTree();
-    els.parentModal.show();
-  });
+  loadTree();
+  els.parentModal.show();
+});
+
   els.btnReloadTree.addEventListener('click', loadTree);
-
-  /* ============================
-     ✅ Load selected submenu & populate (EDIT mode)
-  ============================ */
-  async function loadForEdit(){
-    if (!IS_EDIT) return;
-
-    els.pageTitle.textContent = 'Edit Page Submenu';
-    els.btnCreateLabel.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Changes';
-    els.hint.textContent = 'Editing selected submenu from Manage page.';
-
-    els.slugAuto.checked = false;
-    els.slug.disabled = false;
-    els.btnRegen.disabled = false;
-
-    showBusy(true);
-    clearErrors();
-
-    try{
-      const j = await fetchJSON('/api/page-submenus/' + encodeURIComponent(EDIT_ID));
-      const m = (j && typeof j === 'object' && 'data' in j) ? j.data : j;
-      initialData = m || null;
-
-      if (!m) throw new Error('No data found');
-
-      if (m.page_id){
-        ensurePageOption(
-          m.page_id,
-          m.page_title || m.page_name || '',
-          m.belongs_page_slug || m.belongs_slug || m.page_slug || '',
-          m.page_department_id || m.department_id || null
-        );
-        els.pageId.value = String(m.page_id);
-      }
-
-      const guessBelongsSlug =
-        m.belongs_page_slug ||
-        m.belongs_slug ||
-        m.page_parent_slug ||
-        m.page_slug ||
-        selectedPageSlug() ||
-        '';
-
-      if (guessBelongsSlug) els.belongsPageSlug.value = String(guessBelongsSlug);
-
-      // ✅ NEW: set dept from submenu (will be overridden/locked if page has dept)
-      const subDept = parseInt(m.department_id ?? 0, 10);
-      if (Number.isFinite(subDept) && subDept > 0){
-        ensureDeptOption(subDept, m.department_title || '');
-        els.deptId.value = String(subDept);
-      }
-
-      // submenu fields
-      els.title.value = m.title || '';
-      els.desc.value  = m.description || '';
-      els.slug.value  = m.slug || '';
-
-      // destination
-      els.pageSlug.value       = m.page_slug || '';
-      els.pageShortcode.value  = m.page_shortcode || '';
-      els.pageUrl.value        = m.page_url || '';
-      els.includablePath.value = m.includable_path || '';
-
-      els.active.checked = !!m.active;
-
-      const parentLabel =
-        m.parent_title ||
-        (m.parent && m.parent.title) ||
-        (m.parent_id ? ('#' + m.parent_id) : 'Self (Root)');
-
-      setParent(m.parent_id || '', parentLabel);
-
-      syncDestinationLocks();
-
-      // ✅ NEW: lock/unlock dept based on selected page
-      await syncDepartmentFromSelectedPage();
-
-    }catch(e){
-      console.error(e);
-      err(e.message || 'Failed to load submenu');
-    }finally{
-      showBusy(false);
-    }
-  }
 
   /* ---------- Create or Update ---------- */
   const saveSubmenu = oneFlight(async function(){
     clearErrors();
 
-    const pid = getPageId();
-    if (!pid){
-      showError('page_id','Page ID is required');
-      els.pageId.focus();
+    // header menu required (still required for placement)
+    const headerMenuId = getHeaderMenuId();
+    if (!headerMenuId){
+      showError('header_menu_id','Header Menu (Parent) is required');
+      els.headerMenuId.focus();
       return;
     }
 
@@ -1177,19 +1204,20 @@
     const activeDestKey = syncDestinationLocks();
     const v = getDestValues();
 
-    // ✅ NEW: department_id (locked or manual)
     const deptId = getDepartmentId();
+    const parentIdSafe = els.parentId.value ? parseInt(els.parentId.value,10) : null;
 
     const payload = {
-      page_id: pid,
+      // legacy optional
+      page_id: (getPageId() > 0) ? getPageId() : null,
 
-      // ✅ NEW
+      header_menu_id: headerMenuId,
       department_id: deptId > 0 ? deptId : null,
 
       title: els.title.value.trim(),
       description: els.desc.value.trim() || null,
       slug: els.slug.value.trim() || undefined,
-      parent_id: els.parentId.value ? parseInt(els.parentId.value,10) : null,
+      parent_id: parentIdSafe,
       active: !!els.active.checked,
 
       page_slug:       (activeDestKey === 'pageSlug')       ? (v.pageSlug || null) : null,
@@ -1255,18 +1283,108 @@
     }
   });
 
+  /* ============================
+     ✅ Load selected submenu & populate (EDIT mode)
+  ============================ */
+  async function loadForEdit(){
+    if (!IS_EDIT) return;
+
+    els.pageTitle.textContent = 'Edit Page Submenu';
+    els.btnCreateLabel.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Changes';
+    els.hint.textContent = 'Editing selected submenu from Manage page.';
+
+    els.slugAuto.checked = false;
+    els.slug.disabled = false;
+    els.btnRegen.disabled = false;
+
+    showBusy(true);
+    clearErrors();
+
+    try{
+      const j = await fetchJSON('/api/page-submenus/' + encodeURIComponent(EDIT_ID));
+      const m = (j && typeof j === 'object' && 'data' in j) ? j.data : j;
+      initialData = m || null;
+
+      if (!m) throw new Error('No data found');
+
+      if (m.page_id){
+        ensurePageOption(m.page_id, m.page_title || m.page_name || '', m.belongs_page_slug || m.page_slug || '');
+        els.pageId.value = String(m.page_id);
+      }
+
+      const guessBelongsSlug =
+        m.belongs_page_slug ||
+        m.belongs_slug ||
+        m.page_parent_slug ||
+        m.page_slug ||
+        selectedPageSlug() ||
+        '';
+      if (guessBelongsSlug) els.belongsPageSlug.value = String(guessBelongsSlug);
+
+      const hm = parseInt(m.header_menu_id ?? m.headerMenuId ?? 0, 10);
+      if (Number.isFinite(hm) && hm > 0){
+        ensureHeaderMenuOption(hm, m.header_menu_title || m.header_title || '');
+        els.headerMenuId.value = String(hm);
+      }
+
+      const subDept = parseInt(m.department_id ?? 0, 10);
+      if (Number.isFinite(subDept) && subDept > 0){
+        ensureDeptOption(subDept, m.department_title || '');
+        els.deptId.value = String(subDept);
+      }
+
+      els.title.value = m.title || '';
+      els.desc.value  = m.description || '';
+      els.slug.value  = m.slug || '';
+
+      els.pageSlug.value       = m.page_slug || '';
+      els.pageShortcode.value  = m.page_shortcode || '';
+      els.pageUrl.value        = m.page_url || '';
+      els.includablePath.value = m.includable_path || '';
+
+      els.active.checked = !!m.active;
+
+      const parentLabel =
+        m.parent_title ||
+        (m.parent && m.parent.title) ||
+        (m.parent_id ? ('#' + m.parent_id) : 'Self (Root)');
+
+      setParent(m.parent_id || '', parentLabel);
+
+      syncDestinationLocks();
+      updateParentPickerAvailability();
+
+    }catch(e){
+      console.error(e);
+      err(e.message || 'Failed to load submenu');
+    }finally{
+      showBusy(false);
+    }
+  }
+
+  /* ---------- reset ---------- */
   els.btnReset.addEventListener('click', async ()=>{
     setBtnBusy(els.btnReset, true, '<i class="fa-regular fa-trash-can"></i> Resetting…');
     clearErrors();
 
     if (IS_EDIT && initialData){
       if (initialData.page_id){
-        ensurePageOption(initialData.page_id, initialData.page_title || '', initialData.page_slug || '', initialData.page_department_id || initialData.department_id || null);
+        ensurePageOption(initialData.page_id, initialData.page_title || '', initialData.page_slug || '');
         els.pageId.value = String(initialData.page_id);
+      } else {
+        els.pageId.value = '';
       }
+
       els.belongsPageSlug.value = initialData.belongs_page_slug || initialData.page_slug || selectedPageSlug() || '';
 
-      // ✅ NEW: restore department from submenu (then apply page lock)
+      const hm = parseInt(initialData.header_menu_id ?? 0, 10);
+      if (hm > 0){
+        ensureHeaderMenuOption(hm, initialData.header_menu_title || '');
+        els.headerMenuId.value = String(hm);
+      } else {
+        els.headerMenuId.value = '';
+      }
+
       const subDept = parseInt(initialData.department_id ?? 0, 10);
       els.deptId.value = subDept > 0 ? String(subDept) : '';
 
@@ -1293,17 +1411,20 @@
       els.btnRegen.disabled = false;
 
       syncDestinationLocks();
-
-      // ✅ NEW: apply dept lock based on page
-      await syncDepartmentFromSelectedPage();
+      updateParentPickerAvailability();
 
     } else {
-      els.pageId.value='';
       els.belongsPageSlug.value='';
 
-      // ✅ NEW
+      if (PAGE_ID_FROM_QUERY){
+        ensurePageOption(PAGE_ID_FROM_QUERY, '', '');
+        els.pageId.value = String(PAGE_ID_FROM_QUERY);
+      } else {
+        els.pageId.value='';
+      }
+
+      els.headerMenuId.value='';
       els.deptId.value='';
-      setDepartmentLock(false, 0);
 
       els.title.value='';
       els.desc.value='';
@@ -1321,6 +1442,7 @@
       maybeUpdateSlug();
 
       syncDestinationLocks();
+      updateParentPickerAvailability();
     }
 
     setTimeout(()=> setBtnBusy(els.btnReset, false, '<i class="fa-regular fa-trash-can"></i> Reset'), 120);
@@ -1328,7 +1450,7 @@
 
   /* ---------- init ---------- */
   (async function init(){
-    els.hint.textContent = 'Page submenus are attached to a specific page and used to build page-level navigation.';
+    els.hint.textContent = 'Parent picker shows ALL page submenus for nesting. Header menu is only for placement.';
 
     els.slug.value = '';
     els.slugAuto.checked = true;
@@ -1337,23 +1459,25 @@
     maybeUpdateSlug();
 
     await loadIncludablePaths();
-
     syncDestinationLocks();
 
-    // ✅ NEW: load departments first (so selection/locking works immediately)
+    await loadHeaderMenusDropdown();
     await loadDepartmentsDropdown();
-
     await loadPagesDropdown();
 
-    if (!IS_EDIT && !els.belongsPageSlug.value.trim()){
-      const s = selectedPageSlug();
-      if (s) els.belongsPageSlug.value = s;
+    if (!IS_EDIT && PAGE_ID_FROM_QUERY){
+      ensurePageOption(PAGE_ID_FROM_QUERY, '', '');
+      els.pageId.value = String(PAGE_ID_FROM_QUERY);
+
+      if (!els.belongsPageSlug.value.trim()){
+        const s = selectedPageSlug();
+        if (s) els.belongsPageSlug.value = s;
+      }
     }
 
-    // ✅ NEW: apply dept lock for preselected page (if any)
-    await syncDepartmentFromSelectedPage();
-
+    updateParentPickerAvailability();
     await loadForEdit();
+
   })();
 
 })();

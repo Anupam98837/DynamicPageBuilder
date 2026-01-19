@@ -1111,19 +1111,11 @@ new bootstrap.Carousel(el, opts || {});
 }
 
 /* ==========================================================
-✅ UPDATED (ONLY): ONE AUTO-SCROLL ENGINE FOR ALL LISTS
-Career / Why / Scholarship / Notice / Announcements /
-Achievements / Students Activity / Placement Notice
-
-✅ Fixes:
-- Always consistent speed
-- No blank GAP at bottom
-- Manual scrollbar always works
-- Auto pauses on hover / user interaction
+✅ AUTO-SCROLL ENGINE (BOTTOM → TOP UPWARD) — EXTRA SLOW + SMOOTH
 ========================================================== */
 const AUTO_SCROLL = (() => {
-  const SPEED_PX_PER_SEC   = 14;    // ✅ slow-medium stable speed
-  const RESUME_DELAY_MS    = 1200;  // ✅ resume after manual interaction
+  const SPEED_PX_PER_SEC   = 1;     // ✅ SLOWER speed (was 4)
+  const RESUME_DELAY_MS    = 1200;  // resume after manual interaction
   const MIN_ITEMS_FOR_AUTO = 7;
 
   const scrollers = new Set();
@@ -1141,7 +1133,9 @@ const AUTO_SCROLL = (() => {
   }
 
   function buildClones(ul){
-    const originals = Array.from(ul.children).filter(el => el.nodeType === 1 && el.getAttribute('data-autoscroll-clone') !== '1');
+    const originals = Array.from(ul.children)
+      .filter(el => el.nodeType === 1 && el.getAttribute('data-autoscroll-clone') !== '1');
+
     originals.forEach(li => {
       const clone = li.cloneNode(true);
       clone.setAttribute('data-autoscroll-clone','1');
@@ -1165,18 +1159,13 @@ const AUTO_SCROLL = (() => {
   function ensure(viewport, ul){
     if(!viewport || !ul) return;
 
-    // kill previous if exists
     destroy(viewport);
 
     if(prefersReduced()) return;
 
-    // ensure manual scrolling always works
     viewport.style.overflowY = 'auto';
-
-    // clean any older CSS-animation classes
     ul.classList.remove('autoscroll', 'scrolling-upwards');
 
-    // remove previous clones then measure properly
     removeClones(ul);
 
     const originalCount = countOriginalItems(ul);
@@ -1185,16 +1174,14 @@ const AUTO_SCROLL = (() => {
     const viewportH = viewport.clientHeight || 260;
     const originalHeight = ul.scrollHeight;
 
-    // if not overflowing, no need auto scroll
     if(originalHeight <= viewportH + 8) return;
 
-    // ✅ seamless loop: append one full copy
     buildClones(ul);
 
     const st = {
       viewport,
       ul,
-      originalHeight: Math.max(1, originalHeight), // wrap point
+      originalHeight: Math.max(1, originalHeight),
       speed: SPEED_PX_PER_SEC,
       hovering: false,
       pausedUntil: 0,
@@ -1227,7 +1214,11 @@ const AUTO_SCROLL = (() => {
     st._handlers.push(['touchstart', onTouchStart]);
     st._handlers.push(['keydown', onKey]);
 
-    viewport.scrollTop = 0;
+    // ✅ START FROM BOTTOM OF ORIGINAL LIST (BOTTOM → TOP UPWARD)
+    requestAnimationFrame(() => {
+      const bottomOfOriginal = Math.max(0, st.originalHeight - viewport.clientHeight);
+      viewport.scrollTop = bottomOfOriginal;
+    });
 
     viewport.__autoScrollState = st;
     scrollers.add(st);
@@ -1249,33 +1240,29 @@ const AUTO_SCROLL = (() => {
       const vp = st.viewport;
       const ul = st.ul;
 
-      // cleanup if removed
       if(!vp || !ul || !document.body.contains(vp)){
         destroy(vp);
         return;
       }
 
-      const dt = Math.max(0, now - st.last);
+      // ✅ smoother & consistent (prevents random speed spikes)
+      let dt = now - st.last;
+      if(dt < 0) dt = 0;
+      if(dt > 50) dt = 50; // clamp large gaps
       st.last = now;
 
-      // pause while hovering (user manual scroll)
       if(st.hovering) return;
-
-      // pause after manual interaction
       if(now < st.pausedUntil) return;
 
       const delta = (st.speed * dt) / 1000;
 
-      // wrap check (pre)
-      if(vp.scrollTop >= st.originalHeight){
-        vp.scrollTop = vp.scrollTop - st.originalHeight;
-      }
+      // ✅ BOTTOM → TOP (scroll UP)
+      vp.scrollTop -= delta;
 
-      vp.scrollTop += delta;
-
-      // wrap check (post)
-      if(vp.scrollTop >= st.originalHeight){
-        vp.scrollTop = vp.scrollTop - st.originalHeight;
+      // ✅ WRAP UPWARD seamlessly:
+      // When reaching top, jump down by 1 originalHeight (keeps flow continuous)
+      if(vp.scrollTop <= 1) {
+        vp.scrollTop = st.originalHeight + vp.scrollTop;
       }
     });
   }
@@ -1292,6 +1279,7 @@ const AUTO_SCROLL = (() => {
 
   return { bindUl, refreshAll, destroy };
 })();
+
 
 function initRevealObservers(){
 const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;

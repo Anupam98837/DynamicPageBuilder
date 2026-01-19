@@ -46,100 +46,102 @@ class AnnouncementController extends Controller
 
         return $q->first();
     }
-protected function baseQuery(Request $request, bool $includeDeleted = false)
-{
-    $q = DB::table('announcements as a')
-        ->leftJoin('departments as d', 'd.id', '=', 'a.department_id')
-        ->select([
-            'a.*',
-            'd.title as department_title',
-            'd.slug  as department_slug',
-            'd.uuid  as department_uuid',
-        ]);
 
-    if (! $includeDeleted) {
-        $q->whereNull('a.deleted_at');
-    }
+    protected function baseQuery(Request $request, bool $includeDeleted = false)
+    {
+        $q = DB::table('announcements as a')
+            ->leftJoin('departments as d', 'd.id', '=', 'a.department_id')
+            ->select([
+                'a.*',
+                'd.title as department_title',
+                'd.slug  as department_slug',
+                'd.uuid  as department_uuid',
+            ]);
 
-    // ?q=
-    if ($request->filled('q')) {
-        $term = '%' . trim((string) $request->query('q')) . '%';
-        $q->where(function ($sub) use ($term) {
-            $sub->where('a.title', 'like', $term)
-                ->orWhere('a.slug', 'like', $term)
-                ->orWhere('a.body', 'like', $term);
-        });
-    }
-
-    // ✅ FIX: Handle multiple statuses (comma-separated or array)
-    // ?status=draft,archived OR ?status[]=draft&status[]=archived
-    if ($request->filled('status')) {
-        $status = $request->query('status');
-        
-        // If it's an array, use whereIn
-        if (is_array($status)) {
-            $q->whereIn('a.status', $status);
-        } 
-        // If it's a comma-separated string, split it
-        elseif (str_contains($status, ',')) {
-            $statuses = array_map('trim', explode(',', $status));
-            $q->whereIn('a.status', $statuses);
+        if (! $includeDeleted) {
+            $q->whereNull('a.deleted_at');
         }
-        // Single status value
-        else {
-            $q->where('a.status', $status);
+
+        // ?q=
+        if ($request->filled('q')) {
+            $term = '%' . trim((string) $request->query('q')) . '%';
+            $q->where(function ($sub) use ($term) {
+                $sub->where('a.title', 'like', $term)
+                    ->orWhere('a.slug', 'like', $term)
+                    ->orWhere('a.body', 'like', $term);
+            });
         }
-    }
 
-    // ✅ ADD: Support for inactive flag (shows draft + archived)
-    if ($request->has('inactive') && $request->boolean('inactive')) {
-        $q->whereIn('a.status', ['draft', 'archived']);
-    }
+        // ✅ FIX: Handle multiple statuses (comma-separated or array)
+        // ?status=draft,archived OR ?status[]=draft&status[]=archived
+        if ($request->filled('status')) {
+            $status = $request->query('status');
 
-    // ?featured=1/0
-    if ($request->has('featured')) {
-        $featured = filter_var($request->query('featured'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
-        if ($featured !== null) {
-            $q->where('a.is_featured_home', $featured ? 1 : 0);
+            // If it's an array, use whereIn
+            if (is_array($status)) {
+                $q->whereIn('a.status', $status);
+            }
+            // If it's a comma-separated string, split it
+            elseif (str_contains($status, ',')) {
+                $statuses = array_map('trim', explode(',', $status));
+                $q->whereIn('a.status', $statuses);
+            }
+            // Single status value
+            else {
+                $q->where('a.status', $status);
+            }
         }
-    }
 
-    // ?department=id|uuid|slug
-    if ($request->filled('department')) {
-        $dept = $this->resolveDepartment($request->query('department'), true);
-        if ($dept) {
-            $q->where('a.department_id', (int) $dept->id);
-        } else {
-            $q->whereRaw('1=0');
+        // ✅ ADD: Support for inactive flag (shows draft + archived)
+        if ($request->has('inactive') && $request->boolean('inactive')) {
+            $q->whereIn('a.status', ['draft', 'archived']);
         }
-    }
 
-    // ?visible_now=1 -> only published and currently in window
-    if ($request->has('visible_now')) {
-        $visible = filter_var($request->query('visible_now'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
-        if ($visible) {
-            $now = now();
-            $q->where('a.status', 'published')
-                ->where(function ($w) use ($now) {
-                    $w->whereNull('a.publish_at')->orWhere('a.publish_at', '<=', $now);
-                })
-                ->where(function ($w) use ($now) {
-                    $w->whereNull('a.expire_at')->orWhere('a.expire_at', '>', $now);
-                });
+        // ?featured=1/0
+        if ($request->has('featured')) {
+            $featured = filter_var($request->query('featured'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            if ($featured !== null) {
+                $q->where('a.is_featured_home', $featured ? 1 : 0);
+            }
         }
+
+        // ?department=id|uuid|slug
+        if ($request->filled('department')) {
+            $dept = $this->resolveDepartment($request->query('department'), true);
+            if ($dept) {
+                $q->where('a.department_id', (int) $dept->id);
+            } else {
+                $q->whereRaw('1=0');
+            }
+        }
+
+        // ?visible_now=1 -> only published and currently in window
+        if ($request->has('visible_now')) {
+            $visible = filter_var($request->query('visible_now'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            if ($visible) {
+                $now = now();
+                $q->where('a.status', 'published')
+                    ->where(function ($w) use ($now) {
+                        $w->whereNull('a.publish_at')->orWhere('a.publish_at', '<=', $now);
+                    })
+                    ->where(function ($w) use ($now) {
+                        $w->whereNull('a.expire_at')->orWhere('a.expire_at', '>', $now);
+                    });
+            }
+        }
+
+        // sort
+        $sort = (string) $request->query('sort', 'created_at');
+        $dir  = strtolower((string) $request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+
+        $allowed = ['created_at', 'publish_at', 'expire_at', 'title', 'views_count', 'id'];
+        if (! in_array($sort, $allowed, true)) $sort = 'created_at';
+
+        $q->orderBy('a.' . $sort, $dir);
+
+        return $q;
     }
 
-    // sort
-    $sort = (string) $request->query('sort', 'created_at');
-    $dir  = strtolower((string) $request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
-
-    $allowed = ['created_at', 'publish_at', 'expire_at', 'title', 'views_count', 'id'];
-    if (! in_array($sort, $allowed, true)) $sort = 'created_at';
-
-    $q->orderBy('a.' . $sort, $dir);
-
-    return $q;
-}
     protected function resolveAnnouncement(Request $request, $identifier, bool $includeDeleted = false, $departmentId = null)
     {
         $q = DB::table('announcements as a');
@@ -342,6 +344,40 @@ protected function baseQuery(Request $request, bool $includeDeleted = false)
         ]);
     }
 
+    /* ==========================================================
+     | ✅ NEW FETCH API: Only Approved (is_approved = 1)
+     |========================================================== */
+    public function indexApproved(Request $request)
+    {
+        $perPage = max(1, min(200, (int) $request->query('per_page', 20)));
+
+        $includeDeleted = filter_var($request->query('with_trashed', false), FILTER_VALIDATE_BOOLEAN);
+        $onlyDeleted    = filter_var($request->query('only_trashed', false), FILTER_VALIDATE_BOOLEAN);
+
+        $query = $this->baseQuery($request, $includeDeleted || $onlyDeleted);
+
+        // ✅ Only approved items
+        $query->where('a.is_approved', 1);
+
+        if ($onlyDeleted) {
+            $query->whereNotNull('a.deleted_at');
+        }
+
+        $paginator = $query->paginate($perPage);
+        $items = array_map(function ($r) { return $this->normalizeRow($r); }, $paginator->items());
+
+        return response()->json([
+            'success' => true,
+            'data' => $items,
+            'pagination' => [
+                'page'      => $paginator->currentPage(),
+                'per_page'  => $paginator->perPage(),
+                'total'     => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+            ],
+        ]);
+    }
+
     public function indexByDepartment(Request $request, $department)
     {
         $dept = $this->resolveDepartment($department, false);
@@ -467,25 +503,33 @@ protected function baseQuery(Request $request, bool $includeDeleted = false)
             if (json_last_error() === JSON_ERROR_NONE) $metadata = $decoded;
         }
 
+        // ✅ NEW: Auto-sync request_for_approval based on is_featured_home
+        $featured = (int) ($validated['is_featured_home'] ?? 0);
+        $requestForApproval = $featured === 1 ? 1 : 0;
+
         $id = DB::table('announcements')->insertGetId([
-            'uuid'             => $uuid,
-            'department_id'    => $validated['department_id'] ?? null,
-            'title'            => $validated['title'],
-            'slug'             => $slug,
-            'body'             => $validated['body'],
-            'cover_image'      => $coverPath,
-            'attachments_json' => !empty($attachments) ? json_encode($attachments) : null,
-            'is_featured_home' => (int) ($validated['is_featured_home'] ?? 0),
-            'status'           => (string) ($validated['status'] ?? 'draft'),
-            'publish_at'       => !empty($validated['publish_at']) ? Carbon::parse($validated['publish_at']) : null,
-            'expire_at'        => !empty($validated['expire_at']) ? Carbon::parse($validated['expire_at']) : null,
-            'views_count'      => 0,
-            'created_by'       => $actor['id'] ?: null,
-            'created_at'       => $now,
-            'updated_at'       => $now,
-            'created_at_ip'    => $request->ip(),
-            'updated_at_ip'    => $request->ip(),
-            'metadata'         => $metadata !== null ? json_encode($metadata) : null,
+            'uuid'               => $uuid,
+            'department_id'      => $validated['department_id'] ?? null,
+            'title'              => $validated['title'],
+            'slug'               => $slug,
+            'body'               => $validated['body'],
+            'cover_image'        => $coverPath,
+            'attachments_json'   => !empty($attachments) ? json_encode($attachments) : null,
+            'is_featured_home'   => $featured,
+
+            // ✅ NEW: Authority Control Flag
+            'request_for_approval' => $requestForApproval,
+
+            'status'             => (string) ($validated['status'] ?? 'draft'),
+            'publish_at'         => !empty($validated['publish_at']) ? Carbon::parse($validated['publish_at']) : null,
+            'expire_at'          => !empty($validated['expire_at']) ? Carbon::parse($validated['expire_at']) : null,
+            'views_count'        => 0,
+            'created_by'         => $actor['id'] ?: null,
+            'created_at'         => $now,
+            'updated_at'         => $now,
+            'created_at_ip'      => $request->ip(),
+            'updated_at_ip'      => $request->ip(),
+            'metadata'           => $metadata !== null ? json_encode($metadata) : null,
         ]);
 
         $row = DB::table('announcements')->where('id', $id)->first();
@@ -547,9 +591,16 @@ protected function baseQuery(Request $request, bool $includeDeleted = false)
         if (array_key_exists('department_id', $validated)) {
             $update['department_id'] = $validated['department_id'] !== null ? (int) $validated['department_id'] : null;
         }
+
+        // ✅ NEW: If is_featured_home is updated -> also auto-update request_for_approval
         if (array_key_exists('is_featured_home', $validated)) {
-            $update['is_featured_home'] = (int) $validated['is_featured_home'];
+            $featured = (int) $validated['is_featured_home'];
+            $update['is_featured_home'] = $featured;
+
+            // ✅ Authority Control Auto-Sync
+            $update['request_for_approval'] = $featured === 1 ? 1 : 0;
         }
+
         if (array_key_exists('publish_at', $validated)) {
             $update['publish_at'] = !empty($validated['publish_at']) ? Carbon::parse($validated['publish_at']) : null;
         }
@@ -666,9 +717,13 @@ protected function baseQuery(Request $request, bool $includeDeleted = false)
         $new = ((int) ($row->is_featured_home ?? 0)) ? 0 : 1;
 
         DB::table('announcements')->where('id', (int) $row->id)->update([
-            'is_featured_home' => $new,
-            'updated_at'       => now(),
-            'updated_at_ip'    => $request->ip(),
+            'is_featured_home'     => $new,
+
+            // ✅ NEW: Auto-sync request_for_approval
+            'request_for_approval' => $new === 1 ? 1 : 0,
+
+            'updated_at'           => now(),
+            'updated_at_ip'        => $request->ip(),
         ]);
 
         $fresh = DB::table('announcements')->where('id', (int) $row->id)->first();
