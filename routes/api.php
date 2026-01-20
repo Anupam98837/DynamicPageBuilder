@@ -112,7 +112,7 @@ Route::middleware(['throttle:10,1'])->group(function () {
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['checkRole:admin,director,principal,hod'])
+Route::middleware(['checkRole:admin,director,principal,hod,student'])
     ->prefix('users')
     ->group(function () {
         Route::get('/',                  [UserController::class, 'index']);
