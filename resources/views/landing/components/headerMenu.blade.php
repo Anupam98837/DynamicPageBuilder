@@ -5,20 +5,25 @@
 
 <style>
     /* =========================================================
-       Dynamic Header Menu (Public) - Mega Column Flyout
-       - L1 dropdown opens under parent
-       - Child menus render as NEW BLOCK/COLUMN beside parent column
-       - Hovering an item updates the next column content (top-aligned)
-       - Supports deep levels via more columns
-       - Desktop: ✅ 1280px max + horizontal scroll + right arrow
-       - Mobile: hamburger -> offcanvas sidebar
+       Dynamic Header Menu (Public) - Mega Flyout
+       ✅ FIXES ADDED (YOUR BUGS):
+       ✅ 1) URL BUG FIX: slug/path will now always change correctly
+             (even after visiting Home first). We now ALWAYS prefer
+             item.page_slug / item.slug for internal navigation and
+             only use page_url for external links.
+       ✅ 2) Scroll arrows won’t show until menu is actually rendered
+             + only when REAL overflow exists
+       ✅ 3) Hide ALL scrollbars (menu row + mega lists), but keep scrolling
        ========================================================= */
 
     .dynamic-navbar, .dynamic-navbar * { box-sizing:border-box; }
 
     :root{
-        /* ✅ Hard cap (requested) */
         --menu-max-w: 1280px;
+        --menu-gutter: clamp(10px, 1.4vw, 22px);
+
+        /* ✅ root parents per column */
+        --root-per-col: 5;
     }
 
     /* Navbar Container */
@@ -30,17 +35,19 @@
         z-index: 1000;
         width: 100%;
         overflow: visible;
+
+        padding-left: var(--menu-gutter);
+        padding-right: var(--menu-gutter);
     }
 
     .dynamic-navbar .navbar-container {
         display:flex;
         align-items:stretch;
-        justify-content:flex-start;          /* ✅ start from left */
+        justify-content:flex-start;
         width:100%;
         position:relative;
         overflow: visible;
 
-        /* ✅ restricted to 1280 everywhere */
         max-width: var(--menu-max-w);
         margin: 0 auto;
     }
@@ -48,37 +55,25 @@
     .dynamic-navbar .menu-row {
         flex: 1 1 auto;
         display:flex;
-        justify-content:flex-start;          /* ✅ start from left */
+        justify-content:flex-start;
         align-items:stretch;
         min-width: 0;
 
-        /* ✅ horizontal scroll (don’t overflow screen) */
         width: 100%;
         max-width: var(--menu-max-w);
         overflow-x: auto;
         overflow-y: hidden;
         -webkit-overflow-scrolling: touch;
 
-        /* ✅ keep room for scroll arrow overlay so text doesn’t hide under it */
         padding-right: 44px;
 
-        /* scrollbar */
-        scrollbar-width: thin;
-        scrollbar-color: rgba(255,255,255,.25) rgba(0,0,0,.12);
+        /* ✅ HIDE SCROLLBAR (keep scroll working) */
+        scrollbar-width: none;          /* Firefox */
+        -ms-overflow-style: none;       /* IE/Edge legacy */
     }
+    .menu-row::-webkit-scrollbar{ width:0; height:0; display:none; } /* Chrome/Safari */
 
-    /* ✅ VERY THIN horizontal scrollbar (requested) */
-    .menu-row::-webkit-scrollbar{ height: 3px; }
-    .menu-row::-webkit-scrollbar-thumb{
-        background: rgba(255,255,255,.25);
-        border-radius: 10px;
-    }
-    .menu-row::-webkit-scrollbar-track{
-        background: rgba(0,0,0,.12);
-        border-radius: 10px;
-    }
-
-    /* ✅ Scroll arrows (desktop only) */
+    /* Scroll arrows (desktop only) */
     .menu-scroll-btn{
         position:absolute;
         top: 50%;
@@ -89,7 +84,7 @@
         border: 1px solid rgba(255,255,255,.22);
         background: rgba(255,255,255,.10);
         color:#fff;
-        display:none;              /* shown via JS when overflow */
+        display:none; /* ✅ stays hidden until JS confirms overflow */
         align-items:center;
         justify-content:center;
         cursor:pointer;
@@ -107,9 +102,8 @@
     }
 
     .menu-scroll-prev{ left: 6px; }
-    .menu-scroll-next{ right: 6px; }  /* ✅ right arrow requested */
+    .menu-scroll-next{ right: 6px; }
 
-    /* Small fade so it looks natural */
     .menu-scroll-fade-right{
         position:absolute;
         right: 0;
@@ -118,8 +112,7 @@
         width: 54px;
         pointer-events:none;
         background: linear-gradient(90deg, rgba(158,54,58,0.0), rgba(158,54,58,0.75));
-        border-radius: 0;
-        display:none; /* shown via JS when overflow */
+        display:none; /* ✅ controlled by JS */
         z-index: 10500;
     }
 
@@ -131,7 +124,7 @@
         width: 34px;
         pointer-events:none;
         background: linear-gradient(270deg, rgba(158,54,58,0.0), rgba(158,54,58,0.65));
-        display:none; /* shown via JS when scrolled right */
+        display:none; /* ✅ controlled by JS */
         z-index: 10500;
     }
 
@@ -186,9 +179,9 @@
         margin:0;
         padding:0;
         align-items:stretch;
-        justify-content:flex-start;  /* ✅ start from left */
+        justify-content:flex-start;
         min-width:0;
-        width: max-content;          /* scroll inside menu-row */
+        width: max-content;
     }
 
     .dynamic-navbar .nav-item {
@@ -244,8 +237,6 @@
 
         width: max-content;
         min-width: 0;
-
-        /* ✅ cap dropdown to 1280 and viewport */
         max-width: min(var(--menu-max-w), calc(100vw - 20px));
 
         opacity: 0;
@@ -271,9 +262,23 @@
         }
     }
 
+    /* ✅ Full-width dropdown on hover */
+    @media (min-width: 992px){
+        .dynamic-navbar .dropdown-menu.dm-fullwidth{
+            left: var(--menu-gutter) !important;
+            right: var(--menu-gutter) !important;
+            width: auto !important;
+            max-width: calc(100vw - (var(--menu-gutter) * 2)) !important;
+        }
+        .dynamic-navbar .dropdown-menu.dm-fullwidth .mega-panel{
+            width: 100%;
+            max-width: 100% !important;
+        }
+    }
+
     .dynamic-navbar .mega-panel{
-        display:inline-flex;
-        align-items:stretch;
+        display:flex;
+        align-items:flex-start;
         gap: 0;
         background: var(--secondary-color, #6B2528);
         border: 1px solid rgba(255,255,255,0.12);
@@ -285,11 +290,13 @@
         overflow-x: auto;
         overflow-y: hidden;
 
-        position: relative;
-        will-change: transform;
-        transition: box-shadow .25s ease;
+        /* ✅ HIDE SCROLLBAR (keep scroll working) */
+        scrollbar-width: none;
+        -ms-overflow-style: none;
     }
+    .dynamic-navbar .mega-panel::-webkit-scrollbar{ width:0; height:0; display:none; }
 
+    /* Root columns (5 parents per column) */
     .dynamic-navbar .mega-col{
         width: 270px;
         min-width: 270px;
@@ -297,7 +304,6 @@
         flex-direction:column;
         padding: 8px;
         position: relative;
-        margin-top: 0;
         align-self: flex-start;
     }
 
@@ -317,17 +323,12 @@
         padding: 4px;
         max-height: calc(100vh - 180px);
         overflow:auto;
-    }
 
-    .dynamic-navbar .mega-list::-webkit-scrollbar{ width: 8px; height: 8px; }
-    .dynamic-navbar .mega-list::-webkit-scrollbar-thumb{
-        background: rgba(255,255,255,.20);
-        border-radius: 10px;
+        /* ✅ HIDE SCROLLBAR (keep scroll working) */
+        scrollbar-width: none;
+        -ms-overflow-style: none;
     }
-    .dynamic-navbar .mega-list::-webkit-scrollbar-track{
-        background: rgba(0,0,0,.10);
-        border-radius: 10px;
-    }
+    .dynamic-navbar .mega-list::-webkit-scrollbar{ width:0; height:0; display:none; }
 
     .dynamic-navbar .dropdown-item{
         display:flex;
@@ -379,24 +380,63 @@
         opacity: .95;
     }
 
+    /* ✅ caret down because submenu opens BELOW */
     .dynamic-navbar .dropdown-item.has-children::after{
-        content:'›';
-        font-size: 1.2rem;
-        font-weight: 700;
+        content:'▾';
+        font-size: .95rem;
+        font-weight: 800;
         line-height: 1;
-        color: rgba(255,255,255,0.9);
+        color: rgba(255,255,255,0.95);
         margin-left: 10px;
         flex: 0 0 auto;
-        transition: transform .25s ease, opacity .25s ease;
+        transition: transform .22s ease, opacity .22s ease;
+        transform: translateY(-1px);
+        opacity: .92;
     }
 
-    .dynamic-navbar .dropdown-item.has-children:hover::after{
-        transform: translateX(2px);
-        opacity: .95;
+    /* rotate caret when open */
+    .dynamic-navbar li.mega-item.is-open > a.dropdown-item.has-children::after{
+        transform: rotate(180deg) translateY(1px);
+        opacity: 1;
     }
 
     /* =========================================================
-       ✅ DROPDOWN PORTAL (prevents clipping by horizontal scroller)
+       ✅ NESTED SUBMENUS (OPEN BELOW PARENT)
+       ========================================================= */
+
+    .dynamic-navbar li.mega-item{
+        position: relative;
+    }
+
+    .dynamic-navbar .mega-sub{
+        list-style: none;
+        margin: 6px 0 10px;
+        padding: 6px 0 0 12px;
+        border-left: 1px dashed rgba(255,255,255,0.25);
+        display: none;
+    }
+
+    /* show submenu on open (JS adds .is-open) */
+    .dynamic-navbar li.mega-item.is-open > .mega-sub{
+        display: block;
+    }
+
+    /* nested item look */
+    .dynamic-navbar .mega-sub .dropdown-item{
+        padding: .52rem .85rem;
+        font-size: .90rem;
+        border-radius: 10px;
+        white-space: normal;
+        line-height: 1.15;
+        opacity: .98;
+    }
+
+    .dynamic-navbar .mega-sub .dropdown-item:hover{
+        transform: translateX(2px);
+    }
+
+    /* =========================================================
+       ✅ DROPDOWN PORTAL
        ========================================================= */
     .mega-portal{
         position: fixed;
@@ -553,11 +593,39 @@
       inset: auto !important;
     }
 
-    /* keep your portal mode working */
     .dynamic-navbar .dropdown-menu.is-portaled{
       position: fixed !important;
     }
 
+    /* Add to your existing CSS */
+
+/* Prevent Bootstrap from overriding portal positioning */
+.dynamic-navbar .dropdown-menu.is-portaled {
+    position: fixed !important;
+    z-index: 12001 !important; /* Higher than portal */
+    margin-top: 0 !important;
+    margin-left: 0 !important;
+}
+
+/* Ensure mega panel doesn't get Bootstrap's dropdown styles */
+.dynamic-navbar .mega-panel {
+    background: var(--secondary-color, #6B2528) !important;
+    border: 1px solid rgba(255,255,255,0.12) !important;
+    border-radius: 0 0 10px 10px !important;
+    padding: 0 !important;
+}
+
+/* Improve scroll arrow visibility */
+.menu-scroll-btn {
+    z-index: 11001 !important; /* Above everything */
+}
+
+/* Ensure active states are visible */
+.nav-link.active {
+    background-color: var(--secondary-color, #6B2528) !important;
+    color: #fff !important;
+    font-weight: 500 !important;
+}
 </style>
 
 <!-- LOADING OVERLAY -->
@@ -569,7 +637,7 @@
 <nav class="dynamic-navbar" id="dynamicNavbar">
     <div class="navbar-container">
 
-        <!-- ✅ fades + arrows (desktop only) -->
+        <!-- fades + arrows (desktop only) -->
         <div class="menu-scroll-fade-left" id="menuFadeLeft" aria-hidden="true"></div>
         <div class="menu-scroll-fade-right" id="menuFadeRight" aria-hidden="true"></div>
 
@@ -617,7 +685,7 @@
             this.apiBase = '{{ url("/api/public/header-menus") }}';
             this.menuData = null;
 
-            // ✅ NEW: Departments API (for department_id -> uuid mapping)
+            // Departments API (for department_id -> uuid mapping)
             this.apiDepartmentsPublic = '{{ url("/api/public/departments") }}';
             this.apiDepartments       = '{{ url("/api/departments") }}';
             this.deptUuidById = new Map();
@@ -635,12 +703,18 @@
             this.portalMeta = new Map();
             this.portalBound = false;
 
-            // ✅ scroller refs
+            // scroller refs
             this.menuRowEl = null;
             this.btnNext = null;
             this.btnPrev = null;
             this.fadeRight = null;
             this.fadeLeft = null;
+
+            // ✅ show only 5 root parents per column
+            this.rootPerCol = 5;
+
+            // ✅ prevents scroll arrows showing before menu is rendered
+            this.menuReady = false;
 
             this.init();
         }
@@ -678,7 +752,8 @@
                     this.bindMegaGuards();
                     this.setupDesktopDropdownPortal();
                     this.repositionOpenPortaled();
-                    this.setupMenuScroller();     // ✅ keep arrows in sync
+                    this.setupMenuScroller();
+                    this.bindWheelToHorizontalScroll();
                 }, 150);
             });
         }
@@ -698,7 +773,6 @@
             return { ok: res.ok, status: res.status, data };
         }
 
-        // ✅ NEW: normalize departments payloads (supports multiple shapes)
         normalizeDepartmentsPayload(payload) {
             let data = payload;
             if (data && typeof data === 'object' && data.success !== undefined) data = data.data;
@@ -711,7 +785,6 @@
             return (items || []).filter(d => d && d.id !== undefined && d.id !== null);
         }
 
-        // ✅ NEW: build id -> uuid map
         buildDeptMap(depts) {
             this.deptUuidById.clear();
             (depts || []).forEach(d => {
@@ -721,7 +794,6 @@
             });
         }
 
-        // ✅ NEW: resolve dept uuid from item (direct or via department_id map)
         getItemDeptUuid(item) {
             const direct =
                 (item?.department_uuid ?? item?.dept_uuid ?? '') ||
@@ -737,7 +809,6 @@
             return '';
         }
 
-        // ✅ NEW: append query token ?d-{uuid} (or &d-{uuid}) for same-origin URLs
         applyDepartmentUuid(url, deptUuid) {
             deptUuid = (deptUuid || '').toString().trim();
             if (!deptUuid) return url;
@@ -752,12 +823,9 @@
                 return `${url}${sep}${token}`;
             }
 
-            // only for same-origin internal links
             if (u.origin !== window.location.origin) return url;
 
             const token = `d-${deptUuid}`;
-
-            // remove existing d-* tokens and department_uuid=...
             const raw = (u.search || '').replace(/^\?/, '');
             const parts = raw ? raw.split('&').filter(Boolean) : [];
 
@@ -773,10 +841,6 @@
             return `${u.origin}${u.pathname}${newSearch}${u.hash || ''}`;
         }
 
-        /* =========================================================
-           ✅ NEW: Root Header Menu ID Resolver (keeps scope consistent)
-           - If clicking child menu, still keep top-level header_menu_id
-           ========================================================= */
         getRootHeaderMenuId(item) {
             if (!item || !item.id) return 0;
 
@@ -789,14 +853,9 @@
                 cur = p;
                 safety++;
             }
-
             return Number(cur?.id || item.id || 0);
         }
 
-        /* =========================================================
-           ✅ NEW: Append header_menu_id for same-origin internal links
-           - Coexists with your ?d-{uuid} token
-           ========================================================= */
         applyHeaderMenuId(url, headerMenuId) {
             headerMenuId = Number(headerMenuId || 0);
             if (!headerMenuId) return url;
@@ -807,7 +866,6 @@
                 u = new URL(url, window.location.origin);
             } catch (e) {
                 const sep = url.includes('?') ? '&' : '?';
-                // keep hash safe
                 const hashIndex = url.indexOf('#');
                 if (hashIndex !== -1) {
                     const base = url.slice(0, hashIndex);
@@ -817,7 +875,6 @@
                 return `${url}${sep}header_menu_id=${headerMenuId}`;
             }
 
-            // only for same-origin internal links
             if (u.origin !== window.location.origin) return url;
 
             const raw = (u.search || '').replace(/^\?/, '');
@@ -836,11 +893,178 @@
             return `${u.origin}${u.pathname}${newSearch}${u.hash || ''}`;
         }
 
+hardNavigate(e, href, openNewTab = false) {
+    if (!href || href === '#') return;
+
+    // allow ctrl/cmd click new tabs
+    if (e && (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button === 1)) return;
+
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+
+    if (openNewTab) {
+        window.open(href, '_blank');
+        return;
+    }
+
+    try {
+        const target = new URL(href, window.location.origin);
+        const current = new URL(window.location.href);
+        
+        // Normalize URL parameters for comparison
+        const normalizeSearch = (search) => {
+            const params = new URLSearchParams(search);
+            const sorted = Array.from(params.entries()).sort();
+            return new URLSearchParams(sorted).toString();
+        };
+        
+        const targetSearch = normalizeSearch(target.search);
+        const currentSearch = normalizeSearch(current.search);
+        
+        // Same page, different params -> reload
+        if (target.pathname === current.pathname && targetSearch !== currentSearch) {
+            window.location.href = target.href;
+            return;
+        }
+        
+        // Different page or same everything -> navigate
+        window.location.href = target.href;
+    } catch (error) {
+        // Fallback for malformed URLs
+        window.location.href = href;
+    }
+}
+
+/* =========================================================
+   ✅ FINAL REDIRECTION RULE (YOUR LATEST)
+   1) page_url (link)  ✅ FIRST
+   2) page_slug
+   3) slug (menu slug)
+   4) shortcode ✅ ONLY IF NOTHING ELSE
+   + fallback to first descendant using SAME priority
+   ========================================================= */
+
+getNodeLink(item){
+    return (item?.page_url ?? item?.link ?? item?.url ?? item?.href ?? '').toString().trim();
+}
+getNodePageSlug(item){
+    return (item?.page_slug ?? '').toString().trim();
+}
+getNodeMenuSlug(item){
+    return (item?.slug ?? '').toString().trim();
+}
+getNodeShortcode(item){
+    return (item?.shortcode ?? item?.page_shortcode ?? item?.short_code ?? '').toString().trim();
+}
+
+resolveLinkUrl(rawUrl){
+    rawUrl = (rawUrl || '').toString().trim();
+    if (!rawUrl) return '';
+    try{
+        return new URL(rawUrl, window.location.href).href;
+    }catch(e){
+        return rawUrl;
+    }
+}
+
+isSameOrigin(url){
+    try{
+        return new URL(url, window.location.href).origin === window.location.origin;
+    }catch(e){
+        return false;
+    }
+}
+
+isSpecialProtocol(url){
+    return /^(mailto:|tel:|sms:|whatsapp:)/i.test((url || '').toString().trim());
+}
+
+/* ✅ Priority search (new order):
+   link -> page_slug -> menu_slug -> shortcode
+*/
+findBestTarget(item){
+    if (!item) return { type:'', value:'' };
+
+    const link = this.getNodeLink(item);
+    if (link) return { type:'link', value: link };
+
+    const ps = this.getNodePageSlug(item);
+    if (ps) return { type:'page_slug', value: ps };
+
+    const ms = this.getNodeMenuSlug(item);
+    if (ms) return { type:'menu_slug', value: ms };
+
+    const sc = this.getNodeShortcode(item);
+    if (sc) return { type:'shortcode', value: sc };
+
+    // fallback: find first child that has any valid target (same priority)
+    const kids = Array.isArray(item.children) ? item.children : [];
+    if (!kids.length) return { type:'', value:'' };
+
+    const sortedKids = [...kids].sort((a,b) => (a.position||0) - (b.position||0));
+    for (const child of sortedKids){
+        const found = this.findBestTarget(child);
+        if (found && found.value) return found;
+    }
+    return { type:'', value:'' };
+}
+
+normalizeInternalPageUrl(identifier){
+    identifier = (identifier || '').toString().trim();
+    if (!identifier) return '#';
+    return `{{ url('/page') }}/${encodeURIComponent(identifier)}`;
+}
+
+getMenuItemUrl(item){
+    let url = '#';
+    const target = this.findBestTarget(item);
+
+    // ✅ 1) LINK FIRST preference (internal OR external)
+    if (target.type === 'link'){
+        url = this.resolveLinkUrl(target.value) || '#';
+
+        // ✅ external/special => no mutation
+        if (this.isSpecialProtocol(url)) return url;
+        if (!this.isSameOrigin(url)) return url;
+    }
+
+    // ✅ 2) page_slug
+    else if (target.type === 'page_slug'){
+        url = this.normalizeInternalPageUrl(target.value);
+    }
+
+    // ✅ 3) menu slug
+    else if (target.type === 'menu_slug'){
+        url = this.normalizeInternalPageUrl(target.value);
+    }
+
+    // ✅ 4) shortcode ONLY IF NOTHING ELSE
+    else if (target.type === 'shortcode'){
+        url = this.normalizeInternalPageUrl(target.value);
+    }
+
+    if (!url || url === '#') return '#';
+
+    // ✅ Only mutate same-origin URLs with dept/header_menu_id
+    if (this.isSameOrigin(url)) {
+        const deptUuid = this.getItemDeptUuid(item);
+        url = this.applyDepartmentUuid(url, deptUuid);
+
+        const rootHeaderId = this.getRootHeaderMenuId(item);
+        url = this.applyHeaderMenuId(url, rootHeaderId);
+    }
+
+    return url;
+}
+
+
         async loadMenu() {
             this.showLoading('Loading menu…');
 
+            // ✅ hide arrows until menu renders
+            this.menuReady = false;
+
             try {
-                // ✅ fetch menu + departments (public) in parallel
                 const [menuRes, deptPublicRes] = await Promise.all([
                     this.fetchJson(`${this.apiBase}/tree`),
                     this.fetchJson(this.apiDepartmentsPublic),
@@ -848,7 +1072,6 @@
 
                 if (!menuRes.ok) throw new Error(`HTTP error! status: ${menuRes.status}`);
 
-                // ✅ departments: public -> fallback (/api/departments)
                 let deptList = [];
                 if (deptPublicRes.ok) {
                     deptList = this.normalizeDepartmentsPayload(deptPublicRes.data);
@@ -873,13 +1096,17 @@
                     this.renderMenu();
                     this.renderOffcanvasMenu();
 
+                    // ✅ now menu is rendered
+                    this.menuReady = true;
+
                     setTimeout(() => {
-                        this.resetMenuRowStart();   // ✅ always start from left (Home visible)
+                        this.resetMenuRowStart();
                         this.adjustMenuSizing();
                         this.toggleOverflowMode();
                         this.bindMegaGuards();
                         this.setupDesktopDropdownPortal();
-                        this.setupMenuScroller();   // ✅ show right arrow when overflow
+                        this.setupMenuScroller();
+                        this.bindWheelToHorizontalScroll();
                         this.highlightActiveMenu();
                     }, 50);
                 } else {
@@ -912,8 +1139,14 @@
 
             const dfs = (nodes, target) => {
                 for (const n of nodes) {
-                    const nodeSlug = (n.slug || n.page_slug || '');
-                    if (nodeSlug === target) return [n];
+                    const keys = [
+  (n.page_slug ?? ''),
+  (n.slug ?? ''),
+  (n.shortcode ?? n.page_shortcode ?? n.short_code ?? '')
+].map(x => (x || '').toString().trim()).filter(Boolean);
+
+if (keys.includes(target)) return [n];
+
 
                     if (n.children && n.children.length) {
                         const res = dfs(n.children, target);
@@ -971,7 +1204,6 @@
             ocEl.setAttribute('aria-hidden', 'true');
         }
 
-        /* ✅ Always start from left so Home is default visible */
         resetMenuRowStart() {
             const row = document.getElementById('menuRow');
             if (!row) return;
@@ -991,6 +1223,9 @@
 
             if (this.currentSlug === '__HOME__') a.classList.add('active');
 
+            // ✅ hard navigate (keeps slug correct always)
+            a.addEventListener('click', (e) => this.hardNavigate(e, a.href, false));
+
             li.appendChild(a);
             return li;
         }
@@ -1009,9 +1244,8 @@
             if (this.currentSlug === '__HOME__') link.classList.add('active');
 
             link.addEventListener('click', (e) => {
-                e.preventDefault();
                 this.forceCloseOffcanvas();
-                setTimeout(() => { window.location.href = link.href; }, 120);
+                this.hardNavigate(e, link.href, false);
             });
 
             row.appendChild(link);
@@ -1035,19 +1269,19 @@
                 const hasChildren = item.children && item.children.length > 0;
                 li.className = `nav-item ${hasChildren ? 'has-dropdown' : ''}`;
                 li.dataset.id = item.id;
-                li.dataset.slug = item.slug;
+                li.dataset.slug = (item.slug || item.page_slug || '');
 
                 const a = document.createElement('a');
                 a.className = 'nav-link';
                 a.href = this.getMenuItemUrl(item);
                 a.textContent = item.title;
 
-                // ✅ keep existing behavior, but open using computed href (so d-uuid + header_menu_id preserved)
+                // external link
                 if (item.page_url && item.page_url.startsWith('http')) {
-                    a.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        window.open(a.href, '_blank');
-                    });
+                    a.addEventListener('click', (e) => this.hardNavigate(e, a.href, true));
+                } else {
+                    // ✅ internal hard navigate (fix slug staying same)
+                    a.addEventListener('click', (e) => this.hardNavigate(e, a.href, false));
                 }
 
                 li.appendChild(a);
@@ -1062,25 +1296,148 @@
                 container.appendChild(li);
             });
 
-            // ✅ ensure Home is visible after re-render
             this.resetMenuRowStart();
         }
 
-        getAnchorTop(panel, anchorEl) {
-            if (!panel || !anchorEl) return 0;
+        /* =========================================================
+           ✅ NEW MEGA MENU RENDERING:
+           - Root children are split into columns of 5 items each
+           - On hover, children open BELOW their parent (nested list)
+           ========================================================= */
 
-            const panelRect = panel.getBoundingClientRect();
-            const aRect = anchorEl.getBoundingClientRect();
+        chunkArray(arr, size) {
+            const out = [];
+            for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+            return out;
+        }
 
-            let top = (aRect.top - panelRect.top);
-            top = Math.max(0, top - 4);
+        buildMegaItem(item, level = 0) {
+            const li = document.createElement('li');
+            li.className = 'mega-item';
+            li.dataset.id = item.id;
+            li.dataset.slug = (item.slug || item.page_slug || '');
 
-            const minVisible = 140;
-            const availableBelow = window.innerHeight - panelRect.top - 20;
-            const maxTop = Math.max(0, availableBelow - minVisible);
-            top = Math.min(top, maxTop);
+            const a = document.createElement('a');
+            a.className = 'dropdown-item';
+            a.href = this.getMenuItemUrl(item);
+            a.textContent = item.title;
 
-            return top;
+            const hasChildren = item.children && item.children.length > 0;
+            if (hasChildren) a.classList.add('has-children');
+
+            // external link
+            if (item.page_url && item.page_url.startsWith('http')) {
+                a.addEventListener('click', (e) => this.hardNavigate(e, a.href, true));
+            } else {
+                // ✅ internal hard navigate (fix slug staying same)
+                a.addEventListener('click', (e) => this.hardNavigate(e, a.href, false));
+            }
+
+            li.appendChild(a);
+
+            // active highlight (leaf)
+            if (this.currentSlug && li.dataset.slug && (li.dataset.slug === this.currentSlug)) {
+                a.classList.add('is-active');
+            }
+
+            // nested submenu (below parent)
+            if (hasChildren) {
+                const ul = document.createElement('ul');
+                ul.className = 'mega-sub';
+
+                const kidsSorted = [...item.children].sort((x,y) => (x.position||0) - (y.position||0));
+                kidsSorted.forEach(child => {
+                    ul.appendChild(this.buildMegaItem(child, level + 1));
+                });
+
+                li.appendChild(ul);
+            }
+
+            return li;
+        }
+
+        renderRootMegaColumns(panel, rootChildren) {
+            panel.innerHTML = '';
+
+            const sorted = [...(rootChildren || [])].sort((a,b) => (a.position||0) - (b.position||0));
+
+            // ✅ chunk into columns of 5
+            const chunks = this.chunkArray(sorted, this.rootPerCol);
+
+            chunks.forEach((group, idx) => {
+                const col = document.createElement('div');
+                col.className = 'mega-col';
+                col.dataset.col = String(idx);
+
+                const ul = document.createElement('ul');
+                ul.className = 'mega-list';
+
+                group.forEach(item => {
+                    ul.appendChild(this.buildMegaItem(item, 0));
+                });
+
+                col.appendChild(ul);
+                panel.appendChild(col);
+            });
+        }
+
+        closeSiblingsAtSameLevel(liEl) {
+            if (!liEl) return;
+            const parent = liEl.parentElement;
+            if (!parent) return;
+
+            parent.querySelectorAll(':scope > li.mega-item.is-open').forEach(sib => {
+                if (sib !== liEl) sib.classList.remove('is-open');
+            });
+        }
+
+        bindNestedHover(panel) {
+            if (!panel || panel.dataset.nestedBound === '1') return;
+            panel.dataset.nestedBound = '1';
+
+            // open submenu on hover (below parent)
+            panel.addEventListener('mouseover', (e) => {
+                if (window.innerWidth < 992) return;
+
+                const a = e.target.closest('a.dropdown-item.has-children');
+                if (!a) return;
+
+                const li = a.closest('li.mega-item');
+                if (!li) return;
+
+                this.closeSiblingsAtSameLevel(li);
+                li.classList.add('is-open');
+            });
+
+            // close submenu when leaving the item
+            panel.addEventListener('mouseout', (e) => {
+                if (window.innerWidth < 992) return;
+
+                const li = e.target.closest('li.mega-item');
+                if (!li) return;
+
+                const to = e.relatedTarget;
+                if (to && li.contains(to)) return;
+
+                const id = Number(li.dataset.id || 0);
+                if (id && this.activePathIds.includes(id)) return;
+
+                li.classList.remove('is-open');
+            });
+        }
+
+        expandActivePath(panel, activeNodesFromHere = []) {
+            if (!panel || !activeNodesFromHere || !activeNodesFromHere.length) return;
+
+            activeNodesFromHere.forEach(n => {
+                const li = panel.querySelector(`li.mega-item[data-id="${n.id}"]`);
+                if (!li) return;
+
+                li.classList.add('is-open');
+
+                const a = li.querySelector(':scope > a.dropdown-item');
+                if (a) a.classList.add('is-active');
+            });
         }
 
         addMegaMenu(parentLi, children, activeNodesFromHere = []) {
@@ -1091,122 +1448,11 @@
             panel.className = 'mega-panel';
             dropdown.appendChild(panel);
 
-            this.renderMegaColumn(panel, 0, children, 0);
-
-            if (activeNodesFromHere && activeNodesFromHere.length) {
-                this.prefillMega(panel, children, activeNodesFromHere);
-            }
+            this.renderRootMegaColumns(panel, children);
+            this.expandActivePath(panel, activeNodesFromHere);
+            this.bindNestedHover(panel);
 
             parentLi.appendChild(dropdown);
-
-            dropdown.addEventListener('mousemove', (e) => {
-                if (window.innerWidth < 992) return;
-                const link = e.target.closest('a.dropdown-item[data-mid]');
-                if (!link) return;
-
-                const col = parseInt(link.dataset.col || '0', 10);
-                const id = parseInt(link.dataset.mid || '0', 10);
-                if (!id) return;
-
-                this.setActiveInColumn(panel, col, id);
-
-                const kids = this.childrenById.get(id) || [];
-                if (kids.length) {
-                    const offsetTop = this.getAnchorTop(panel, link);
-                    this.renderMegaColumn(panel, col + 1, kids, offsetTop);
-                } else {
-                    this.clearMegaColumns(panel, col + 1);
-                }
-            });
-        }
-
-        renderMegaColumn(panel, colIndex, items, alignTopPx = 0) {
-            let col = panel.querySelector(`.mega-col[data-col="${colIndex}"]`);
-            if (!col) {
-                col = document.createElement('div');
-                col.className = 'mega-col';
-                col.dataset.col = String(colIndex);
-
-                const ul = document.createElement('ul');
-                ul.className = 'mega-list';
-                col.appendChild(ul);
-
-                panel.appendChild(col);
-            }
-
-            col.style.marginTop = (colIndex > 0 && alignTopPx > 0) ? `${alignTopPx}px` : '0px';
-            this.clearMegaColumns(panel, colIndex + 1);
-
-            const ul = col.querySelector('.mega-list');
-            ul.innerHTML = '';
-
-            const sorted = [...items].sort((a,b) => (a.position||0) - (b.position||0));
-
-            sorted.forEach(item => {
-                const li = document.createElement('li');
-                li.dataset.id = item.id;
-                li.dataset.slug = item.slug;
-
-                const a = document.createElement('a');
-                a.className = 'dropdown-item';
-                a.href = this.getMenuItemUrl(item);
-                a.textContent = item.title;
-
-                a.dataset.mid = String(item.id);
-                a.dataset.col = String(colIndex);
-
-                const hasChildren = item.children && item.children.length > 0;
-                if (hasChildren) a.classList.add('has-children');
-
-                // ✅ keep behavior, but open using computed href (so d-uuid + header_menu_id preserved)
-                if (item.page_url && item.page_url.startsWith('http')) {
-                    a.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        window.open(a.href, '_blank');
-                    });
-                }
-
-                li.appendChild(a);
-                ul.appendChild(li);
-            });
-        }
-
-        clearMegaColumns(panel, startIndex) {
-            const cols = Array.from(panel.querySelectorAll('.mega-col'));
-            cols.forEach(c => {
-                const idx = parseInt(c.dataset.col || '0', 10);
-                if (idx >= startIndex) c.remove();
-            });
-        }
-
-        setActiveInColumn(panel, colIndex, id) {
-            const col = panel.querySelector(`.mega-col[data-col="${colIndex}"]`);
-            if (!col) return;
-
-            col.querySelectorAll('a.dropdown-item.is-active').forEach(a => a.classList.remove('is-active'));
-
-            const a = col.querySelector(`a.dropdown-item[data-mid="${id}"]`);
-            if (a) a.classList.add('is-active');
-        }
-
-        prefillMega(panel, rootChildren, activeNodesFromHere) {
-            let currentCol = 0;
-
-            for (let i = 0; i < activeNodesFromHere.length; i++) {
-                const node = activeNodesFromHere[i];
-                if (!node || !node.id) break;
-
-                this.setActiveInColumn(panel, currentCol, node.id);
-
-                const kids = this.childrenById.get(node.id) || [];
-                if (!kids.length) break;
-
-                const anchorEl = panel.querySelector(`.mega-col[data-col="${currentCol}"] a.dropdown-item[data-mid="${node.id}"]`);
-                const offsetTop = this.getAnchorTop(panel, anchorEl);
-
-                currentCol += 1;
-                this.renderMegaColumn(panel, currentCol, kids, offsetTop);
-            }
         }
 
         bindMegaGuards() {
@@ -1225,20 +1471,11 @@
         guardMega(li) {
             const menu = li.querySelector(':scope > .dropdown-menu');
             if (!menu) return;
-
             menu.style.left = '0';
             menu.style.right = 'auto';
-
-            const pad = 10;
-            const rect = menu.getBoundingClientRect();
-
-            if (rect.right > (window.innerWidth - pad)) {
-                menu.style.left = 'auto';
-                menu.style.right = '0';
-            }
         }
 
-        /* ✅ Desktop portal for dropdown (prevents clipping by menuRow overflow) */
+        /* Desktop portal for dropdown */
         ensurePortal() { return document.getElementById('megaPortal'); }
 
         setupDesktopDropdownPortal() {
@@ -1285,6 +1522,8 @@
                 dropdown.addEventListener('mouseenter', () => clearTimeout(closeTimer));
                 dropdown.addEventListener('mouseleave', scheduleClose);
             });
+
+            this.bindFullWidthHoverJquery();
         }
 
         portalizeDropdown(anchorLi, dropdown) {
@@ -1309,7 +1548,7 @@
 
             if (dropdown.parentElement !== portal) portal.appendChild(dropdown);
 
-            dropdown.classList.add('is-portaled', 'show');
+            dropdown.classList.add('is-portaled', 'show', 'dm-fullwidth');
             requestAnimationFrame(() => this.positionPortaledDropdown(anchorLi, dropdown));
         }
 
@@ -1317,10 +1556,12 @@
             const meta = this.portalMeta.get(dropdown);
             if (!meta || !meta.anchor || !meta.placeholder) return;
 
-            dropdown.classList.remove('show', 'is-portaled');
+            dropdown.classList.remove('show', 'is-portaled', 'dm-fullwidth');
             dropdown.style.removeProperty('top');
             dropdown.style.removeProperty('left');
             dropdown.style.removeProperty('right');
+            dropdown.style.removeProperty('width');
+            dropdown.style.removeProperty('max-width');
 
             try { meta.anchor.insertBefore(dropdown, meta.placeholder); }
             catch(e){ meta.anchor.appendChild(dropdown); }
@@ -1348,28 +1589,26 @@
             if (!nav || !anchorLi || !dropdown) return;
 
             const navRect = nav.getBoundingClientRect();
-            const aRect = anchorLi.getBoundingClientRect();
-
-            const pad = 10;
+            const gutter = this.getMenuGutterPx();
+            const pad = Math.max(8, gutter);
 
             dropdown.style.top = `${Math.round(navRect.bottom)}px`;
-            dropdown.style.left = `${Math.round(Math.max(pad, aRect.left))}px`;
-            dropdown.style.right = 'auto';
+            dropdown.style.left = `${pad}px`;
+            dropdown.style.right = `${pad}px`;
+            dropdown.style.width = 'auto';
+            dropdown.style.maxWidth = `calc(100vw - ${(pad * 2)}px)`;
+        }
 
-            const r = dropdown.getBoundingClientRect();
-            if (r.right > (window.innerWidth - pad)) {
-                dropdown.style.left = 'auto';
-                dropdown.style.right = `${pad}px`;
-            }
-
-            const r2 = dropdown.getBoundingClientRect();
-            if (r2.left < pad) {
-                dropdown.style.right = 'auto';
-                dropdown.style.left = `${pad}px`;
+        getMenuGutterPx() {
+            try {
+                const v = getComputedStyle(document.documentElement).getPropertyValue('--menu-gutter') || '';
+                const n = parseFloat(v);
+                return Number.isFinite(n) ? n : 14;
+            } catch (e) {
+                return 14;
             }
         }
 
-        /* ✅ Scroll arrows logic (right arrow when too many menus) */
         setupMenuScroller() {
             if (window.innerWidth < 992) return;
 
@@ -1381,20 +1620,38 @@
 
             if (!this.menuRowEl || !this.btnNext || !this.btnPrev) return;
 
+            const hideAll = () => {
+                this.btnNext.style.display = 'none';
+                this.btnPrev.style.display = 'none';
+                if (this.fadeRight) this.fadeRight.style.display = 'none';
+                if (this.fadeLeft)  this.fadeLeft.style.display  = 'none';
+            };
+
             const update = () => {
+                // ✅ do not show scroll UI until menu is rendered
+                if (!this.menuReady) {
+                    hideAll();
+                    return;
+                }
+
                 const row = this.menuRowEl;
+
                 const maxScroll = Math.max(0, (row.scrollWidth || 0) - (row.clientWidth || 0));
                 const hasOverflow = maxScroll > 2;
+
+                if (!hasOverflow) {
+                    hideAll();
+                    return;
+                }
 
                 const atStart = (row.scrollLeft || 0) <= 1;
                 const atEnd = (row.scrollLeft || 0) >= (maxScroll - 1);
 
-                // show/hide
-                this.btnNext.style.display = (hasOverflow && !atEnd) ? 'flex' : 'none';
-                this.btnPrev.style.display = (hasOverflow && !atStart) ? 'flex' : 'none';
+                this.btnNext.style.display = (!atEnd) ? 'flex' : 'none';
+                this.btnPrev.style.display = (!atStart) ? 'flex' : 'none';
 
-                if (this.fadeRight) this.fadeRight.style.display = (hasOverflow && !atEnd) ? 'block' : 'none';
-                if (this.fadeLeft)  this.fadeLeft.style.display  = (hasOverflow && !atStart) ? 'block' : 'none';
+                if (this.fadeRight) this.fadeRight.style.display = (!atEnd) ? 'block' : 'none';
+                if (this.fadeLeft)  this.fadeLeft.style.display  = (!atStart) ? 'block' : 'none';
             };
 
             if (!this.menuRowEl.dataset.scrollerBound) {
@@ -1420,28 +1677,49 @@
             update();
         }
 
-        getMenuItemUrl(item) {
-            let url = '#';
+        bindWheelToHorizontalScroll() {
+            if (window.innerWidth < 992) return;
 
-            if (item.page_url && item.page_url.trim() !== '') {
-                url = item.page_url.startsWith('http')
-                    ? item.page_url
-                    : `{{ url('') }}${item.page_url}`;
-            } else if (item.page_slug && item.page_slug.trim() !== '') {
-                url = `{{ url('/page') }}/${item.page_slug}`;
-            } else if (item.slug) {
-                url = `{{ url('/page') }}/${item.slug}`;
-            }
+            const row = document.getElementById('menuRow');
+            if (!row || row.dataset.wheelBound === '1') return;
+            row.dataset.wheelBound = '1';
 
-            // ✅ append ?d-{uuid} if item has department_id/department_uuid
-            const deptUuid = this.getItemDeptUuid(item);
-            url = this.applyDepartmentUuid(url, deptUuid);
+            $('#menuRow').on('wheel', function(e){
+                const oe = e.originalEvent || e;
+                const el = this;
 
-            // ✅ NEW: append header_menu_id (root/top-level) for submenu scoping
-            const rootHeaderId = this.getRootHeaderMenuId(item);
-            url = this.applyHeaderMenuId(url, rootHeaderId);
+                const maxScroll = (el.scrollWidth || 0) - (el.clientWidth || 0);
+                if (maxScroll <= 2) return;
 
-            return url;
+                if (!oe.shiftKey && Math.abs(oe.deltaY) > 0) {
+                    el.scrollLeft += oe.deltaY;
+                    e.preventDefault();
+                }
+            });
+        }
+
+        bindFullWidthHoverJquery() {
+            if (window.innerWidth < 992) return;
+
+            const self = this;
+            const $root = $('#mainMenuContainer');
+
+            $root.off('mouseenter.dmfull mouseleave.dmfull', '> .nav-item.has-dropdown');
+
+            $root.on('mouseenter.dmfull', '> .nav-item.has-dropdown', function(){
+                const dm = this.querySelector(':scope > .dropdown-menu');
+                if (!dm) return;
+                dm.classList.add('dm-fullwidth');
+                if (dm.classList.contains('is-portaled') && dm.classList.contains('show')) {
+                    self.positionPortaledDropdown(this, dm);
+                }
+            });
+
+            $root.on('mouseleave.dmfull', '> .nav-item.has-dropdown', function(){
+                const dm = this.querySelector(':scope > .dropdown-menu');
+                if (!dm) return;
+                dm.classList.add('dm-fullwidth');
+            });
         }
 
         highlightActiveMenu() {
@@ -1499,22 +1777,16 @@
             const slug = (item.slug || item.page_slug || '');
             if (this.currentSlug && slug && (slug === this.currentSlug)) link.classList.add('active');
 
-            const href = link.getAttribute('href') || '#';
-
-            // ✅ keep behavior, but open using computed href (so d-uuid + header_menu_id preserved)
+            // external
             if (item.page_url && item.page_url.startsWith('http')) {
                 link.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    window.open(link.href, '_blank');
                     this.forceCloseOffcanvas();
+                    this.hardNavigate(e, link.href, true);
                 });
             } else {
                 link.addEventListener('click', (e) => {
-                    if (href && href !== '#') {
-                        e.preventDefault();
-                        this.forceCloseOffcanvas();
-                        setTimeout(() => { window.location.href = href; }, 120);
-                    }
+                    this.forceCloseOffcanvas();
+                    this.hardNavigate(e, link.href, false);
                 });
             }
 

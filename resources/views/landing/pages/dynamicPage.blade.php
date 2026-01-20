@@ -111,6 +111,22 @@
             border-bottom: 1px dotted rgba(0,0,0,.14);
         }
 
+        /* =========================================================
+           ✅ CHANGE: Hover-to-open ALL children (no click needed)
+           - Works for infinite levels
+           - Keeps click-toggle as fallback for touch devices
+        ========================================================== */
+        @media (hover:hover) and (pointer:fine){
+            /* Hover any parent: show its full subtree */
+            .hallienz-side__item:hover .hallienz-side__children{
+                display:block;
+            }
+            /* Rotate arrow on hover like "open" */
+            .hallienz-side__item:hover > .hallienz-side__row .hallienz-side__toggle i{
+                transform: rotate(90deg);
+            }
+        }
+
         /* ===== Content Card ===== */
         .dp-card{
             border-radius: 18px;
@@ -856,6 +872,7 @@
                     btn.setAttribute('aria-expanded', 'true');
                 }
 
+                // ✅ keep click toggle for touch devices (hover won't work on mobile)
                 btn.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -968,7 +985,6 @@
         const pageTitle = pick(page, ['title']) || 'Menu';
         sidebarHead.textContent = pageTitle;
 
-        // ✅ FIX: REMOVED the entire "Home - Page" link section
         // ✅ Now directly render the tree without any parent page link
         renderTree(nodes, '', submenuList, 0);
 
@@ -988,21 +1004,16 @@
 
     // ✅ FIX: Setup header menu click tracking
     function setupHeaderMenuClicks() {
-        // Listen for clicks on header menu links
         document.addEventListener('click', function(e) {
-            // Check if clicked element is a header menu link
             const headerLink = e.target.closest('a[data-header-menu]') || 
                               e.target.closest('a[href*="header_menu_id"]');
             
             if (headerLink) {
-                // Prevent default behavior to handle via JS
                 e.preventDefault();
                 
-                // Extract header_menu_id from data attribute or href
                 let menuId = headerLink.getAttribute('data-menu-id') || 
                            headerLink.getAttribute('data-header-menu-id');
                 
-                // If not in data attribute, try to parse from href
                 if (!menuId) {
                     const href = headerLink.getAttribute('href') || '';
                     const url = new URL(href, window.location.origin);
@@ -1010,12 +1021,9 @@
                 }
                 
                 if (menuId) {
-                    // Update current URL with header_menu_id and remove submenu
                     const currentUrl = new URL(window.location);
                     currentUrl.searchParams.set('header_menu_id', menuId);
                     currentUrl.searchParams.delete('submenu');
-                    
-                    // Navigate to new URL
                     window.location.href = currentUrl.toString();
                 }
             }
@@ -1069,7 +1077,7 @@
         elWrap.classList.remove('d-none');
         if (elNotFound) elNotFound.classList.add('d-none');
 
-        const sideInfo = await loadSidebarIfAny(page);
+        await loadSidebarIfAny(page);
 
         let submenuSlug = (readSubmenuFromPathname() || '').trim();
 
@@ -1078,8 +1086,7 @@
             submenuSlug = (qs.get('submenu') || '').trim();
         }
 
-        // ✅ FIX: Only load submenu if explicitly specified in URL
-        // Otherwise, keep showing the main page content that user clicked from header
+        // ✅ Only load submenu if explicitly specified in URL
         if (submenuSlug) {
             const link = document.querySelector('.hallienz-side__link[data-submenu-slug="' + safeCssEscape(submenuSlug) + '"]');
             if (link) {
@@ -1089,21 +1096,17 @@
             }
             await loadSubmenuRightContent(submenuSlug, window.__DP_PAGE_SCOPE__);
         }
-        // If no submenu in URL, DON'T auto-load first submenu - keep page content visible
     }
 
-    // Initialize the page
     init().catch((e) => {
         console.error(e);
         showError(e?.message || 'Something went wrong.');
     });
 
-    // Setup header menu click tracking
     document.addEventListener('DOMContentLoaded', function() {
         setupHeaderMenuClicks();
     });
 
-    // Handle browser back/forward
     window.addEventListener('popstate', function() {
         init().catch((e) => {
             console.error(e);

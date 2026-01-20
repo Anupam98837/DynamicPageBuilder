@@ -7,17 +7,16 @@
 
 <style>
     /* =========================================================
-       Top Header Menu (Public) - Same UI as header.blade.php
-       - Left: ✅ 2 Contacts first
-       - Then: dynamic menus (supports deep mega columns if children exist)
-       - Desktop: ✅ 1280px max + horizontal scroll + right arrow
-       - Mobile: hamburger -> offcanvas sidebar
+       ✅ FIXED (requested)
+       1) 125% zoom: keep LEFT/RIGHT gap (side gutter always)
+       2) Last dropdown never hidden: full-width mega dropdown (desktop)
+       3) Mouse wheel scroll horizontal when menus overflow (desktop)
+       4) When page is visited: active menu should be highlighted
        ========================================================= */
-
-    * { margin:0; padding:0; box-sizing:border-box; }
 
     :root{
         --menu-max-w: 1280px; /* ✅ Hard cap (requested) */
+        --menu-gutter: clamp(10px, 1.4vw, 22px); /* ✅ side gap for zoom */
     }
 
     /* Navbar Container */
@@ -29,7 +28,13 @@
         z-index: 1000;
         width: 100%;
         overflow: visible;
+
+        /* ✅ keep left/right gap always (zoom safe) */
+        padding-left: var(--menu-gutter);
+        padding-right: var(--menu-gutter);
     }
+
+    #thmNavbar, #thmNavbar *{ box-sizing:border-box; }
 
     #thmNavbar .navbar-container{
         display:flex;
@@ -62,18 +67,18 @@
         scrollbar-color: rgba(255,255,255,.25) rgba(0,0,0,.12);
     }
 
-    .menu-row::-webkit-scrollbar{ height: 3px; }
-    .menu-row::-webkit-scrollbar-thumb{
+    #thmNavbar .menu-row::-webkit-scrollbar{ height: 3px; }
+    #thmNavbar .menu-row::-webkit-scrollbar-thumb{
         background: rgba(255,255,255,.25);
         border-radius: 10px;
     }
-    .menu-row::-webkit-scrollbar-track{
+    #thmNavbar .menu-row::-webkit-scrollbar-track{
         background: rgba(0,0,0,.12);
         border-radius: 10px;
     }
 
     /* Scroll arrows (desktop only) */
-    .menu-scroll-btn{
+    #thmNavbar .menu-scroll-btn{
         position:absolute;
         top: 50%;
         transform: translateY(-50%);
@@ -93,17 +98,17 @@
         user-select:none;
         backdrop-filter: blur(2px);
     }
-    .menu-scroll-btn:hover{ transform: translateY(-50%) translateY(-1px); background: rgba(255,255,255,.14); }
-    .menu-scroll-btn:active{ transform: translateY(-50%) translateY(0px); }
-    .menu-scroll-btn:focus{
+    #thmNavbar .menu-scroll-btn:hover{ transform: translateY(-50%) translateY(-1px); background: rgba(255,255,255,.14); }
+    #thmNavbar .menu-scroll-btn:active{ transform: translateY(-50%) translateY(0); }
+    #thmNavbar .menu-scroll-btn:focus{
         outline:none;
         box-shadow: 0 0 0 3px rgba(201,75,80,.35), 0 10px 22px rgba(0,0,0,.22);
     }
 
-    .menu-scroll-prev{ left: 6px; }
-    .menu-scroll-next{ right: 6px; }
+    #thmNavbar .menu-scroll-prev{ left: 6px; }
+    #thmNavbar .menu-scroll-next{ right: 6px; }
 
-    .menu-scroll-fade-right{
+    #thmNavbar .menu-scroll-fade-right{
         position:absolute;
         right: 0;
         top: 0;
@@ -115,7 +120,7 @@
         z-index: 10500;
     }
 
-    .menu-scroll-fade-left{
+    #thmNavbar .menu-scroll-fade-left{
         position:absolute;
         left: 0;
         top: 0;
@@ -128,7 +133,7 @@
     }
 
     /* Hamburger (mobile only) */
-    .menu-toggle{
+    #thmNavbar .menu-toggle{
         display:none;
         align-items:center;
         justify-content:center;
@@ -143,19 +148,21 @@
         flex: 0 0 auto;
         margin-left: 6px;
     }
-    .menu-toggle:hover{ transform: translateY(-1px); opacity:.95; }
-    .menu-toggle:focus{
+    #thmNavbar .menu-toggle:hover{ transform: translateY(-1px); opacity:.95; }
+    #thmNavbar .menu-toggle:focus{
         outline:none;
         box-shadow: 0 0 0 3px rgba(201,75,80,.35);
         border-radius: 12px;
     }
-    .burger{
+    #thmNavbar .burger{
         width: 22px;
         height: 16px;
         position: relative;
         display: inline-block;
     }
-    .burger::before, .burger::after, .burger span{
+    #thmNavbar .burger::before,
+    #thmNavbar .burger::after,
+    #thmNavbar .burger span{
         content:"";
         position:absolute;
         left:0; right:0;
@@ -165,9 +172,9 @@
         opacity:.95;
         transition: transform .25s ease, opacity .25s ease;
     }
-    .burger::before{ top:0; }
-    .burger span{ top:7px; }
-    .burger::after{ bottom:0; }
+    #thmNavbar .burger::before{ top:0; }
+    #thmNavbar .burger span{ top:7px; }
+    #thmNavbar .burger::after{ bottom:0; }
 
     /* Menu List - single row */
     #thmNavbar .navbar-nav{
@@ -183,7 +190,7 @@
         width: max-content;
     }
 
-    .nav-item{
+    #thmNavbar .nav-item{
         position: relative;
         margin:0;
         display:flex;
@@ -219,14 +226,14 @@
         color:#fff !important;
     }
 
-    /* ✅ Contacts (same styling, just icon + slightly tighter) */
-    .nav-item.nav-contact .nav-link{
+    /* ✅ Contacts */
+    #thmNavbar .nav-item.nav-contact .nav-link{
         gap: .55rem;
         padding: .75rem .95rem;
         justify-content:flex-start;
     }
-    .nav-item.nav-contact .nav-link i{ opacity:.95; }
-    .nav-item.nav-contact.is-last .nav-link{
+    #thmNavbar .nav-item.nav-contact .nav-link i{ opacity:.95; }
+    #thmNavbar .nav-item.nav-contact.is-last .nav-link{
         box-shadow: inset -1px 0 0 rgba(255,255,255,.18);
         margin-right: 6px;
     }
@@ -258,7 +265,7 @@
         transition: opacity .25s ease, transform .25s ease, visibility .25s ease;
     }
 
-    .dynamic-navbar .dropdown-menu.show{
+    #thmNavbar .dropdown-menu.show{
         opacity:1;
         visibility:visible;
         transform: translateY(0);
@@ -266,7 +273,7 @@
     }
 
     @media (min-width: 992px){
-        .nav-item.has-dropdown:hover > .dropdown-menu{
+        #thmNavbar .nav-item.has-dropdown:hover > .dropdown-menu{
             opacity:1;
             visibility:visible;
             transform: translateY(0);
@@ -274,7 +281,21 @@
         }
     }
 
-    .dynamic-navbar .mega-panel{
+    /* ✅ NEW: Full-width dropdown on hover (fix last dropdown hidden at zoom) */
+    @media (min-width: 992px){
+        #thmNavbar .dropdown-menu.dm-fullwidth{
+            left: var(--menu-gutter) !important;
+            right: var(--menu-gutter) !important;
+            width: auto !important;
+            max-width: calc(100vw - (var(--menu-gutter) * 2)) !important;
+        }
+        #thmNavbar .dropdown-menu.dm-fullwidth .mega-panel{
+            width: 100%;
+            max-width: 100% !important;
+        }
+    }
+
+    #thmNavbar .mega-panel{
         display:inline-flex;
         align-items:stretch;
         gap: 0;
@@ -293,7 +314,7 @@
         transition: box-shadow .25s ease;
     }
 
-    .dynamic-navbar .mega-col{
+    #thmNavbar .mega-col{
         width: 270px;
         min-width: 270px;
         display:flex;
@@ -304,7 +325,7 @@
         align-self: flex-start;
     }
 
-    .dynamic-navbar .mega-col:not([data-col="0"])::before{
+    #thmNavbar .mega-col:not([data-col="0"])::before{
         content:"";
         position:absolute;
         left:0;
@@ -314,7 +335,7 @@
         background: rgba(255,255,255,0.14);
     }
 
-    .dynamic-navbar .mega-list{
+    #thmNavbar .mega-list{
         list-style:none;
         margin:0;
         padding: 4px;
@@ -322,17 +343,17 @@
         overflow:auto;
     }
 
-    .dynamic-navbar .mega-list::-webkit-scrollbar{ width: 8px; height: 8px; }
-    .dynamic-navbar .mega-list::-webkit-scrollbar-thumb{
+    #thmNavbar .mega-list::-webkit-scrollbar{ width: 8px; height: 8px; }
+    #thmNavbar .mega-list::-webkit-scrollbar-thumb{
         background: rgba(255,255,255,.20);
         border-radius: 10px;
     }
-    .dynamic-navbar .mega-list::-webkit-scrollbar-track{
+    #thmNavbar .mega-list::-webkit-scrollbar-track{
         background: rgba(0,0,0,.10);
         border-radius: 10px;
     }
 
-    .dynamic-navbar .dropdown-item{
+    #thmNavbar .dropdown-item{
         display:flex;
         align-items:center;
         justify-content:space-between;
@@ -357,19 +378,19 @@
         will-change: transform;
     }
 
-    .dynamic-navbar .dropdown-item:hover{
+    #thmNavbar .dropdown-item:hover{
         background: rgba(255,255,255,0.10);
         outline-color: rgba(255,255,255,0.10);
         transform: translateX(2px);
     }
 
-    .dynamic-navbar .dropdown-item.is-active{
+    #thmNavbar .dropdown-item.is-active{
         background: rgba(255,255,255,0.13);
         outline: 1px solid rgba(255,255,255,0.16);
         position: relative;
     }
 
-    .dynamic-navbar .dropdown-item.is-active::before{
+    #thmNavbar .dropdown-item.is-active::before{
         content:"";
         position:absolute;
         left: 8px;
@@ -382,7 +403,7 @@
         opacity: .95;
     }
 
-    .dynamic-navbar .dropdown-item.has-children::after{
+    #thmNavbar .dropdown-item.has-children::after{
         content:'›';
         font-size: 1.2rem;
         font-weight: 700;
@@ -393,21 +414,21 @@
         transition: transform .25s ease, opacity .25s ease;
     }
 
-    .dynamic-navbar .dropdown-item.has-children:hover::after{
+    #thmNavbar .dropdown-item.has-children:hover::after{
         transform: translateX(2px);
         opacity: .95;
     }
 
     /* Dropdown Portal */
-    .mega-portal{
+    #thmPortal{
         position: fixed;
         inset: 0;
         pointer-events: none;
         z-index: 12000;
     }
-    .mega-portal .dropdown-menu{ pointer-events: auto; }
+    #thmPortal .dropdown-menu{ pointer-events: auto; }
 
-    .dynamic-navbar .dropdown-menu.is-portaled{
+    #thmNavbar .dropdown-menu.is-portaled{
         position: fixed !important;
         top: 0;
         left: 0;
@@ -415,36 +436,38 @@
     }
 
     /* OFFCANVAS (mobile) */
-    .dynamic-navbar.use-offcanvas .menu-row{ display:none; }
-    .dynamic-navbar.use-offcanvas .menu-toggle{ display:flex; }
+    #thmNavbar.use-offcanvas .menu-row{ display:none; }
+    #thmNavbar.use-offcanvas .menu-toggle{ display:flex; }
 
     @media (max-width: 991.98px){
-        .menu-row{ display:none; }
-        .menu-toggle{ display:flex; }
-        .menu-scroll-btn, .menu-scroll-fade-right, .menu-scroll-fade-left{ display:none !important; }
+        #thmNavbar .menu-row{ display:none; }
+        #thmNavbar .menu-toggle{ display:flex; }
+        #thmNavbar .menu-scroll-btn,
+        #thmNavbar .menu-scroll-fade-right,
+        #thmNavbar .menu-scroll-fade-left{ display:none !important; }
     }
 
-    .dynamic-offcanvas{
+    #thmOffcanvas.dynamic-offcanvas{
         --bs-offcanvas-width: 340px;
         background: var(--secondary-color, #6B2528);
         color:#fff;
     }
-    .dynamic-offcanvas .offcanvas-header{
+    #thmOffcanvas.dynamic-offcanvas .offcanvas-header{
         border-bottom: 1px solid rgba(255,255,255,.15);
         padding: 14px 16px;
     }
-    .dynamic-offcanvas .offcanvas-title{
+    #thmOffcanvas.dynamic-offcanvas .offcanvas-title{
         font-weight:700;
         letter-spacing:.2px;
         color:#fff;
         margin:0;
     }
-    .dynamic-offcanvas .offcanvas-body{
+    #thmOffcanvas.dynamic-offcanvas .offcanvas-body{
         padding: 12px 10px 18px;
     }
-    .offcanvas-menu{ list-style:none; margin:0; padding:0; }
+    #thmOffcanvas .offcanvas-menu{ list-style:none; margin:0; padding:0; }
 
-    .oc-row{
+    #thmOffcanvas .oc-row{
         display:flex;
         align-items:center;
         gap: 8px;
@@ -453,9 +476,9 @@
         transition: background .25s ease, transform .25s ease;
         will-change: transform;
     }
-    .oc-row:hover{ background: rgba(255,255,255,.08); transform: translateX(1px); }
+    #thmOffcanvas .oc-row:hover{ background: rgba(255,255,255,.08); transform: translateX(1px); }
 
-    .oc-link{
+    #thmOffcanvas .oc-link{
         flex: 1 1 auto;
         color: #fff !important;
         text-decoration:none;
@@ -467,12 +490,12 @@
         word-break: break-word;
         transition: background .25s ease, opacity .25s ease;
     }
-    .oc-link.active{
+    #thmOffcanvas .oc-link.active{
         background: rgba(255,255,255,.14);
         box-shadow: inset 0 0 0 1px rgba(255,255,255,.18);
     }
 
-    .oc-toggle{
+    #thmOffcanvas .oc-toggle{
         flex: 0 0 auto;
         width: 34px;
         height: 34px;
@@ -486,12 +509,12 @@
         cursor:pointer;
         transition: transform .25s ease, background .25s ease, border-color .25s ease;
     }
-    .oc-toggle:hover{ transform: translateY(-1px); background: rgba(255,255,255,.10); }
-    .oc-toggle:focus{
+    #thmOffcanvas .oc-toggle:hover{ transform: translateY(-1px); background: rgba(255,255,255,.10); }
+    #thmOffcanvas .oc-toggle:focus{
         outline:none;
         box-shadow: 0 0 0 3px rgba(201,75,80,.35);
     }
-    .oc-caret{
+    #thmOffcanvas .oc-caret{
         width:0; height:0;
         border-left: 6px solid #fff;
         border-top: 5px solid transparent;
@@ -500,8 +523,8 @@
         transform: rotate(0deg);
         transition: transform .25s ease, opacity .25s ease;
     }
-    .oc-toggle[aria-expanded="true"] .oc-caret{ transform: rotate(90deg); }
-    .oc-sub{
+    #thmOffcanvas .oc-toggle[aria-expanded="true"] .oc-caret{ transform: rotate(90deg); }
+    #thmOffcanvas .oc-sub{
         list-style:none;
         margin: 4px 0 6px;
         padding: 0 0 0 14px;
@@ -509,7 +532,7 @@
     }
 
     /* Loading Overlay */
-    .menu-loading-overlay{
+    #thmLoadingOverlay.menu-loading-overlay{
         position: fixed;
         inset: 0;
         background: rgba(10, 10, 10, 0.35);
@@ -520,29 +543,7 @@
         z-index: 20000;
         padding: 18px;
     }
-    .menu-loading-overlay.show{ display: flex; }
-
-    .menu-loading-card{
-        background: var(--secondary-color, #6B2528);
-        border: 1px solid rgba(255,255,255,.16);
-        border-radius: 16px;
-        box-shadow: 0 18px 50px rgba(0,0,0,.35);
-        color: #fff;
-        padding: 16px 18px;
-        min-width: 260px;
-        max-width: 92vw;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-    .menu-loading-text{
-        display:flex;
-        flex-direction:column;
-        gap: 2px;
-        line-height: 1.2;
-    }
-    .menu-loading-text strong{ font-size: 1rem; }
-    .menu-loading-text small{ opacity: .85; font-size: .85rem; }
+    #thmLoadingOverlay.menu-loading-overlay.show{ display: flex; }
 
     /* Guard against Bootstrap overriding dropdown positioning */
     #thmNavbar .navbar-nav .dropdown-menu{
@@ -552,6 +553,16 @@
     #thmNavbar .dropdown-menu.is-portaled{
       position: fixed !important;
     }
+
+    /* ✅ Show Top Header Menu only on 992px and above */
+@media (max-width: 991.98px){
+  #thmNavbar,
+  #thmOffcanvas,
+  #thmLoadingOverlay,
+  #thmPortal{
+    display: none !important;
+  }
+}
 
 </style>
 
@@ -601,6 +612,8 @@
     </div>
 </div>
 
+{{-- ✅ jQuery added (for smooth wheel->horizontal scroll like your header) --}}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
@@ -620,18 +633,16 @@
             // ✅ Fallback: list all contact infos (we will pick first 2 if primary fails/empty)
             this.apiContactsFallback = @json(url('/api/public/top-header-menus/contact-infos'));
 
-            // ✅ NEW: Departments (to map department_id -> uuid so we can append ?d-{uuid})
-            // We'll try public first, then fallback to /api/departments if your app allows it.
+            // ✅ Departments (for d-uuid appending)
             this.apiDepartmentsPublic = @json(url('/api/public/departments'));
             this.apiDepartments       = @json(url('/api/departments'));
 
             this.menuTree = [];
-            this.contacts = []; // first 2 contacts (normalized)
+            this.contacts = [];
 
             this.nodeById = new Map();
             this.childrenById = new Map();
 
-            // ✅ NEW: dept id -> uuid map
             this.deptUuidById = new Map();
 
             this.currentSlug = this.getCurrentSlug();
@@ -724,6 +735,7 @@
                     this.setupDesktopDropdownPortal();
                     this.repositionOpenPortaled();
                     this.setupMenuScroller();
+                    this.bindWheelToHorizontalScroll(); // ✅ NEW
                 }, 150);
             });
         }
@@ -741,25 +753,13 @@
                     this.fetchJson(this.apiDepartmentsPublic),
                 ]);
 
-                if (!contactsPrimaryRes.ok) {
-                    console.warn('[TopHeaderMenu] contact-info failed:', contactsPrimaryRes.status, contactsPrimaryRes.data);
-                }
-                if (!menusRes.ok) {
-                    console.warn('[TopHeaderMenu] menus failed:', menusRes.status, menusRes.data);
-                }
-
                 // ✅ departments: public -> fallback
                 let deptList = [];
                 if (deptPublicRes.ok) {
                     deptList = this.normalizeDepartmentsPayload(deptPublicRes.data);
                 } else {
-                    // fallback to /api/departments (may be protected; if so it'll fail harmlessly)
                     const deptRes = await this.fetchJson(this.apiDepartments);
-                    if (!deptRes.ok) {
-                        console.warn('[TopHeaderMenu] departments failed:', deptRes.status, deptRes.data);
-                    } else {
-                        deptList = this.normalizeDepartmentsPayload(deptRes.data);
-                    }
+                    if (deptRes.ok) deptList = this.normalizeDepartmentsPayload(deptRes.data);
                 }
                 this.buildDeptMap(deptList);
 
@@ -768,19 +768,15 @@
 
                 if (!contactsPrimaryRes.ok || !pickedContacts.length) {
                     const contactsFallbackRes = await this.fetchJson(this.apiContactsFallback);
-                    if (!contactsFallbackRes.ok) {
-                        console.warn('[TopHeaderMenu] contact-infos fallback failed:', contactsFallbackRes.status, contactsFallbackRes.data);
-                    }
                     const fallbackContacts = this.normalizeContactsPayload(contactsFallbackRes.data);
                     if (fallbackContacts.length) pickedContacts = fallbackContacts;
                 }
-
                 this.contacts = (pickedContacts || []).slice(0, 2);
 
                 this.menuTree = this.normalizeMenusPayload(menusRes.data);
                 this.buildNodeMaps(this.menuTree);
 
-                // active path (slug or url)
+                // ✅ active path (parent chain)
                 this.activePathNodes = this.getActivePathNodes(this.menuTree);
                 this.activePathIds = this.activePathNodes.map(n => n.id);
 
@@ -794,6 +790,8 @@
                     this.bindMegaGuards();
                     this.setupDesktopDropdownPortal();
                     this.setupMenuScroller();
+                    this.bindWheelToHorizontalScroll(); // ✅ NEW
+                    this.highlightActivePath();         // ✅ NEW (active on visit)
                 }, 50);
 
             } catch (e) {
@@ -816,7 +814,6 @@
             else if (data && Array.isArray(data.items)) items = data.items;
             else if (data && Array.isArray(data.data)) items = data.data;
 
-            // accept minimal shapes: {id, uuid, name}
             return (items || []).filter(d => d && (d.id !== undefined && d.id !== null));
         }
 
@@ -830,7 +827,7 @@
         }
 
         /* =========================================================
-         * ✅ CONTACT NORMALIZATION (unchanged)
+         * CONTACT NORMALIZATION
          * ========================================================= */
         normalizeContactsPayload(payload) {
             const root = (payload && typeof payload === 'object' && payload.success !== undefined)
@@ -841,28 +838,22 @@
                 if (!d) return [];
                 if (Array.isArray(d)) return d;
 
-                // common wrappers
                 if (Array.isArray(d.data)) return d.data;
                 if (Array.isArray(d.items)) return d.items;
                 if (Array.isArray(d.contacts)) return d.contacts;
                 if (Array.isArray(d.contact_infos)) return d.contact_infos;
 
-                // nested data
                 if (d.data && typeof d.data === 'object') return pickArr(d.data);
 
-                // ✅ selected 2 contacts sometimes returned like {phone:{...}, email:{...}}
                 if (d.phone || d.email) return [d.phone, d.email].filter(Boolean);
 
-                // ✅ other common pairs
                 if (d.primary_contact || d.secondary_contact) return [d.primary_contact, d.secondary_contact].filter(Boolean);
                 if (d.first || d.second) return [d.first, d.second].filter(Boolean);
                 if (d.primary || d.secondary) return [d.primary, d.secondary].filter(Boolean);
 
-                // ✅ numeric keyed object: {"1":{...},"2":{...}}
                 const keys = Object.keys(d || {});
                 if (keys.length && keys.every(k => /^\d+$/.test(k))) return Object.values(d);
 
-                // ✅ map-like: {a:{...}, b:{...}} (try values that look like contact objects)
                 const vals = Object.values(d || {}).filter(v => v && typeof v === 'object' && !Array.isArray(v));
                 const likely = vals.filter(v =>
                     ('value' in v) || ('label' in v) || ('title' in v) || ('name' in v) ||
@@ -875,7 +866,6 @@
 
             const arr = pickArr(root);
 
-            // ✅ If array items are top_header_menus rows, pull nested contact_info
             const flattened = (arr || []).map(x => {
                 if (!x || typeof x !== 'object') return x;
                 if (x.contact_info && typeof x.contact_info === 'object') return x.contact_info;
@@ -957,15 +947,10 @@
             }
 
             const hasParent = items.some(it => it.parent_id !== undefined && it.parent_id !== null);
-            if (!hasParent) {
-                return items.sort((a,b) => (a.position||0) - (b.position||0));
-            }
+            if (!hasParent) return items.sort((a,b) => (a.position||0) - (b.position||0));
 
             const byId = new Map();
-            items.forEach(it => {
-                it.children = [];
-                byId.set(it.id, it);
-            });
+            items.forEach(it => { it.children = []; byId.set(it.id, it); });
 
             const roots = [];
             items.forEach(it => {
@@ -1026,7 +1011,6 @@
             if (!obj) return false;
 
             if (obj.origin !== window.location.origin) return false;
-
             return this.normPath(obj.pathname) === this.currentPath;
         }
 
@@ -1042,6 +1026,27 @@
                 return [];
             };
             return dfs(items || []);
+        }
+
+        /* ✅ NEW: Highlight active parent + leaf on visit */
+        highlightActivePath(){
+            const root = this.$('thmMainMenuContainer');
+            if (!root) return;
+
+            root.querySelectorAll('.nav-link.active').forEach(a => a.classList.remove('active'));
+            root.querySelectorAll('.dropdown-item.is-active').forEach(a => a.classList.remove('is-active'));
+
+            if (!this.activePathNodes || !this.activePathNodes.length) return;
+
+            const top = this.activePathNodes[0];
+            const topLink = root.querySelector(`.nav-item[data-id="${top.id}"] > a.nav-link`);
+            if (topLink) topLink.classList.add('active');
+
+            // mark leaf inside dropdown if already rendered
+            this.activePathNodes.slice(1).forEach(n => {
+                const dd = root.querySelector(`a.dropdown-item[data-mid="${n.id}"]`);
+                if (dd) dd.classList.add('is-active');
+            });
         }
 
         /* ---------------------------
@@ -1114,9 +1119,7 @@
             let s = (val || '').toString().trim();
             if (!s) return '';
             s = s.replace(/[^\d+]/g,'');
-            if (s.startsWith('+')) {
-                return '+' + s.slice(1).replace(/[^\d]/g,'');
-            }
+            if (s.startsWith('+')) return '+' + s.slice(1).replace(/[^\d]/g,'');
             return s.replace(/[^\d]/g,'');
         }
 
@@ -1188,9 +1191,7 @@
             a.appendChild(icon);
             a.appendChild(span);
 
-            if (!href || href === '#') {
-                a.addEventListener('click', (e) => e.preventDefault());
-            }
+            if (!href || href === '#') a.addEventListener('click', (e) => e.preventDefault());
 
             li.appendChild(a);
             return li;
@@ -1216,7 +1217,6 @@
 
             const icon = this.contactIcon(c);
             const text = (c.value || c.label || '').toString();
-
             link.innerHTML = `<i class="${icon} me-2"></i>${this.escapeHtml(text)}`;
 
             link.addEventListener('click', (e) => {
@@ -1237,17 +1237,15 @@
         }
 
         /* ---------------------------
-         * ✅ Dept uuid resolver
+         * Dept uuid resolver + append d-uuid
          * --------------------------- */
         getItemDeptUuid(item){
-            // if API ever starts returning department_uuid, we will use it directly
             const direct =
                 (item?.department_uuid ?? item?.dept_uuid ?? '') ||
                 (item?.department?.uuid ?? item?.department?.department_uuid ?? item?.department?.dept_uuid ?? '');
             const directTrim = (direct || '').toString().trim();
             if (directTrim) return directTrim;
 
-            // current API returns department_id (like your sample)
             const did = item?.department_id;
             if (did !== undefined && did !== null) {
                 const mapped = this.deptUuidById.get(Number(did));
@@ -1256,9 +1254,6 @@
             return '';
         }
 
-        /* ---------------------------
-         * ✅ Append deep-link token ?d-{uuid}
-         * --------------------------- */
         applyDepartmentUuid(url, deptUuid) {
             deptUuid = (deptUuid || '').toString().trim();
             if (!deptUuid) return url;
@@ -1273,12 +1268,9 @@
                 return `${url}${sep}${token}`;
             }
 
-            // only for same-origin internal links
             if (u.origin !== window.location.origin) return url;
 
             const token = `d-${deptUuid}`;
-
-            // remove duplicates (old style department_uuid=... or any existing d-*)
             const raw = (u.search || '').replace(/^\?/, '');
             const parts = raw ? raw.split('&').filter(Boolean) : [];
 
@@ -1348,9 +1340,9 @@
                 a.href = this.getMenuItemUrl(item);
                 a.textContent = item.title || 'Menu';
 
+                // ✅ mark leaf active instantly
                 if (this.isItemActive(item)) a.classList.add('active');
 
-                // keep external new-tab behavior, but preserve computed href (with d-uuid if any)
                 if (item.page_url && item.page_url.startsWith('http')) {
                     a.addEventListener('click', (e) => {
                         e.preventDefault();
@@ -1535,20 +1527,13 @@
             const menu = li.querySelector(':scope > .dropdown-menu');
             if (!menu) return;
 
+            // ✅ keep safe, but full-width dropdown solves all edge clipping
             menu.style.left = '0';
             menu.style.right = 'auto';
-
-            const pad = 10;
-            const rect = menu.getBoundingClientRect();
-
-            if (rect.right > (window.innerWidth - pad)) {
-                menu.style.left = 'auto';
-                menu.style.right = '0';
-            }
         }
 
         /* ---------------------------
-         * Desktop dropdown portal (no clipping)
+         * ✅ Desktop dropdown portal (no clipping + fullwidth)
          * --------------------------- */
         ensurePortal() { return this.$('thmPortal'); }
 
@@ -1596,6 +1581,9 @@
                 dropdown.addEventListener('mouseenter', () => clearTimeout(closeTimer));
                 dropdown.addEventListener('mouseleave', scheduleClose);
             });
+
+            // ✅ ensure full-width on hover (safety)
+            this.bindFullWidthHoverJquery();
         }
 
         portalizeDropdown(anchorLi, dropdown) {
@@ -1620,7 +1608,8 @@
 
             if (dropdown.parentElement !== portal) portal.appendChild(dropdown);
 
-            dropdown.classList.add('is-portaled', 'show');
+            // ✅ make full-width dropdown
+            dropdown.classList.add('is-portaled', 'show', 'dm-fullwidth');
             requestAnimationFrame(() => this.positionPortaledDropdown(anchorLi, dropdown));
         }
 
@@ -1628,10 +1617,12 @@
             const meta = this.portalMeta.get(dropdown);
             if (!meta || !meta.anchor || !meta.placeholder) return;
 
-            dropdown.classList.remove('show', 'is-portaled');
+            dropdown.classList.remove('show', 'is-portaled', 'dm-fullwidth');
             dropdown.style.removeProperty('top');
             dropdown.style.removeProperty('left');
             dropdown.style.removeProperty('right');
+            dropdown.style.removeProperty('width');
+            dropdown.style.removeProperty('max-width');
 
             try { meta.anchor.insertBefore(dropdown, meta.placeholder); }
             catch(e){ meta.anchor.appendChild(dropdown); }
@@ -1654,30 +1645,27 @@
             });
         }
 
+        getMenuGutterPx(){
+            try{
+                const v = getComputedStyle(document.documentElement).getPropertyValue('--menu-gutter') || '';
+                const n = parseFloat(v);
+                return Number.isFinite(n) ? n : 14;
+            }catch(e){ return 14; }
+        }
+
+        // ✅ always position dropdown full-width under navbar
         positionPortaledDropdown(anchorLi, dropdown) {
             const nav = this.$('thmNavbar');
-            if (!nav || !anchorLi || !dropdown) return;
+            if (!nav || !dropdown) return;
 
             const navRect = nav.getBoundingClientRect();
-            const aRect = anchorLi.getBoundingClientRect();
-
-            const pad = 10;
+            const pad = Math.max(8, this.getMenuGutterPx());
 
             dropdown.style.top = `${Math.round(navRect.bottom)}px`;
-            dropdown.style.left = `${Math.round(Math.max(pad, aRect.left))}px`;
-            dropdown.style.right = 'auto';
-
-            const r = dropdown.getBoundingClientRect();
-            if (r.right > (window.innerWidth - pad)) {
-                dropdown.style.left = 'auto';
-                dropdown.style.right = `${pad}px`;
-            }
-
-            const r2 = dropdown.getBoundingClientRect();
-            if (r2.left < pad) {
-                dropdown.style.right = 'auto';
-                dropdown.style.left = `${pad}px`;
-            }
+            dropdown.style.left = `${pad}px`;
+            dropdown.style.right = `${pad}px`;
+            dropdown.style.width = 'auto';
+            dropdown.style.maxWidth = `calc(100vw - ${(pad * 2)}px)`;
         }
 
         /* ---------------------------
@@ -1732,6 +1720,53 @@
             update();
         }
 
+        /* ✅ NEW: Wheel scroll -> horizontal on desktop overflow */
+        bindWheelToHorizontalScroll(){
+            if (window.innerWidth < 992) return;
+
+            const row = this.$('thmMenuRow');
+            if (!row || row.dataset.wheelBound === '1') return;
+            row.dataset.wheelBound = '1';
+
+            $('#thmMenuRow').on('wheel', function(e){
+                const oe = e.originalEvent || e;
+                const el = this;
+
+                const maxScroll = (el.scrollWidth || 0) - (el.clientWidth || 0);
+                if (maxScroll <= 2) return;
+
+                if (!oe.shiftKey && Math.abs(oe.deltaY) > 0) {
+                    el.scrollLeft += oe.deltaY;
+                    e.preventDefault();
+                }
+            });
+        }
+
+        /* ✅ NEW: keep dropdown full-width while hovering */
+        bindFullWidthHoverJquery(){
+            if (window.innerWidth < 992) return;
+
+            const self = this;
+            const $root = $('#thmMainMenuContainer');
+
+            $root.off('mouseenter.thmfull mouseleave.thmfull', '> .nav-item.has-dropdown');
+
+            $root.on('mouseenter.thmfull', '> .nav-item.has-dropdown', function(){
+                const dm = this.querySelector(':scope > .dropdown-menu');
+                if (!dm) return;
+                dm.classList.add('dm-fullwidth');
+                if (dm.classList.contains('is-portaled') && dm.classList.contains('show')) {
+                    self.positionPortaledDropdown(this, dm);
+                }
+            });
+
+            $root.on('mouseleave.thmfull', '> .nav-item.has-dropdown', function(){
+                const dm = this.querySelector(':scope > .dropdown-menu');
+                if (!dm) return;
+                dm.classList.add('dm-fullwidth');
+            });
+        }
+
         /* ---------------------------
          * Offcanvas render
          * --------------------------- */
@@ -1741,7 +1776,6 @@
 
             root.innerHTML = '';
 
-            // ✅ Contacts first
             if (this.contacts && this.contacts.length) {
                 this.contacts.slice(0,2).forEach(c => root.appendChild(this.buildContactOffcanvasItem(c)));
             }

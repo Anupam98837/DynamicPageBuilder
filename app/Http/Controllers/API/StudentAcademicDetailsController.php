@@ -457,141 +457,209 @@ class StudentAcademicDetailsController extends Controller
             ]);
     }
 
-    // POST /api/student-academic-details
-    public function store(Request $request)
-    {
-        if ($resp = $this->ensureTable()) return $resp;
+public function store(Request $request)
+{
+    if ($resp = $this->ensureTable()) return $resp;
 
-        $v = Validator::make($request->all(), [
-            'user_id'         => ['required', 'integer', 'min:1', 'exists:users,id', Rule::unique($this->table, 'user_id')],
-            'department_id'   => ['required', 'integer', 'min:1', 'exists:departments,id'],
-            'course_id'       => ['required', 'integer', 'min:1', 'exists:courses,id'],
-            'semester_id'     => ['nullable', 'integer', 'min:1', 'exists:course_semesters,id'],
-            'section_id'      => ['nullable', 'integer', 'min:1', 'exists:course_semester_sections,id'],
-            'academic_year'   => ['nullable', 'string', 'max:20'],
-            'year'            => ['nullable', 'integer', 'min:1900', 'max:2200'],
-            'roll_no'         => ['nullable', 'string', 'max:60', Rule::unique($this->table, 'roll_no')],
-            'registration_no' => ['nullable', 'string', 'max:80', Rule::unique($this->table, 'registration_no')],
-            'admission_no'    => ['nullable', 'string', 'max:80', Rule::unique($this->table, 'admission_no')],
-            'admission_date'  => ['nullable', 'date'],
-            'batch'           => ['nullable', 'string', 'max:40'],
-            'session'         => ['nullable', 'string', 'max:40'],
+    // ✅ normalize CSV input ("" => null) + acad_status => status
+    $input = $this->normalizeInput($request->all(), [
+        'semester_id','section_id',
+        'semester_uuid','section_uuid',
+        'academic_year','roll_no','registration_no','admission_no','batch','session','status'
+    ]);
 
-            // ✅ NEW: attendance percentage (0-100)
-            'attendance_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
+    // ✅ Accept BOTH IDs OR UUIDs
+    $v = Validator::make($input, [
+        // user_id OR user_uuid
+        'user_id'       => ['required_without:user_uuid', 'integer', 'min:1', 'exists:users,id', Rule::unique($this->table, 'user_id')],
+        'user_uuid'     => ['required_without:user_id', 'uuid', 'exists:users,uuid'],
 
-            'status'          => ['nullable', 'string', 'max:20', Rule::in(['active','inactive','passed-out'])],
-            'metadata'        => ['nullable'],
-        ]);
+        'department_id' => ['required', 'integer', 'min:1', 'exists:departments,id'],
 
-        if ($v->fails()) return $this->fail($v->errors());
+        // ✅ REQUIRED: course_id OR course_uuid
+        'course_id'     => ['required_without:course_uuid', 'integer', 'min:1', 'exists:courses,id'],
+        'course_uuid'   => ['required_without:course_id', 'uuid', 'exists:courses,uuid'],
 
-        try {
-            $row = DB::transaction(function () use ($request, $v) {
-                $actor = $this->actor($request);
-                $payload = $v->validated();
+        // ✅ OPTIONAL: semester id/uuid
+        'semester_id'   => ['nullable', 'integer', 'min:1', 'exists:course_semesters,id'],
+        'semester_uuid' => ['nullable', 'uuid', 'exists:course_semesters,uuid'],
 
-                $payload['uuid'] = (string) Str::uuid();
-                $payload['created_by'] = $actor['id'] ?: null;
+        // ✅ OPTIONAL: section id/uuid
+        'section_id'    => ['nullable', 'integer', 'min:1', 'exists:course_semester_sections,id'],
+        'section_uuid'  => ['nullable', 'uuid', 'exists:course_semester_sections,uuid'],
 
-                if (array_key_exists('metadata', $payload)) {
-                    $m = $payload['metadata'];
-                    if (is_string($m)) {
-                        $decoded = json_decode($m, true);
-                        $payload['metadata'] = json_last_error() === JSON_ERROR_NONE ? $decoded : ['value' => $m];
-                    } else {
-                        $payload['metadata'] = $m;
-                    }
-                }
+        'academic_year'   => ['nullable', 'string', 'max:20'],
+        'year'            => ['nullable', 'integer', 'min:1900', 'max:2200'],
 
-                $now = now();
-                $payload['created_at'] = $now;
-                $payload['updated_at'] = $now;
+        'roll_no'         => ['nullable', 'string', 'max:60', Rule::unique($this->table, 'roll_no')],
+        'registration_no' => ['nullable', 'string', 'max:80', Rule::unique($this->table, 'registration_no')],
+        'admission_no'    => ['nullable', 'string', 'max:80', Rule::unique($this->table, 'admission_no')],
 
-                $id = DB::table($this->table)->insertGetId($payload);
+        'admission_date'  => ['nullable', 'date'],
+        'batch'           => ['nullable', 'string', 'max:40'],
+        'session'         => ['nullable', 'string', 'max:40'],
 
-                // ✅ Sync users.department_id with same value
-                $this->syncUserDepartmentId((int)$payload['user_id'], (int)$payload['department_id']);
+        'attendance_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
 
-                return DB::table($this->table)->where('id', $id)->first();
-            });
+        'status' => ['nullable', 'string', 'max:20', Rule::in(['active','inactive','passed-out'])],
+    ]);
 
-            return $this->ok($row, 'Student academic details created', 201);
+    if ($v->fails()) return $this->fail($v->errors());
 
-        } catch (\Throwable $e) {
-            return $this->fail(['server' => [$e->getMessage()]], 'Failed to create academic details', 500);
-        }
+    try {
+        $row = DB::transaction(function () use ($request, $v) {
+            $actor   = $this->actor($request);
+            $payload = $v->validated();
+
+            // ✅ Map user_uuid -> user_id
+            if (empty($payload['user_id']) && !empty($payload['user_uuid'])) {
+                $uid = $this->idFromUuid('users', $payload['user_uuid']);
+                if (!$uid) throw new \Exception("Invalid user_uuid (not found).");
+                $payload['user_id'] = $uid;
+            }
+
+            // ✅ Map course_uuid -> course_id
+            if (empty($payload['course_id']) && !empty($payload['course_uuid'])) {
+                $cid = $this->idFromUuid('courses', $payload['course_uuid']);
+                if (!$cid) throw new \Exception("Invalid course_uuid (not found).");
+                $payload['course_id'] = $cid;
+            }
+
+            // ✅ Map semester_uuid -> semester_id (optional)
+            if (empty($payload['semester_id']) && !empty($payload['semester_uuid'])) {
+                $payload['semester_id'] = $this->idFromUuid('course_semesters', $payload['semester_uuid']);
+            }
+
+            // ✅ Map section_uuid -> section_id (optional)
+            if (empty($payload['section_id']) && !empty($payload['section_uuid'])) {
+                $payload['section_id'] = $this->idFromUuid('course_semester_sections', $payload['section_uuid']);
+            }
+
+            // ✅ Remove uuid-only keys (db columns don’t exist)
+            unset($payload['user_uuid'], $payload['course_uuid'], $payload['semester_uuid'], $payload['section_uuid']);
+
+            $payload['uuid']       = (string) Str::uuid();
+            $payload['created_by'] = $actor['id'] ?: null;
+
+            $now = now();
+            $payload['created_at'] = $now;
+            $payload['updated_at'] = $now;
+
+            $id = DB::table($this->table)->insertGetId($payload);
+
+            // ✅ Sync users.department_id
+            $this->syncUserDepartmentId((int)$payload['user_id'], (int)$payload['department_id']);
+
+            return DB::table($this->table)->where('id', $id)->first();
+        });
+
+        return $this->ok($row, 'Student academic details created', 201);
+
+    } catch (\Throwable $e) {
+        return $this->fail(['server' => [$e->getMessage()]], 'Failed to create academic details', 500);
     }
+}
 
-    // PUT /api/student-academic-details/{id}
-    public function update(Request $request, $id)
-    {
-        if ($resp = $this->ensureTable()) return $resp;
 
-        $id = (int) $id;
+public function update(Request $request, $id)
+{
+    if ($resp = $this->ensureTable()) return $resp;
 
-        $existing = DB::table($this->table)->where('id', $id)->first();
-        if (!$existing) return $this->notFound('Student academic details not found');
+    $id = (int) $id;
 
-        $v = Validator::make($request->all(), [
-            'user_id'         => ['sometimes', 'required', 'integer', 'min:1', 'exists:users,id', Rule::unique($this->table, 'user_id')->ignore($id)],
-            'department_id'   => ['sometimes', 'required', 'integer', 'min:1', 'exists:departments,id'],
-            'course_id'       => ['sometimes', 'required', 'integer', 'min:1', 'exists:courses,id'],
-            'semester_id'     => ['sometimes', 'nullable', 'integer', 'min:1', 'exists:course_semesters,id'],
-            'section_id'      => ['sometimes', 'nullable', 'integer', 'min:1', 'exists:course_semester_sections,id'],
-            'academic_year'   => ['sometimes', 'nullable', 'string', 'max:20'],
-            'year'            => ['sometimes', 'nullable', 'integer', 'min:1900', 'max:2200'],
-            'roll_no'         => ['sometimes', 'nullable', 'string', 'max:60', Rule::unique($this->table, 'roll_no')->ignore($id)],
-            'registration_no' => ['sometimes', 'nullable', 'string', 'max:80', Rule::unique($this->table, 'registration_no')->ignore($id)],
-            'admission_no'    => ['sometimes', 'nullable', 'string', 'max:80', Rule::unique($this->table, 'admission_no')->ignore($id)],
-            'admission_date'  => ['sometimes', 'nullable', 'date'],
-            'batch'           => ['sometimes', 'nullable', 'string', 'max:40'],
-            'session'         => ['sometimes', 'nullable', 'string', 'max:40'],
+    $existing = DB::table($this->table)->where('id', $id)->first();
+    if (!$existing) return $this->notFound('Student academic details not found');
 
-            // ✅ NEW: attendance percentage (0-100)
-            'attendance_percentage' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:100'],
+    $input = $this->normalizeInput($request->all(), [
+        'semester_id','section_id',
+        'semester_uuid','section_uuid',
+        'academic_year','roll_no','registration_no','admission_no','batch','session','status'
+    ]);
 
-            'status'          => ['sometimes', 'required', 'string', 'max:20', Rule::in(['active','inactive','passed-out'])],
-            'metadata'        => ['sometimes', 'nullable'],
-        ]);
+    $v = Validator::make($input, [
+        'user_id'       => ['sometimes', 'required_without:user_uuid', 'integer', 'min:1', 'exists:users,id', Rule::unique($this->table, 'user_id')->ignore($id)],
+        'user_uuid'     => ['sometimes', 'required_without:user_id', 'uuid', 'exists:users,uuid'],
 
-        if ($v->fails()) return $this->fail($v->errors());
+        'department_id' => ['sometimes', 'required', 'integer', 'min:1', 'exists:departments,id'],
 
-        try {
-            $row = DB::transaction(function () use ($id, $existing, $v) {
-                $payload = $v->validated();
+        'course_id'     => ['sometimes', 'required_without:course_uuid', 'integer', 'min:1', 'exists:courses,id'],
+        'course_uuid'   => ['sometimes', 'required_without:course_id', 'uuid', 'exists:courses,uuid'],
 
-                if (array_key_exists('metadata', $payload)) {
-                    $m = $payload['metadata'];
-                    if (is_string($m)) {
-                        $decoded = json_decode($m, true);
-                        $payload['metadata'] = json_last_error() === JSON_ERROR_NONE ? $decoded : ['value' => $m];
-                    } else {
-                        $payload['metadata'] = $m;
-                    }
-                }
+        'semester_id'   => ['sometimes', 'nullable', 'integer', 'min:1', 'exists:course_semesters,id'],
+        'semester_uuid' => ['sometimes', 'nullable', 'uuid', 'exists:course_semesters,uuid'],
 
-                $payload['updated_at'] = now();
+        'section_id'    => ['sometimes', 'nullable', 'integer', 'min:1', 'exists:course_semester_sections,id'],
+        'section_uuid'  => ['sometimes', 'nullable', 'uuid', 'exists:course_semester_sections,uuid'],
 
-                DB::table($this->table)->where('id', $id)->update($payload);
+        'academic_year'   => ['sometimes', 'nullable', 'string', 'max:20'],
+        'year'            => ['sometimes', 'nullable', 'integer', 'min:1900', 'max:2200'],
 
-                // ✅ If department_id was sent, sync users.department_id too
-                if (array_key_exists('department_id', $payload)) {
-                    $finalUserId = (int) (array_key_exists('user_id', $payload) ? $payload['user_id'] : $existing->user_id);
-                    $finalDeptId = (int) $payload['department_id'];
+        'roll_no'         => ['sometimes', 'nullable', 'string', 'max:60', Rule::unique($this->table, 'roll_no')->ignore($id)],
+        'registration_no' => ['sometimes', 'nullable', 'string', 'max:80', Rule::unique($this->table, 'registration_no')->ignore($id)],
+        'admission_no'    => ['sometimes', 'nullable', 'string', 'max:80', Rule::unique($this->table, 'admission_no')->ignore($id)],
 
-                    $this->syncUserDepartmentId($finalUserId, $finalDeptId);
-                }
+        'admission_date'  => ['sometimes', 'nullable', 'date'],
+        'batch'           => ['sometimes', 'nullable', 'string', 'max:40'],
+        'session'         => ['sometimes', 'nullable', 'string', 'max:40'],
 
-                return DB::table($this->table)->where('id', $id)->first();
-            });
+        'attendance_percentage' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:100'],
 
-            return $this->ok($row, 'Student academic details updated');
+        'status' => ['sometimes', 'nullable', 'string', 'max:20', Rule::in(['active','inactive','passed-out'])],
+    ]);
 
-        } catch (\Throwable $e) {
-            return $this->fail(['server' => [$e->getMessage()]], 'Failed to update academic details', 500);
-        }
+    if ($v->fails()) return $this->fail($v->errors());
+
+    try {
+        $row = DB::transaction(function () use ($id, $existing, $v) {
+            $payload = $v->validated();
+
+            // ✅ user_uuid -> user_id
+            if (array_key_exists('user_uuid', $payload) && empty($payload['user_id'])) {
+                $uid = $this->idFromUuid('users', $payload['user_uuid']);
+                if (!$uid) throw new \Exception("Invalid user_uuid (not found).");
+                $payload['user_id'] = $uid;
+            }
+
+            // ✅ course_uuid -> course_id
+            if (array_key_exists('course_uuid', $payload) && empty($payload['course_id'])) {
+                $cid = $this->idFromUuid('courses', $payload['course_uuid']);
+                if (!$cid) throw new \Exception("Invalid course_uuid (not found).");
+                $payload['course_id'] = $cid;
+            }
+
+            // ✅ semester_uuid -> semester_id
+            if (array_key_exists('semester_uuid', $payload) && empty($payload['semester_id'])) {
+                $payload['semester_id'] = $this->idFromUuid('course_semesters', $payload['semester_uuid']);
+            }
+
+            // ✅ section_uuid -> section_id
+            if (array_key_exists('section_uuid', $payload) && empty($payload['section_id'])) {
+                $payload['section_id'] = $this->idFromUuid('course_semester_sections', $payload['section_uuid']);
+            }
+
+            unset($payload['user_uuid'], $payload['course_uuid'], $payload['semester_uuid'], $payload['section_uuid']);
+
+            $payload['updated_at'] = now();
+
+            DB::table($this->table)->where('id', $id)->update($payload);
+
+            // ✅ Sync department to users if dept changed
+            if (array_key_exists('department_id', $payload)) {
+                $finalUserId = (int) (array_key_exists('user_id', $payload) ? $payload['user_id'] : $existing->user_id);
+                $finalDeptId = (int) $payload['department_id'];
+                $this->syncUserDepartmentId($finalUserId, $finalDeptId);
+            }
+
+            return DB::table($this->table)->where('id', $id)->first();
+        });
+
+        return $this->ok($row, 'Student academic details updated');
+
+    } catch (\Throwable $e) {
+        return $this->fail(['server' => [$e->getMessage()]], 'Failed to update academic details', 500);
     }
+}
+
 
     // DELETE /api/student-academic-details/{id}
     public function destroy(Request $request, $id)
@@ -634,4 +702,49 @@ class StudentAcademicDetailsController extends Controller
         $fresh = DB::table($this->table)->where('id', $id)->first();
         return $this->ok($fresh, 'Student academic details restored');
     }
+
+    /**
+ * ✅ normalize CSV/API input:
+ * - trim strings
+ * - convert "" -> null for given keys
+ * - supports acad_status -> status
+ */
+private function normalizeInput(array $data, array $nullables = []): array
+{
+    foreach ($data as $k => $v) {
+        if (is_string($v)) {
+            $data[$k] = trim($v);
+        }
+    }
+
+    foreach ($nullables as $key) {
+        if (array_key_exists($key, $data)) {
+            $val = $data[$key];
+            if ($val === '' || $val === 'null' || $val === 'NULL' || $val === 'undefined') {
+                $data[$key] = null;
+            }
+        }
+    }
+
+    // ✅ Support CSV column acad_status -> status
+    if (!isset($data['status']) && isset($data['acad_status'])) {
+        $data['status'] = $data['acad_status'];
+    }
+
+    return $data;
+}
+
+/**
+ * ✅ Resolve FK id by uuid (e.g courses.uuid -> courses.id)
+ */
+private function idFromUuid(string $table, ?string $uuid): ?int
+{
+    if (!$uuid) return null;
+    if (!Schema::hasTable($table)) return null;
+    if (!Schema::hasColumn($table, 'uuid')) return null;
+
+    $id = DB::table($table)->where('uuid', $uuid)->value('id');
+    return $id ? (int) $id : null;
+}
+
 }

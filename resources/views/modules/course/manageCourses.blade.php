@@ -60,17 +60,33 @@
 td .fw-semibold{color:var(--ink)}
 .small{font-size:12.5px}
 
-/* Slug/Code column smaller + ellipsis */
-th.col-code, td.col-code{width:190px;max-width:190px}
+/* ✅ UUID column smaller + ellipsis (replaces Code/Slug) */
+th.col-code, td.col-code{width:320px;max-width:320px}
 td.col-code{overflow:hidden}
 td.col-code code{
   display:inline-block;
-  max-width:180px;
+  max-width:250px;
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap;
   vertical-align:bottom;
 }
+
+/* ✅ UUID cell layout + copy button */
+.uuid-cell{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.uuid-copy{
+  border-radius:10px;
+  padding:6px 10px;
+  line-height:1;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+.uuid-copy i{font-size:14px;opacity:.85}
 
 /* Badges */
 .badge-soft-primary{
@@ -371,7 +387,7 @@ td.col-code code{
           </div>
 
           <div class="position-relative" style="min-width:280px;">
-            <input id="searchInput" type="search" class="form-control ps-5" placeholder="Search by title, code or slug…">
+            <input id="searchInput" type="search" class="form-control ps-5" placeholder="Search by title, code, slug or UUID…">
             <i class="fa fa-search position-absolute" style="left:12px;top:50%;transform:translateY(-50%);opacity:.6;"></i>
           </div>
 
@@ -401,7 +417,7 @@ td.col-code code{
               <thead class="sticky-top">
                 <tr>
                   <th>Title</th>
-                  <th class="col-code">Code/Slug</th>
+                  <th class="col-code">UUID</th>
                   <th style="width:170px;">Department</th>
                   <th style="width:120px;">Status</th>
                   <th style="width:140px;">Level</th>
@@ -438,7 +454,7 @@ td.col-code code{
               <thead class="sticky-top">
                 <tr>
                   <th>Title</th>
-                  <th class="col-code">Code/Slug</th>
+                  <th class="col-code">UUID</th>
                   <th style="width:170px;">Department</th>
                   <th style="width:120px;">Status</th>
                   <th style="width:140px;">Level</th>
@@ -475,7 +491,7 @@ td.col-code code{
           <thead class="sticky-top">
             <tr>
               <th>Title</th>
-              <th class="col-code">Code/Slug</th>
+              <th class="col-code">UUID</th>
               <th style="width:170px;">Department</th>
               <th style="width:120px;">Status</th>
               <th style="width:140px;">Level</th>
@@ -513,7 +529,7 @@ td.col-code code{
               <thead class="sticky-top">
                 <tr>
                   <th>Title</th>
-                  <th class="col-code">Code/Slug</th>
+                  <th class="col-code">UUID</th>
                   <th style="width:170px;">Department</th>
                   <th style="width:150px;">Deleted</th>
                   <th style="width:108px;" class="text-end">Actions</th>
@@ -1234,6 +1250,53 @@ td.col-code code{
       closeAllDropdownsExcept(null);
     }, { capture:true });
 
+    // =========================
+    // ✅ NEW: Copy UUID button handler
+    // =========================
+    async function copyTextToClipboard(text){
+      const t = (text || '').toString();
+      if (!t) return false;
+
+      // modern
+      try{
+        if (navigator.clipboard && window.isSecureContext){
+          await navigator.clipboard.writeText(t);
+          return true;
+        }
+      }catch(_){}
+
+      // fallback
+      try{
+        const ta = document.createElement('textarea');
+        ta.value = t;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.top = '-1000px';
+        ta.style.left = '-1000px';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const okCopy = document.execCommand('copy');
+        document.body.removeChild(ta);
+        return !!okCopy;
+      }catch(_){
+        return false;
+      }
+    }
+
+    document.addEventListener('click', async (e) => {
+      const btn = e.target.closest('.btn-copy-uuid');
+      if (!btn) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const uuid = btn.dataset.uuid || '';
+      const done = await copyTextToClipboard(uuid);
+      if (done) ok('UUID copied');
+      else err('Copy failed');
+    });
+
     function renderTable(tabKey){
       const { tbody } = tabEls(tabKey);
       if (!tbody) return;
@@ -1251,9 +1314,10 @@ td.col-code code{
       const isBin = tabKey === 'bin';
 
       const html = rows.map(r => {
-        const uuid = String(r.uuid || r.id || r.identifier || '');
+        const uuidRaw = String(r.uuid || r.id || r.identifier || '');
+        const uuidEsc = esc(uuidRaw || '—');
+
         const title = esc(r.title || r.name || '—');
-        const code = esc(codeSlug(r));
         const dept = esc(deptNameFromRow(r));
         const status = (r.status || '').toString().toLowerCase().trim();
 
@@ -1262,6 +1326,18 @@ td.col-code code{
 
         const updated = fmtDate(r.updated_at || r.updatedAt || r.created_at || r.createdAt);
         const deleted = fmtDate(r.deleted_at || r.deletedAt);
+
+        // ✅ UUID cell with copy button (replaces Code/Slug)
+        const uuidCell = uuidRaw
+          ? `
+            <div class="uuid-cell">
+              <code title="${uuidEsc}">${uuidEsc}</code>
+              <button type="button" class="btn btn-sm btn-light uuid-copy btn-copy-uuid" data-uuid="${esc(uuidRaw)}" title="Copy UUID">
+                <i class="fa-regular fa-copy"></i>
+              </button>
+            </div>
+          `
+          : `<span class="text-muted small">—</span>`;
 
         const actions = (() => {
           if (isBin){
@@ -1340,9 +1416,9 @@ td.col-code code{
 
         if (isBin){
           return `
-            <tr data-uuid="${esc(uuid)}">
+            <tr data-uuid="${esc(uuidRaw)}">
               <td><div class="fw-semibold">${title}</div></td>
-              <td class="col-code"><code>${code}</code></td>
+              <td class="col-code">${uuidCell}</td>
               <td>${dept}</td>
               <td>${esc(deleted)}</td>
               <td class="text-end">${actions}</td>
@@ -1351,9 +1427,9 @@ td.col-code code{
         }
 
         return `
-          <tr data-uuid="${esc(uuid)}">
+          <tr data-uuid="${esc(uuidRaw)}">
             <td><div class="fw-semibold">${title}</div></td>
-            <td class="col-code"><code>${code}</code></td>
+            <td class="col-code">${uuidCell}</td>
             <td>${dept}</td>
             <td>${statusBadge(status)}</td>
             <td>${levelBadge(lvl)}</td>

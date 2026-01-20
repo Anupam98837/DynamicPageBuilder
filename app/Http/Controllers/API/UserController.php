@@ -1820,6 +1820,12 @@ public function importUsersCsv(Request $request)
     $imported = 0;
     $updated  = 0;
     $skipped  = 0;
+
+    // ✅ NEW: academic counters
+    $academicCreated = 0;
+    $academicUpdated = 0;
+    $academicSkipped = 0;
+
     $errors   = [];
 
     $handle = fopen($path, 'r');
@@ -1833,7 +1839,7 @@ public function importUsersCsv(Request $request)
         return response()->json(['success' => false, 'error' => 'CSV header missing.'], 422);
     }
 
-    // normalize header (remove BOM on first column too)
+    // ✅ normalize header (remove BOM on first column too)
     $cols = array_map(function ($h) {
         $h = trim((string)$h);
         $h = preg_replace('/^\xEF\xBB\xBF/', '', $h); // BOM
@@ -1849,7 +1855,7 @@ public function importUsersCsv(Request $request)
         }
     }
 
-    // small helpers
+    // ✅ tiny helpers
     $get = function(array $row, string $key) use ($idx) {
         if (!isset($idx[$key])) return null;
         $v = $row[$idx[$key]] ?? null;
@@ -1882,24 +1888,34 @@ public function importUsersCsv(Request $request)
         return $try;
     };
 
-    $roleShort = function(string $role) {
-        $role = strtolower(trim($role));
-        $map = [
-            'faculty' => 'FAC',
-            'hod' => 'HOD',
-            'tpo' => 'TPO',
-            'placement_officer' => 'TPO',
-            'technical_assistant' => 'TA',
-            'technical_assisstant' => 'TA',
-            'student' => 'STU',
-        ];
-        return $map[$role] ?? strtoupper(substr($role ?: 'FAC', 0, 3));
+    // ✅ always student short form
+    $roleShort = function() {
+        return 'STD';
     };
+
+    // ✅ resolve id from uuid helper
+    $idFromUuid = function(string $table, ?string $uuid): ?int {
+        if (!$uuid) return null;
+        if (!Schema::hasTable($table)) return null;
+        if (!Schema::hasColumn($table, 'uuid')) return null;
+        $id = DB::table($table)->where('uuid', $uuid)->value('id');
+        return $id ? (int) $id : null;
+    };
+
+    // ✅ academic mode: if header contains academic columns
+    $hasAcademicHeader = (
+        isset($idx['course_uuid']) || isset($idx['course_id']) ||
+        isset($idx['semester_uuid']) || isset($idx['semester_id']) ||
+        isset($idx['section_uuid']) || isset($idx['section_id']) ||
+        isset($idx['roll_no']) || isset($idx['registration_no']) ||
+        isset($idx['admission_no'])
+    );
 
     $rowNum = 1;
 
     DB::beginTransaction();
     try {
+
         while (($row = fgetcsv($handle)) !== false) {
             $rowNum++;
 
@@ -1916,15 +1932,16 @@ public function importUsersCsv(Request $request)
 
             $email = strtolower(trim($email));
 
-            // role (no constraints)
-            $role = strtolower((string)($getAny($row, ['role']) ?? 'faculty'));
+            // ✅ FORCE role student (because this import page is only for students)
+            $role  = 'student';
+            $short = $roleShort();
 
             // status
-            $stRaw = strtolower((string)($getAny($row, ['status']) ?? 'active'));
+            $stRaw  = strtolower((string)($getAny($row, ['status']) ?? 'active'));
             $status = ($stRaw === 'inactive') ? 'inactive' : 'active';
 
-            // department_id (optional)
-            $dep = $getAny($row, ['department_id', 'dept_id']);
+            // department_id (optional, but needed if you want academic insert)
+            $dep = $getAny($row, ['department_id', 'dept_id', 'department']);
             $departmentId = null;
             if ($dep !== null) {
                 $depInt = (int)$dep;
@@ -1936,106 +1953,276 @@ public function importUsersCsv(Request $request)
             if (!$uuid || strlen((string)$uuid) < 10) $uuid = (string) Str::uuid();
 
             $slugInCsv = $getAny($row, ['slug']);
-            $slugBase = $slugInCsv ?: $name;
+            $slugBase  = $slugInCsv ?: $name;
 
-            // password: use CSV password if present, else default 12345678
-            $csvPassword = $getAny($row, ['password', 'pass']);
+            // password: use CSV password if present, else default
+            $csvPassword   = $getAny($row, ['password', 'pass']);
             $finalPassword = ($csvPassword !== null && trim((string)$csvPassword) !== '')
                 ? trim((string)$csvPassword)
                 : $DEFAULT_PASSWORD;
 
-            // optional fields (accept common aliases too)
-            $phone = $getAny($row, ['phone_number','phone','mobile']);
+            // optional fields
+            $phone    = $getAny($row, ['phone_number','phone','mobile','phno']);
             $altEmail = $getAny($row, ['alternative_email','alt_email']);
             $altPhone = $getAny($row, ['alternative_phone_number','alt_phone']);
-            $wa = $getAny($row, ['whatsapp_number','whatsapp']);
-            $image = $getAny($row, ['image','image_url']);
-            $address = $getAny($row, ['address']);
-            $meta = $getAny($row, ['metadata']);
+            $wa       = $getAny($row, ['whatsapp_number','whatsapp']);
+            $image    = $getAny($row, ['image','image_url']);
+            $address  = $getAny($row, ['address']);
+
+            // ✅ normalize phone (remove spaces)
+            if (is_string($phone)) {
+                $phone = trim($phone);
+                $phone = preg_replace('/\s+/', '', $phone);
+                if ($phone === '') $phone = null;
+            }
 
             // find existing even if soft deleted
             $existing = DB::table('users')->where('email', $email)->first();
 
+            // =========================================================
+            // ✅✅ MAIN FIX: PHONE DUPLICATE CHECK (FRIENDLY MESSAGE)
+            // If same number exists for another user -> error + skip row
+            // =========================================================
+            if ($phone !== null) {
+                $phoneOwnerId = DB::table('users')
+                    ->where('phone_number', $phone)
+                    ->value('id');
+
+                if ($phoneOwnerId && (!$existing || (int)$phoneOwnerId !== (int)$existing->id)) {
+                    $skipped++;
+                    $errors[] = [
+                        'row' => $rowNum,
+                        'error' => 'This number already exists',
+                        'phone_number' => $phone,
+                    ];
+                    continue;
+                }
+            }
+
             $now = now();
+            $userId = null;
 
-            if ($existing) {
-                if (!$updateExisting) { $skipped++; continue; }
+            // ✅ extra safety: catch any duplicate constraint still happens
+            try {
 
-                // if slug provided, use it; else keep existing slug
-                $newSlug = $existing->slug;
-                if ($slugInCsv) {
-                    $newSlug = $makeUniqueSlug($slugBase, (int)$existing->id);
+                if ($existing) {
+                    if (!$updateExisting) { $skipped++; continue; }
+
+                    $newSlug = $existing->slug;
+                    if ($slugInCsv) {
+                        $newSlug = $makeUniqueSlug($slugBase, (int)$existing->id);
+                    }
+
+                    $updateData = [
+                        'name'            => $name,
+                        'email'           => $email,
+                        'role'            => $role,
+                        'role_short_form' => $short,
+                        'status'          => $status,
+                        'department_id'   => $departmentId ?? $existing->department_id ?? null,
+                        'slug'            => $newSlug ?: $existing->slug,
+                        'uuid'            => $existing->uuid ?: $uuid,
+                        'updated_at'      => $now,
+                        'deleted_at'      => null, // ✅ restore if soft deleted
+                    ];
+
+                    if ($phone !== null)    $updateData['phone_number'] = $phone;
+                    if ($altEmail !== null) $updateData['alternative_email'] = $altEmail;
+                    if ($altPhone !== null) $updateData['alternative_phone_number'] = $altPhone;
+                    if ($wa !== null)       $updateData['whatsapp_number'] = $wa;
+                    if ($image !== null)    $updateData['image'] = $image;
+                    if ($address !== null)  $updateData['address'] = $address;
+
+                    // ✅ update password only if provided explicitly in CSV
+                    if ($csvPassword !== null && trim((string)$csvPassword) !== '') {
+                        $updateData['password'] = Hash::make($finalPassword);
+                    }
+
+                    DB::table('users')->where('id', $existing->id)->update($updateData);
+                    $updated++;
+
+                    $userId = (int)$existing->id;
+
+                } else {
+                    if (!$createMissing) { $skipped++; continue; }
+
+                    $newSlug = $makeUniqueSlug($slugBase, null);
+
+                    $insertData = [
+                        'uuid'            => $uuid,
+                        'name'            => $name,
+                        'slug'            => $newSlug,
+                        'email'           => $email,
+                        'password'        => Hash::make($finalPassword),
+                        'role'            => $role,
+                        'role_short_form' => $short,
+                        'status'          => $status,
+                        'department_id'   => $departmentId,
+                        'created_at'      => $now,
+                        'updated_at'      => $now,
+                    ];
+
+                    if ($phone !== null)    $insertData['phone_number'] = $phone;
+                    if ($altEmail !== null) $insertData['alternative_email'] = $altEmail;
+                    if ($altPhone !== null) $insertData['alternative_phone_number'] = $altPhone;
+                    if ($wa !== null)       $insertData['whatsapp_number'] = $wa;
+                    if ($image !== null)    $insertData['image'] = $image;
+                    if ($address !== null)  $insertData['address'] = $address;
+
+                    $userId = (int) DB::table('users')->insertGetId($insertData);
+                    $imported++;
                 }
 
-                $updateData = [
-                    'name' => $name,
-                    'email' => $email,
-                    'role' => $role ?: ($existing->role ?? 'faculty'),
-                    'role_short_form' => $roleShort($role ?: ($existing->role ?? 'faculty')),
-                    'status' => $status ?: ($existing->status ?? 'active'),
-                    'department_id' => $departmentId,
-                    'slug' => $newSlug ?: $existing->slug,
-                    'uuid' => $existing->uuid ?: $uuid,
-                    'updated_at' => $now,
-                    'deleted_at' => null, // ✅ restore if was soft deleted
-                ];
+            } catch (\Illuminate\Database\QueryException $qe) {
+                $skipped++;
 
-                if ($phone !== null) $updateData['phone_number'] = $phone;
-                if ($altEmail !== null) $updateData['alternative_email'] = $altEmail;
-                if ($altPhone !== null) $updateData['alternative_phone_number'] = $altPhone;
-                if ($wa !== null) $updateData['whatsapp_number'] = $wa;
-                if ($image !== null) $updateData['image'] = $image;
-                if ($address !== null) $updateData['address'] = $address;
-                if ($meta !== null) $updateData['metadata'] = $meta;
-
-                // ✅ only update password if CSV password column is provided & non-empty
-                if ($csvPassword !== null && trim((string)$csvPassword) !== '') {
-                    $updateData['password'] = Hash::make($finalPassword);
+                $msg = $qe->getMessage();
+                if (Str::contains($msg, 'users_phone_number_unique')) {
+                    $errors[] = ['row' => $rowNum, 'error' => 'This number already exists', 'phone_number' => $phone];
+                    continue;
                 }
 
-                DB::table('users')->where('id', $existing->id)->update($updateData);
-                $updated++;
-            } else {
-                if (!$createMissing) { $skipped++; continue; }
+                $errors[] = ['row' => $rowNum, 'error' => 'User row error: ' . $qe->getMessage()];
+                continue;
+            }
 
-                $newSlug = $makeUniqueSlug($slugBase, null);
+            // =========================================================
+            // ✅ ACADEMIC DETAILS IMPORT (same API)
+            // =========================================================
+            if ($hasAcademicHeader && $userId > 0 && Schema::hasTable('student_academic_details')) {
 
-                $insertData = [
-                    'uuid' => $uuid,
-                    'name' => $name,
-                    'slug' => $newSlug,
-                    'email' => $email,
-                    'password' => Hash::make($finalPassword),
-                    'role' => $role ?: 'faculty',
-                    'role_short_form' => $roleShort($role ?: 'faculty'),
-                    'status' => $status ?: 'active',
-                    'department_id' => $departmentId,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ];
+                // If row has course_uuid/course_id then treat as academic row
+                $courseUuid = $getAny($row, ['course_uuid']);
+                $courseIdRaw = $getAny($row, ['course_id']);
 
-                if ($phone !== null) $insertData['phone_number'] = $phone;
-                if ($altEmail !== null) $insertData['alternative_email'] = $altEmail;
-                if ($altPhone !== null) $insertData['alternative_phone_number'] = $altPhone;
-                if ($wa !== null) $insertData['whatsapp_number'] = $wa;
-                if ($image !== null) $insertData['image'] = $image;
-                if ($address !== null) $insertData['address'] = $address;
-                if ($meta !== null) $insertData['metadata'] = $meta;
+                $hasCourseInput = ($courseUuid !== null && $courseUuid !== '') || ($courseIdRaw !== null && (int)$courseIdRaw > 0);
 
-                DB::table('users')->insert($insertData);
-                $imported++;
+                if (!$hasCourseInput) {
+                    $academicSkipped++;
+                    continue;
+                }
+
+                try {
+                    // ✅ department id: from CSV OR users.department_id
+                    $finalDeptId = $departmentId ?: (int) (DB::table('users')->where('id', $userId)->value('department_id') ?? 0);
+                    if ($finalDeptId <= 0) {
+                        $academicSkipped++;
+                        $errors[] = ['row' => $rowNum, 'error' => 'Academic skipped: department_id missing'];
+                        continue;
+                    }
+
+                    // ✅ course: UUID -> ID (preferred)
+                    $finalCourseId = null;
+                    if ($courseUuid) {
+                        $finalCourseId = $idFromUuid('courses', $courseUuid);
+                    }
+                    if (!$finalCourseId && $courseIdRaw) {
+                        $finalCourseId = (int) $courseIdRaw;
+                    }
+                    if (!$finalCourseId || $finalCourseId <= 0) {
+                        $academicSkipped++;
+                        $errors[] = ['row' => $rowNum, 'error' => 'Academic skipped: invalid course_uuid/course_id'];
+                        continue;
+                    }
+
+                    // ✅ optional semester/section (uuid preferred)
+                    $semUuid = $getAny($row, ['semester_uuid']);
+                    $secUuid = $getAny($row, ['section_uuid']);
+
+                    $semIdRaw = $getAny($row, ['semester_id']);
+                    $secIdRaw = $getAny($row, ['section_id']);
+
+                    $finalSemId = $semUuid ? $idFromUuid('course_semesters', $semUuid) : null;
+                    if (!$finalSemId && $semIdRaw) $finalSemId = (int)$semIdRaw;
+
+                    $finalSecId = $secUuid ? $idFromUuid('course_semester_sections', $secUuid) : null;
+                    if (!$finalSecId && $secIdRaw) $finalSecId = (int)$secIdRaw;
+
+                    $acadStatus = strtolower((string)($getAny($row, ['acad_status','academic_status']) ?? 'active'));
+                    if (!in_array($acadStatus, ['active','inactive','passed-out'], true)) $acadStatus = 'active';
+
+                    // optional academic columns
+                    $acadYear   = $getAny($row, ['academic_year']);
+                    $year       = $getAny($row, ['year']);
+                    $rollNo     = $getAny($row, ['roll_no']);
+                    $regNo      = $getAny($row, ['registration_no']);
+                    $admNo      = $getAny($row, ['admission_no']);
+                    $admDate    = $getAny($row, ['admission_date']);
+                    $batch      = $getAny($row, ['batch']);
+                    $session    = $getAny($row, ['session']);
+                    $attendance = $getAny($row, ['attendance_percentage']);
+
+                    // upsert by user_id (one academic record per user)
+                    $existingAcad = DB::table('student_academic_details')
+                        ->where('user_id', $userId)
+                        ->first();
+
+                    $acadPayload = [
+                        'department_id' => $finalDeptId,
+                        'course_id'     => $finalCourseId,
+                        'semester_id'   => ($finalSemId && $finalSemId > 0) ? $finalSemId : null,
+                        'section_id'    => ($finalSecId && $finalSecId > 0) ? $finalSecId : null,
+
+                        'academic_year' => $acadYear,
+                        'year'          => ($year !== null && is_numeric($year)) ? (int)$year : null,
+                        'roll_no'       => $rollNo,
+                        'registration_no' => $regNo,
+                        'admission_no'  => $admNo,
+                        'admission_date'=> $admDate,
+                        'batch'         => $batch,
+                        'session'       => $session,
+                        'attendance_percentage' => ($attendance !== null && is_numeric($attendance)) ? (float)$attendance : null,
+
+                        'status'        => $acadStatus,
+                        'updated_at'    => $now,
+                    ];
+
+                    // ✅ keep user department synced
+                    if (Schema::hasColumn('users', 'department_id')) {
+                        DB::table('users')->where('id', $userId)->update([
+                            'department_id' => $finalDeptId,
+                            'updated_at'    => $now,
+                        ]);
+                    }
+
+                    if ($existingAcad) {
+                        DB::table('student_academic_details')
+                            ->where('id', $existingAcad->id)
+                            ->update($acadPayload);
+
+                        $academicUpdated++;
+                    } else {
+                        $acadPayload['user_id']    = $userId;
+                        $acadPayload['uuid']       = (string) Str::uuid();
+                        $acadPayload['created_at'] = $now;
+
+                        // optionally created_by
+                        if (Schema::hasColumn('student_academic_details', 'created_by')) {
+                            $actor = $this->actor($request);
+                            $acadPayload['created_by'] = $actor['id'] ?: null;
+                        }
+
+                        DB::table('student_academic_details')->insert($acadPayload);
+                        $academicCreated++;
+                    }
+
+                } catch (\Throwable $e) {
+                    $academicSkipped++;
+                    $errors[] = ['row' => $rowNum, 'error' => 'Academic error: ' . $e->getMessage()];
+                }
             }
         }
 
         DB::commit();
+
     } catch (\Throwable $e) {
         DB::rollBack();
         fclose($handle);
 
         return response()->json([
             'success' => false,
-            'error' => $e->getMessage(),
-            'row' => $rowNum,
+            'error'   => $e->getMessage(),
+            'row'     => $rowNum,
         ], 500);
     }
 
@@ -2044,8 +2231,14 @@ public function importUsersCsv(Request $request)
     return response()->json([
         'success' => true,
         'imported' => $imported,
-        'updated' => $updated,
-        'skipped' => $skipped,
+        'updated'  => $updated,
+        'skipped'  => $skipped,
+
+        // ✅ new academic report
+        'academic_created' => $academicCreated,
+        'academic_updated' => $academicUpdated,
+        'academic_skipped' => $academicSkipped,
+
         'errors' => $errors,
     ]);
 }

@@ -35,12 +35,14 @@ class DepartmentController extends Controller
             $q->whereNull('deleted_at');
         }
 
-        // search by title / slug: ?q=
+        // search by title / slug / short_name / department_type: ?q=
         if ($request->filled('q')) {
             $term = '%' . trim($request->query('q')) . '%';
             $q->where(function ($sub) use ($term) {
                 $sub->where('title', 'like', $term)
-                    ->orWhere('slug', 'like', $term);
+                    ->orWhere('slug', 'like', $term)
+                    ->orWhere('short_name', 'like', $term)
+                    ->orWhere('department_type', 'like', $term);
             });
         }
 
@@ -56,11 +58,11 @@ class DepartmentController extends Controller
             }
         }
 
-        // sort: ?sort=created_at|title|id&direction=asc|desc
+        // sort: ?sort=created_at|title|id|short_name&direction=asc|desc
         $sort = (string) $request->query('sort', 'created_at');
         $dir  = strtolower((string) $request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
 
-        $allowed = ['created_at', 'title', 'id'];
+        $allowed = ['created_at', 'title', 'id', 'short_name'];
         if (! in_array($sort, $allowed, true)) {
             $sort = 'created_at';
         }
@@ -136,7 +138,9 @@ class DepartmentController extends Controller
             $term = '%' . trim($request->query('q')) . '%';
             $query->where(function ($sub) use ($term) {
                 $sub->where('title', 'like', $term)
-                    ->orWhere('slug', 'like', $term);
+                    ->orWhere('slug', 'like', $term)
+                    ->orWhere('short_name', 'like', $term)
+                    ->orWhere('department_type', 'like', $term);
             });
         }
 
@@ -163,7 +167,12 @@ class DepartmentController extends Controller
         $v = Validator::make($request->all(), [
             'title'           => 'required|string|max:150',
             'slug'            => 'nullable|string|max:160|unique:departments,slug,NULL,id,deleted_at,NULL',
-            'total_semesters' => 'required|integer|min:1|max:20',
+
+            // ✅ NEW FIELDS
+            'short_name'      => 'nullable|string|max:60',
+            'department_type' => 'nullable|string|max:60',
+            'description'     => 'nullable|string',
+
             'active'          => 'sometimes|boolean',
             'metadata'        => 'nullable|array',
         ]);
@@ -195,7 +204,12 @@ class DepartmentController extends Controller
             'uuid'            => (string) Str::uuid(),
             'title'           => $data['title'],
             'slug'            => $data['slug'],
-            'total_semesters' => (int) $data['total_semesters'],
+
+            // ✅ NEW FIELDS
+            'short_name'      => array_key_exists('short_name', $data) ? $data['short_name'] : null,
+            'department_type' => array_key_exists('department_type', $data) ? $data['department_type'] : null,
+            'description'     => array_key_exists('description', $data) ? $data['description'] : null,
+
             'active'          => array_key_exists('active', $data) ? (bool) $data['active'] : true,
             'created_by'      => $actor['id'] ?: null,
             'created_at_ip'   => $ip,
@@ -245,8 +259,8 @@ class DepartmentController extends Controller
         }
 
         $v = Validator::make($request->all(), [
-            'title'           => 'sometimes|required|string|max:150',
-            'slug'            => [
+            'title' => 'sometimes|required|string|max:150',
+            'slug'  => [
                 'sometimes',
                 'nullable',
                 'string',
@@ -255,7 +269,12 @@ class DepartmentController extends Controller
                     ->ignore($dept->id)
                     ->whereNull('deleted_at'),
             ],
-            'total_semesters' => 'sometimes|required|integer|min:1|max:20',
+
+            // ✅ NEW FIELDS
+            'short_name'      => 'sometimes|nullable|string|max:60',
+            'department_type' => 'sometimes|nullable|string|max:60',
+            'description'     => 'sometimes|nullable|string',
+
             'active'          => 'sometimes|boolean',
             'metadata'        => 'sometimes|nullable|array',
         ]);
@@ -294,8 +313,17 @@ class DepartmentController extends Controller
             $payload['slug'] = $slug;
         }
 
-        if (array_key_exists('total_semesters', $data)) {
-            $payload['total_semesters'] = (int) $data['total_semesters'];
+        // ✅ NEW FIELDS
+        if (array_key_exists('short_name', $data)) {
+            $payload['short_name'] = $data['short_name'];
+        }
+
+        if (array_key_exists('department_type', $data)) {
+            $payload['department_type'] = $data['department_type'];
+        }
+
+        if (array_key_exists('description', $data)) {
+            $payload['description'] = $data['description'];
         }
 
         if (array_key_exists('active', $data)) {

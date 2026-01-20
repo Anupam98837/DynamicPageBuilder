@@ -26,17 +26,77 @@
 /* Table Card */
 .table-wrap.card{position:relative;border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);overflow:visible;z-index:1}
 .table-wrap .card-body{overflow:visible}
-.table-responsive{overflow:visible !important}
-.table{--bs-table-bg:transparent}
+
+/* ✅ SCROLLER FIX */
+.table-responsive{
+  overflow-x:auto;
+  overflow-y:visible;
+  -webkit-overflow-scrolling:touch;
+}
+.table-responsive::-webkit-scrollbar{height:8px}
+.table-responsive::-webkit-scrollbar-thumb{
+  background:color-mix(in oklab, var(--muted-color) 25%, transparent);
+  border-radius:999px
+}
+.table-responsive::-webkit-scrollbar-track{
+  background:color-mix(in oklab, var(--muted-color) 8%, transparent);
+  border-radius:999px
+}
+
+.table{--bs-table-bg:transparent; min-width:1080px;}
 .table thead th{font-weight:600;color:var(--muted-color);font-size:13px;border-bottom:1px solid var(--line-strong);background:var(--surface)}
 .table thead.sticky-top{z-index:3}
 .table tbody tr{border-top:1px solid var(--line-soft)}
-/* keep hover subtle (no transform so dropdown isn’t clipped) */
 .table tbody tr:hover{background:var(--page-hover)}
 
 /* Cell text */
 td .fw-semibold{color:var(--ink)}
 .small{font-size:12.5px}
+
+/* ✅ UUID column (UPDATED)
+   - UUID fully visible (no wrap/truncation)
+   - Copy button ALWAYS beside UUID (no below)
+*/
+.uuid-cell{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:nowrap;              /* ✅ no wrap -> copy stays beside */
+  justify-content:flex-start;
+}
+.uuid-pill{
+  font-size:12px;
+  padding:3px 8px;
+  border-radius:999px;
+  border:1px solid var(--line-strong);
+  background:color-mix(in oklab, var(--muted-color) 10%, transparent);
+  color:var(--ink);
+  white-space:nowrap;            /* ✅ full UUID on one line */
+  flex:0 0 auto;                 /* ✅ don’t shrink/truncate */
+}
+.uuid-copy-btn{
+  height:28px;
+  border-radius:10px;
+  padding:0 10px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border:1px solid var(--line-strong);
+  background:var(--surface);
+  flex:0 0 auto;
+}
+.uuid-copy-btn i{font-size:13px;opacity:.9}
+.uuid-copy-btn:hover{background:var(--page-hover)}
+
+/* ✅ Description clamp */
+.dep-desc{
+  max-width:420px;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+  line-height:1.25rem;
+}
 
 /* Badges */
 .table .badge.badge-success{background:var(--success-color)!important;color:#fff!important}
@@ -50,14 +110,26 @@ td .fw-semibold{color:var(--ink)}
 .sortable.asc .caret::after{content:"▲";font-size:.7rem}
 .sortable.desc .caret::after{content:"▼";font-size:.7rem}
 
-/* Row visual cues */
+/* Row cues */
 tr.is-inactive td{background:color-mix(in oklab, var(--muted-color) 6%, transparent)}
 tr.is-deleted td{background:color-mix(in oklab, var(--danger-color) 6%, transparent)}
 
 /* Dropdowns inside table */
 .table-wrap .dropdown{position:relative;z-index:6}
-.dropdown [data-bs-toggle="dropdown"]{border-radius:10px}
-.table-wrap .dropdown-menu{border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:220px;z-index:5000}
+
+/* ✅ UPDATED: use dedicated toggle class (like reference module) */
+.dep-dd-toggle{border-radius:10px}
+
+/* ✅ UPDATED: higher z-index + show must win (like reference module) */
+.table-wrap .dropdown-menu{
+  border-radius:12px;
+  border:1px solid var(--line-strong);
+  box-shadow:var(--shadow-2);
+  min-width:220px;
+  z-index:99999; /* ✅ higher to avoid being behind / clipped feeling */
+}
+.dropdown-menu.show{display:block !important}
+
 .dropdown-item{display:flex;align-items:center;gap:.6rem}
 .dropdown-item i{width:16px;text-align:center}
 .dropdown-item.text-danger{color:var(--danger-color)!important}
@@ -81,8 +153,10 @@ html.theme-dark .modal-content{background:#0f172a;border-color:var(--line-strong
 html.theme-dark .table thead th{background:#0f172a;border-color:var(--line-strong);color:#94a3b8}
 html.theme-dark .table tbody tr{border-color:var(--line-soft)}
 html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong)}
+html.theme-dark .uuid-pill{background:rgba(148,163,184,.08)}
+html.theme-dark .uuid-copy-btn{background:#0f172a}
 
-/* Loading overlay (reference-counted) */
+/* Loading overlay */
 .dep-loading-overlay{
   position:fixed;inset:0;width:100%;height:100%;
   background:rgba(0,0,0,.42);
@@ -95,14 +169,8 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
   box-shadow:0 12px 30px rgba(0,0,0,.25);
   display:flex;flex-direction:column;align-items:center;gap:10px;min-width:220px
 }
-/* ring + dots */
 .dep-ring{width:44px;height:44px;border:4px solid #e5e7eb;border-top-color:var(--primary-color);border-radius:50%;animation:dep-spin 1s linear infinite}
-.dep-dots{display:flex;gap:6px}
-.dep-dots span{width:6px;height:6px;border-radius:50%;background:var(--primary-color);opacity:.45;animation:dep-bounce 1s infinite}
-.dep-dots span:nth-child(2){animation-delay:.1s}
-.dep-dots span:nth-child(3){animation-delay:.2s}
 @keyframes dep-spin{to{transform:rotate(360deg)}}
-@keyframes dep-bounce{0%,80%,100%{transform:scale(.6)}40%{transform:scale(1)}}
 
 /* Responsive toolbar */
 @media (max-width:768px){
@@ -175,7 +243,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
           </div>
 
           <div class="position-relative flex-grow-1" style="min-width:200px;">
-            <input id="dep_q" type="text" class="form-control ps-5" placeholder="Search by title or slug...">
+            <input id="dep_q" type="text" class="form-control ps-5" placeholder="Search by title, slug, short name, type...">
             <i class="fa fa-search position-absolute" style="left:12px; top:50%; transform:translateY(-50%); opacity:.6;"></i>
           </div>
         </div>
@@ -203,7 +271,10 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
               <thead class="sticky-top" style="z-index:2;">
                 <tr>
                   <th class="sortable" data-col="title">DEPARTMENT <span class="caret"></span></th>
-                  <th style="width:120px;">SEMESTERS</th>
+                  <th style="width:320px;">UUID</th> {{-- ✅ widened for full UUID --}}
+                  <th class="sortable" data-col="short_name" style="width:150px;">SHORT NAME <span class="caret"></span></th>
+                  <th style="width:180px;">TYPE</th>
+                  <th>DESCRIPTION</th>
                   <th style="width:130px;">STATUS</th>
                   <th class="sortable" data-col="created_at" style="width:170px;">CREATED <span class="caret"></span></th>
                   <th class="text-end" style="width:108px;">ACTIONS</th>
@@ -211,7 +282,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
               </thead>
               <tbody id="dep_rows-active">
                 <tr id="dep_loaderRow-active" style="display:none;">
-                  <td colspan="5" class="p-0">
+                  <td colspan="8" class="p-0">
                     <div class="p-4">
                       <div class="placeholder-wave">
                         <div class="placeholder col-12 mb-2" style="height:18px;"></div>
@@ -250,7 +321,10 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
               <thead class="sticky-top">
                 <tr>
                   <th>DEPARTMENT</th>
-                  <th style="width:120px;">SEMESTERS</th>
+                  <th style="width:320px;">UUID</th>
+                  <th style="width:150px;">SHORT NAME</th>
+                  <th style="width:180px;">TYPE</th>
+                  <th>DESCRIPTION</th>
                   <th style="width:130px;">STATUS</th>
                   <th style="width:170px;">CREATED</th>
                   <th class="text-end" style="width:108px;">ACTIONS</th>
@@ -258,7 +332,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
               </thead>
               <tbody id="dep_rows-inactive">
                 <tr id="dep_loaderRow-inactive" style="display:none;">
-                  <td colspan="5" class="p-0">
+                  <td colspan="8" class="p-0">
                     <div class="p-4">
                       <div class="placeholder-wave">
                         <div class="placeholder col-12 mb-2" style="height:18px;"></div>
@@ -294,14 +368,17 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
               <thead class="sticky-top">
                 <tr>
                   <th>DEPARTMENT</th>
-                  <th style="width:120px;">SEMESTERS</th>
+                  <th style="width:320px;">UUID</th>
+                  <th style="width:150px;">SHORT NAME</th>
+                  <th style="width:180px;">TYPE</th>
+                  <th>DESCRIPTION</th>
                   <th style="width:170px;">DELETED AT</th>
                   <th class="text-end" style="width:140px;">ACTIONS</th>
                 </tr>
               </thead>
               <tbody id="dep_rows-bin">
                 <tr id="dep_loaderRow-bin" style="display:none;">
-                  <td colspan="4" class="p-0">
+                  <td colspan="7" class="p-0">
                     <div class="p-4">
                       <div class="placeholder-wave">
                         <div class="placeholder col-12 mb-2" style="height:18px;"></div>
@@ -348,8 +425,8 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
               <option value="created_at">Oldest First</option>
               <option value="title">Title A-Z</option>
               <option value="-title">Title Z-A</option>
-              <option value="total_semesters">Semesters Asc</option>
-              <option value="-total_semesters">Semesters Desc</option>
+              <option value="short_name">Short Name A-Z</option>
+              <option value="-short_name">Short Name Z-A</option>
             </select>
           </div>
         </div>
@@ -383,23 +460,42 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
           <div class="row g-3">
             <div class="col-md-8">
               <label class="form-label">Department Title <span class="text-danger">*</span></label>
-              <input type="text" id="dep_title" name="title" class="form-control" maxlength="150" placeholder="e.g., Computer Science and Engineering" required>
+              <input type="text" id="dep_title" name="title" class="form-control" maxlength="150"
+                     placeholder="e.g., Computer Science and Engineering" required>
             </div>
+
             <div class="col-md-4">
-              <label class="form-label">Total Semesters <span class="text-danger">*</span></label>
-              <input type="number" id="dep_total_semesters" name="total_semesters" class="form-control" min="1" max="20" value="8" required>
+              <label class="form-label">Short Name</label>
+              <input type="text" id="dep_short_name" name="short_name" class="form-control" maxlength="60"
+                     placeholder="e.g., CSE, ECE, EE">
             </div>
-            <div class="col-md-8">
+
+            <div class="col-md-4">
+              <label class="form-label">Department Type</label>
+              <input type="text" id="dep_department_type" name="department_type" class="form-control" maxlength="60"
+                     placeholder="e.g., UG, PG, Core, Allied">
+            </div>
+
+            <div class="col-md-4">
               <label class="form-label">Slug (optional)</label>
-              <input type="text" id="dep_slug" name="slug" class="form-control" maxlength="160" placeholder="e.g., cse, ece, bca">
+              <input type="text" id="dep_slug" name="slug" class="form-control" maxlength="160"
+                     placeholder="e.g., cse, ece, bca">
               <div class="form-text">If left blank, slug will be generated from title.</div>
             </div>
+
             <div class="col-md-4">
               <label class="form-label d-block">&nbsp;</label>
               <div class="form-check form-switch d-inline-flex align-items-center gap-2">
                 <input class="form-check-input" type="checkbox" id="dep_active" checked>
                 <label class="form-check-label" for="dep_active">Active</label>
               </div>
+            </div>
+
+            <div class="col-12">
+              <label class="form-label">Description</label>
+              <textarea id="dep_description" name="description" class="form-control" rows="4"
+                        placeholder="Write department description..."></textarea>
+              <div class="form-text">You can add plain text (or HTML if needed).</div>
             </div>
           </div>
 
@@ -455,6 +551,10 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 (function(){
+  // ✅ prevent double init (safe)
+  if (window.__DEPARTMENT_MODULE_INIT__) return;
+  window.__DEPARTMENT_MODULE_INIT__ = true;
+
   /* ===== Auth ===== */
   const TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
   const ROLE  = (localStorage.getItem('role') || sessionStorage.getItem('role') || '').toLowerCase();
@@ -468,7 +568,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
   const DEPT_ENDPOINT       = API_BASE + '/departments';
   const DEPT_TRASH_ENDPOINT = API_BASE + '/departments-trash';
 
-  /* ===== Toast helpers (mutually exclusive) ===== */
+  /* ===== Toast helpers ===== */
   const okToastEl  = document.getElementById('dep_okToast');
   const errToastEl = document.getElementById('dep_errToast');
   const okToast  = new bootstrap.Toast(okToastEl,  { delay: 2200, autohide: true });
@@ -488,7 +588,6 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
   const deptModal    = new bootstrap.Modal(deptModalEl);
   const viewModal    = new bootstrap.Modal(document.getElementById('viewDepartmentModal'));
 
-  /* clear any stray backdrops (rare Bootstrap bug on quick close) */
   deptModalEl.addEventListener('hidden.bs.modal', () => {
     document.querySelectorAll('.modal-backdrop.show').forEach(el => el.remove());
     document.body.classList.remove('modal-open');
@@ -514,6 +613,8 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
   function decodeHtml(s){ const t=document.createElement('textarea'); t.innerHTML = s==null?'':String(s); return t.value; }
   function fmtDate(iso){ if(!iso) return '-'; const d = new Date(iso); if(isNaN(d)) return escapeHtml(iso); return d.toLocaleString(undefined,{year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'}); }
   function parseSortKey(key){ let dir='asc'; let col=key||'created_at'; if(col.startsWith('-')){dir='desc'; col=col.slice(1)||'created_at'} return { col, dir }; }
+  function stripTags(html){ return (html==null?'':String(html)).replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim(); }
+  function truncate(s, n=120){ const t = stripTags(s); return t.length>n ? t.slice(0,n-1)+'…' : t; }
 
   function badgeForRow(row){
     if (row.deleted_at) return `<span class="badge badge-danger text-uppercase">Deleted</span>`;
@@ -521,7 +622,31 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
                       : `<span class="badge badge-warning text-uppercase">Inactive</span>`;
   }
 
-  /* --- Reference-counted global loader (prevents stuck shadow) --- */
+  async function copyText(text){
+    const val = (text || '').trim();
+    if (!val) return;
+    try{
+      if (navigator.clipboard && window.isSecureContext){
+        await navigator.clipboard.writeText(val);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = val;
+        ta.setAttribute('readonly','readonly');
+        ta.style.position='fixed';
+        ta.style.left='-9999px';
+        ta.style.top='-9999px';
+        document.body.appendChild(ta);
+        ta.focus(); ta.select();
+        document.execCommand('copy');
+        ta.remove();
+      }
+      ok('UUID copied');
+    } catch(e){
+      console.error('Copy failed', e);
+      err('Failed to copy UUID');
+    }
+  }
+
   let _loadCount = 0, _hideTimer = null;
   function showGlobalLoading(show){
     _loadCount += show ? 1 : -1;
@@ -531,7 +656,6 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
       globalLoader.classList.add('is-visible');
       document.body.classList.add('overflow-hidden');
     } else {
-      // small delay to avoid flicker during quick chained requests
       _hideTimer = setTimeout(() => {
         if (_loadCount === 0) {
           globalLoader.classList.remove('is-visible');
@@ -595,11 +719,14 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
   /* ===== Render ===== */
   function rowActions(scope, r){
     const nameAttr = escapeHtml(r.title || ''); const idAttr = r.id;
+
+    // ✅ IMPORTANT FIX:
+    // Button rendered WITHOUT data-bs-toggle, and handled manually (fixed popper strategy)
     if (scope === 'bin') {
       return `
         <div class="dropdown text-end">
-          <button type="button" class="btn btn-light btn-sm"
-                  data-bs-toggle="dropdown" data-bs-boundary="viewport" data-bs-display="static" aria-expanded="false" title="Actions">
+          <button type="button" class="btn btn-light btn-sm dep-dd-toggle"
+                  aria-expanded="false" title="Actions">
             <i class="fa fa-ellipsis-vertical"></i>
           </button>
           <ul class="dropdown-menu dropdown-menu-end">
@@ -610,14 +737,16 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
           </ul>
         </div>`;
     }
+
     const isActive = !!r.active;
     const toggleAct = isActive ? 'deactivate' : 'activate';
     const toggleIcon = isActive ? 'fa-toggle-off' : 'fa-toggle-on';
     const toggleLabel = isActive ? 'Mark Inactive' : 'Mark Active';
+
     return `
       <div class="dropdown text-end">
-        <button type="button" class="btn btn-light btn-sm"
-                data-bs-toggle="dropdown" data-bs-boundary="viewport" data-bs-display="static" aria-expanded="false" title="Actions">
+        <button type="button" class="btn btn-light btn-sm dep-dd-toggle"
+                aria-expanded="false" title="Actions">
           <i class="fa fa-ellipsis-vertical"></i>
         </button>
         <ul class="dropdown-menu dropdown-menu-end">
@@ -634,34 +763,65 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
       </div>`;
   }
 
+  function uuidCell(uuid){
+    if (!uuid) return `<span class="text-muted">—</span>`;
+    const safe = escapeHtml(uuid);
+    return `
+      <div class="uuid-cell">
+        <code class="uuid-pill font-monospace">${safe}</code>
+        <button type="button" class="uuid-copy-btn" data-copy="${safe}" title="Copy UUID">
+          <i class="fa-regular fa-copy"></i>
+        </button>
+      </div>
+    `;
+  }
+
   function renderRows(scope, items){
     const rowsEl = document.querySelector(tabs[scope].rows);
     rowsEl.querySelectorAll('tr:not([id^="dep_loaderRow"])').forEach(tr=>tr.remove());
     const frag = document.createDocumentFragment();
+
     items.forEach(r=>{
       const tr = document.createElement('tr');
       if (r.deleted_at) tr.classList.add('is-deleted');
       else if (!r.active) tr.classList.add('is-inactive');
-      tr.innerHTML = (scope === 'bin')
-        ? `
+
+      const shortName = r.short_name ? escapeHtml(r.short_name) : `<span class="text-muted">—</span>`;
+      const deptType  = r.department_type ? escapeHtml(r.department_type) : `<span class="text-muted">—</span>`;
+      const desc      = r.description ? escapeHtml(truncate(r.description, 140)) : `<span class="text-muted">—</span>`;
+
+      if (scope === 'bin') {
+        tr.innerHTML = `
           <td>
             <div class="fw-semibold">${escapeHtml(r.title || '')}</div>
             ${r.slug ? `<div class="text-muted small">Slug: ${escapeHtml(r.slug)}</div>` : ''}
           </td>
-          <td>${r.total_semesters != null ? escapeHtml(String(r.total_semesters)) : '-'}</td>
+          <td>${uuidCell(r.uuid)}</td>
+          <td>${shortName}</td>
+          <td>${deptType}</td>
+          <td><div class="text-muted small dep-desc">${desc}</div></td>
           <td>${fmtDate(r.deleted_at)}</td>
-          <td class="text-end">${rowActions(scope, r)}</td>`
-        : `
+          <td class="text-end">${rowActions(scope, r)}</td>
+        `;
+      } else {
+        tr.innerHTML = `
           <td>
             <div class="fw-semibold">${escapeHtml(r.title || '')}</div>
             ${r.slug ? `<div class="text-muted small">Slug: ${escapeHtml(r.slug)}</div>` : ''}
           </td>
-          <td>${r.total_semesters != null ? escapeHtml(String(r.total_semesters)) : '-'}</td>
+          <td>${uuidCell(r.uuid)}</td>
+          <td>${shortName}</td>
+          <td>${deptType}</td>
+          <td><div class="text-muted small dep-desc">${desc}</div></td>
           <td>${badgeForRow(r)}</td>
           <td>${fmtDate(r.created_at)}</td>
-          <td class="text-end">${rowActions(scope, r)}</td>`;
+          <td class="text-end">${rowActions(scope, r)}</td>
+        `;
+      }
+
       frag.appendChild(tr);
     });
+
     rowsEl.appendChild(frag);
   }
 
@@ -702,7 +862,6 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
     metaEl.textContent = `Showing page ${current} of ${totalPages} — ${total} result(s)`;
   }
 
-  /* ===== AJAX Loaders ===== */
   async function load(scope){
     showLoader(scope, true);
     const emptyEl = document.querySelector(tabs[scope].empty);
@@ -731,88 +890,10 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
       emptyEl.style.display = '';
       if (metaEl) metaEl.textContent = e?.message || 'Failed to load departments';
       err(e?.message || 'Failed to load departments');
-      const msg = (e && e.message) || '';
-      if (msg === 'Unauthorized Access' || msg === 'Unauthenticated.') setTimeout(()=>{ window.location.href='/'; }, 1000);
     } finally {
       showLoader(scope, false);
       if (scope === 'active') syncSortHeaders();
     }
-  }
-
-  /* ===== CRUD Helpers ===== */
-  async function toggleActive(id, name){
-    const { isConfirmed } = await Swal.fire({
-      icon: 'question',
-      title: 'Change status?',
-      html: `<b>${escapeHtml(name || 'This department')}</b> will toggle between active/inactive.`,
-      showCancelButton: true,
-      confirmButtonText: 'Yes, toggle'
-    });
-    if (!isConfirmed) return;
-
-    showGlobalLoading(true);
-    try {
-      const res = await fetch(`${DEPT_ENDPOINT}/${encodeURIComponent(id)}/toggle-active`, { method:'PATCH', headers: getAuthHeaders() });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(j?.message || j?.error || 'Toggle failed');
-      ok('Status updated');
-      await Promise.all([load('active'), load('inactive')]);
-    } catch (e) { err(e?.message || 'Toggle failed'); }
-    finally { showGlobalLoading(false); }
-  }
-
-  async function softDelete(id, name){
-    const { isConfirmed } = await Swal.fire({
-      icon:'warning', title:'Move to Bin?',
-      html:`<b>${escapeHtml(name || 'This department')}</b> will be moved to Bin (soft delete).`,
-      showCancelButton:true, confirmButtonText:'Move to Bin', confirmButtonColor:'#ef4444'
-    });
-    if (!isConfirmed) return;
-    showGlobalLoading(true);
-    try {
-      const res = await fetch(`${DEPT_ENDPOINT}/${encodeURIComponent(id)}`, { method:'DELETE', headers: getAuthHeaders() });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(j?.message || j?.error || 'Delete failed');
-      ok('Moved to Bin');
-      await Promise.all([load('active'), load('inactive'), load('bin')]);
-    } catch (e) { err(e?.message || 'Delete failed'); }
-    finally { showGlobalLoading(false); }
-  }
-
-  async function restore(id, name){
-    const { isConfirmed } = await Swal.fire({
-      icon:'question', title:'Restore department?',
-      html:`<b>${escapeHtml(name || 'This department')}</b> will be restored.`,
-      showCancelButton:true, confirmButtonText:'Restore', confirmButtonColor:'#10b981'
-    });
-    if (!isConfirmed) return;
-    showGlobalLoading(true);
-    try {
-      const res = await fetch(`${DEPT_ENDPOINT}/${encodeURIComponent(id)}/restore`, { method:'POST', headers: getAuthHeaders() });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(j?.message || j?.error || 'Restore failed');
-      ok('Department restored');
-      await Promise.all([load('active'), load('inactive'), load('bin')]);
-    } catch (e) { err(e?.message || 'Restore failed'); }
-    finally { showGlobalLoading(false); }
-  }
-
-  async function forceDelete(id, name){
-    const { isConfirmed } = await Swal.fire({
-      icon:'warning', title:'Delete permanently?',
-      html:`This will <b>permanently delete</b> the department.<br><br><b>${escapeHtml(name || 'This department')}</b>`,
-      showCancelButton:true, confirmButtonText:'Delete Permanently', confirmButtonColor:'#b91c1c'
-    });
-    if (!isConfirmed) return;
-    showGlobalLoading(true);
-    try {
-      const res = await fetch(`${DEPT_ENDPOINT}/${encodeURIComponent(id)}/force`, { method:'DELETE', headers: getAuthHeaders() });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(j?.message || j?.error || 'Delete failed');
-      ok('Department deleted permanently');
-      await load('bin');
-    } catch (e) { err(e?.message || 'Delete failed'); }
-    finally { showGlobalLoading(false); }
   }
 
   async function openView(id){
@@ -826,8 +907,10 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
       const html = `
         <div class="row g-3">
           <div class="col-12"><strong>Title:</strong><br>${escapeHtml(d.title || '-')}</div>
+          <div class="col-md-6"><strong>Short Name:</strong><br>${escapeHtml(d.short_name || '-')}</div>
+          <div class="col-md-6"><strong>Department Type:</strong><br>${escapeHtml(d.department_type || '-')}</div>
+          <div class="col-12"><strong>Description:</strong><br><div class="small text-muted">${escapeHtml(stripTags(d.description || '-') || '-')}</div></div>
           <div class="col-md-6"><strong>Slug:</strong><br>${escapeHtml(d.slug || '-')}</div>
-          <div class="col-md-6"><strong>Total Semesters:</strong><br>${d.total_semesters != null ? escapeHtml(String(d.total_semesters)) : '-'}</div>
           <div class="col-md-6"><strong>Status:</strong><br>${badgeForRow(d)}</div>
           <div class="col-md-6"><strong>Created At:</strong><br>${fmtDate(d.created_at)}</div>
           ${d.deleted_at ? `<div class="col-md-6"><strong>Deleted At:</strong><br>${fmtDate(d.deleted_at)}</div>` : ''}
@@ -859,10 +942,12 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
       document.getElementById('dep_mode').value = 'edit';
       document.getElementById('dep_key').value  = d.id;
       document.getElementById('dep_modalTitle').innerHTML = `<i class="fa fa-building-columns me-2"></i>Edit Department`;
-      document.getElementById('dep_title').value           = d.title || '';
-      document.getElementById('dep_slug').value            = d.slug || '';
-      document.getElementById('dep_total_semesters').value = d.total_semesters != null ? d.total_semesters : 8;
-      document.getElementById('dep_active').checked        = !!d.active;
+      document.getElementById('dep_title').value            = d.title || '';
+      document.getElementById('dep_slug').value             = d.slug || '';
+      document.getElementById('dep_short_name').value       = d.short_name || '';
+      document.getElementById('dep_department_type').value  = d.department_type || '';
+      document.getElementById('dep_description').value      = stripTags(d.description || '');
+      document.getElementById('dep_active').checked         = !!d.active;
       deptModal.show();
     } catch (e) { err(e?.message || 'Failed to load department'); }
     finally { showGlobalLoading(false); }
@@ -874,13 +959,19 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
 
     const mode   = document.getElementById('dep_mode').value;
     const key    = document.getElementById('dep_key').value;
+
     const title  = document.getElementById('dep_title').value.trim();
     const slug   = document.getElementById('dep_slug').value.trim();
-    const total  = Number(document.getElementById('dep_total_semesters').value || 0);
+    const shortName = document.getElementById('dep_short_name').value.trim();
+    const deptType  = document.getElementById('dep_department_type').value.trim();
+    const desc      = document.getElementById('dep_description').value.trim();
     const active = document.getElementById('dep_active').checked;
 
-    const payload = { title, total_semesters: total, active };
+    const payload = { title, active };
     if (slug) payload.slug = slug;
+    if (shortName) payload.short_name = shortName;
+    if (deptType) payload.department_type = deptType;
+    if (desc) payload.description = desc;
 
     let url = DEPT_ENDPOINT, method = 'POST';
     if (mode === 'edit' && key) { url = `${DEPT_ENDPOINT}/${encodeURIComponent(key)}`; method = 'PUT'; }
@@ -903,7 +994,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
     }
   }
 
-  /* ===== Event bindings ===== */
+  /* ===== Sorting only Active tab ===== */
   document.querySelectorAll('#tab-dept-active th.sortable').forEach(th=>{
     th.addEventListener('click', ()=>{
       const col = th.dataset.col;
@@ -946,31 +1037,174 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
   btnCreate.addEventListener('click', openCreate);
   btnSave.addEventListener('click', (e)=>{ e.preventDefault(); saveDepartment(); });
 
+  /* ✅ Copy UUID click */
   document.addEventListener('click', (e)=>{
+    const btn = e.target.closest('[data-copy]');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const uuid = btn.getAttribute('data-copy') || '';
+    copyText(uuid);
+  });
+
+  /* ============================
+   ✅ DROPDOWN FIX (from reference page)
+   - Manual toggle with Popper "fixed" strategy
+   - Works even inside table overflow containers
+  ============================ */
+  function closeAllDeptDropdownsExcept(exceptToggle){
+    document.querySelectorAll('.dep-dd-toggle').forEach(t => {
+      if (exceptToggle && t === exceptToggle) return;
+      try{
+        const inst = bootstrap.Dropdown.getInstance(t);
+        inst && inst.hide();
+      }catch(_){}
+    });
+  }
+
+  document.addEventListener('click', (e) => {
+    const toggle = e.target.closest('.dep-dd-toggle');
+    if (!toggle) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    closeAllDeptDropdownsExcept(toggle);
+
+    try{
+      const inst = bootstrap.Dropdown.getOrCreateInstance(toggle, {
+        autoClose: true,
+        popperConfig: (def) => {
+          const base = def || {};
+          const mods = Array.isArray(base.modifiers) ? base.modifiers.slice() : [];
+          mods.push({ name:'preventOverflow', options:{ boundary:'viewport', padding:8 } });
+          mods.push({ name:'flip', options:{ boundary:'viewport', padding:8 } });
+          return { ...base, strategy:'fixed', modifiers: mods };
+        }
+      });
+      inst.toggle();
+    } catch(ex){
+      console.error('Department dropdown toggle failed', ex);
+    }
+  });
+
+  // close dropdowns on outside click (not inside dropdown)
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('.dropdown')) return;
+    closeAllDeptDropdownsExcept(null);
+  }, { capture: true });
+
+  /* actions */
+  document.addEventListener('click', async (e)=>{
     const item = e.target.closest('.dropdown-item[data-act]');
     if (!item) return;
+
     const act  = item.dataset.act;
     const id   = item.dataset.id;
     const name = decodeHtml(item.dataset.name || '');
+
+    async function toggleActive(id, name){
+      const { isConfirmed } = await Swal.fire({
+        icon: 'question',
+        title: 'Change status?',
+        html: `<b>${escapeHtml(name || 'This department')}</b> will toggle between active/inactive.`,
+        showCancelButton: true,
+        confirmButtonText: 'Yes, toggle'
+      });
+      if (!isConfirmed) return;
+
+      showGlobalLoading(true);
+      try {
+        const res = await fetch(`${DEPT_ENDPOINT}/${encodeURIComponent(id)}/toggle-active`, { method:'PATCH', headers: getAuthHeaders() });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(j?.message || j?.error || 'Toggle failed');
+        ok('Status updated');
+        await Promise.all([load('active'), load('inactive')]);
+      } catch (e) { err(e?.message || 'Toggle failed'); }
+      finally { showGlobalLoading(false); }
+    }
+
+    async function softDelete(id, name){
+      const { isConfirmed } = await Swal.fire({
+        icon:'warning', title:'Move to Bin?',
+        html:`<b>${escapeHtml(name || 'This department')}</b> will be moved to Bin (soft delete).`,
+        showCancelButton:true, confirmButtonText:'Move to Bin', confirmButtonColor:'#ef4444'
+      });
+      if (!isConfirmed) return;
+
+      showGlobalLoading(true);
+      try {
+        const res = await fetch(`${DEPT_ENDPOINT}/${encodeURIComponent(id)}`, { method:'DELETE', headers: getAuthHeaders() });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(j?.message || j?.error || 'Delete failed');
+        ok('Moved to Bin');
+        await Promise.all([load('active'), load('inactive'), load('bin')]);
+      } catch (e) { err(e?.message || 'Delete failed'); }
+      finally { showGlobalLoading(false); }
+    }
+
+    async function restore(id, name){
+      const { isConfirmed } = await Swal.fire({
+        icon:'question', title:'Restore department?',
+        html:`<b>${escapeHtml(name || 'This department')}</b> will be restored.`,
+        showCancelButton:true, confirmButtonText:'Restore', confirmButtonColor:'#10b981'
+      });
+      if (!isConfirmed) return;
+
+      showGlobalLoading(true);
+      try {
+        const res = await fetch(`${DEPT_ENDPOINT}/${encodeURIComponent(id)}/restore`, { method:'POST', headers: getAuthHeaders() });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(j?.message || j?.error || 'Restore failed');
+        ok('Department restored');
+        await Promise.all([load('active'), load('inactive'), load('bin')]);
+      } catch (e) { err(e?.message || 'Restore failed'); }
+      finally { showGlobalLoading(false); }
+    }
+
+    async function forceDelete(id, name){
+      const { isConfirmed } = await Swal.fire({
+        icon:'warning', title:'Delete permanently?',
+        html:`This will <b>permanently delete</b> the department.<br><br><b>${escapeHtml(name || 'This department')}</b>`,
+        showCancelButton:true, confirmButtonText:'Delete Permanently', confirmButtonColor:'#b91c1c'
+      });
+      if (!isConfirmed) return;
+
+      showGlobalLoading(true);
+      try {
+        const res = await fetch(`${DEPT_ENDPOINT}/${encodeURIComponent(id)}/force`, { method:'DELETE', headers: getAuthHeaders() });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(j?.message || j?.error || 'Delete failed');
+        ok('Department deleted permanently');
+        await load('bin');
+      } catch (e) { err(e?.message || 'Delete failed'); }
+      finally { showGlobalLoading(false); }
+    }
+
     if (act === 'view') openView(id);
     else if (act === 'edit') openEdit(id);
     else if (act === 'activate' || act === 'deactivate') toggleActive(id, name);
     else if (act === 'softDelete') softDelete(id, name);
     else if (act === 'restore') restore(id, name);
     else if (act === 'forceDelete') forceDelete(id, name);
+
+    // ✅ UPDATED: close the dropdown after clicking an action
     const dd = item.closest('.dropdown');
-    if (dd) { const btn = dd.querySelector('[data-bs-toggle="dropdown"]'); if (btn) bootstrap.Dropdown.getOrCreateInstance(btn).hide(); }
+    if (dd) {
+      const btn = dd.querySelector('.dep-dd-toggle');
+      if (btn) {
+        try { bootstrap.Dropdown.getInstance(btn)?.hide(); } catch(_){}
+      }
+    }
   });
 
   document.querySelector('a[href="#tab-dept-active"]').addEventListener('shown.bs.tab', ()=> load('active'));
   document.querySelector('a[href="#tab-dept-inactive"]').addEventListener('shown.bs.tab', ()=> load('inactive'));
   document.querySelector('a[href="#tab-dept-bin"]').addEventListener('shown.bs.tab', ()=> load('bin'));
 
-  /* ===== Initial load ===== */
   applyFromURL();
-  load('active');      // main tab
-  load('inactive');    // preload inactive
-  // bin loads on first view
+  load('active');
+  load('inactive');
 })();
 </script>
 @endpush

@@ -70,16 +70,31 @@
 td .fw-semibold{color:var(--ink)}
 .small{font-size:12.5px}
 
-/* Slug/Code column smaller + ellipsis */
-th.col-code, td.col-code{width:200px;max-width:200px}
-td.col-code{overflow:hidden}
-td.col-code code{
+/* ✅ UUID column (replaces Code/Slug) */
+th.col-uuid, td.col-uuid{width:320px;max-width:320px}
+td.col-uuid{overflow:hidden}
+.uuid-cell{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  max-width:310px;
+}
+.uuid-cell code{
   display:inline-block;
-  max-width:190px;
+  max-width:250px;
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap;
   vertical-align:bottom;
+}
+.btn-copy-uuid{
+  border-radius:10px;
+  height:30px;
+  width:34px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:0;
 }
 
 /* Badges */
@@ -368,7 +383,7 @@ td.col-code code{
               <thead class="sticky-top">
                 <tr>
                   <th>Semester</th>
-                  <th class="col-code">Code/Slug</th>
+                  <th class="col-uuid">Semester UUID</th>
                   <th style="width:220px;">Course</th>
                   <th style="width:180px;">Department</th>
                   <th style="width:110px;">Status</th>
@@ -405,7 +420,7 @@ td.col-code code{
               <thead class="sticky-top">
                 <tr>
                   <th>Semester</th>
-                  <th class="col-code">Code/Slug</th>
+                  <th class="col-uuid">Semester UUID</th>
                   <th style="width:220px;">Course</th>
                   <th style="width:180px;">Department</th>
                   <th style="width:110px;">Status</th>
@@ -442,7 +457,7 @@ td.col-code code{
               <thead class="sticky-top">
                 <tr>
                   <th>Semester</th>
-                  <th class="col-code">Code/Slug</th>
+                  <th class="col-uuid">Semester UUID</th>
                   <th style="width:220px;">Course</th>
                   <th style="width:180px;">Department</th>
                   <th style="width:150px;">Deleted</th>
@@ -842,6 +857,10 @@ td.col-code code{
     return (r?.slug ?? r?.semester_slug ?? r?.term_slug ?? '').toString();
   }
 
+  function getUuidFromRow(r){
+    return (r?.uuid ?? r?.semester_uuid ?? r?.term_uuid ?? '').toString();
+  }
+
   function getDescFromRow(r){
     return (r?.description ?? r?.description_html ?? r?.body ?? r?.about ?? '') || '';
   }
@@ -1061,10 +1080,21 @@ td.col-code code{
       return `<span class="badge badge-soft-muted">${esc(s)}</span>`;
     }
 
-    function codeSlug(r){
-      const code = getCodeFromRow(r);
-      const slug = (r?.slug ?? r?.semester_slug ?? r?.term_slug ?? '').toString();
-      return (code || slug || '—');
+    // ✅ UUID cell (with copy button)
+    function uuidCell(displayUuid){
+      const u = (displayUuid || '').toString().trim();
+      const okUuid = !!u;
+      return `
+        <div class="uuid-cell">
+          <code class="uuid-code" title="${esc(okUuid ? u : '—')}">${esc(okUuid ? u : '—')}</code>
+          <button type="button"
+            class="btn btn-light btn-sm btn-copy-uuid"
+            ${okUuid ? `data-copy-uuid="${esc(u)}"` : 'disabled'}
+            title="${okUuid ? 'Copy UUID' : 'UUID not available'}">
+            <i class="fa fa-copy"></i>
+          </button>
+        </div>
+      `;
     }
 
     function deptNameFromRow(r){
@@ -1130,9 +1160,13 @@ td.col-code code{
       setEmpty(tabKey, false);
 
       tbody.innerHTML = rows.map(r => {
-        const uuid = r.uuid || r.id || r.identifier || '';
+        const uuidForAction = r.uuid || r.id || r.identifier || '';
+        const uuidDisplayRaw = getUuidFromRow(r);
+        const uuidDisplay = (uuidDisplayRaw && uuidDisplayRaw.trim())
+          ? uuidDisplayRaw.trim()
+          : (String(uuidForAction).includes('-') ? String(uuidForAction) : '');
+
         const title = getTitleFromRow(r);
-        const cs = codeSlug(r);
         const course = courseNameFromRow(r);
         const dept = deptNameFromRow(r);
 
@@ -1179,9 +1213,9 @@ td.col-code code{
 
         if (tabKey === 'trash'){
           return `
-            <tr data-uuid="${esc(uuid)}">
+            <tr data-uuid="${esc(uuidForAction)}">
               <td class="fw-semibold">${esc(title)}</td>
-              <td class="col-code"><code>${esc(cs)}</code></td>
+              <td class="col-uuid">${uuidCell(uuidDisplay)}</td>
               <td>${esc(course)}</td>
               <td>${esc(dept)}</td>
               <td>${esc(String(deleted))}</td>
@@ -1190,9 +1224,9 @@ td.col-code code{
         }
 
         return `
-          <tr data-uuid="${esc(uuid)}">
+          <tr data-uuid="${esc(uuidForAction)}">
             <td class="fw-semibold">${esc(title)}</td>
-            <td class="col-code"><code>${esc(cs)}</code></td>
+            <td class="col-uuid">${uuidCell(uuidDisplay)}</td>
             <td>${esc(course)}</td>
             <td>${esc(dept)}</td>
             <td>${statusBadge(status)}</td>
@@ -1254,6 +1288,42 @@ td.col-code code{
       state.tabs[tab].page = p;
       loadTab(tab);
       window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    // ✅ copy UUID
+    async function copyText(text){
+      const t = (text || '').toString();
+      if (!t) return false;
+      try{
+        await navigator.clipboard.writeText(t);
+        return true;
+      }catch(_){
+        try{
+          const ta = document.createElement('textarea');
+          ta.value = t;
+          ta.setAttribute('readonly','');
+          ta.style.position = 'fixed';
+          ta.style.left = '-9999px';
+          document.body.appendChild(ta);
+          ta.select();
+          const okx = document.execCommand('copy');
+          ta.remove();
+          return !!okx;
+        }catch(__){
+          return false;
+        }
+      }
+    }
+
+    document.addEventListener('click', async (e) => {
+      const btn = e.target.closest('button.btn-copy-uuid[data-copy-uuid]');
+      if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const val = btn.getAttribute('data-copy-uuid') || '';
+      const done = await copyText(val);
+      if (done) ok('UUID copied');
+      else err('Copy failed');
     });
 
     // ---------- filters ----------

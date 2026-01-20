@@ -86,6 +86,35 @@ td.col-meta code{
   vertical-align:bottom;
 }
 
+/* ✅ NEW: UUID column */
+th.col-uuid, td.col-uuid{width:280px;max-width:280px}
+td.col-uuid{overflow:hidden}
+.uuid-wrap{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  max-width:270px;
+}
+.uuid-wrap code{
+  display:inline-block;
+  max-width:210px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  vertical-align:bottom;
+}
+.uuid-copy{
+  width:34px;
+  height:34px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:10px;
+  border:1px solid var(--line-strong);
+  background:var(--surface);
+}
+.uuid-copy:hover{background:var(--page-hover)}
+
 /* Badges */
 .badge-soft-primary{
   background:color-mix(in oklab, var(--primary-color) 12%, transparent);
@@ -141,14 +170,14 @@ td.col-meta code{
 /* Horizontal scroll */
 .table-responsive > .table{
   width:max-content;
-  min-width:1280px;
+  min-width:1400px; /* ✅ was 1280, increased due to UUID column */
 }
 .table-responsive th,
 .table-responsive td{
   white-space:nowrap;
 }
 @media (max-width: 576px){
-  .table-responsive > .table{ min-width:1220px; }
+  .table-responsive > .table{ min-width:1340px; }
 }
 
 /* =========================
@@ -375,6 +404,7 @@ td.col-meta code{
               <thead class="sticky-top">
                 <tr>
                   <th style="width:320px;">Section</th>
+                  <th class="col-uuid">UUID</th>
                   <th class="col-sem">Semester</th>
                   <th style="width:220px;">Course</th>
                   <th style="width:180px;">Department</th>
@@ -386,7 +416,7 @@ td.col-meta code{
                 </tr>
               </thead>
               <tbody id="tbody-active">
-                <tr><td colspan="9" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+                <tr><td colspan="10" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -413,6 +443,7 @@ td.col-meta code{
               <thead class="sticky-top">
                 <tr>
                   <th style="width:320px;">Section</th>
+                  <th class="col-uuid">UUID</th>
                   <th class="col-sem">Semester</th>
                   <th style="width:220px;">Course</th>
                   <th style="width:180px;">Department</th>
@@ -424,7 +455,7 @@ td.col-meta code{
                 </tr>
               </thead>
               <tbody id="tbody-inactive">
-                <tr><td colspan="9" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+                <tr><td colspan="10" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -451,6 +482,7 @@ td.col-meta code{
               <thead class="sticky-top">
                 <tr>
                   <th style="width:320px;">Section</th>
+                  <th class="col-uuid">UUID</th>
                   <th class="col-sem">Semester</th>
                   <th style="width:220px;">Course</th>
                   <th style="width:180px;">Department</th>
@@ -459,7 +491,7 @@ td.col-meta code{
                 </tr>
               </thead>
               <tbody id="tbody-trash">
-                <tr><td colspan="6" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+                <tr><td colspan="7" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -935,6 +967,52 @@ td.col-meta code{
       computePermissions();
     }
 
+    // =========================
+    // ✅ NEW: Copy UUID handler
+    // =========================
+    async function copyToClipboard(text){
+      const t = (text || '').toString().trim();
+      if (!t) return false;
+
+      // modern api
+      try{
+        if (navigator.clipboard && navigator.clipboard.writeText){
+          await navigator.clipboard.writeText(t);
+          return true;
+        }
+      }catch(_){}
+
+      // fallback
+      try{
+        const ta = document.createElement('textarea');
+        ta.value = t;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        ta.style.top = '-9999px';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const ok = document.execCommand('copy');
+        ta.remove();
+        return !!ok;
+      }catch(_){
+        return false;
+      }
+    }
+
+    document.addEventListener('click', async (e) => {
+      const btn = e.target.closest('button.btn-copy-uuid[data-uuid]');
+      if (!btn) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const uuid = (btn.dataset.uuid || '').trim();
+      const done = await copyToClipboard(uuid);
+      if (done) ok('UUID copied');
+      else err('Copy failed');
+    });
+
     // ---------- state ----------
     const state = {
       filters: { q:'', status:'', department_id:'', course_id:'', semester_id:'', sort:'-updated_at' },
@@ -1049,6 +1127,25 @@ td.col-meta code{
       return '—';
     }
 
+    function uuidCell(uuid){
+      const val = (uuid || '').toString().trim();
+      if (!val){
+        return `
+          <td class="col-uuid text-muted">—</td>
+        `;
+      }
+      return `
+        <td class="col-uuid">
+          <div class="uuid-wrap">
+            <code title="${esc(val)}">${esc(val)}</code>
+            <button type="button" class="uuid-copy btn-copy-uuid" data-uuid="${esc(val)}" title="Copy UUID">
+              <i class="fa-regular fa-copy"></i>
+            </button>
+          </div>
+        </td>
+      `;
+    }
+
     function renderPager(tabKey){
       const pagerEl = tabKey === 'active' ? pagerActive : (tabKey === 'inactive' ? pagerInactive : pagerTrash);
       if (!pagerEl) return;
@@ -1088,7 +1185,7 @@ td.col-meta code{
       setEmpty(tabKey, false);
 
       tbody.innerHTML = rows.map(r => {
-        const uuid = r.uuid || r.id || '';
+        const rowUuid = (r.uuid || r.id || '').toString(); // used for actions + copy
         const title = getSectionTitle(r);
         const sem = getSemesterFromRow(r);
         const course = getCourseName(r);
@@ -1137,8 +1234,9 @@ td.col-meta code{
 
         if (tabKey === 'trash'){
           return `
-            <tr data-uuid="${esc(uuid)}">
+            <tr data-uuid="${esc(rowUuid)}">
               <td class="fw-semibold">${esc(title)}</td>
+              ${uuidCell(rowUuid)}
               <td class="col-sem">
                 <span class="fw-semibold">${esc(sem.title)}</span>
                 <span class="sem-sub">${esc([sem.code, sem.slug, sem.no ? ('No. '+sem.no) : ''].filter(Boolean).join(' • '))}</span>
@@ -1151,11 +1249,12 @@ td.col-meta code{
         }
 
         return `
-          <tr data-uuid="${esc(uuid)}">
+          <tr data-uuid="${esc(rowUuid)}">
             <td class="fw-semibold">
               ${esc(title)}
               <div class="small text-muted mt-1"><code>${esc(metaInline(r))}</code></div>
             </td>
+            ${uuidCell(rowUuid)}
             <td class="col-sem">
               <span class="fw-semibold">${esc(sem.title)}</span>
               <span class="sem-sub">${esc([sem.code, sem.slug, sem.no ? ('No. '+sem.no) : ''].filter(Boolean).join(' • '))}</span>
@@ -1176,7 +1275,7 @@ td.col-meta code{
     async function loadTab(tabKey){
       const tbody = tabKey==='active' ? tbodyActive : (tabKey==='inactive' ? tbodyInactive : tbodyTrash);
       if (tbody){
-        const cols = (tabKey==='trash') ? 6 : 9;
+        const cols = (tabKey==='trash') ? 7 : 10; // ✅ updated due to UUID column
         tbody.innerHTML = `<tr><td colspan="${cols}" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>`;
       }
 
@@ -1385,9 +1484,6 @@ td.col-meta code{
 
       // rebuild semester options based on selected course
       applySemesterFilterToSelect(semesterSel, cid, '');
-
-      // do not force-clear department; keep user choice (optional)
-      // but if semester becomes empty, metadata + auto-fill will happen when semester selected
     });
 
     // ✅ NEW: course -> semester filtering (filter modal)
@@ -1405,12 +1501,10 @@ td.col-meta code{
       const cid = found?.course_id ?? found?.course?.id ?? '';
       const did = found?.department_id ?? found?.department?.id ?? '';
 
-      // ✅ if user selected course first, this will keep it consistent; otherwise it auto-fills
       if (cid !== null && cid !== undefined && String(cid).trim() !== '' && courseSel){
         courseSel.value = resolveId(String(cid), state.courses) || '';
       }
 
-      // optional: auto-fill dept if available
       if (did !== null && did !== undefined && String(did).trim() !== '' && deptSel){
         deptSel.value = resolveId(String(did), state.departments) || '';
       }
