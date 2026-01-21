@@ -49,7 +49,14 @@
     display:flex;align-items:center;gap:10px;
     padding:8px 10px;border:1px solid var(--line-strong);border-radius:var(--rad);
     background:var(--surface);
+    transition:transform .12s ease, box-shadow .12s ease;
   }
+  .tree-node:hover{transform:translateY(-1px);box-shadow:var(--shadow-1)}
+  .tree-node.is-selected{
+    border-color:color-mix(in oklab, var(--accent-color) 45%, var(--line-strong));
+    box-shadow:0 0 0 3px rgba(201,75,80,.14);
+  }
+
   .tree-node .toggle{
     width:24px;height:24px;border:1px solid var(--line-strong);border-radius:8px;
     display:inline-grid;place-items:center;cursor:pointer;flex:0 0 auto;
@@ -107,17 +114,27 @@
           <div class="err" data-for="page_id"></div>
         </div>
 
-        {{-- ✅ Header Menu Parent dropdown --}}
+        {{-- ✅ Header Menu Parent dropdown → ✅ REPLACED with Button + Modal Tree (TREE API) --}}
         <div class="col-12 col-md-4">
           <label class="form-label">Header Menu (Parent) <span class="text-danger">*</span></label>
-          <div class="input-group">
-            <span class="input-group-text"><i class="fa-solid fa-bars"></i></span>
-            <select class="form-select" id="header_menu_id">
-              <option value="">Loading header menus…</option>
-            </select>
+
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <span id="headerMenuBadge" class="badge-soft">Not selected</span>
+
+            <button class="btn btn-light pick-parent-btn" type="button" id="btnPickHeaderMenu">
+              <i class="fa-solid fa-bars me-1"></i>Choose from tree
+            </button>
+
+            <button class="btn btn-outline-danger btn-sm" type="button" id="btnClearHeaderMenu">
+              <i class="fa-solid fa-xmark me-1"></i>Clear
+            </button>
           </div>
+
+          {{-- ✅ hidden real value (same field name / id used in API payload) --}}
+          <input type="hidden" id="header_menu_id" value="">
+
           <small class="text-muted tiny">
-            Select the <b>main header menu</b> where this submenu will appear.
+            Select the <b>header menu item</b> where this submenu will appear.
           </small>
           <div class="err" data-for="header_menu_id"></div>
         </div>
@@ -311,6 +328,45 @@
     </div>
   </div>
 
+  {{-- ✅ Header Menu Picker Modal (TREE API) --}}
+  <div class="modal fade" id="headerMenuModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h6 class="modal-title"><i class="fa-solid fa-bars me-2"></i>Pick Header Menu</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+
+        <div class="modal-body">
+          <div class="d-flex justify-content-between align-items-center mb-2 modal-tools">
+            <div class="d-flex align-items-center gap-2">
+              <button class="btn btn-light btn-sm" type="button" id="btnReloadHeaderTree">
+                <span class="label"><i class="fa-solid fa-rotate"></i> Reload</span>
+                <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+              </button>
+            </div>
+            <div class="input-group" style="max-width: 340px;">
+              <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
+              <input type="text" class="form-control" id="headerTreeSearch" placeholder="Search by title…">
+            </div>
+          </div>
+
+          <div class="tree-wrap">
+            <div class="tree-loader" id="headerTreeLoader">
+              <div class="spin me-2"></div><span class="text-muted">Loading tree…</span>
+            </div>
+            <div id="headerTreeEmpty" class="tree-empty" style="display:none">No header menus found.</div>
+            <div id="headerTreeRoot" class="tree"></div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-light" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   {{-- Parent Picker Modal --}}
   <div class="modal fade" id="parentModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
@@ -396,8 +452,17 @@
     pageId: byId('page_id'),
     belongsPageSlug: byId('belongs_page_slug'),
 
-    // header menu
+    // ✅ header menu (hidden input now)
     headerMenuId: byId('header_menu_id'),
+    headerMenuBadge: byId('headerMenuBadge'),
+    btnPickHeaderMenu: byId('btnPickHeaderMenu'),
+    btnClearHeaderMenu: byId('btnClearHeaderMenu'),
+    headerMenuModal: new bootstrap.Modal(byId('headerMenuModal')),
+    headerTreeRoot: byId('headerTreeRoot'),
+    headerTreeSearch: byId('headerTreeSearch'),
+    headerTreeLoader: byId('headerTreeLoader'),
+    headerTreeEmpty: byId('headerTreeEmpty'),
+    btnReloadHeaderTree: byId('btnReloadHeaderTree'),
 
     // department
     deptId: byId('department_id'),
@@ -429,7 +494,7 @@
     pageTitle: byId('pageTitle'),
     hint: byId('hint'),
 
-    // modal + tree
+    // submenu-parent modal + tree
     btnPickParent: byId('btnPickParent'),
     btnClearParent: byId('btnClearParent'),
     parentModal: new bootstrap.Modal(byId('parentModal')),
@@ -535,16 +600,6 @@
     els.deptId.appendChild(opt);
   }
 
-  function ensureHeaderMenuOption(id, title){
-    const existing = Array.from(els.headerMenuId.options).find(o => String(o.value) === String(id));
-    if (existing) return;
-
-    const opt = document.createElement('option');
-    opt.value = String(id);
-    opt.textContent = (title || ('Header Menu #' + id));
-    els.headerMenuId.appendChild(opt);
-  }
-
   function getDepartmentId(){
     const v = parseInt(String(els.deptId.value||'').trim(), 10);
     return Number.isFinite(v) && v > 0 ? v : 0;
@@ -555,19 +610,174 @@
     return Number.isFinite(v) && v > 0 ? v : 0;
   }
 
-  /* ✅ FIX: Parent picker should NEVER be blocked now */
-function updateParentPickerAvailability(){
-  const hm = getHeaderMenuId();
+  /* ============================
+     ✅ Header Menu Picker (TREE API) — dropdown replaced
+  ============================ */
+  function setHeaderMenu(id, label){
+    els.headerMenuId.value = id ? String(id) : '';
+    els.headerMenuBadge.textContent = id ? `#${id}: ${label || '-'}` : 'Not selected';
 
-  // Parent picker depends on header menu scope
-  const ok = hm > 0;
+    // changing header menu changes submenu parent scope -> reset parent submenu safely
+    setParent('', 'Self (Root)');
+    updateParentPickerAvailability();
+  }
 
-  els.btnPickParent.disabled = !ok;
-  els.btnPickParent.title = ok
-    ? 'Choose parent submenu'
-    : 'Select Header Menu first to load available parents';
-}
+  els.btnClearHeaderMenu.addEventListener('click', ()=>{
+    setHeaderMenu('', '');
+    ok('Header menu cleared.');
+  });
 
+  function closeHeaderPicker(){
+    try { els.headerMenuModal.hide(); } catch {}
+    els.headerTreeLoader.classList.remove('show');
+    setTimeout(()=>{
+      document.querySelectorAll('.modal-backdrop').forEach(b=>b.remove());
+      document.body.classList.remove('modal-open');
+      document.body.style.removeProperty('padding-right');
+    }, 50);
+  }
+  byId('headerMenuModal').addEventListener('hidden.bs.modal', closeHeaderPicker);
+
+  function renderHeaderTree(nodes){
+    els.headerTreeRoot.innerHTML = '';
+    if (!nodes || !nodes.length){
+      els.headerTreeEmpty.style.display = 'block';
+      return;
+    }
+    els.headerTreeEmpty.style.display = 'none';
+
+    const ul = document.createElement('ul');
+    ul.className = 'm-0 p-0';
+
+    function makeNode(n, depth=0){
+      const li = document.createElement('li');
+
+      const node = document.createElement('div');
+      node.className = 'tree-node';
+      node.dataset.open = (depth<=1 ? '1' : '0');
+
+      if (els.headerMenuId.value && String(n.id) === String(els.headerMenuId.value)) {
+        node.classList.add('is-selected');
+      }
+
+      const toggle = document.createElement('div');
+      toggle.className = 'toggle';
+      toggle.innerHTML = '<i class="fa-solid fa-chevron-right tiny"></i>';
+      if (!n.children || !n.children.length) toggle.style.visibility = 'hidden';
+
+      const title = document.createElement('div');
+      title.className = 'tree-title';
+      title.textContent = n.title || '-';
+
+      const meta = document.createElement('div');
+      meta.className = 'tree-meta';
+      const slugText  = n.slug ? '/' + n.slug : '';
+      const pageSlug  = n.page_slug ? ' • page: /' + n.page_slug : '';
+      const pageUrl   = n.page_url ? ' • url: ' + n.page_url : '';
+      const statusText = n.active ? ' • active' : ' • inactive';
+      const deptText = (n.department_id === null || n.department_id === undefined) ? ' • dept: global' : (' • dept: #' + n.department_id);
+      meta.textContent = slugText + pageSlug + pageUrl + statusText + deptText;
+
+      const actions = document.createElement('div');
+      actions.className = 'tree-actions';
+
+      const pickBtn = document.createElement('button');
+      pickBtn.type = 'button';
+      pickBtn.className = 'btn btn-sm btn-outline-primary';
+      pickBtn.innerHTML = '<span class="label"><i class="fa-regular fa-circle-check me-1"></i>Select</span><span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>';
+
+      pickBtn.addEventListener('click', ()=>{
+        setBtnBusy(pickBtn, true);
+        setHeaderMenu(n.id, n.title || '-');
+        setTimeout(()=>{ setBtnBusy(pickBtn, false); closeHeaderPicker(); }, 120);
+      });
+
+      actions.appendChild(pickBtn);
+
+      node.appendChild(toggle);
+      node.appendChild(title);
+      node.appendChild(meta);
+      node.appendChild(actions);
+
+      li.appendChild(node);
+
+      const childrenWrap = document.createElement('div');
+      childrenWrap.className = 'children';
+      if (n.children && n.children.length){
+        const inner = document.createElement('ul');
+        n.children.forEach(c => inner.appendChild(makeNode(c, depth+1)));
+        childrenWrap.appendChild(inner);
+      } else {
+        const empty = document.createElement('div');
+        empty.className = 'tiny text-muted ps-2';
+        empty.textContent = 'No children';
+        childrenWrap.appendChild(empty);
+      }
+      li.appendChild(childrenWrap);
+
+      toggle.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const open = node.dataset.open === '1';
+        node.dataset.open = open ? '0' : '1';
+      });
+
+      return li;
+    }
+
+    nodes.forEach(n => ul.appendChild(makeNode(n, 0)));
+    els.headerTreeRoot.appendChild(ul);
+
+    els.headerTreeSearch.value = '';
+    els.headerTreeSearch.oninput = function(){
+      const q = this.value.trim().toLowerCase();
+      els.headerTreeRoot.querySelectorAll('.tree-node').forEach(nd=>{
+        const t = (nd.querySelector('.tree-title')?.textContent || '').toLowerCase();
+        const m = (nd.querySelector('.tree-meta')?.textContent || '').toLowerCase();
+        const match = !q || t.includes(q) || m.includes(q);
+        nd.parentElement.style.display = match ? '' : 'none';
+      });
+
+      if (q){
+        els.headerTreeRoot.querySelectorAll('.tree-node').forEach(nd => nd.dataset.open = '1');
+      }
+    };
+  }
+
+  async function loadHeaderMenuTree(){
+    els.headerTreeRoot.innerHTML = '';
+    els.headerTreeEmpty.style.display='none';
+    els.headerTreeLoader.classList.add('show');
+    setBtnBusy(els.btnReloadHeaderTree, true);
+
+    try{
+      const j = await fetchJSON('/api/header-menus/tree?only_active=0');
+      renderHeaderTree(Array.isArray(j.data) ? j.data : []);
+    }catch(e){
+      console.error(e);
+      els.headerTreeEmpty.style.display='block';
+      els.headerTreeRoot.innerHTML='';
+    }finally{
+      els.headerTreeLoader.classList.remove('show');
+      setBtnBusy(els.btnReloadHeaderTree, false);
+    }
+  }
+
+  els.btnPickHeaderMenu.addEventListener('click', ()=>{
+    loadHeaderMenuTree();
+    els.headerMenuModal.show();
+  });
+  els.btnReloadHeaderTree.addEventListener('click', loadHeaderMenuTree);
+
+  /* ---------- FIX: Parent picker should be available only when header menu selected ---------- */
+  function updateParentPickerAvailability(){
+    const hm = getHeaderMenuId();
+    const ok = hm > 0;
+
+    els.btnPickParent.disabled = !ok;
+    els.btnPickParent.title = ok
+      ? 'Choose parent submenu'
+      : 'Select Header Menu first to load available parents';
+  }
 
   /* ---------- pages dropdown (legacy) ---------- */
   function setPagesDropdownStateLoading(){
@@ -640,124 +850,6 @@ function updateParentPickerAvailability(){
 
     setPagesDropdownStateError();
   }
-
-  /* ---------- ✅ header menu dropdown (ONLY MAIN MENUS) ---------- */
-  function setHeaderMenusDropdownStateLoading(){
-    els.headerMenuId.innerHTML = '';
-    const opt = document.createElement('option');
-    opt.value = '';
-    opt.textContent = 'Loading header menus…';
-    els.headerMenuId.appendChild(opt);
-    els.headerMenuId.disabled = true;
-  }
-  function setHeaderMenusDropdownStateError(){
-    els.headerMenuId.innerHTML = '';
-    const opt = document.createElement('option');
-    opt.value = '';
-    opt.textContent = 'Unable to load header menus';
-    els.headerMenuId.appendChild(opt);
-    els.headerMenuId.disabled = false;
-  }
-  function extractHeaderMenusArray(j){
-    if (Array.isArray(j?.data)) return j.data;
-    if (Array.isArray(j?.menus)) return j.menus;
-    if (Array.isArray(j?.header_menus)) return j.header_menus;
-    if (Array.isArray(j?.items)) return j.items;
-    if (Array.isArray(j?.data?.data)) return j.data.data;
-    return [];
-  }
-  function isMainHeaderMenu(m){
-    const pid = parseInt(
-      m?.parent_id ??
-      m?.parentId ??
-      m?.menu_parent_id ??
-      m?.header_menu_parent_id ??
-      m?.headerMenuParentId ??
-      0, 10
-    );
-    if (Number.isFinite(pid) && pid > 0) return false;
-
-    const lvl = parseInt(
-      m?.level ??
-      m?.depth ??
-      m?.menu_level ??
-      m?.menu_depth ??
-      0, 10
-    );
-    if (Number.isFinite(lvl) && lvl > 0) return false;
-
-    if (m?.is_child === true || m?.isChild === true) return false;
-
-    return true;
-  }
-  function filterMainHeaderMenus(items){
-    const list = (items || []).filter(isMainHeaderMenu);
-    return list.length ? list : (items || []);
-  }
-  function setHeaderMenusDropdownOptions(items){
-    els.headerMenuId.innerHTML = '';
-    const opt0 = document.createElement('option');
-    opt0.value = '';
-    opt0.textContent = 'Select a header menu…';
-    els.headerMenuId.appendChild(opt0);
-
-    const mainOnly = filterMainHeaderMenus(items);
-
-    (mainOnly || []).forEach(m=>{
-      const id = parseInt(m?.id ?? m?.menu_id ?? m?.header_menu_id, 10);
-      if (!Number.isFinite(id) || id <= 0) return;
-
-      const title = (m?.title ?? m?.name ?? m?.menu_title ?? m?.label ?? '').toString().trim();
-      const slug  = (m?.slug ?? m?.menu_slug ?? '').toString().trim();
-      const label = title ? title : (slug ? ('/' + slug) : ('Header Menu #' + id));
-
-      const opt = document.createElement('option');
-      opt.value = String(id);
-      opt.textContent = label;
-      els.headerMenuId.appendChild(opt);
-    });
-
-    els.headerMenuId.disabled = false;
-  }
-  async function loadHeaderMenusDropdown(){
-    setHeaderMenusDropdownStateLoading();
-
-    const candidates = [
-      '/api/header-menus/parents?_ts=' + Date.now(),
-      '/api/header-menus?only_parents=1&_ts=' + Date.now(),
-      '/api/header-menus?top_level=1&_ts=' + Date.now(),
-      '/api/top-header-menus?only_parents=1&_ts=' + Date.now(),
-      '/api/top-header-menus?_ts=' + Date.now(),
-      '/api/public/header-menus?top_level=1&_ts=' + Date.now(),
-      '/api/public/header-menus?_ts=' + Date.now(),
-      '/api/header-menus/parents',
-      '/api/header-menus?only_parents=1',
-      '/api/header-menus?top_level=1',
-      '/api/top-header-menus?only_parents=1',
-      '/api/top-header-menus',
-      '/api/public/header-menus?top_level=1',
-      '/api/public/header-menus'
-    ];
-
-    for (const url of candidates){
-      try{
-        const j = await fetchJSON(url);
-        const arr = extractHeaderMenusArray(j);
-        if (Array.isArray(arr) && arr.length){
-          setHeaderMenusDropdownOptions(arr);
-          return;
-        }
-      }catch(e){}
-    }
-
-    setHeaderMenusDropdownStateError();
-  }
-
-  els.headerMenuId.addEventListener('change', ()=>{
-  setParent('', 'Self (Root)');     // reset parent
-  updateParentPickerAvailability(); // disable/enable parent picker
-});
-
 
   /* ---------- departments dropdown ---------- */
   function setDeptDropdownStateLoading(){
@@ -966,7 +1058,7 @@ function updateParentPickerAvailability(){
     }
   }
 
-  /* ---------- parent selector (tree) ---------- */
+  /* ---------- parent selector (submenu parent tree modal) ---------- */
   function setParent(id, label){
     els.parentId.value = id || '';
     els.parentBadge.textContent = id ? `#${id}: ${label}` : 'Self (Root)';
@@ -1061,7 +1153,8 @@ function updateParentPickerAvailability(){
       }
       li.appendChild(childrenWrap);
 
-      toggle.addEventListener('click', ()=>{
+      toggle.addEventListener('click', (e)=>{
+        e.stopPropagation();
         const open = node.dataset.open === '1';
         node.dataset.open = open ? '0' : '1';
       });
@@ -1088,94 +1181,90 @@ function updateParentPickerAvailability(){
     };
   }
 
-/* ✅ FIXED: Parent picker shows ALL page submenus inside selected Header Menu scope */
-async function loadTree(){
-  els.treeRoot.innerHTML = '';
-  els.treeEmpty.style.display='none';
-  els.treeLoader.classList.add('show');
-  setBtnBusy(els.btnReloadTree, true);
+  /* ✅ Parent picker shows ALL page submenus inside selected Header Menu scope */
+  async function loadTree(){
+    els.treeRoot.innerHTML = '';
+    els.treeEmpty.style.display='none';
+    els.treeLoader.classList.add('show');
+    setBtnBusy(els.btnReloadTree, true);
 
-  try{
-    const headerMenuId = getHeaderMenuId();
-    const pageId = getPageId(); // optional (hidden legacy)
+    try{
+      const headerMenuId = getHeaderMenuId();
+      const pageId = getPageId(); // optional (hidden legacy)
 
-    if (!headerMenuId){
+      if (!headerMenuId){
+        els.treeLoader.classList.remove('show');
+        setBtnBusy(els.btnReloadTree, false);
+        err('Select Header Menu first to load parent submenus');
+        return;
+      }
+
+      // if pageId is empty -> show only page_id = NULL items (global for that header menu)
+      const pageScope = (pageId > 0) ? String(pageId) : 'null';
+
+      const url =
+        `/api/page-submenus?per_page=2000&sort=position&direction=asc` +
+        `&header_menu_id=${headerMenuId}` +
+        `&page_id=${pageScope}` +
+        `&_ts=${Date.now()}`;
+
+      const j = await fetchJSON(url);
+      let items = Array.isArray(j?.data) ? j.data : [];
+
+      // in edit mode: prevent selecting self as parent
+      if (IS_EDIT && EDIT_ID){
+        items = items.filter(x => String(x.id) !== String(EDIT_ID));
+      }
+
+      // build tree from flat list
+      const map = new Map();
+      items.forEach(it=>{
+        map.set(it.id, { ...it, children: [] });
+      });
+
+      const roots = [];
+      map.forEach(node=>{
+        const pid = node.parent_id ? Number(node.parent_id) : 0;
+        if (pid > 0 && map.has(pid)){
+          map.get(pid).children.push(node);
+        } else {
+          roots.push(node);
+        }
+      });
+
+      // sort by position inside tree
+      function sortTree(arr){
+        arr.sort((a,b)=>(Number(a.position||0) - Number(b.position||0)) || (Number(a.id||0) - Number(b.id||0)));
+        arr.forEach(n=>{
+          if (Array.isArray(n.children)) sortTree(n.children);
+        });
+      }
+      sortTree(roots);
+
+      renderTree(roots);
+
+    }catch(e){
+      console.error(e);
+      els.treeEmpty.style.display='block';
+      els.treeRoot.innerHTML='';
+    }finally{
       els.treeLoader.classList.remove('show');
       setBtnBusy(els.btnReloadTree, false);
-      err('Select Header Menu first to load parent submenus');
+    }
+  }
+
+  els.btnPickParent.addEventListener('click', ()=>{
+    clearErrors();
+
+    if (!getHeaderMenuId()){
+      showError('header_menu_id', 'Select Header Menu first');
+      els.btnPickHeaderMenu?.focus();
       return;
     }
 
-    // ✅ scope rules (matches validateParent() backend)
-    // if pageId is empty -> show only page_id = NULL items (global for that header menu)
-    const pageScope = (pageId > 0) ? String(pageId) : 'null';
-
-    // ✅ Use INDEX API instead of TREE API (tree API requires page_id/page_slug)
-    const url =
-      `/api/page-submenus?per_page=2000&sort=position&direction=asc` +
-      `&header_menu_id=${headerMenuId}` +
-      `&page_id=${pageScope}` +
-      `&_ts=${Date.now()}`;
-
-    const j = await fetchJSON(url);
-    let items = Array.isArray(j?.data) ? j.data : [];
-
-    // ✅ in edit mode: prevent selecting self as parent
-    if (IS_EDIT && EDIT_ID){
-      items = items.filter(x => String(x.id) !== String(EDIT_ID));
-    }
-
-    // ✅ Build tree from flat list
-    const map = new Map();
-    items.forEach(it=>{
-      map.set(it.id, { ...it, children: [] });
-    });
-
-    const roots = [];
-
-    map.forEach(node=>{
-      const pid = node.parent_id ? Number(node.parent_id) : 0;
-      if (pid > 0 && map.has(pid)){
-        map.get(pid).children.push(node);
-      } else {
-        roots.push(node);
-      }
-    });
-
-    // ✅ sort by position inside tree (optional)
-    function sortTree(arr){
-      arr.sort((a,b)=>(Number(a.position||0) - Number(b.position||0)) || (Number(a.id||0) - Number(b.id||0)));
-      arr.forEach(n=>{
-        if (Array.isArray(n.children)) sortTree(n.children);
-      });
-    }
-    sortTree(roots);
-
-    renderTree(roots);
-
-  }catch(e){
-    console.error(e);
-    els.treeEmpty.style.display='block';
-    els.treeRoot.innerHTML='';
-  }finally{
-    els.treeLoader.classList.remove('show');
-    setBtnBusy(els.btnReloadTree, false);
-  }
-}
-
-
-els.btnPickParent.addEventListener('click', ()=>{
-  clearErrors();
-
-  if (!getHeaderMenuId()){
-    showError('header_menu_id', 'Select Header Menu first');
-    els.headerMenuId.focus();
-    return;
-  }
-
-  loadTree();
-  els.parentModal.show();
-});
+    loadTree();
+    els.parentModal.show();
+  });
 
   els.btnReloadTree.addEventListener('click', loadTree);
 
@@ -1183,11 +1272,11 @@ els.btnPickParent.addEventListener('click', ()=>{
   const saveSubmenu = oneFlight(async function(){
     clearErrors();
 
-    // header menu required (still required for placement)
+    // header menu required
     const headerMenuId = getHeaderMenuId();
     if (!headerMenuId){
       showError('header_menu_id','Header Menu (Parent) is required');
-      els.headerMenuId.focus();
+      els.btnPickHeaderMenu.focus();
       return;
     }
 
@@ -1321,10 +1410,15 @@ els.btnPickParent.addEventListener('click', ()=>{
         '';
       if (guessBelongsSlug) els.belongsPageSlug.value = String(guessBelongsSlug);
 
+      // ✅ set header menu (from edit data) - badge + hidden value
       const hm = parseInt(m.header_menu_id ?? m.headerMenuId ?? 0, 10);
       if (Number.isFinite(hm) && hm > 0){
-        ensureHeaderMenuOption(hm, m.header_menu_title || m.header_title || '');
-        els.headerMenuId.value = String(hm);
+        const label =
+          (m.header_menu_title || m.header_title || m.headerMenuTitle || '').toString().trim()
+          || ('Header Menu #' + hm);
+        setHeaderMenu(hm, label);
+      } else {
+        setHeaderMenu('', '');
       }
 
       const subDept = parseInt(m.department_id ?? 0, 10);
@@ -1377,12 +1471,15 @@ els.btnPickParent.addEventListener('click', ()=>{
 
       els.belongsPageSlug.value = initialData.belongs_page_slug || initialData.page_slug || selectedPageSlug() || '';
 
+      // ✅ header menu reset
       const hm = parseInt(initialData.header_menu_id ?? 0, 10);
       if (hm > 0){
-        ensureHeaderMenuOption(hm, initialData.header_menu_title || '');
-        els.headerMenuId.value = String(hm);
+        const label =
+          (initialData.header_menu_title || initialData.header_title || '').toString().trim()
+          || ('Header Menu #' + hm);
+        setHeaderMenu(hm, label);
       } else {
-        els.headerMenuId.value = '';
+        setHeaderMenu('', '');
       }
 
       const subDept = parseInt(initialData.department_id ?? 0, 10);
@@ -1423,7 +1520,9 @@ els.btnPickParent.addEventListener('click', ()=>{
         els.pageId.value='';
       }
 
-      els.headerMenuId.value='';
+      // ✅ clear header menu selection
+      setHeaderMenu('', '');
+
       els.deptId.value='';
 
       els.title.value='';
@@ -1450,7 +1549,7 @@ els.btnPickParent.addEventListener('click', ()=>{
 
   /* ---------- init ---------- */
   (async function init(){
-    els.hint.textContent = 'Parent picker shows ALL page submenus for nesting. Header menu is only for placement.';
+    els.hint.textContent = 'Header menu is selected from full tree (parents + children). Parent submenu picker is scoped under selected header menu.';
 
     els.slug.value = '';
     els.slugAuto.checked = true;
@@ -1458,10 +1557,12 @@ els.btnPickParent.addEventListener('click', ()=>{
     els.btnRegen.disabled = true;
     maybeUpdateSlug();
 
+    // default header menu state
+    setHeaderMenu('', '');
+
     await loadIncludablePaths();
     syncDestinationLocks();
 
-    await loadHeaderMenusDropdown();
     await loadDepartmentsDropdown();
     await loadPagesDropdown();
 

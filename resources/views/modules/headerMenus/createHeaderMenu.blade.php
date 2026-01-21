@@ -758,12 +758,19 @@
         // ✅ After save, always go back to manage
         setTimeout(()=>{ location.href = '/header/menu/manage'; }, 600);
 
-      } else if (r.status === 422){
-        const errors = json.errors || {};
-        Object.entries(errors).forEach(([k,v])=> showError(k, Array.isArray(v)? v[0] : String(v)));
-        err(json.message || 'Please fix the highlighted fields');
+      } else if (r.status === 422) {
 
-      } else if (r.status === 403){
+  // ✅ handle {error, field} type responses
+  if (json.field && (json.error || json.message)) {
+    showError(json.field, json.error || json.message);
+  }
+
+  // ✅ handle normal Laravel validator errors
+  const errors = json.errors || {};
+  Object.entries(errors).forEach(([k,v])=> showError(k, Array.isArray(v)? v[0] : String(v)));
+
+  err(json.message || json.error || 'Please fix the highlighted fields');
+} else if (r.status === 403){
         err('Forbidden');
 
       } else {

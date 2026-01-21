@@ -62,7 +62,8 @@ class HeaderMenuController extends Controller
 
         $q = DB::table('header_menus')
             ->select('id', 'title', 'deleted_at', $column)
-            ->where($column, $value);
+            ->where($column, $value)
+->whereNull('deleted_at');
 
         if ($excludeId !== null) {
             $q->where('id', '!=', $excludeId);
