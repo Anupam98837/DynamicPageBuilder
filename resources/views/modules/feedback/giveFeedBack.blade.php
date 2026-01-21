@@ -1,4 +1,5 @@
 {{-- resources/views/modules/feedbacks/submitFeedback.blade.php --}}
+
 @section('title','Submit Feedback')
 
 @push('styles')
@@ -29,26 +30,17 @@
 .badge-submitted{background:rgba(16,185,129,.14);color:#059669;border:1px solid rgba(16,185,129,.35)}
 .badge-pending{background:rgba(245,158,11,.14);color:#b45309;border:1px solid rgba(245,158,11,.35)}
 
-.filter-pills{display:flex;gap:8px;flex-wrap:wrap}
-.filter-pill{
-  border:1px solid var(--line-strong);
-  background:var(--surface);
-  color:var(--ink);
-  border-radius:999px;
-  padding:7px 12px;
-  font-weight:800;
-  font-size:12px;
-  cursor:pointer;
-  user-select:none;
-}
-.filter-pill.active{
-  background:color-mix(in oklab, var(--primary-color) 10%, var(--surface));
-  border-color:color-mix(in oklab, var(--primary-color) 45%, var(--line-strong));
-}
-.filter-pill .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle}
-.dot-all{background:rgba(148,163,184,.8)}
-.dot-pending{background:#ef4444}
-.dot-submitted{background:#22c55e}
+.fbsub-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.fbsub-toolbar .left{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.fbsub-toolbar .right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+.text-mini{font-size:12px;color:var(--muted-color)}
+.hr-soft{border-color:var(--line-soft)!important}
+
+.empty-state{text-align:center;padding:42px 20px}
+.empty-state i{font-size:48px;color:var(--muted-color);margin-bottom:16px;opacity:.6}
+.empty-state .title{font-weight:900;color:var(--ink);margin-bottom:8px}
+.empty-state .subtitle{font-size:14px;color:var(--muted-color)}
 
 .accordion-item{border:1px solid var(--line-strong);border-radius:14px;overflow:hidden;background:var(--surface);margin-bottom:10px}
 .accordion-item:last-child{margin-bottom:0}
@@ -73,23 +65,51 @@
 .fb-post-ac-item.is-submitted::before{ background: rgba(34,197,94,.55); }
 .fb-post-ac-item.is-pending::before{ background: rgba(239,68,68,.55); }
 
-.fbsub-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
-.fbsub-toolbar .left{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.fbsub-toolbar .right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-
-.text-mini{font-size:12px;color:var(--muted-color)}
-.hr-soft{border-color:var(--line-soft)!important}
-
-.empty-state{text-align:center;padding:42px 20px}
-.empty-state i{font-size:48px;color:var(--muted-color);margin-bottom:16px;opacity:.6}
-.empty-state .title{font-weight:900;color:var(--ink);margin-bottom:8px}
-.empty-state .subtitle{font-size:14px;color:var(--muted-color)}
+/* =========================
+ * ✅ Two Tab Switch (Pending | Submitted)
+ * ========================= */
+.fb-tabs{
+  border:1px solid var(--line-soft);
+  background:var(--surface);
+  border-radius:999px;
+  padding:6px;
+  display:inline-flex;
+  gap:6px;
+}
+.fb-tabs .nav-link{
+  border-radius:999px !important;
+  border:1px solid transparent;
+  padding:8px 14px;
+  font-weight:950;
+  font-size:12px;
+  color:var(--muted-color);
+  background:transparent;
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+}
+.fb-tabs .nav-link.active{
+  background:color-mix(in oklab, var(--primary-color) 12%, var(--surface));
+  color:var(--ink);
+  border-color:color-mix(in oklab, var(--primary-color) 35%, var(--line-soft));
+}
+.fb-tabs .tab-dot{
+  width:8px;height:8px;border-radius:999px;display:inline-block;
+}
+.fb-tabs .tab-dot.pending{ background:#ef4444; }
+.fb-tabs .tab-dot.submitted{ background:#22c55e; }
+.fb-tabs .tab-count{
+  margin-left:2px;
+  padding:2px 8px;
+  border-radius:999px;
+  border:1px solid var(--line-soft);
+  color:var(--ink);
+  font-weight:950;
+}
 
 /* =========================
  * ✅ Faculty SQUARE tabs + Table
- *    - Rating: radios on top row, labels under each radio
  * ========================= */
-
 .fb-table-wrap{border:1px solid var(--line-soft);border-radius:14px;overflow:auto;max-width:100%}
 .fb-table{width:100%;min-width:980px;margin:0}
 .fb-table thead th{position:sticky;top:0;background:var(--surface);z-index:3;border-bottom:1px solid var(--line-strong);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
@@ -173,11 +193,11 @@
 }
 
 /* ✅ Color per rating (text only) */
-.rate-col[data-rate="5"] .txt{ color:#16a34a; }  /* Outstanding - green */
-.rate-col[data-rate="4"] .txt{ color:#22c55e; }  /* Excellent - light green */
-.rate-col[data-rate="3"] .txt{ color:#0ea5e9; }  /* Good - blue */
-.rate-col[data-rate="2"] .txt{ color:#f59e0b; }  /* Fair - orange */
-.rate-col[data-rate="1"] .txt{ color:#ef4444; }  /* Not Satisfactory - red */
+.rate-col[data-rate="5"] .txt{ color:#16a34a; }
+.rate-col[data-rate="4"] .txt{ color:#22c55e; }
+.rate-col[data-rate="3"] .txt{ color:#0ea5e9; }
+.rate-col[data-rate="2"] .txt{ color:#f59e0b; }
+.rate-col[data-rate="1"] .txt{ color:#ef4444; }
 
 .rate-col.is-on{
   background:color-mix(in oklab, var(--primary-color) 8%, var(--surface));
@@ -196,19 +216,10 @@
   border-radius:999px;
 }
 
-/* =========================
- * ✅ Error highlighting (requested)
- * - Highlights the specific question row / section when validation or API errors occur
- * ========================= */
-.fb-row-error{
-  background: rgba(239,68,68,.08) !important;
-}
-.fb-row-error td{
-  border-bottom-color: rgba(239,68,68,.30) !important;
-}
-.fb-row-error .fb-qtitle{
-  color:#b91c1c;
-}
+/* ✅ Error highlighting */
+.fb-row-error{background: rgba(239,68,68,.08) !important;}
+.fb-row-error td{border-bottom-color: rgba(239,68,68,.30) !important;}
+.fb-row-error .fb-qtitle{color:#b91c1c;}
 .fb-row-error .rate-grid{
   outline: 2px solid rgba(239,68,68,.28);
   outline-offset: 4px;
@@ -218,33 +229,17 @@
   border-color: rgba(239,68,68,.45) !important;
   box-shadow: 0 0 0 .18rem rgba(239,68,68,.12);
 }
-
-/* ✅ highlight the exact faculty tab which is missing */
 .fac-tabbtn.is-missing{
   border-color: rgba(239,68,68,.70) !important;
   box-shadow: 0 0 0 .18rem rgba(239,68,68,.12) !important;
 }
 .fac-tabbtn.is-missing .nm{ color:#b91c1c; }
 
-/* =========================
- * ✅ READ-ONLY MODE for already submitted posts
- * - Shows selected data but user cannot change radios
- * - "Update" button becomes disabled
- * ========================= */
-.fb-readonly .rate-col{
-  opacity:.72;
-  cursor:not-allowed !important;
-}
+/* ✅ READ-ONLY */
+.fb-readonly .rate-col{opacity:.72;cursor:not-allowed !important;}
 .fb-readonly .rate-col:hover{background:transparent}
-.fb-readonly input[type="radio"]{
-  pointer-events:none;
-}
-.fb-readonly .fac-tabsbar{opacity:.98}
-.fb-readonly .fb-post-submit-btn{
-  opacity:.65;
-  cursor:not-allowed !important;
-  pointer-events:none;
-}
+.fb-readonly input[type="radio"]{pointer-events:none;}
+.fb-readonly .fb-post-submit-btn{opacity:.65;cursor:not-allowed !important;pointer-events:none;}
 
 @media (max-width: 768px){
   .fbsub-panel .d-flex{flex-direction:column;gap:12px !important}
@@ -267,11 +262,18 @@
         <div class="fw-semibold"><i class="fa fa-star me-2"></i>Submit Feedback</div>
         <span class="count-badge" id="postBadge">—</span>
       </div>
+
       <div class="right">
-        <div class="filter-pills" id="postFilters">
-          <span class="filter-pill active" data-filter="all"><span class="dot dot-all"></span>All <span class="ms-1" id="cntAll">0</span></span>
-          <span class="filter-pill" data-filter="pending"><span class="dot dot-pending"></span>Pending <span class="ms-1" id="cntPending">0</span></span>
-          <span class="filter-pill" data-filter="submitted"><span class="dot dot-submitted"></span>Submitted <span class="ms-1" id="cntSubmitted">0</span></span>
+        {{-- ✅ Two Tabs: Pending | Submitted --}}
+        <div class="nav fb-tabs" id="postTabs" role="tablist">
+          <button class="nav-link active" type="button" data-filter="pending">
+            <span class="tab-dot pending"></span>
+            Pending <span class="tab-count" id="cntPending">0</span>
+          </button>
+          <button class="nav-link" type="button" data-filter="submitted">
+            <span class="tab-dot submitted"></span>
+            Submitted <span class="tab-count" id="cntSubmitted">0</span>
+          </button>
         </div>
 
         <button id="btnRefresh" class="btn btn-light">
@@ -322,8 +324,8 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 (() => {
-  if (window.__FEEDBACK_SUBMIT_PAGE_V12__) return;
-  window.__FEEDBACK_SUBMIT_PAGE_V12__ = true;
+  if (window.__FEEDBACK_SUBMIT_PAGE_V13__) return;
+  window.__FEEDBACK_SUBMIT_PAGE_V13__ = true;
 
   const $ = (id) => document.getElementById(id);
 
@@ -402,11 +404,13 @@
     posts: [],
     questions: [],
     users: [],
-    filter: 'all',
+
+    // ✅ default: Pending tab (current tab)
+    filter: 'pending',
+
     ratingsByPost: {},
     activeFacultyByPost: {},
 
-    // ✅ fast lookups (used to show errors by NAME instead of ID)
     questionsById: new Map(),
     usersById: new Map(),
   };
@@ -425,16 +429,42 @@
     return u ? userLabel(u) : `Faculty #${fid}`;
   }
 
-  function semesterTitle(post){
-    if (post?.semester_no !== null && post?.semester_no !== undefined && String(post.semester_no).trim() !== '') {
-      return `Semester ${String(post.semester_no)}`;
+  /* ======================================================
+   ✅ Semester FIX (IMPORTANT)
+   - earlier UI used semester_id => showed wrong "Semester 7"
+   - now it ONLY uses semester_no/semester_number or nested objects
+  ====================================================== */
+  function resolveSemesterNo(post){
+    const tries = [
+      post?.semester_no,
+      post?.semester_number,
+      post?.sem_no,
+      post?.semester?.semester_no,
+      post?.semester?.semester_number,
+      post?.course_semester?.semester_no,
+      post?.courseSemester?.semester_no,
+    ];
+    for (const t of tries){
+      const n = idNum(t);
+      if (n !== null && n > 0) return n;
     }
-    if (post?.semester_name && String(post.semester_name).trim()) return String(post.semester_name);
-    if (post?.semester_id) return `Semester ${post.semester_id}`;
-    return 'General';
+    return null;
   }
+
+  function semesterTitle(post){
+    const semNo = resolveSemesterNo(post);
+    if (semNo !== null) return `Semester ${semNo}`;
+
+    if (post?.semester_name && String(post.semester_name).trim()) return String(post.semester_name);
+
+    // ❌ DO NOT use semester_id as semester number
+    return 'Semester';
+  }
+
   function subjectTitle(post){
     if (post?.subject_name && String(post.subject_name).trim()) return String(post.subject_name);
+    if (post?.subject?.title && String(post.subject.title).trim()) return String(post.subject.title);
+    if (post?.subject?.name && String(post.subject.name).trim()) return String(post.subject.name);
     if (post?.subject_id) return `Subject #${post.subject_id}`;
     return 'General';
   }
@@ -465,31 +495,41 @@
   }
 
   function filteredPosts(){
+    // ✅ Two tabs only
     if (state.filter === 'submitted') return state.posts.filter(p => !!p.is_submitted);
-    if (state.filter === 'pending') return state.posts.filter(p => !p.is_submitted);
-    return state.posts;
+    return state.posts.filter(p => !p.is_submitted); // pending
   }
 
   function updateCounts(){
     const all = state.posts.length;
     const sub = state.posts.filter(p => !!p.is_submitted).length;
     const pen = all - sub;
-    $('cntAll').textContent = all;
+
     $('cntSubmitted').textContent = sub;
-    $('cntPending').textContent = pen;
+    $('cntPending').textContent   = pen;
   }
 
   function updateTopSummary(){
     const list = filteredPosts();
+
+    const all = state.posts.length;
+    const sub = state.posts.filter(p => !!p.is_submitted).length;
+    const pen = all - sub;
+
+    $('postBadge').textContent = `Pending: ${pen} • Submitted: ${sub}`;
+
     if (!list.length){
-      $('postBadge').textContent = '—';
-      $('summaryText').textContent = 'No posts for the current filter.';
+      $('summaryText').textContent =
+        (state.filter === 'submitted')
+        ? 'No submitted feedback posts found.'
+        : 'No pending feedback posts found.';
       return;
     }
-    const sub = list.filter(p => !!p.is_submitted).length;
-    const pen = list.length - sub;
-    $('postBadge').textContent = `Showing: ${list.length} • Pending: ${pen} • Submitted: ${sub}`;
-    $('summaryText').textContent = 'Open a post → select faculty tab → choose rating per question → Submit works for that post.';
+
+    $('summaryText').textContent =
+      (state.filter === 'submitted')
+      ? 'Submitted posts are read-only.'
+      : 'Open a post → select faculty tab → choose rating per question → Submit works for that post.';
   }
 
   function ensureRatingSlot(postKey, qid, fid){
@@ -562,7 +602,6 @@
     tabs?.querySelectorAll('.fac-tabbtn.is-missing').forEach(b => b.classList.remove('is-missing'));
   }
 
-  // ✅ mark/unmark missing badge for a specific faculty tab (based on current state)
   function facultyHasMissing(post, postKey, fid){
     const qIds = pickArray(post?.question_ids).map(idNum).filter(Boolean);
     if (!qIds.length) return false;
@@ -570,7 +609,6 @@
     for (const qid of qIds){
       if (!isQuestionApplicableToFaculty(post, qid, fid)) continue;
 
-      // ensure slot exists
       ensureRatingSlot(postKey, qid, fid);
 
       const v = parseInt(state.ratingsByPost?.[postKey]?.[qid]?.[fid] || 0, 10);
@@ -580,7 +618,6 @@
   }
 
   function syncMissingTabMarker(post, postKey, fid){
-    // ✅ if already submitted => NO missing markers needed
     if (post?.is_submitted) return;
 
     const bar = document.querySelector(`[data-posttabs="${CSS.escape(String(postKey))}"]`);
@@ -613,10 +650,8 @@
     const post = state.posts.find(p => String(p?.uuid || p?.id) === String(postKey));
     clearHighlights(postKey);
 
-    // ✅ if submitted, do not highlight anything (read-only)
     if (post?.is_submitted) return;
 
-    // if we know the faculty, switch to that tab so user sees the exact missing place
     if (fid !== null && fid !== undefined && post){
       activateFacultyTabUI(post, postKey, fid);
 
@@ -625,7 +660,6 @@
       btn?.classList.add('is-missing');
     }
 
-    // highlight question row
     if (qid !== null && qid !== undefined){
       const pane = document.getElementById('tablePane_' + postKey);
       const tr = pane?.querySelector(`tr[data-qrow="1"][data-qid="${CSS.escape(String(qid))}"]`);
@@ -638,7 +672,6 @@
       }
     }
 
-    // highlight the faculty tab bar briefly
     const tabs = document.querySelector(`[data-posttabs="${CSS.escape(String(postKey))}"]`);
     if (tabs){
       tabs.classList.add('is-error');
@@ -646,24 +679,18 @@
     }
   }
 
-  // ✅ Extract useful (qid/fid) from server-side validation errors (if any)
   function extractIssueFromServerErrors(js){
     const errs = js?.errors;
     if (!errs || typeof errs !== 'object') return null;
 
     const keys = Object.keys(errs);
     for (const k of keys){
-      // common patterns:
-      // answers.12.5   (qid=12, fid=5)
-      // answers.12.0
-      // answers.12
       let m = k.match(/^answers\.(\d+)\.(\d+)$/);
       if (m) return { qid: idNum(m[1]), fid: idNum(m[2]) };
 
       m = k.match(/^answers\.(\d+)$/);
       if (m) return { qid: idNum(m[1]), fid: null };
 
-      // sometimes nested: data.answers.12.5
       m = k.match(/answers\.(\d+)(?:\.(\d+))?/);
       if (m) return { qid: idNum(m[1]), fid: idNum(m[2]) };
     }
@@ -674,7 +701,6 @@
     const postKey = String(post?.uuid || post?.id || '');
     if (!postKey) return { message:'Invalid feedback post.', qid:null, fid:null };
 
-    // ✅ If already submitted => restrict update completely
     if (post?.is_submitted){
       return { message:'This feedback is already submitted and cannot be updated.', qid:null, fid:null };
     }
@@ -684,7 +710,6 @@
 
     const ans = collectPayloadAnswers(postKey);
 
-    // Users can submit ONLY if ALL faculty tabs (for this post) are fully filled:
     for (const qid of qIds){
       const block = ans[String(qid)] || {};
       const allowed = getAllowedFacultyIdsForQuestion(post, qid);
@@ -695,21 +720,13 @@
           const v = parseInt(block[String(fid)] || 0, 10);
           if (!(v >= 1 && v <= 5)){
             const facName = getFacultyNameById(fid);
-            return {
-              message: `Please rate “${qTitle}” for ${facName}.`,
-              qid,
-              fid
-            };
+            return { message: `Please rate “${qTitle}” for ${facName}.`, qid, fid };
           }
         }
       } else {
         const v = parseInt(block['0'] || 0, 10);
         if (!(v >= 1 && v <= 5)){
-          return {
-            message: `Please rate “${qTitle}” (Overall).`,
-            qid,
-            fid: 0
-          };
+          return { message: `Please rate “${qTitle}” (Overall).`, qid, fid: 0 };
         }
       }
     }
@@ -720,7 +737,6 @@
   function renderQuestionsTable(post, postKey, activeFid){
     const qIds = pickArray(post?.question_ids).map(idNum).filter(Boolean);
     const qMap = new Map((state.questions || []).map(q => [idNum(q?.id), q]));
-
     const isReadOnly = !!post?.is_submitted;
 
     if (!qIds.length){
@@ -806,7 +822,6 @@
     const sem = semesterTitle(post);
     const sub = subjectTitle(post);
 
-    // ✅ If already submitted => show disabled button + readonly UI
     const isReadOnly = !!post?.is_submitted;
 
     const buttonLabel = isReadOnly ? 'Already Submitted' : 'Submit';
@@ -935,7 +950,6 @@
         slot.innerHTML = renderPostBody(post, postKey);
         clearHighlights(postKey);
 
-        // ✅ pending only => mark missing tabs
         if (!post?.is_submitted){
           const tabs = buildFacultyTabsTop(post);
           tabs.forEach(t => syncMissingTabMarker(post, postKey, t.id));
@@ -948,7 +962,6 @@
     const post = state.posts.find(p => String(p?.uuid || p?.id) === String(postKey));
     if (!post){ err('Feedback post not found.'); return; }
 
-    // ✅ If already submitted => restrict update completely
     if (post?.is_submitted){
       err('This feedback is already submitted and cannot be updated.');
       return;
@@ -1040,22 +1053,34 @@
     state.questions = normalizeList(jsQ) || [];
     state.users = (normalizeList(jsU) || []).filter(u => String(u?.status || 'active').toLowerCase() !== 'inactive');
 
-    // ✅ build lookups
     state.questionsById = new Map((state.questions || []).map(q => [idNum(q?.id), q]).filter(x => x[0] !== null));
     state.usersById = new Map((state.users || []).map(u => [idNum(u?.id), u]).filter(x => x[0] !== null));
 
     updateCounts();
+
+    // ✅ if pending empty but submitted exists -> auto switch to submitted tab
+    const pendingCount = state.posts.filter(p => !p.is_submitted).length;
+    const submittedCount = state.posts.filter(p => !!p.is_submitted).length;
+
+    if (state.filter === 'pending' && pendingCount === 0 && submittedCount > 0){
+      state.filter = 'submitted';
+      const tabs = $('postTabs');
+      if (tabs){
+        tabs.querySelectorAll('.nav-link').forEach(btn => btn.classList.toggle('active', btn.dataset.filter === 'submitted'));
+      }
+    }
+
     renderPostsAccordion();
   }
 
-  function bindFilters(){
-    $('postFilters').addEventListener('click', (e) => {
-      const pill = e.target.closest('.filter-pill');
-      if (!pill) return;
+  function bindTabs(){
+    $('postTabs').addEventListener('click', (e) => {
+      const btn = e.target.closest('.nav-link[data-filter]');
+      if (!btn) return;
 
-      state.filter = pill.dataset.filter || 'all';
-      $('postFilters').querySelectorAll('.filter-pill')
-        .forEach(x => x.classList.toggle('active', x === pill));
+      state.filter = btn.dataset.filter || 'pending';
+      $('postTabs').querySelectorAll('.nav-link')
+        .forEach(x => x.classList.toggle('active', x === btn));
 
       renderPostsAccordion();
     });
@@ -1078,7 +1103,6 @@
       bar?.querySelectorAll('.fac-tabbtn').forEach(x => x.classList.toggle('active', x === b));
       bar?.classList.remove('is-error');
 
-      // ✅ if user clicks the missing tab, remove the marker (it will be recalculated as they fill)
       b.classList.remove('is-missing');
 
       const pane = $('tablePane_' + postKey);
@@ -1086,7 +1110,6 @@
         pane.innerHTML = renderQuestionsTable(post, postKey, fid);
       }
 
-      // ✅ pending only => keep markers updated
       if (!post?.is_submitted){
         syncMissingTabMarker(post, postKey, fid);
       }
@@ -1099,9 +1122,7 @@
       if (!r) return;
 
       const postKey = r.dataset.post;
-
       const post = state.posts.find(p => String(p?.uuid || p?.id) === String(postKey));
-      // ✅ If submitted => restrict change
       if (post?.is_submitted) return;
 
       const qid = idNum(r.dataset.qid);
@@ -1113,7 +1134,6 @@
       ensureRatingSlot(postKey, qid, fid);
       state.ratingsByPost[postKey][qid][fid] = val;
 
-      // ✅ clear highlight for this row (since user fixed it)
       const pane = $('tablePane_' + postKey);
       const tr = pane?.querySelector(`tr[data-qrow="1"][data-qid="${CSS.escape(String(qid))}"]`);
       tr?.classList.remove('fb-row-error');
@@ -1125,7 +1145,6 @@
         if (col) col.classList.add('is-on');
       }
 
-      // ✅ update missing marker for this faculty tab after selection
       if (post){
         syncMissingTabMarker(post, postKey, fid);
       }
@@ -1137,7 +1156,6 @@
       const b = e.target.closest('.fb-post-submit-btn');
       if (!b) return;
 
-      // ✅ if disabled (readonly post), do nothing
       if (b.hasAttribute('disabled') || b.getAttribute('aria-disabled') === 'true') return;
 
       const postKey = b.dataset.post;
@@ -1149,7 +1167,7 @@
   document.addEventListener('DOMContentLoaded', async () => {
     if (!token()){ window.location.href='/'; return; }
 
-    bindFilters();
+    bindTabs();
     bindFacultyTabs();
     bindRatingRadios();
     bindSubmitButtons();

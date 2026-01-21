@@ -478,7 +478,10 @@
           </a>
           <div id="sm-feedback" class="w3-submenu" role="group" aria-label="Feedback submenu">
             <a href="/feedback/question/manage" class="w3-link">Manage Questions</a>
-            <a href="/feedback/post/manage" class="w3-link">Manage Posts</a>
+            <a href="/feedback/post/manage" class="w3-link">Create Posts</a>
+            <a href="/feedback/manage" class="w3-link">Manage Posts</a>
+            <a href="/feedback/result" class="w3-link">Feedback Result</a>
+
           </div>
         </div>
 

@@ -200,6 +200,9 @@ Route::get('/feedback/question/manage', function () {
 Route::get('/feedback/post/manage', function () {
     return view('pages.users.pages.feedback.feedbackPost');
 });
+Route::get('/feedback/manage', function () {
+    return view('pages.users.pages.feedback.feedbackManage');
+});
 Route::get('/feedback/result', function () {
     return view('pages.users.pages.feedback.feedbackResult');
 });
