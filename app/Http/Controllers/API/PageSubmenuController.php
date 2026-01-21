@@ -708,17 +708,6 @@ public function tree(Request $r)
         $singleDestErr = $this->enforceSingleDestination($pageUrl, $pageSlug, $pageShortcode, $includablePath);
         if ($singleDestErr) return $singleDestErr;
 
-        if ($pageSlug) {
-            $existsPageSlug = DB::table($this->table)
-                ->where('page_slug', $pageSlug)
-                ->whereNull('deleted_at')
-                ->exists();
-
-            if ($existsPageSlug) {
-                return response()->json(['error' => 'Page slug already exists'], 422);
-            }
-        }
-
         if ($pageShortcode) {
             $existsPageShort = DB::table($this->table)
                 ->where('page_shortcode', $pageShortcode)
@@ -966,22 +955,12 @@ public function tree(Request $r)
             }
         }
 
-        $pageSlug = $row->page_slug ?? null;
-        if (array_key_exists('page_slug', $data)) {
-            $norm = $this->normSlug($data['page_slug']);
-            $pageSlug = $norm !== '' ? $norm : null;
+$pageSlug = $row->page_slug ?? null;
+if (array_key_exists('page_slug', $data)) {
+    $norm = $this->normSlug($data['page_slug']);
+    $pageSlug = $norm !== '' ? $norm : null; // ✅ allow duplicates now
+}
 
-            if ($pageSlug) {
-                $existsPageSlug = DB::table($this->table)
-                    ->where('page_slug', $pageSlug)
-                    ->where('id', '!=', $row->id)
-                    ->whereNull('deleted_at')
-                    ->exists();
-                if ($existsPageSlug) {
-                    return response()->json(['error' => 'Page slug already in use'], 422);
-                }
-            }
-        }
 
         $pageShortcode = $row->page_shortcode ?? null;
         if (array_key_exists('page_shortcode', $data)) {

@@ -92,7 +92,6 @@ class HeaderMenuController extends Controller
                 $map = [
                     'header_menus_slug_unique'          => 'slug',
                     'header_menus_shortcode_unique'     => 'shortcode',
-                    'header_menus_page_slug_unique'     => 'page_slug',
                     'header_menus_page_shortcode_unique'=> 'page_shortcode',
                     // fallback (if your index names differ, still return readable message)
                 ];
@@ -465,13 +464,6 @@ class HeaderMenuController extends Controller
             ? (trim((string) $data['page_url']) ?: null)
             : null;
 
-        // Uniqueness for page_slug / page_shortcode (includes trash too => no 500)
-        if ($pageSlug) {
-            $conf = $this->findUniqueConflict('page_slug', $pageSlug, null);
-            if ($conf) {
-                return response()->json(['error' => 'Page slug already exists', 'field' => 'page_slug'], 422);
-            }
-        }
 
         if ($pageShortcode) {
             $conf = $this->findUniqueConflict('page_shortcode', $pageShortcode, null);
@@ -663,18 +655,11 @@ class HeaderMenuController extends Controller
         /* ================================
          | PAGE FIELDS (check trash too)
          |================================ */
-        $pageSlug = $row->page_slug ?? null;
-        if (array_key_exists('page_slug', $data)) {
-            $norm = $this->normSlug($data['page_slug']);
-            $pageSlug = $norm !== '' ? $norm : null;
-
-            if ($pageSlug) {
-                $conflict = $this->findUniqueConflict('page_slug', $pageSlug, (int) $row->id);
-                if ($conflict) {
-                    return response()->json(['error' => 'Page slug already in use', 'field' => 'page_slug'], 422);
-                }
-            }
-        }
+$pageSlug = $row->page_slug ?? null;
+if (array_key_exists('page_slug', $data)) {
+    $norm = $this->normSlug($data['page_slug']);
+    $pageSlug = $norm !== '' ? $norm : null; // ✅ allow duplicates now
+}
 
         $pageShortcode = $row->page_shortcode ?? null;
         if (array_key_exists('page_shortcode', $data)) {

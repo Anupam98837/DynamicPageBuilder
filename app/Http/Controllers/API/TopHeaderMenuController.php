@@ -378,15 +378,12 @@ class TopHeaderMenuController extends Controller
             $pageUrl = trim((string) $data['page_url']) ?: null;
         }
 
-        $pageSlug = null;
-        if (array_key_exists('page_slug', $data)) {
-            $norm = $this->normSlug($data['page_slug']);
-            $pageSlug = $norm !== '' ? $norm : null;
-            if ($pageSlug) {
-                $conf = $this->findUniqueConflict('page_slug', $pageSlug, null);
-                if ($conf) return response()->json(['error' => 'Page slug already exists', 'field' => 'page_slug'], 422);
-            }
-        }
+$pageSlug = null;
+if (array_key_exists('page_slug', $data)) {
+    $norm = $this->normSlug($data['page_slug']);
+    $pageSlug = $norm !== '' ? $norm : null; // ✅ allow duplicates now
+}
+
 
         $pageShortcode = null;
         if (array_key_exists('page_shortcode', $data)) {
@@ -587,16 +584,12 @@ class TopHeaderMenuController extends Controller
             $pageUrl = trim((string) $data['page_url']) ?: null;
         }
 
-        // PAGE fields uniqueness
-        $pageSlug = $row->page_slug ?? null;
-        if (array_key_exists('page_slug', $data)) {
-            $norm = $this->normSlug($data['page_slug']);
-            $pageSlug = $norm !== '' ? $norm : null;
-            if ($pageSlug) {
-                $conflict = $this->findUniqueConflict('page_slug', $pageSlug, (int) $row->id);
-                if ($conflict) return response()->json(['error' => 'Page slug already in use', 'field' => 'page_slug'], 422);
-            }
-        }
+$pageSlug = $row->page_slug ?? null;
+if (array_key_exists('page_slug', $data)) {
+    $norm = $this->normSlug($data['page_slug']);
+    $pageSlug = $norm !== '' ? $norm : null; // ✅ allow duplicates now
+}
+
 
         $pageShortcode = $row->page_shortcode ?? null;
         if (array_key_exists('page_shortcode', $data)) {
