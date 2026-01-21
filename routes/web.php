@@ -455,3 +455,7 @@ Route::get('/sticky-buttons/manage', function () {
 Route::get('/master-approval/manage', function () {
     return view('pages.users.pages.masterApproval.manageMasterApproval');
 });
+ 
+Route::get('/student-subject-attendance', function () {
+    return view('pages.users.pages.subject.studentSubjectAttendance');
+});

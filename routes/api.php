@@ -64,6 +64,7 @@ use App\Http\Controllers\API\DashboardController;
 use App\Http\Controllers\API\FacultyPreviewOrderController;
 use App\Http\Controllers\API\StickyButtonController;
 use App\Http\Controllers\API\MasterApprovalController;
+use App\Http\Controllers\API\StudentSubjectController;
 
 /*
 |--------------------------------------------------------------------------
@@ -2084,3 +2085,45 @@ Route::middleware('checkRole:admin,director,principal,hod,technical_assistant,it
 
 
 Route::get('/announcements/approved', [AnnouncementController::class, 'indexApproved']);
+
+
+/* =========================================================
+ | Student Subjects Routes
+ | Table: student_subject
+ | Columns: uuid, department_id, course_id, semester_id (nullable),
+ |          subject_json (required), status, metadata, softDeletes
+ |========================================================= */
+
+// ✅ Read-only (authenticated)
+Route::middleware('checkRole')
+    ->prefix('student-subjects')
+    ->group(function () {
+        Route::get('/',        [StudentSubjectController::class, 'index']);
+        Route::get('/current', [StudentSubjectController::class, 'current']);
+        Route::get('/trash',   [StudentSubjectController::class, 'trash']);
+
+        Route::get('/{idOrUuid}', [StudentSubjectController::class, 'show'])
+            ->where('idOrUuid', '[0-9]+|[0-9a-fA-F\-]{36}');
+    });
+
+// ✅ Modify (authenticated role-based)
+Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')
+    ->prefix('student-subjects')
+    ->group(function () {
+        Route::post('/', [StudentSubjectController::class, 'store']);
+
+        Route::match(['put','patch'], '/{idOrUuid}', [StudentSubjectController::class, 'update'])
+            ->where('idOrUuid', '[0-9]+|[0-9a-fA-F\-]{36}');
+
+        // soft delete
+        Route::delete('/{idOrUuid}', [StudentSubjectController::class, 'destroy'])
+            ->where('idOrUuid', '[0-9]+|[0-9a-fA-F\-]{36}');
+
+        // restore
+        Route::post('/{idOrUuid}/restore', [StudentSubjectController::class, 'restore'])
+            ->where('idOrUuid', '[0-9]+|[0-9a-fA-F\-]{36}');
+
+        // force delete
+        Route::delete('/{idOrUuid}/force', [StudentSubjectController::class, 'forceDelete'])
+            ->where('idOrUuid', '[0-9]+|[0-9a-fA-F\-]{36}');
+    });

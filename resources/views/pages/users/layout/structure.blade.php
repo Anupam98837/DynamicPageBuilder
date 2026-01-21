@@ -282,6 +282,7 @@
             <a href="/course/semester/manage" class="w3-link">Manage Semesters</a>
             <a href="/course/semester/section/manage" class="w3-link">Manage Sections</a>
             <a href="/course/subject/manage" class="w3-link">Manage Subject</a>
+            <a href="/student-subject-attendance" class="w3-link">Student Subject Attendance</a>
           </div>
         </div>
 
