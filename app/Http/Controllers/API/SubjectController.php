@@ -101,6 +101,10 @@ class SubjectController extends Controller
             's.id',
             's.uuid',
             's.department_id',
+
+            // ✅ optional course mapping (added)
+            // Will be appended dynamically if columns exist
+
             's.subject_code',
             's.title',
             's.short_title',
@@ -125,8 +129,26 @@ class SubjectController extends Controller
         ];
 
         $q = DB::table('subjects as s')
-            ->leftJoin('departments as d', 'd.id', '=', 's.department_id')
-            ->select($select);
+            ->leftJoin('departments as d', 'd.id', '=', 's.department_id');
+
+        // ✅ Optional Course join
+        if ($this->hasCol('subjects', 'course_id')) {
+            $select[] = 's.course_id';
+            $select[] = 'c.title as course_title';
+
+            $q->leftJoin('courses as c', 'c.id', '=', 's.course_id');
+        }
+
+        // ✅ Optional Course Semester join
+        if ($this->hasCol('subjects', 'course_semester_id')) {
+            $select[] = 's.course_semester_id';
+            $select[] = 'cs.semester_no as course_semester_no';
+            $select[] = 'cs.title as course_semester_title';
+
+            $q->leftJoin('course_semesters as cs', 'cs.id', '=', 's.course_semester_id');
+        }
+
+        $q->select($select);
 
         if (!$includeDeleted) $q->whereNull('s.deleted_at');
         return $q;
@@ -144,11 +166,18 @@ class SubjectController extends Controller
             $meta = $this->normalizeMetadata($x->metadata ?? null);
             $status = (string)($x->status ?? 'active');
 
+            $courseId = property_exists($x, 'course_id') ? $x->course_id : null;
+            $courseSemesterId = property_exists($x, 'course_semester_id') ? $x->course_semester_id : null;
+
             return [
                 'id'            => (int)$x->id,
                 'uuid'          => (string)$x->uuid,
 
                 'department_id' => $x->department_id !== null ? (int)$x->department_id : null,
+
+                // ✅ optional course mapping
+                'course_id' => $courseId !== null ? (int)$courseId : null,
+                'course_semester_id' => $courseSemesterId !== null ? (int)$courseSemesterId : null,
 
                 'subject_code'  => (string)($x->subject_code ?? ''),
                 'title'         => (string)($x->title ?? ''),
@@ -170,6 +199,19 @@ class SubjectController extends Controller
                 'department' => $x->department_id ? [
                     'id'    => (int)$x->department_id,
                     'title' => $x->department_title,
+                ] : null,
+
+                // ✅ course info (only if joined)
+                'course' => $courseId ? [
+                    'id'    => (int)$courseId,
+                    'title' => property_exists($x, 'course_title') ? $x->course_title : null,
+                ] : null,
+
+                // ✅ semester info (only if joined)
+                'course_semester' => $courseSemesterId ? [
+                    'id'          => (int)$courseSemesterId,
+                    'semester_no' => property_exists($x, 'course_semester_no') ? $x->course_semester_no : null,
+                    'title'       => property_exists($x, 'course_semester_title') ? $x->course_semester_title : null,
                 ] : null,
 
                 'metadata' => $meta,
@@ -206,6 +248,10 @@ class SubjectController extends Controller
         $deptId = $r->query('department_id', null);
         $type   = trim((string)$r->query('subject_type', ''));
 
+        // ✅ Optional course filters
+        $courseId = $r->query('course_id', null);
+        $courseSemesterId = $r->query('course_semester_id', $r->query('semester_id', null)); // backward compat
+
         $sort = (string)$r->query('sort', 'updated_at');
         $dir  = strtolower((string)$r->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
 
@@ -230,6 +276,15 @@ class SubjectController extends Controller
 
         // dynamic filter (still no restriction)
         if ($type !== '') $q->where('s.subject_type', $type);
+
+        // ✅ course-based filters (optional)
+        if ($this->hasCol('subjects', 'course_id') && $courseId !== null && $courseId !== '') {
+            $q->where('s.course_id', (int)$courseId);
+        }
+
+        if ($this->hasCol('subjects', 'course_semester_id') && $courseSemesterId !== null && $courseSemesterId !== '') {
+            $q->where('s.course_semester_id', (int)$courseSemesterId);
+        }
 
         // compatibility: ?active=1 / ?active=0
         if ($r->has('active')) {
@@ -277,26 +332,34 @@ class SubjectController extends Controller
      | CURRENT (frontend-friendly)
      | GET /api/subjects/current
      |========================================================= */
-    public function current(Request $r)
+    public function current(Request $request)
     {
-        $deptId = $r->query('department_id', null);
-        $type   = trim((string)$r->query('subject_type', ''));
+        // ✅ Keep DB direct + optional joins for convenience
+        $query = DB::table('subjects');
 
-        $q = $this->baseQuery(false)
-            ->where('s.status', 'active')
-            ->where(function ($w) {
-                $w->whereNull('s.publish_at')->orWhere('s.publish_at', '<=', now());
-            })
-            ->where(function ($w) {
-                $w->whereNull('s.expire_at')->orWhere('s.expire_at', '>', now());
-            })
-            ->orderBy('s.sort_order', 'asc')
-            ->orderBy('s.id', 'asc');
+        // ✅ Only active (if column exists)
+        if (Schema::hasColumn('subjects', 'status')) {
+            $query->where('status', 'active');
+        }
 
-        if ($deptId !== null && $deptId !== '') $q->where('s.department_id', (int)$deptId);
-        if ($type !== '') $q->where('s.subject_type', $type);
+        // ✅ Optional course filter
+        if ($request->filled('course_id') && Schema::hasColumn('subjects', 'course_id')) {
+            $query->where('course_id', (int)$request->course_id);
+        }
 
-        return $this->respondList($r, $q);
+        // ✅ Optional semester filter
+        // supports both: course_semester_id and semester_id (old)
+        $semVal = $request->input('course_semester_id', $request->input('semester_id'));
+        if ($semVal !== null && $semVal !== '' && Schema::hasColumn('subjects', 'course_semester_id')) {
+            $query->where('course_semester_id', (int)$semVal);
+        }
+
+        $rows = $query->orderBy('id', 'desc')->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $rows
+        ]);
     }
 
     /* =========================================================
@@ -325,6 +388,11 @@ class SubjectController extends Controller
         $r->validate([
             'department_id'   => ['nullable','integer','exists:departments,id'],
 
+            // ✅ optional course mapping
+            'course_id'            => ['nullable','integer','exists:courses,id'],
+            'course_semester_id'   => ['nullable','integer','exists:course_semesters,id'],
+            'semester_id'          => ['nullable','integer','exists:course_semesters,id'], // backward compat
+
             'subject_code'    => ['required','string','max:50'],
             'title'           => ['required','string','max:255'],
             'short_title'     => ['nullable','string','max:120'],
@@ -338,12 +406,12 @@ class SubjectController extends Controller
             'practical_hours' => ['nullable','integer','min:0'],
 
             'sort_order'      => ['nullable','integer','min:0'],
-            'status'          => ['nullable','string','max:20'], // keep dynamic if you want, but you use active/inactive
+            'status'          => ['nullable','string','max:20'],
             'publish_at'      => ['nullable','date'],
             'expire_at'       => ['nullable','date'],
 
-            'metadata'        => ['nullable'], // array|string(json)
-            'active'          => ['nullable'], // 1/0 compatibility
+            'metadata'        => ['nullable'],
+            'active'          => ['nullable'],
             'is_active'       => ['nullable'],
             'isActive'        => ['nullable'],
         ]);
@@ -376,7 +444,13 @@ class SubjectController extends Controller
             ], 422);
         }
 
-        $id = DB::table('subjects')->insertGetId([
+        // ✅ course/semester values (optional)
+        $courseId = $r->filled('course_id') ? (int)$r->input('course_id') : null;
+        $courseSemesterId = $r->filled('course_semester_id')
+            ? (int)$r->input('course_semester_id')
+            : ($r->filled('semester_id') ? (int)$r->input('semester_id') : null);
+
+        $payload = [
             'uuid'           => (string) Str::uuid(),
             'department_id'  => $deptId,
 
@@ -403,7 +477,17 @@ class SubjectController extends Controller
             'metadata'       => $meta,
             'created_at'     => now(),
             'updated_at'     => now(),
-        ]);
+        ];
+
+        // ✅ only set if columns exist in DB
+        if ($this->hasCol('subjects', 'course_id')) {
+            $payload['course_id'] = $courseId;
+        }
+        if ($this->hasCol('subjects', 'course_semester_id')) {
+            $payload['course_semester_id'] = $courseSemesterId;
+        }
+
+        $id = DB::table('subjects')->insertGetId($payload);
 
         return response()->json([
             'success' => true,
@@ -425,6 +509,11 @@ class SubjectController extends Controller
 
         $r->validate([
             'department_id'   => ['nullable','integer','exists:departments,id'],
+
+            // ✅ optional course mapping
+            'course_id'            => ['nullable','integer','exists:courses,id'],
+            'course_semester_id'   => ['nullable','integer','exists:course_semesters,id'],
+            'semester_id'          => ['nullable','integer','exists:course_semesters,id'], // backward compat
 
             'subject_code'    => ['sometimes','required','string','max:50'],
             'title'           => ['sometimes','required','string','max:255'],
@@ -484,6 +573,16 @@ class SubjectController extends Controller
         if ($r->has('practical_hours')) $payload['practical_hours'] = $r->filled('practical_hours') ? (int)$r->input('practical_hours') : 0;
         if ($r->has('sort_order'))      $payload['sort_order'] = (int)($r->input('sort_order', 0) ?? 0);
         if ($r->has('metadata'))        $payload['metadata'] = $metaToStore;
+
+        // ✅ optional course mapping update
+        if ($this->hasCol('subjects', 'course_id') && $r->has('course_id')) {
+            $payload['course_id'] = $r->filled('course_id') ? (int)$r->input('course_id') : null;
+        }
+
+        if ($this->hasCol('subjects', 'course_semester_id') && ($r->has('course_semester_id') || $r->has('semester_id'))) {
+            $val = $r->has('course_semester_id') ? $r->input('course_semester_id') : $r->input('semester_id');
+            $payload['course_semester_id'] = ($val !== null && $val !== '') ? (int)$val : null;
+        }
 
         // Unique guard on update (subject_code per dept)
         if ($r->has('subject_code') || $r->has('department_id')) {

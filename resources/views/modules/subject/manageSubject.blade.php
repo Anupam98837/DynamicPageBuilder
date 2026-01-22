@@ -377,8 +377,12 @@ td.col-sem .sem-sub{
               <option value="seminar">Seminar</option>
               <option value="tutorial">Tutorial</option>
               <option value="elective">Elective</option>
+              <option value="workshop">Workshop</option>
+              <option value="viva">Viva</option>
+              <option value="internship">Internship</option>
+              <option value="__other__">Other…</option>
             </select>
-            <div class="form-text">You can also type custom values from your API later.</div>
+            <div class="form-text">Choose Other to enter a custom type.</div>
           </div>
 
           <div class="col-12">
@@ -429,7 +433,7 @@ td.col-sem .sem-sub{
           <div class="col-lg-6">
             <div class="row g-3">
 
-              {{-- Course first, then Semester --}}
+              {{-- ✅ REQUIRED: Course --}}
               <div class="col-md-6">
                 <label class="form-label">Course <span class="text-danger">*</span></label>
                 <select id="course_id" class="form-select" required>
@@ -438,13 +442,15 @@ td.col-sem .sem-sub{
                 <div class="form-text">Course will filter semesters.</div>
               </div>
 
+              {{-- ✅ REQUIRED: Department --}}
               <div class="col-md-6">
-                <label class="form-label">Department (optional)</label>
-                <select id="department_id" class="form-select">
+                <label class="form-label">Department <span class="text-danger">*</span></label>
+                <select id="department_id" class="form-select" required>
                   <option value="">Select department</option>
                 </select>
               </div>
 
+              {{-- ✅ REQUIRED: Semester --}}
               <div class="col-12">
                 <label class="form-label">Semester <span class="text-danger">*</span></label>
                 <select id="semester_id" class="form-select" required>
@@ -462,10 +468,20 @@ td.col-sem .sem-sub{
                 <input class="form-control" id="subject_code" required maxlength="60" placeholder="e.g., CS301">
               </div>
 
+              {{-- ✅ UPDATED: Subject Type dropdown + Other --}}
               <div class="col-md-6">
-                <label class="form-label">Subject Type</label>
-                <input class="form-control" id="subject_type" maxlength="50" placeholder="e.g., theory / practical / lab">
-                <div class="form-text">No restriction. You can type any value.</div>
+                <label class="form-label">Subject Type <span class="text-danger">*</span></label>
+                  <select class="form-select" id="subject_type" required>
+                    <option value="" disabled selected>Select type</option>
+
+                    <option value="compulsory">Compulsory</option>
+                    <option value="optional">Optional</option>
+
+                    <option value="__other__">Other…</option>
+                  </select>
+
+
+                <div class="form-text">Choose Other to type custom value.</div>
               </div>
 
               <div class="col-md-6">
@@ -505,8 +521,8 @@ td.col-sem .sem-sub{
             <div class="alert alert-light mb-0" style="border:1px dashed var(--line-soft);border-radius:14px;">
               <div class="fw-semibold mb-1"><i class="fa fa-circle-info me-1"></i> Notes</div>
               <div class="small text-muted">
-                - Course + Semester is required.<br/>
-                - Subject Type is flexible (your backend can accept any value).<br/>
+                - Course + Semester + Department are <b>required</b>.<br/>
+                - Subject Type supports presets + custom “Other…”.<br/>
                 - Status supports <b>status</b> and legacy <b>active/is_active/isActive</b>.
               </div>
             </div>
@@ -732,7 +748,7 @@ td.col-sem .sem-sub{
 
     const titleInput = $('title');
     const subjectCodeInput = $('subject_code');
-    const subjectTypeInput = $('subject_type');
+    const subjectTypeSel = $('subject_type'); // ✅ now SELECT
     const statusSel = $('status');
     const publishAtInput = $('publish_at');
     const creditsInput = $('credits');
@@ -772,7 +788,15 @@ td.col-sem .sem-sub{
 
     // ---------- state ----------
     const state = {
-      filters: { q:'', status:'', department_id:'', course_id:'', semester_id:'', subject_type:'', sort:'-updated_at' },
+      filters: {
+        q:'',
+        status:'',
+        department_id:'',
+        course_id:'',
+        course_semester_id:'',
+        subject_type:'',
+        sort:'-updated_at'
+      },
       perPage: parseInt(perPageSel?.value || '20', 10) || 20,
       tabs: {
         active:   { page:1, lastPage:1, items:[] },
@@ -808,11 +832,11 @@ td.col-sem .sem-sub{
         let status = (state.filters.status || '').trim();
         if (!status) status = (tabKey === 'inactive') ? 'inactive' : 'active';
         params.set('status', status);
-        params.set('active', status === 'active' ? '1' : '0'); // legacy compat
+        params.set('active', status === 'active' ? '1' : '0');
       }
 
-      if (state.filters.semester_id) params.set('semester_id', state.filters.semester_id);
       if (state.filters.course_id) params.set('course_id', state.filters.course_id);
+      if (state.filters.course_semester_id) params.set('course_semester_id', state.filters.course_semester_id);
       if (state.filters.department_id) params.set('department_id', state.filters.department_id);
       if (state.filters.subject_type) params.set('subject_type', state.filters.subject_type);
 
@@ -844,16 +868,16 @@ td.col-sem .sem-sub{
     }
 
     function semesterLabel(s){
-      const title = s?.title || s?.semester_title || '—';
-      const no = s?.semester_no ?? s?.semester?.semester_no ?? '';
-      const code = s?.code || s?.semester_code || '';
-      return [title, no ? `No.${no}` : '', code ? `(${code})` : ''].filter(Boolean).join(' ');
+      if (!s) return '—';
+      const title = s?.title || '—';
+      const no = s?.semester_no ?? '';
+      return [title, (no ? `No.${no}` : '')].filter(Boolean).join(' ');
     }
 
     function semestersForCourse(courseId){
       const cid = (courseId || '').toString().trim();
       if (!cid) return (state.semesters || []);
-      return (state.semesters || []).filter(s => String(s?.course_id ?? s?.course?.id ?? '') === cid);
+      return (state.semesters || []).filter(s => String(s?.course_id ?? '') === cid);
     }
 
     function applySemesterFilterToSelect(selectEl, courseId, keepSelectedId=''){
@@ -873,6 +897,76 @@ td.col-sem .sem-sub{
       if (keep && rows.some(s => String(s?.id) === String(keep))) selectEl.value = keep;
       else selectEl.value = '';
     }
+
+    // ✅ Subject type custom helper
+    function hasOption(selectEl, value){
+      return !!selectEl?.querySelector(`option[value="${CSS.escape(String(value))}"]`);
+    }
+
+    function addCustomTypeOption(selectEl, customVal){
+      if (!selectEl) return;
+      const v = (customVal || '').toString().trim();
+      if (!v) return;
+
+      if (hasOption(selectEl, v)) {
+        selectEl.value = v;
+        return;
+      }
+
+      // insert before "__other__" if exists else append
+      const otherOpt = selectEl.querySelector('option[value="__other__"]');
+      const opt = document.createElement('option');
+      opt.value = v;
+      opt.textContent = v;
+
+      if (otherOpt) selectEl.insertBefore(opt, otherOpt);
+      else selectEl.appendChild(opt);
+
+      selectEl.value = v;
+    }
+
+    async function handleOtherTypeSelect(selectEl){
+      if (!selectEl) return;
+      if (selectEl.value !== '__other__') return;
+
+      const prev = selectEl.dataset.prevValue || '';
+      const res = await Swal.fire({
+        title: 'Enter custom subject type',
+        input: 'text',
+        inputPlaceholder: 'e.g., Skill / Minor / MOOC',
+        inputValue: '',
+        showCancelButton: true,
+        confirmButtonText: 'Add',
+        cancelButtonText: 'Cancel',
+        inputValidator: (v) => {
+          if (!v || !v.trim()) return 'Type cannot be empty';
+          if (v.trim().length > 50) return 'Max 50 characters';
+          return null;
+        }
+      });
+
+      if (!res.isConfirmed){
+        selectEl.value = prev || '';
+        return;
+      }
+
+      addCustomTypeOption(selectEl, res.value.trim());
+    }
+
+    function bindOtherTypeBehavior(selectEl){
+      if (!selectEl) return;
+      selectEl.addEventListener('focus', () => {
+        selectEl.dataset.prevValue = selectEl.value || '';
+      });
+      selectEl.addEventListener('change', async () => {
+        if (selectEl.value === '__other__') {
+          await handleOtherTypeSelect(selectEl);
+        }
+      });
+    }
+
+    bindOtherTypeBehavior(subjectTypeSel);
+    bindOtherTypeBehavior(modalType);
 
     // ---------- pager ----------
     function renderPager(tabKey){
@@ -898,23 +992,26 @@ td.col-sem .sem-sub{
       pagerEl.innerHTML = html;
     }
 
-    // ---------- rendering ----------
-    function findCourseName(courseId){
+    // ---------- rendering helpers ----------
+    function findCourseName(courseId, row=null){
       const cid = (courseId ?? '').toString();
-      if (!cid) return '—';
+      if (!cid) {
+        const nested = row?.course?.title || row?.course_title || '';
+        return nested || '—';
+      }
       const found = state.courses.find(x => String(x.id) === cid);
-      return found ? (found.title || found.name || '—') : '—';
+      return found ? (found.title || found.name || '—') : (row?.course?.title || row?.course_title || '—');
     }
 
-    function findDeptName(deptId){
+    function findDeptName(deptId, row=null){
       const did = (deptId ?? '').toString();
-      if (!did) return '—';
+      if (!did) return row?.department?.title || row?.department_title || '—';
       const found = state.departments.find(x => String(x.id) === did);
-      return found ? (found.title || found.name || '—') : '—';
+      return found ? (found.title || found.name || '—') : (row?.department?.title || row?.department_title || '—');
     }
 
-    function findSemester(semesterId){
-      const sid = (semesterId ?? '').toString();
+    function findSemesterById(courseSemesterId){
+      const sid = (courseSemesterId ?? '').toString();
       if (!sid) return null;
       return state.semesters.find(x => String(x.id) === sid) || null;
     }
@@ -935,25 +1032,31 @@ td.col-sem .sem-sub{
       setEmpty(tabKey, false);
 
       tbody.innerHTML = rows.map(r => {
-        // expected keys from your subject controller:
-        // uuid, id, course_id, semester_id, department_id, title, subject_code, subject_type, status, updated_at, deleted_at
         const uuid = r.uuid || r.id || '';
         const title = (r.title || '—').toString();
         const code = (r.subject_code || r.code || '—').toString();
         const type = (r.subject_type || r.type || '').toString();
         const status = (r.status || '').toString();
 
-        const sem = findSemester(r.semester_id);
-        const semTitle = sem ? (sem.title || '—') : (r.semester_title || '—');
-        const semNo = sem ? (sem.semester_no ?? '') : (r.semester_no ?? '');
-        const semCode = sem ? (sem.code || sem.semester_code || '') : (r.semester_code || '');
-        const semSlug = sem ? (sem.slug || sem.semester_slug || '') : (r.semester_slug || '');
+        const csId = r.course_semester_id ?? r.semester_id ?? null;
 
-        const courseName = findCourseName(r.course_id) || (r.course_title || '—');
-        const deptName = findDeptName(r.department_id) || (r.department_title || '—');
+        let semTitle = r.course_semester?.title || r.semester_title || '';
+        let semNo = r.course_semester?.semester_no ?? r.semester_no ?? '';
+
+        const semObj = (!semTitle && csId) ? findSemesterById(csId) : null;
+        if (!semTitle && semObj) semTitle = semObj.title || '—';
+        if (!semNo && semObj) semNo = semObj.semester_no ?? '';
+
+        const courseName = findCourseName(r.course_id ?? null, r);
+        const deptName = findDeptName(r.department_id ?? null, r);
 
         const updated = prettyDate(r.updated_at || r.created_at || '');
         const deleted = prettyDate(r.deleted_at || '');
+
+        const semSub = [
+          semNo ? ('No. ' + semNo) : '',
+          csId ? ('ID: ' + csId) : ''
+        ].filter(Boolean).join(' • ');
 
         let actions = `
           <div class="dropdown text-end">
@@ -994,10 +1097,10 @@ td.col-sem .sem-sub{
               <td class="col-code"><code>${esc(code)}</code></td>
               <td class="col-type">${typeBadge(type)}</td>
               <td class="col-sem">
-                <span class="fw-semibold">${esc(semTitle)}</span>
-                <span class="sem-sub">${esc([semCode, semSlug, semNo ? ('No. '+semNo) : ''].filter(Boolean).join(' • '))}</span>
+                <span class="fw-semibold">${esc(semTitle || '—')}</span>
+                <span class="sem-sub">${esc(semSub || '—')}</span>
               </td>
-              <td>${esc(courseName)}</td>
+              <td>${esc(courseName || '—')}</td>
               <td>${esc(deleted)}</td>
               <td class="text-end">${actions}</td>
             </tr>`;
@@ -1009,11 +1112,11 @@ td.col-sem .sem-sub{
             <td class="col-code"><code>${esc(code)}</code></td>
             <td class="col-type">${typeBadge(type)}</td>
             <td class="col-sem">
-              <span class="fw-semibold">${esc(semTitle)}</span>
-              <span class="sem-sub">${esc([semCode, semSlug, semNo ? ('No. '+semNo) : ''].filter(Boolean).join(' • '))}</span>
+              <span class="fw-semibold">${esc(semTitle || '—')}</span>
+              <span class="sem-sub">${esc(semSub || '—')}</span>
             </td>
-            <td>${esc(courseName)}</td>
-            <td>${esc(deptName)}</td>
+            <td>${esc(courseName || '—')}</td>
+            <td>${esc(deptName || '—')}</td>
             <td>${statusBadge(status)}</td>
             <td>${esc(updated)}</td>
             <td class="text-end">${actions}</td>
@@ -1094,7 +1197,7 @@ td.col-sem .sem-sub{
       if (modalCourse) modalCourse.value = state.filters.course_id || '';
       if (modalType) modalType.value = state.filters.subject_type || '';
 
-      applySemesterFilterToSelect(modalSemester, modalCourse?.value || '', state.filters.semester_id || '');
+      applySemesterFilterToSelect(modalSemester, modalCourse?.value || '', state.filters.course_semester_id || '');
     });
 
     btnApplyFilters?.addEventListener('click', () => {
@@ -1102,7 +1205,7 @@ td.col-sem .sem-sub{
       state.filters.sort = modalSort?.value || '-updated_at';
       state.filters.department_id = modalDepartment?.value || '';
       state.filters.course_id = modalCourse?.value || '';
-      state.filters.semester_id = modalSemester?.value || '';
+      state.filters.course_semester_id = modalSemester?.value || '';
       state.filters.subject_type = (modalType?.value || '').trim();
 
       state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
@@ -1111,7 +1214,7 @@ td.col-sem .sem-sub{
     });
 
     btnReset?.addEventListener('click', () => {
-      state.filters = { q:'', status:'', department_id:'', course_id:'', semester_id:'', subject_type:'', sort:'-updated_at' };
+      state.filters = { q:'', status:'', department_id:'', course_id:'', course_semester_id:'', subject_type:'', sort:'-updated_at' };
       state.perPage = 20;
       if (searchInput) searchInput.value = '';
       if (perPageSel) perPageSel.value = '20';
@@ -1231,6 +1334,10 @@ td.col-sem .sem-sub{
       applySemesterFilterToSelect(semesterSel, '', '');
       if (metaText) metaText.value = '';
       if (metaPreview) metaPreview.value = '';
+
+      // ✅ reset type (keep base list intact)
+      if (subjectTypeSel) subjectTypeSel.value = '';
+
       itemForm?.querySelectorAll('input,select,textarea').forEach(el => {
         if (el.id === 'itemUuid' || el.id === 'itemId') return;
         if (el.tagName === 'SELECT') el.disabled = false;
@@ -1247,15 +1354,25 @@ td.col-sem .sem-sub{
       itemUuid.value = r.uuid || r.id || '';
       itemId.value = r.id || '';
 
-      if (courseSel) courseSel.value = resolveId((r.course_id ?? '').toString(), state.courses) || '';
-      applySemesterFilterToSelect(semesterSel, (courseSel?.value || ''), resolveId((r.semester_id ?? '').toString(), state.semesters) || '');
-      if (semesterSel) semesterSel.value = resolveId((r.semester_id ?? '').toString(), state.semesters) || semesterSel.value || '';
+      const courseId = resolveId((r.course_id ?? r.course?.id ?? '').toString(), state.courses) || '';
+      if (courseSel) courseSel.value = courseId;
 
-      if (deptSel) deptSel.value = resolveId((r.department_id ?? '').toString(), state.departments) || '';
+      const semId = resolveId((r.course_semester_id ?? r.semester_id ?? r.course_semester?.id ?? '').toString(), state.semesters) || '';
+      applySemesterFilterToSelect(semesterSel, courseSel?.value || '', semId);
+      if (semesterSel) semesterSel.value = semId || semesterSel.value || '';
+
+      if (deptSel) deptSel.value = resolveId((r.department_id ?? r.department?.id ?? '').toString(), state.departments) || '';
 
       if (titleInput) titleInput.value = (r.title || '').toString();
       if (subjectCodeInput) subjectCodeInput.value = (r.subject_code || r.code || '').toString();
-      if (subjectTypeInput) subjectTypeInput.value = (r.subject_type || r.type || '').toString();
+
+      // ✅ if custom type, auto add to dropdown
+      const t = (r.subject_type || r.type || '').toString().trim();
+      if (subjectTypeSel){
+        if (t && !hasOption(subjectTypeSel, t)) addCustomTypeOption(subjectTypeSel, t);
+        else subjectTypeSel.value = t || '';
+      }
+
       if (statusSel) statusSel.value = ((r.status || 'active').toString().toLowerCase().trim() === 'inactive') ? 'inactive' : 'active';
 
       const pub = (r.publish_at ?? '')?.toString?.() || '';
@@ -1306,7 +1423,6 @@ td.col-sem .sem-sub{
       itemModal && itemModal.show();
     });
 
-    // toggle status
     async function toggleActive(uuid, makeActive){
       const fd = new FormData();
       fd.append('_method', 'PATCH');
@@ -1474,23 +1590,26 @@ td.col-sem .sem-sub{
         if (isEdit && !canEdit) return;
         if (!isEdit && !canCreate) return;
 
-        const courseId = (courseSel?.value || '').trim();
-        const semesterId = (semesterSel?.value || '').trim();
+        let courseId = (courseSel?.value || '').trim();
+        let courseSemesterId = (semesterSel?.value || '').trim();
         const deptId = (deptSel?.value || '').trim();
 
         const title = (titleInput?.value || '').trim();
         const subjectCode = (subjectCodeInput?.value || '').trim();
-        const subjectType = (subjectTypeInput?.value || '').trim();
+        const subjectType = (subjectTypeSel?.value || '').trim();
 
         const statusUi = (statusSel?.value || 'active').trim().toLowerCase();
         const pub = (publishAtInput?.value || '').trim();
         const credits = (creditsInput?.value || '').trim();
         const description = (descInput?.value || '').trim();
 
-        if (!courseId){ err('Course is required'); courseSel.focus(); return; }
-        if (!semesterId){ err('Semester is required'); semesterSel.focus(); return; }
         if (!title){ err('Subject title is required'); titleInput.focus(); return; }
         if (!subjectCode){ err('Subject code is required'); subjectCodeInput.focus(); return; }
+
+        // ✅ REQUIRED checks (as you requested)
+        if (!courseId){ err('Course is required'); courseSel.focus(); return; }
+        if (!courseSemesterId){ err('Semester is required'); semesterSel.focus(); return; }
+        if (!deptId){ err('Department is required'); deptSel.focus(); return; }
 
         let metaToSend = null;
         const metaRaw = (metaText?.value || '').trim();
@@ -1501,22 +1620,20 @@ td.col-sem .sem-sub{
         }
 
         const fd = new FormData();
+
         fd.append('course_id', String(parseInt(courseId, 10)));
-        fd.append('semester_id', String(parseInt(semesterId, 10)));
-        if (deptId) fd.append('department_id', String(parseInt(deptId, 10)));
+        fd.append('course_semester_id', String(parseInt(courseSemesterId, 10)));
+        fd.append('department_id', String(parseInt(deptId, 10)));
 
         fd.append('title', title);
         fd.append('subject_code', subjectCode);
 
-        // flexible type
         if (subjectType) fd.append('subject_type', subjectType);
 
-        // optional fields
         if (pub) fd.append('publish_at', pub.replace('T',' ')+':00');
         if (credits) fd.append('credits', credits);
         if (description) fd.append('description', description);
 
-        // status + legacy
         fd.append('status', statusUi);
         const activeVal = (statusUi === 'inactive') ? '0' : '1';
         fd.append('active', activeVal);

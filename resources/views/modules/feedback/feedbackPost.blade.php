@@ -145,6 +145,36 @@
   min-width:220px;
 }
 
+/* Attendance badge inside modal (optional UI helper) */
+.att-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:3px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:800;
+  border:1px solid var(--line-soft);
+  background:color-mix(in oklab, var(--surface) 88%, transparent);
+  color:var(--ink);
+  white-space:nowrap;
+}
+.att-badge.good{
+  background:color-mix(in oklab, #22c55e 16%, transparent);
+  color:#1b7f3b;
+  border-color:color-mix(in oklab, #22c55e 28%, var(--line-soft));
+}
+.att-badge.warn{
+  background:color-mix(in oklab, #f59e0b 16%, transparent);
+  color:#875300;
+  border-color:color-mix(in oklab, #f59e0b 28%, var(--line-soft));
+}
+.att-badge.bad{
+  background:color-mix(in oklab, #ef4444 16%, transparent);
+  color:#8a1f1f;
+  border-color:color-mix(in oklab, #ef4444 28%, var(--line-soft));
+}
+
 /* Responsive */
 @media (max-width: 768px){
   .fbp-panel .d-flex{flex-direction:column;gap:12px !important}
@@ -242,7 +272,7 @@
           <select id="subject_id" class="form-select">
             <option value="">— Select Subject —</option>
           </select>
-          <div class="form-text">Selecting a subject will load sections (if applicable).</div>
+          <div class="form-text">Selecting a subject will filter students and show subject attendance.</div>
         </div>
 
         <div class="col-md-3">
@@ -334,6 +364,18 @@
             <select id="pickGroup" class="form-select" style="display:none;">
               <option value="">All Groups</option>
             </select>
+
+            {{-- ✅ NEW: Only used for students (attendance filter) --}}
+            <select id="pickAttendance" class="form-select" style="display:none;">
+              <option value="">All Attendance</option>
+              <option value="90">≥ 90%</option>
+              <option value="80">≥ 80%</option>
+              <option value="75">≥ 75%</option>
+              <option value="60">≥ 60%</option>
+              <option value="50">≥ 50%</option>
+              <option value="lt60">&lt; 60%</option>
+              <option value="na">No Data</option>
+            </select>
           </div>
 
           <div class="d-flex align-items-center gap-2">
@@ -417,14 +459,29 @@
       `/api/semesters?course_id=${encodeURIComponent(courseId)}`,
     ]),
 
-    subjectsCandidates: (semesterId, courseId='') => ([
-      `/api/subjects?per_page=200&page=1&semester_id=${encodeURIComponent(semesterId)}`,
-      `/api/subjects?semester_id=${encodeURIComponent(semesterId)}`,
-      courseId ? `/api/subjects?per_page=200&page=1&course_id=${encodeURIComponent(courseId)}&semester_id=${encodeURIComponent(semesterId)}` : '',
-      courseId ? `/api/subjects?course_id=${encodeURIComponent(courseId)}&semester_id=${encodeURIComponent(semesterId)}` : '',
-    ].filter(Boolean)),
+    subjectsCandidates: (semesterId, courseId='') => {
+        const sid = encodeURIComponent(semesterId);
+        const cid = courseId ? encodeURIComponent(courseId) : '';
 
-    // ✅ your controller: /api/course-semester-sections/current?semester_id=&course_id=
+        const list = [];
+
+        // ✅ BEST: filtered current endpoint (depends on backend fix)
+        if (cid) {
+          list.push(`/api/subjects/current?course_id=${cid}&semester_id=${sid}`);
+          list.push(`/api/subjects/current?per_page=200&page=1&course_id=${cid}&semester_id=${sid}`);
+        }
+
+        // fallback
+        list.push(`/api/subjects/current?semester_id=${sid}`);
+        list.push(`/api/subjects?per_page=200&page=1&semester_id=${sid}`);
+        list.push(`/api/subjects?semester_id=${sid}`);
+
+        return list;
+      },
+
+
+
+    // ✅ /api/course-semester-sections/current?semester_id=&course_id=
     sectionsCurrent: (semesterId, courseId='') => {
       const qs = new URLSearchParams();
       if (semesterId) qs.set('semester_id', semesterId);
@@ -432,15 +489,17 @@
       return `/api/course-semester-sections/current?${qs.toString()}`;
     },
 
-    // ✅ NEW: students filtered by academics (course/semester/section)
-    // GET /api/student-academic-details/by-academics?course_id=&semester_id=&section_id=
-    studentsByAcademics: ({ course_id='', semester_id='', section_id='' }={}) => {
+    // ✅ UPDATED: students filtered by academics + optional subject
+    // GET /api/student-academic-details/by-academics?course_id=&semester_id=&section_id=&subject_id=
+    studentsByAcademics: ({ course_id='', semester_id='', section_id='', subject_id='' }={}) => {
       const qs = new URLSearchParams();
       if (course_id) qs.set('course_id', course_id);
       if (semester_id) qs.set('semester_id', semester_id);
-      // ✅ If section not selected, don't pass section_id => backend returns all sections
+
+      if (subject_id) qs.set('subject_id', subject_id); // ✅ NEW
       if (section_id) qs.set('section_id', section_id);
-      qs.set('per_page', '500'); // safe large list for picker
+
+      qs.set('per_page', '500');
       return `/api/student-academic-details/by-academics?${qs.toString()}`;
     },
   };
@@ -502,7 +561,7 @@
     if (!js) return null;
     if (Array.isArray(js)) return js;
     if (Array.isArray(js.data)) return js.data;
-    if (js.data && Array.isArray(js.data.data)) return js.data.data; // paginator inside data
+    if (js.data && Array.isArray(js.data.data)) return js.data.data;
     if (Array.isArray(js.items)) return js.items;
     if (Array.isArray(js.result)) return js.result;
     return null;
@@ -522,6 +581,21 @@
     return out;
   }
 
+  function fmtPct(v){
+    if (v === null || v === undefined || v === '') return '';
+    const n = Number(v);
+    if (!Number.isFinite(n)) return '';
+    return `${Math.round(n)}%`;
+  }
+
+  function attClass(n){
+    const v = Number(n);
+    if (!Number.isFinite(v)) return '';
+    if (v >= 75) return 'good';
+    if (v >= 60) return 'warn';
+    return 'bad';
+  }
+
   // =========================
   // Page state
   // =========================
@@ -534,8 +608,10 @@
     canWrite: false,
 
     questions: [],
-    users: [],           // for faculty selection
-    studentsAcad: [],    // ✅ students from academic filter API
+    users: [],
+
+    // ✅ students from academics filter API (now includes attendance fields)
+    studentsAcad: [],
 
     courses: [],
     semesters: [],
@@ -546,7 +622,6 @@
     selectedFacultyIds: new Set(),
     selectedStudentIds: new Set(),
 
-    // request-scoping tokens to avoid stale populate
     req: { sem: 0, sub: 0, sec: 0, stu: 0 }
   };
 
@@ -591,7 +666,6 @@
   }
 
   async function loadUsers(){
-    // used for faculty list
     const res = await fetchWithTimeout(API.users(), { headers: authHeaders(token()) }, 20000);
     const js = await res.json().catch(()=> ({}));
     if (!res.ok) throw new Error(js?.message || 'Failed to load users');
@@ -599,20 +673,32 @@
     state.users = arr.filter(u => String(u?.status || 'active').toLowerCase() !== 'inactive');
   }
 
+  /**
+   * ✅ LOAD STUDENTS BY ACADEMICS + OPTIONAL SUBJECT
+   * - Requires course + semester
+   * - If subject selected => will filter by subject and show subject attendance
+   * - Section (optional) filters further
+   */
   async function loadStudentsByAcademics(){
     const reqId = ++state.req.stu;
 
     const courseId   = ($('course_id')?.value || '').trim();
     const semesterId = ($('semester_id')?.value || '').trim();
-    const sectionId  = ($('section_id')?.value || '').trim(); // optional
+    const subjectId  = ($('subject_id')?.value || '').trim(); // ✅ NEW
+    const sectionId  = ($('section_id')?.value || '').trim();
 
-    // ✅ If course/semester not chosen, keep empty list (prevents "all students" load)
+    // ✅ Must have course + semester, else empty
     if (!courseId || !semesterId){
       state.studentsAcad = [];
       return;
     }
 
-    const url = API.studentsByAcademics({ course_id: courseId, semester_id: semesterId, section_id: sectionId });
+    const url = API.studentsByAcademics({
+      course_id: courseId,
+      semester_id: semesterId,
+      subject_id: subjectId, // ✅ NEW
+      section_id: sectionId
+    });
 
     try{
       const res = await fetchWithTimeout(url, { headers: authHeaders(token()) }, 25000);
@@ -620,23 +706,37 @@
       if (reqId !== state.req.stu) return;
 
       if (!res.ok) {
-        // don't hard fail page; just keep empty
         state.studentsAcad = [];
         return;
       }
 
+      // ✅ BACKEND returns:
+      // data: [{ id,name,email, academic_details:{ course_title, semester_title, section_title, attendance_percentage, subject_attendance } }]
       const rows = normalizeList(js) || [];
-      // Expected row fields from backend:
-      // user_id, student_name, student_email, course_title, semester_title, section_title (+ sad.*)
+
       const normalized = rows.map(r => {
-        const uid = idNum(r?.user_id ?? r?.id);
+        const uid = idNum(r?.id ?? r?.user_id);
         if (!uid) return null;
 
-        const name = String(r?.student_name || r?.name || r?.full_name || 'Student');
-        const email = String(r?.student_email || r?.email || '');
-        const course = String(r?.course_title || r?.course_name || '');
-        const sem = String(r?.semester_title || r?.semester_name || '');
-        const sec = String(r?.section_title || r?.section_name || '');
+        const ad = r?.academic_details || {};
+        const name = String(r?.name || r?.student_name || 'Student');
+        const email = String(r?.email || r?.student_email || '');
+
+        const course = String(ad?.course_title || r?.course_title || '');
+        const sem    = String(ad?.semester_title || r?.semester_title || '');
+        const sec    = String(ad?.section_title || r?.section_title || '');
+
+        const overallAtt = (ad?.attendance_percentage !== null && ad?.attendance_percentage !== undefined)
+          ? Number(ad?.attendance_percentage)
+          : null;
+
+        // ✅ subject attendance only meaningful when subject_id passed
+        const subjectAtt = (ad?.subject_attendance !== null && ad?.subject_attendance !== undefined)
+          ? Number(ad?.subject_attendance)
+          : null;
+
+        // which attendance to show/filter: prefer subjectAtt when available
+        const effectiveAtt = Number.isFinite(subjectAtt) ? subjectAtt : (Number.isFinite(overallAtt) ? overallAtt : null);
 
         return {
           id: uid,
@@ -645,6 +745,11 @@
           course_title: course,
           semester_title: sem,
           section_title: sec,
+
+          attendance_overall: overallAtt,
+          attendance_subject: subjectAtt,
+          attendance_effective: effectiveAtt,
+
           _raw: r
         };
       }).filter(Boolean);
@@ -660,7 +765,6 @@
     return (state.users || []).filter(u => String(u?.role || '').toLowerCase() === 'faculty');
   }
 
-  // ✅ students are now loaded from academics API
   function studentUsers(){
     return (state.studentsAcad || []).slice();
   }
@@ -691,7 +795,6 @@
     const sem    = String(s?.semester_title || '').trim();
     const sec    = String(s?.section_title || '').trim();
 
-    // show only if exists
     const acad = [];
     if (course) acad.push(`Course: ${course}`);
     if (sem) acad.push(`Sem: ${sem}`);
@@ -699,7 +802,16 @@
 
     if (acad.length) parts.push(acad.join(' • '));
 
-    return parts.join(' • ');
+    // ✅ Attendance line
+    const eff = s?.attendance_effective;
+    if (eff !== null && eff !== undefined && Number.isFinite(Number(eff))){
+      const subjectChosen = !!String($('subject_id')?.value || '').trim();
+      parts.push(subjectChosen ? `Subject Att: ${fmtPct(eff)}` : `Attendance: ${fmtPct(eff)}`);
+    } else {
+      parts.push('Attendance: —');
+    }
+
+    return parts.filter(Boolean).join(' • ');
   }
 
   // =========================
@@ -819,35 +931,56 @@
 
     if (!semesterId) return;
 
-    const courseId = $('course_id')?.value || '';
+    const courseId = ($('course_id')?.value || '').trim();
+
+    // ✅ Fetch using course+semester priority
     const raw = await fetchFirstWorking(API.subjectsCandidates(semesterId, courseId));
     if (reqId !== state.req.sub) return;
     if (!raw) return;
 
+    // ✅ Normalize + filter strictly for selected course+semester if backend returns extra
     const normalized = raw.map(r => {
       const id = idNum(r?.subject_id ?? r?.id);
+      if (!id) return null;
+
       const title =
         r?.subject_title ??
         r?.subject_name ??
         r?.title ??
         r?.name ??
-        r?.subject_code ??
-        r?.code ??
         (id ? `Subject #${id}` : '');
-      return { id, title };
-    }).filter(x => x.id);
 
-    const unique = uniqBy(normalized, x => x.id);
+      const code = String(r?.subject_code || r?.code || '').trim();
+      const type = String(r?.subject_type || r?.type || '').trim();
+
+      // ✅ Show in bracket: (CODE • TYPE)
+      const extra = [code, type].filter(Boolean).join(' • ');
+      const finalTitle = extra ? `${title} (${extra})` : title;
+
+      return {
+        id,
+        title: finalTitle,
+        _course_id: r?.course_id ?? r?.courseId ?? null,
+        _semester_id: r?.semester_id ?? r?.semesterId ?? null,
+      };
+    }).filter(Boolean);
+
+    // ✅ HARD FILTER (only if backend returns these ids)
+    const filtered = normalized.filter(x => {
+      const okCourse = !courseId || !x._course_id || String(x._course_id) === String(courseId);
+      const okSem    = !semesterId || !x._semester_id || String(x._semester_id) === String(semesterId);
+      return okCourse && okSem;
+    });
+
+    const unique = uniqBy(filtered, x => x.id);
+
     state.subjects = unique;
 
-    setSelectOptions('subject_id', unique, ['title','name','subject_title','subject_name','code','subject_code']);
+    // ✅ Fill dropdown with our formatted title
+    setSelectOptions('subject_id', unique, ['title']);
   }
 
-  /**
-   * ✅ loadSections()
-   * - Uses your route: /api/course-semester-sections/current
-   * - Loads by course_id + semester_id
-   */
+
   async function loadSections(){
     const reqId = ++state.req.sec;
 
@@ -942,7 +1075,7 @@
     pickArray(d?.faculty_ids).forEach(x => { const n=idNum(x); if(n) state.selectedFacultyIds.add(n); });
     pickArray(d?.student_ids).forEach(x => { const n=idNum(x); if(n) state.selectedStudentIds.add(n); });
 
-    // ✅ after scope hydrated, load students list accordingly
+    // ✅ after scope hydrated, load students list accordingly (now includes subject)
     await loadStudentsByAcademics();
   }
 
@@ -964,7 +1097,7 @@
     const qChips = [];
     state.selectedQuestionIds.forEach(qid => {
       const q = state.questions.find(x => String(x?.id) === String(qid));
-      qChips.push(chipHTML(q ? qLabel(q) : `Question #${qid}`, `q:${qid}`));
+      qChips.push(chipHTML(q ? (qLabel(q)) : `Question #${qid}`, `q:${qid}`));
     });
     $('chipsQuestions').innerHTML = qChips.length ? qChips.join('') : `<span class="text-muted small">None</span>`;
 
@@ -988,23 +1121,19 @@
 
     const courseTxt = $('course_id')?.value ? `course=${$('course_id').value}` : 'course=—';
     const semTxt    = $('semester_id')?.value ? `sem=${$('semester_id').value}` : 'sem=—';
+    const subTxt    = $('subject_id')?.value ? `sub=${$('subject_id').value}` : 'sub=ALL';
     const secTxt    = $('section_id')?.value ? `sec=${$('section_id').value}` : 'sec=ALL';
 
     $('summaryText').textContent =
-      `Selected: ${state.selectedQuestionIds.size} question(s), ${state.selectedFacultyIds.size} faculty, ${state.selectedStudentIds.size} student(s) • Student filter: ${courseTxt}, ${semTxt}, ${secTxt}`;
+      `Selected: ${state.selectedQuestionIds.size} question(s), ${state.selectedFacultyIds.size} faculty, ${state.selectedStudentIds.size} student(s) • Student filter: ${courseTxt}, ${semTxt}, ${subTxt}, ${secTxt}`;
   }
 
   // =========================
-  // ✅ Picker modal (FIXED)
-  // - Keeps selection ON even when you search/filter
-  // - When you reopen modal, previously selected remain auto-selected
-  // - Works for questions, faculty, and students
+  // ✅ Picker modal (KEEP selection across search/filter)
   // =========================
-  let pickerInitial = new Set();     // snapshot when modal opened
-  let pickerSelected = new Set();    // ✅ LIVE selected set inside modal (never resets on search)
+  let pickerSelected = new Set();
 
   function updatePickSelectedCount(){
-    // ✅ show total selected (not only visible checkboxes)
     $('pickSelectedCount').textContent = `${pickerSelected.size} selected`;
   }
 
@@ -1014,7 +1143,30 @@
     return String(el.value || '').trim();
   }
 
-  function renderPickList(items, selectedSet){
+  function getPickAttendanceValue(){
+    const el = $('pickAttendance');
+    if (!el || el.style.display === 'none') return '';
+    return String(el.value || '').trim();
+  }
+
+  function passAttendanceFilter(it){
+    if (it._mode !== 'students') return true;
+
+    const f = getPickAttendanceValue();
+    if (!f) return true;
+
+    const att = it.att_effective;
+    const has = Number.isFinite(Number(att));
+
+    if (f === 'na') return !has;
+    if (f === 'lt60') return has && Number(att) < 60;
+
+    const min = Number(f);
+    if (!Number.isFinite(min)) return true;
+    return has && Number(att) >= min;
+  }
+
+  function renderPickList(items){
     const q = String($('pickSearch').value || '').trim().toLowerCase();
     const g = getPickGroupValue();
 
@@ -1022,6 +1174,8 @@
       if (it._mode === 'questions' && g){
         if (String(it.group || '') !== String(g)) return false;
       }
+      if (!passAttendanceFilter(it)) return false;
+
       if (!q) return true;
       const hay = String(it._search || '').toLowerCase();
       return hay.includes(q);
@@ -1040,7 +1194,15 @@
     }
 
     root.innerHTML = list.map(it => {
-      const on = selectedSet.has(it.id);
+      const on = pickerSelected.has(it.id);
+
+      let rightMeta = '';
+      if (it._mode === 'students'){
+        const pct = fmtPct(it.att_effective);
+        const cls = attClass(it.att_effective);
+        rightMeta = pct ? `<span class="att-badge ${cls}"><i class="fa fa-chart-line"></i>${esc(pct)}</span>` : `<span class="att-badge"><i class="fa fa-chart-line"></i>—</span>`;
+      }
+
       return `
         <div class="modal-user-item">
           <div class="modal-user-info">
@@ -1050,8 +1212,12 @@
               <div class="modal-user-email">${esc(it.sub || '')}</div>
             </div>
           </div>
-          <div class="form-check form-switch m-0">
-            <input class="form-check-input" type="checkbox" data-id="${esc(String(it.id))}" ${on ? 'checked' : ''}>
+
+          <div class="d-flex align-items-center gap-2">
+            ${rightMeta}
+            <div class="form-check form-switch m-0">
+              <input class="form-check-input" type="checkbox" data-id="${esc(String(it.id))}" ${on ? 'checked' : ''}>
+            </div>
           </div>
         </div>
       `;
@@ -1081,16 +1247,15 @@
     let items = [];
     let pre = new Set();
 
+    // reset special filters visibility
+    $('pickGroup').style.display = 'none';
+    $('pickAttendance').style.display = 'none';
+    $('pickGroup').value = '';
+    $('pickAttendance').value = '';
+
     if (mode === 'questions'){
       $('pickGroup').style.display = '';
       fillQuestionGroups();
-      $('pickGroup').value = '';
-    } else {
-      $('pickGroup').style.display = 'none';
-      $('pickGroup').value = '';
-    }
-
-    if (mode === 'questions'){
       title = 'Select Questions (Filter by Group)';
       items = (state.questions || []).map(q => ({
         _mode: 'questions',
@@ -1120,28 +1285,36 @@
     }
 
     if (mode === 'students'){
-      // ✅ Students now come from academics API only
+      // ✅ Must have course + semester
       const courseId   = ($('course_id')?.value || '').trim();
       const semesterId = ($('semester_id')?.value || '').trim();
-      const sectionId  = ($('section_id')?.value || '').trim();
 
       if (!courseId || !semesterId){
         Swal.fire({
           icon: 'info',
           title: 'Select Course & Semester first',
-          text: 'Students are loaded based on academics (course + semester, and section if selected).',
+          text: 'Students are loaded based on academics (course + semester, section and subject if selected).',
           confirmButtonText: 'OK'
         });
         return;
       }
 
-      title = sectionId ? 'Select Students (Filtered by Course + Semester + Section)' : 'Select Students (Filtered by Course + Semester)';
+      $('pickAttendance').style.display = ''; // ✅ show attendance filter for students
+
+      const subjectChosen = !!String($('subject_id')?.value || '').trim();
+      const sectionId  = ($('section_id')?.value || '').trim();
+
+      title = subjectChosen
+        ? (sectionId ? 'Select Students (Subject-wise + Section)' : 'Select Students (Subject-wise)')
+        : (sectionId ? 'Select Students (Course + Semester + Section)' : 'Select Students (Course + Semester)');
+
       items = studentUsers().map(s => ({
         _mode: 'students',
         id: idNum(s?.id),
         title: studentLabel(s),
         sub: studentSubLine(s),
         avatar: initials(studentLabel(s)),
+        att_effective: (s?.attendance_effective ?? null),
         _search: `${studentLabel(s)} ${studentSubLine(s)}`.trim()
       })).filter(x => x.id);
 
@@ -1150,14 +1323,11 @@
 
     $('pickTitle').textContent = title;
 
-    // ✅ IMPORTANT FIX:
-    // - pickerSelected holds LIVE selection in modal (persists across search renders)
-    // - pickerInitial is just snapshot (optional)
-    pickerInitial = new Set(pre);
+    // ✅ LIVE selection set in modal (persist across search/filter)
     pickerSelected = new Set(pre);
 
     $('pickModal').dataset.items = JSON.stringify(items);
-    renderPickList(items, pickerSelected);
+    renderPickList(items);
 
     modal.show();
   }
@@ -1174,7 +1344,6 @@
     return '';
   }
 
-  // ✅ Auto-apply all selected faculty to all selected questions (no per-question control)
   function buildQuestionFacultyPayload(){
     const out = {};
     const fac = Array.from(state.selectedFacultyIds);
@@ -1207,7 +1376,6 @@
       faculty_ids: Array.from(state.selectedFacultyIds),
       student_ids: Array.from(state.selectedStudentIds),
 
-      // keep this for backend compatibility (auto built)
       question_faculty: buildQuestionFacultyPayload(),
     };
 
@@ -1269,32 +1437,35 @@
 
     bindChipRemove();
 
-    // ✅ Search filter rerender MUST NOT wipe selection
+    // ✅ Search rerender MUST NOT wipe selection
     $('pickSearch').addEventListener('input', debounce(() => {
       const items = JSON.parse($('pickModal').dataset.items || '[]');
-      renderPickList(items, pickerSelected); // ✅ keep live selection
+      renderPickList(items);
     }, 200));
 
     $('pickGroup').addEventListener('change', () => {
       const items = JSON.parse($('pickModal').dataset.items || '[]');
-      renderPickList(items, pickerSelected); // ✅ keep live selection
+      renderPickList(items);
+    });
+
+    $('pickAttendance').addEventListener('change', () => {
+      const items = JSON.parse($('pickModal').dataset.items || '[]');
+      renderPickList(items);
     });
 
     // ✅ Select All (visible list only) -> add to pickerSelected
     $('btnPickSelectAll').addEventListener('click', () => {
       const items = JSON.parse($('pickModal').dataset.items || '[]');
-      // mark all visible checkboxes ON
       document.querySelectorAll('#pickList input[type="checkbox"][data-id]').forEach(cb => {
         cb.checked = true;
         const id = idNum(cb.dataset.id);
         if (id) pickerSelected.add(id);
       });
       updatePickSelectedCount();
-      // rerender to keep UI consistent with set
-      renderPickList(items, pickerSelected);
+      renderPickList(items);
     });
 
-    // ✅ Clear All (visible list only) -> remove from pickerSelected
+    // ✅ Clear All (visible list only)
     $('btnPickClearAll').addEventListener('click', () => {
       const items = JSON.parse($('pickModal').dataset.items || '[]');
       document.querySelectorAll('#pickList input[type="checkbox"][data-id]').forEach(cb => {
@@ -1303,10 +1474,10 @@
         if (id) pickerSelected.delete(id);
       });
       updatePickSelectedCount();
-      renderPickList(items, pickerSelected);
+      renderPickList(items);
     });
 
-    // ✅ When toggling one checkbox ON/OFF, update pickerSelected immediately
+    // ✅ When toggling checkbox, update pickerSelected
     document.addEventListener('change', (e) => {
       const cb = e.target.closest('#pickList input[type="checkbox"][data-id]');
       if (!cb) return;
@@ -1320,7 +1491,7 @@
       updatePickSelectedCount();
     });
 
-    // ✅ Apply button uses pickerSelected (not DOM) so search/filter won't lose selection
+    // ✅ Apply uses pickerSelected (not DOM)
     $('pickForm').addEventListener('submit', (e) => {
       e.preventDefault();
 
@@ -1339,11 +1510,10 @@
     $('btnPickQuestions').addEventListener('click', () => openPicker('questions'));
     $('btnPickFaculty').addEventListener('click', () => openPicker('faculty'));
 
-    // ✅ before opening students picker, ensure list is fresh for current scope
     $('btnPickStudents').addEventListener('click', async () => {
       showLoading(true);
       try{
-        await loadStudentsByAcademics();
+        await loadStudentsByAcademics(); // ✅ subject aware now
       }finally{
         showLoading(false);
       }
@@ -1359,7 +1529,6 @@
       await loadSemesters(courseId);
       await loadSections();
 
-      // ✅ students must follow course+semester (semester cleared => empty)
       await loadStudentsByAcademics();
       renderChips();
     });
@@ -1371,22 +1540,18 @@
       await loadSubjects(semesterId);
       await loadSections();
 
-      // ✅ reload students by (course + semester)
       await loadStudentsByAcademics();
       renderChips();
     });
 
+    // ✅ subject change now refreshes student list (subject-wise filter)
     $('subject_id').addEventListener('change', async () => {
       $('section_id').value = '';
-      // no loadSections() here by design (your endpoint is course+semester based)
-
-      // ✅ subject doesn't affect students API; keep as-is but still refresh students list (optional safe)
-      await loadStudentsByAcademics();
+      await loadStudentsByAcademics(); // ✅ now subject affects output
       renderChips();
     });
 
     $('section_id').addEventListener('change', async () => {
-      // ✅ section affects students API (if selected; else all sections)
       await loadStudentsByAcademics();
       renderChips();
     });
@@ -1398,13 +1563,12 @@
       try{
         await loadCourses();
         await Promise.all([loadQuestions(), loadUsers()]);
+
         state.selectedQuestionIds = new Set();
         state.selectedFacultyIds  = new Set();
         state.selectedStudentIds  = new Set();
 
-        // ✅ keep scope dropdowns as currently selected, but refresh students list for them
         await loadStudentsByAcademics();
-
         await loadPostIfEdit();
         renderChips();
         ok('Refreshed');
@@ -1423,10 +1587,9 @@
       await loadCourses();
       await Promise.all([loadQuestions(), loadUsers()]);
 
-      // ✅ initial students list depends on current dropdown selection (usually empty)
       await loadStudentsByAcademics();
-
       await loadPostIfEdit();
+
       renderChips();
     }catch(ex){
       err(ex?.message || 'Initialization failed');

@@ -53,7 +53,7 @@
 .fb-post-dot.submitted{background:#22c55e}
 .fb-post-dot.pending{background:#ef4444}
 .fb-post-title{font-weight:950}
-.fb-post-meta{font-size:12px;color:var(--muted-color)}
+.fb-post-meta{font-size:12px;color:var(--muted-color);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .fb-post-pill{margin-left:auto}
 
 .fb-post-ac-item{position:relative}
@@ -241,6 +241,54 @@
 .fb-readonly input[type="radio"]{pointer-events:none;}
 .fb-readonly .fb-post-submit-btn{opacity:.65;cursor:not-allowed !important;pointer-events:none;}
 
+/* =========================
+ * ✅ NEW: Subject Code + Type badges
+ * ========================= */
+.sub-code-pill{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:2px 8px;
+  border-radius:999px;
+  font-size:10.5px;
+  font-weight:950;
+  border:1px solid var(--line-soft);
+  background:#e2e8f0;
+  color:#0f172a;
+}
+.sub-type-pill{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:2px 8px;
+  border-radius:999px;
+  font-size:10.5px;
+  font-weight:950;
+  border:1px solid var(--line-soft);
+}
+.sub-type-pill.compulsory{
+  background:color-mix(in oklab, var(--primary-color) 10%, var(--surface));
+  color:var(--primary-color);
+  border-color: color-mix(in oklab, var(--primary-color) 35%, var(--line-soft));
+}
+.sub-type-pill.optional{
+  background:#fff7ed;
+  color:#b45309;
+  border-color:#fed7aa;
+}
+.user-pill{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:2px 8px;
+  border-radius:999px;
+  font-size:10.5px;
+  font-weight:950;
+  border:1px solid var(--line-soft);
+  color:var(--muted-color);
+  background:color-mix(in oklab, var(--primary-color) 6%, var(--surface));
+}
+
 @media (max-width: 768px){
   .fbsub-panel .d-flex{flex-direction:column;gap:12px !important}
   .fb-table{min-width:860px}
@@ -324,8 +372,8 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 (() => {
-  if (window.__FEEDBACK_SUBMIT_PAGE_V13__) return;
-  window.__FEEDBACK_SUBMIT_PAGE_V13__ = true;
+  if (window.__FEEDBACK_SUBMIT_PAGE_V14__) return;
+  window.__FEEDBACK_SUBMIT_PAGE_V14__ = true;
 
   const $ = (id) => document.getElementById(id);
 
@@ -405,7 +453,7 @@
     questions: [],
     users: [],
 
-    // ✅ default: Pending tab (current tab)
+    // ✅ default: Pending tab
     filter: 'pending',
 
     ratingsByPost: {},
@@ -430,9 +478,7 @@
   }
 
   /* ======================================================
-   ✅ Semester FIX (IMPORTANT)
-   - earlier UI used semester_id => showed wrong "Semester 7"
-   - now it ONLY uses semester_no/semester_number or nested objects
+   ✅ Semester FIX
   ====================================================== */
   function resolveSemesterNo(post){
     const tries = [
@@ -457,16 +503,129 @@
 
     if (post?.semester_name && String(post.semester_name).trim()) return String(post.semester_name);
 
-    // ❌ DO NOT use semester_id as semester number
     return 'Semester';
   }
 
+  /* ======================================================
+   ✅ NEW: Subject Title + Code + Type (Compulsory/Optional)
+  ====================================================== */
   function subjectTitle(post){
     if (post?.subject_name && String(post.subject_name).trim()) return String(post.subject_name);
     if (post?.subject?.title && String(post.subject.title).trim()) return String(post.subject.title);
     if (post?.subject?.name && String(post.subject.name).trim()) return String(post.subject.name);
+    if (post?.subject_title && String(post.subject_title).trim()) return String(post.subject_title);
     if (post?.subject_id) return `Subject #${post.subject_id}`;
     return 'General';
+  }
+
+  function subjectCode(post){
+    const tries = [
+      post?.subject_code,
+      post?.subject?.subject_code,
+      post?.subject?.code,
+      post?.subject?.paper_code,
+      post?.subject?.subjectCode,
+    ];
+    for (const t of tries){
+      const s = String(t ?? '').trim();
+      if (s) return s;
+    }
+    return '';
+  }
+
+  function subjectType(post){
+    const tries = [
+      post?.subject_type,
+      post?.subject?.subject_type,
+      post?.subject?.type,
+      post?.subject?.subjectType,
+    ];
+    for (const t of tries){
+      const s = String(t ?? '').toLowerCase().trim();
+      if (!s) continue;
+      if (s === 'optional') return 'optional';
+      if (s === 'compulsory' || s === 'required') return 'compulsory';
+      // any other values -> treat compulsory by default
+      return 'compulsory';
+    }
+    return 'compulsory';
+  }
+
+  function subjectMetaHTML(post){
+    const name = subjectTitle(post);
+    const code = subjectCode(post);
+    const tp = subjectType(post);
+
+    const codeHtml = code
+      ? `<span class="sub-code-pill"><i class="fa fa-hashtag" style="opacity:.7"></i>${esc(code)}</span>`
+      : '';
+
+    const tpHtml = (tp === 'optional')
+      ? `<span class="sub-type-pill optional"><i class="fa fa-circle-check" style="opacity:.75"></i>Optional</span>`
+      : `<span class="sub-type-pill compulsory"><i class="fa fa-shield" style="opacity:.75"></i>Compulsory</span>`;
+
+    return `<span>${esc(name)}</span> ${codeHtml} ${tpHtml}`;
+  }
+
+  /* ======================================================
+   ✅ NEW: Student/User details (robust extraction)
+  ====================================================== */
+  function studentNameFromPost(post){
+    const tries = [
+      post?.student_name,
+      post?.student?.name,
+      post?.student?.full_name,
+      post?.user?.name,
+      post?.user?.full_name,
+      post?.created_by_user?.name,
+    ];
+    for (const t of tries){
+      const s = String(t ?? '').trim();
+      if (s) return s;
+    }
+    return '';
+  }
+
+  function studentRollFromPost(post){
+    const tries = [
+      post?.roll_no,
+      post?.student_roll,
+      post?.student?.roll_no,
+      post?.student?.academic_details?.roll_no,
+      post?.academic_details?.roll_no,
+    ];
+    for (const t of tries){
+      const s = String(t ?? '').trim();
+      if (s) return s;
+    }
+    return '';
+  }
+
+  function studentDeptFromPost(post){
+    const tries = [
+      post?.department_name,
+      post?.department?.name,
+      post?.student?.department?.name,
+      post?.academic_details?.department_name,
+    ];
+    for (const t of tries){
+      const s = String(t ?? '').trim();
+      if (s) return s;
+    }
+    return '';
+  }
+
+  function studentInfoHTML(post){
+    const nm = studentNameFromPost(post);
+    const rn = studentRollFromPost(post);
+    const dp = studentDeptFromPost(post);
+
+    const parts = [];
+    if (nm) parts.push(`<span class="user-pill"><i class="fa fa-user"></i>${esc(nm)}</span>`);
+    if (rn) parts.push(`<span class="user-pill"><i class="fa fa-id-badge"></i>Roll: ${esc(rn)}</span>`);
+    if (dp) parts.push(`<span class="user-pill"><i class="fa fa-building-columns"></i>${esc(dp)}</span>`);
+
+    return parts.length ? parts.join(' ') : '';
   }
 
   function getAllowedFacultyIdsForQuestion(post, qid){
@@ -495,9 +654,8 @@
   }
 
   function filteredPosts(){
-    // ✅ Two tabs only
     if (state.filter === 'submitted') return state.posts.filter(p => !!p.is_submitted);
-    return state.posts.filter(p => !p.is_submitted); // pending
+    return state.posts.filter(p => !p.is_submitted);
   }
 
   function updateCounts(){
@@ -590,9 +748,6 @@
     return answers;
   }
 
-  /* =========================
-   * ✅ Error highlighting helpers
-   * ========================= */
   function clearHighlights(postKey){
     const pane = document.getElementById('tablePane_' + postKey);
     if (pane) pane.querySelectorAll('tr.fb-row-error').forEach(tr => tr.classList.remove('fb-row-error'));
@@ -820,7 +975,8 @@
     prefillFromSubmission(postKey, post);
 
     const sem = semesterTitle(post);
-    const sub = subjectTitle(post);
+    const subMeta = subjectMetaHTML(post);
+    const studentMeta = studentInfoHTML(post);
 
     const isReadOnly = !!post?.is_submitted;
 
@@ -840,7 +996,14 @@
       <div class="${isReadOnly ? 'fb-readonly' : ''}">
         <div class="d-flex align-items-start justify-content-between flex-wrap gap-2">
           <div>
-            <div class="fw-semibold"><i class="fa fa-calendar-alt me-2"></i>${esc(sem)} <span class="text-mini">•</span> <i class="fa fa-book ms-2 me-2"></i>${esc(sub)}</div>
+            <div class="fw-semibold">
+              <i class="fa fa-calendar-alt me-2"></i>${esc(sem)}
+              <span class="text-mini">•</span>
+              <i class="fa fa-book ms-2 me-2"></i>${subMeta}
+            </div>
+
+            ${studentMeta ? `<div class="text-mini mt-2">${studentMeta}</div>` : ''}
+
             ${submittedLine}
           </div>
 
@@ -896,8 +1059,10 @@
           const hid = `post_h_${postKey.replace(/[^a-zA-Z0-9_]/g,'_')}`;
           const cid = `post_c_${postKey.replace(/[^a-zA-Z0-9_]/g,'_')}`;
           const title = p?.title || ('Feedback #' + (p?.id ?? ''));
+
           const sem = semesterTitle(p);
-          const sub = subjectTitle(p);
+          const subMeta = subjectMetaHTML(p);
+          const studentMeta = studentInfoHTML(p);
 
           const dotCls = p?.is_submitted ? 'submitted' : 'pending';
           const itemCls = p?.is_submitted ? 'is-submitted' : 'is-pending';
@@ -915,7 +1080,13 @@
                   <div class="fb-post-head w-100">
                     <span class="fb-post-dot ${dotCls}"></span>
                     <span class="fb-post-title">${esc(String(title))}</span>
-                    <span class="fb-post-meta">• ${esc(sem)} • ${esc(sub)}</span>
+
+                    <span class="fb-post-meta">
+                      <span>• ${esc(sem)}</span>
+                      <span>• ${subMeta}</span>
+                      ${studentMeta ? `<span>•</span><span>${studentMeta}</span>` : ``}
+                    </span>
+
                     ${statusBadge}
                   </div>
                 </button>
@@ -1010,7 +1181,6 @@
       }
 
       ok('Feedback submitted successfully');
-
       await loadBase(true);
 
       const root = $('accordionsRoot');
@@ -1058,7 +1228,6 @@
 
     updateCounts();
 
-    // ✅ if pending empty but submitted exists -> auto switch to submitted tab
     const pendingCount = state.posts.filter(p => !p.is_submitted).length;
     const submittedCount = state.posts.filter(p => !!p.is_submitted).length;
 

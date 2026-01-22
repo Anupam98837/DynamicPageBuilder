@@ -139,6 +139,29 @@
 .ssa-table thead tr.h2 th { font-size: 13px; background: #fff; }
 .ssa-table thead tr.h3 th { font-size: 12px; background: var(--ssa-bg-light); }
 
+/* ✅ NEW: Subject Type Badge (Optional/Compulsory) */
+.type-pill{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 800;
+    border: 1px solid var(--ssa-border);
+    margin-left: 6px;
+}
+.type-pill.compulsory{
+    background: var(--ssa-primary-soft);
+    color: var(--ssa-primary);
+    border-color: color-mix(in srgb, var(--ssa-primary) 22%, var(--ssa-border));
+}
+.type-pill.optional{
+    background: #fff7ed;
+    color: #b45309;
+    border-color: #fed7aa;
+}
+
 /* Sticky Left Columns */
 .sticky-col {
     position: sticky;
@@ -430,8 +453,22 @@ input[type="checkbox"] {
     }
     return s?.title || s?.name || `Semester #${s?.id}`;
   }
+
   function subjectTitle(sub){ return String(sub?.title || sub?.name || sub?.subject_title || `Subject #${sub?.id}`); }
   function subjectCode(sub){ return String(sub?.subject_code || sub?.code || sub?.paper_code || '').trim(); }
+
+  // ✅ NEW: Subject compulsory/optional tag (default: compulsory)
+  function subjectKind(sub){
+    const t = String(sub?.subject_type || sub?.type || '').toLowerCase().trim();
+    if (t === 'optional') return 'optional';
+    return 'compulsory';
+  }
+  function subjectKindBadge(sub){
+    const k = subjectKind(sub);
+    if (k === 'optional') return `<span class="type-pill optional">Optional</span>`;
+    return `<span class="type-pill compulsory">Compulsory</span>`;
+  }
+
   function studentName(st){ return String(st?.name || st?.student_name || st?.full_name || 'Student'); }
   function studentRoll(st){ return String(st?.roll_no ?? st?.academic_details?.roll_no ?? '').trim(); }
 
@@ -504,9 +541,18 @@ input[type="checkbox"] {
               <th class="sticky-col-2 col-name" rowspan="3">Student Name</th>
               <th colspan="${headColSpan}" class="text-center py-3">Subject Wise Attendance (%)</th>
             </tr>
+
             <tr class="h2">
-              ${state.subjects.map(s => `<th class="sub-col">${esc(subjectTitle(s))}</th>`).join('')}
+              ${state.subjects.map(s => `
+                <th class="sub-col">
+                  <div style="display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:6px;">
+                    <span>${esc(subjectTitle(s))}</span>
+                    ${subjectKindBadge(s)}
+                  </div>
+                </th>
+              `).join('')}
             </tr>
+
             <tr class="h3">
               ${state.subjects.map(s => {
                 const subid = idNum(s?.id);
@@ -596,7 +642,7 @@ input[type="checkbox"] {
         dept_id: idNum(x?.academic_details?.department_id)
       }));
       state.departmentId = state.students[0]?.dept_id || resolveDepartmentIdFromCourse(state.courses.find(c => idNum(c.id) === state.selectedCourseId));
-      
+
       const resSub = await fetchWithTimeout(API.subjectsByScope(state.departmentId, state.selectedCourseId, state.selectedSemesterId), { headers: authHeaders() });
       state.subjects = normalizeList(await resSub.json());
 

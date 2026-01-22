@@ -213,46 +213,109 @@ class StudentAcademicDetailsController extends Controller
     public function studentsByAcademics(Request $request)
     {
         if ($resp = $this->ensureTable()) return $resp;
-
+    
         $q            = trim((string) $request->query('q', ''));
         $status       = trim((string) $request->query('status', 'active')) ?: 'active';
-
+    
         $departmentId = $request->query('department_id');
         $courseId     = $request->query('course_id');
         $semesterId   = $request->query('semester_id');
         $sectionId    = $request->query('section_id');
-
+    
+        // ✅ NEW (optional subject filter)
+        $subjectId    = $request->query('subject_id');
+    
         $academicYear = $request->query('academic_year');
         $batch        = $request->query('batch');
         $session      = $request->query('session');
-
-        $limit = (int) $request->query('limit', 200);
+    
+        // ✅ accept per_page also (your frontend uses per_page=500)
+        $limit = (int) ($request->query('limit', $request->query('per_page', 200)));
         $limit = max(1, min(500, $limit));
-
+    
         // ✅ only students
         $studentRoles = ['student', 'students'];
-
+    
         // dept/course labels (safe)
         $deptNameExpr = Schema::hasColumn('departments', 'name')
             ? 'd.name'
             : (Schema::hasColumn('departments', 'title') ? 'd.title' : 'NULL');
-
+    
         $courseTitleExpr = Schema::hasColumn('courses', 'title')
             ? 'c.title'
             : (Schema::hasColumn('courses', 'name') ? 'c.name' : 'NULL');
-
+    
         $semesterLabelExpr = $this->safeLabelExpr('course_semesters', 'sem', [
             'title', 'name', 'semester_title', 'semester_name', 'label'
         ]);
-
+    
         $sectionLabelExpr = $this->safeLabelExpr('course_semester_sections', 'sec', [
             'title', 'name', 'section_title', 'section_name', 'label'
         ]);
-
+    
+        /**
+         * ✅ NEW: subject wise attendance map
+         * If subjectId is present -> build map of student_id => current_attendance
+         * from student_subject.subject_json
+         */
+        $subjectAttendanceMap = [];
+        $subjectIdInt = null;
+    
+        if ($subjectId !== null && $subjectId !== '' && preg_match('/^\d+$/', (string)$subjectId)) {
+            $subjectIdInt = (int) $subjectId;
+    
+            // Pull student_subject rows for the same scope (dept/course/semester)
+            $ss = DB::table('student_subject')
+                ->whereNull('deleted_at')
+                ->where('status', 'active');
+    
+            if ($departmentId) $ss->where('department_id', $departmentId);
+            if ($courseId)     $ss->where('course_id', $courseId);
+            if ($semesterId)   $ss->where('semester_id', $semesterId);
+    
+            $ssRows = $ss->select(['id','subject_json'])->orderBy('id', 'desc')->limit(50)->get();
+    
+            foreach ($ssRows as $row) {
+                $json = $row->subject_json;
+    
+                // decode
+                $arr = null;
+                if (is_array($json)) {
+                    $arr = $json;
+                } elseif (is_string($json)) {
+                    $arr = json_decode($json, true);
+                    if (json_last_error() !== JSON_ERROR_NONE) $arr = null;
+                }
+    
+                if (!is_array($arr)) continue;
+    
+                foreach ($arr as $it) {
+                    $sid = isset($it['student_id']) ? (int)$it['student_id'] : 0;
+                    $sub = isset($it['subject_id']) ? (int)$it['subject_id'] : 0;
+    
+                    if ($sid <= 0 || $sub !== $subjectIdInt) continue;
+    
+                    $att = $it['current_attendance'] ?? null;
+                    // normalize numeric
+                    $att = ($att === null || $att === '') ? null : (float)$att;
+    
+                    // last write wins (fine)
+                    $subjectAttendanceMap[$sid] = $att;
+                }
+            }
+    
+            // If subject filter is requested and no mapping found => return empty fast
+            if (empty($subjectAttendanceMap)) {
+                return response()->json([
+                    'success' => true,
+                    'data'    => [],
+                ]);
+            }
+        }
+    
         $qb = DB::table('users as u')
             ->leftJoin($this->table . ' as sad', function ($join) {
                 $join->on('sad.user_id', '=', 'u.id');
-                // ignore deleted rows if column exists
                 if (Schema::hasColumn('student_academic_details', 'deleted_at')) {
                     $join->whereNull('sad.deleted_at');
                 }
@@ -265,7 +328,7 @@ class StudentAcademicDetailsController extends Controller
             ->where('u.status', $status)
             ->where(function ($w) use ($studentRoles) {
                 $w->whereIn('u.role', $studentRoles)
-                  ->orWhereIn('u.role_short_form', ['STD','STU']); // fallback support
+                  ->orWhereIn('u.role_short_form', ['STD','STU']);
             })
             ->select([
                 'u.id',
@@ -280,8 +343,7 @@ class StudentAcademicDetailsController extends Controller
                 'u.status',
                 'u.created_at',
                 'u.updated_at',
-
-                // ✅ academic mapping
+    
                 'sad.id as academic_id',
                 'sad.uuid as academic_uuid',
                 'sad.department_id',
@@ -296,18 +358,17 @@ class StudentAcademicDetailsController extends Controller
                 'sad.admission_date',
                 'sad.batch',
                 'sad.session',
-
-                // ✅ NEW: attendance percentage
+    
                 'sad.attendance_percentage',
-
+    
                 'sad.status as academic_status',
-
+    
                 DB::raw("{$deptNameExpr} as department_name"),
                 DB::raw("{$courseTitleExpr} as course_title"),
                 DB::raw("{$semesterLabelExpr} as semester_title"),
                 DB::raw("{$sectionLabelExpr} as section_title"),
             ]);
-
+    
         // ✅ search (user + academic fields)
         if ($q !== '') {
             $like = '%' . $q . '%';
@@ -318,33 +379,45 @@ class StudentAcademicDetailsController extends Controller
                   ->orWhere('sad.roll_no', 'like', $like)
                   ->orWhere('sad.registration_no', 'like', $like)
                   ->orWhere('sad.admission_no', 'like', $like);
-
-                // ✅ optional search on attendance
+    
                 if (Schema::hasColumn('student_academic_details', 'attendance_percentage')) {
                     $w->orWhere('sad.attendance_percentage', 'like', $like);
                 }
             });
         }
-
+    
         // ✅ filters by academic details
         if ($departmentId) $qb->where('sad.department_id', $departmentId);
         if ($courseId)     $qb->where('sad.course_id', $courseId);
         if ($semesterId)   $qb->where('sad.semester_id', $semesterId);
         if ($sectionId)    $qb->where('sad.section_id', $sectionId);
-
+    
         if ($academicYear) $qb->where('sad.academic_year', $academicYear);
         if ($batch)        $qb->where('sad.batch', $batch);
         if ($session)      $qb->where('sad.session', $session);
-
-        // latest first (similar to users index)
+    
+        // latest first
         $rows = $qb->orderBy('u.id', 'desc')->limit($limit)->get();
-
-        // ✅ normalize response like users index + "exists?" flag
-        $items = $rows->map(function ($r) {
+    
+        // ✅ apply subject filter (if requested)
+        if ($subjectIdInt !== null) {
+            $allowedIds = array_keys($subjectAttendanceMap);
+            $rows = $rows->filter(fn($r) => in_array((int)$r->id, $allowedIds, true))->values();
+        }
+    
+        $items = $rows->map(function ($r) use ($subjectIdInt, $subjectAttendanceMap) {
             $has = !empty($r->academic_id);
-
+            $uid = (int) $r->id;
+    
+            $subjectAttendance = null;
+            if ($subjectIdInt !== null) {
+                $subjectAttendance = array_key_exists($uid, $subjectAttendanceMap)
+                    ? $subjectAttendanceMap[$uid]
+                    : null;
+            }
+    
             return [
-                'id'             => (int) $r->id,
+                'id'             => $uid,
                 'uuid'           => (string) $r->uuid,
                 'slug'           => (string) ($r->slug ?? ''),
                 'name'           => (string) ($r->name ?? ''),
@@ -356,10 +429,9 @@ class StudentAcademicDetailsController extends Controller
                 'status'         => (string) ($r->status ?? ''),
                 'created_at'     => $r->created_at,
                 'updated_at'     => $r->updated_at,
-
-                // ✅ this is what you asked: "if already exists then tell me"
+    
                 'has_academic_details' => $has,
-
+    
                 'academic_details' => $has ? [
                     'id'              => (int) $r->academic_id,
                     'uuid'            => (string) ($r->academic_uuid ?? ''),
@@ -371,7 +443,7 @@ class StudentAcademicDetailsController extends Controller
                     'semester_title'  => (string) ($r->semester_title ?? ''),
                     'section_id'      => $r->section_id ? (int) $r->section_id : null,
                     'section_title'   => (string) ($r->section_title ?? ''),
-
+    
                     'academic_year'   => (string) ($r->academic_year ?? ''),
                     'year'            => $r->year !== null ? (int) $r->year : null,
                     'roll_no'         => (string) ($r->roll_no ?? ''),
@@ -380,22 +452,26 @@ class StudentAcademicDetailsController extends Controller
                     'admission_date'  => $r->admission_date,
                     'batch'           => (string) ($r->batch ?? ''),
                     'session'         => (string) ($r->session ?? ''),
-
-                    // ✅ NEW: attendance percentage
+    
                     'attendance_percentage' => $r->attendance_percentage !== null
                         ? (float) $r->attendance_percentage
                         : null,
-
+    
                     'status'          => (string) ($r->academic_status ?? ''),
+    
+                    // ✅ NEW: subject filter context + subject-wise attendance
+                    'subject_id'          => $subjectIdInt,
+                    'subject_attendance'  => $subjectAttendance,
                 ] : null,
             ];
         })->values();
-
+    
         return response()->json([
             'success' => true,
             'data'    => $items,
         ]);
     }
+    
 
     // GET /api/student-academic-details/{id}
     public function show(Request $request, $id)

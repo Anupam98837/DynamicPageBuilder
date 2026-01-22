@@ -102,88 +102,113 @@ class FeedbackSubmissionController extends Controller
      | Post query helpers
      |========================================================= */
 
-     private function basePostsQuery(bool $includeDeleted = false)
-     {
-         $q = DB::table(self::POSTS . ' as fp')->select([
-             'fp.id','fp.uuid',
-             'fp.title','fp.short_title','fp.description',
-             'fp.course_id','fp.semester_id','fp.subject_id','fp.section_id',
-             'fp.academic_year','fp.year',
-             'fp.question_ids','fp.faculty_ids','fp.question_faculty','fp.student_ids',
-             'fp.sort_order','fp.status','fp.publish_at','fp.expire_at',
-             'fp.created_by','fp.created_at','fp.updated_at',
-             'fp.deleted_at',
-         ]);
-     
-         /* =========================================================
-          | ✅ SEMESTER JOIN (AUTO DETECT TABLE + COLUMN)
-          |========================================================= */
-     
-         // Try possible semester table names
-         $semTable = null;
-         foreach (['semesters', 'academic_semesters', 'course_semesters'] as $t) {
-             if (Schema::hasTable($t)) { $semTable = $t; break; }
-         }
-     
-         if ($semTable) {
-             // ✅ detect join column in semester table
-             $semJoinCol = null;
-             foreach (['id', 'semester_id', 'sem_id'] as $candidate) {
-                 if ($this->hasCol($semTable, $candidate)) {
-                     $semJoinCol = $candidate;
-                     break;
-                 }
-             }
-             // fallback
-             if (!$semJoinCol) $semJoinCol = 'id';
-     
-             $q->leftJoin($semTable . ' as sem', "sem.$semJoinCol", '=', 'fp.semester_id');
-     
-             // ✅ Add semester_name
-             if ($this->hasCol($semTable, 'name')) {
-                 $q->addSelect(DB::raw('sem.name as semester_name'));
-             } elseif ($this->hasCol($semTable, 'title')) {
-                 $q->addSelect(DB::raw('sem.title as semester_name'));
-             } elseif ($this->hasCol($semTable, 'semester_name')) {
-                 $q->addSelect(DB::raw('sem.semester_name as semester_name'));
-             }
-     
-             // ✅ Add semester_no
-             if ($this->hasCol($semTable, 'semester_no')) {
-                 $q->addSelect(DB::raw('sem.semester_no as semester_no'));
-             } elseif ($this->hasCol($semTable, 'number')) {
-                 $q->addSelect(DB::raw('sem.number as semester_no'));
-             } elseif ($this->hasCol($semTable, 'sem_no')) {
-                 $q->addSelect(DB::raw('sem.sem_no as semester_no'));
-             } elseif ($this->hasCol($semTable, 'semester_number')) {
-                 $q->addSelect(DB::raw('sem.semester_number as semester_no'));
-             }
-     
-             // ✅ debug field (optional)
-             $q->addSelect(DB::raw("sem.$semJoinCol as joined_semester_id"));
-         }
-     
-         /* =========================================================
-          | ✅ SUBJECT JOIN (SAFE)
-          |========================================================= */
-     
-         if (Schema::hasTable('subjects')) {
-             $q->leftJoin('subjects as sub', 'sub.id', '=', 'fp.subject_id');
-     
-             if ($this->hasCol('subjects', 'name')) {
-                 $q->addSelect(DB::raw('sub.name as subject_name'));
-             } elseif ($this->hasCol('subjects', 'title')) {
-                 $q->addSelect(DB::raw('sub.title as subject_name'));
-             } elseif ($this->hasCol('subjects', 'subject_name')) {
-                 $q->addSelect(DB::raw('sub.subject_name as subject_name'));
-             }
-         }
-     
-         if (!$includeDeleted) $q->whereNull('fp.deleted_at');
-     
-         return $q;
-     }
-     
+    private function basePostsQuery(bool $includeDeleted = false)
+    {
+        $q = DB::table(self::POSTS . ' as fp')->select([
+            'fp.id','fp.uuid',
+            'fp.title','fp.short_title','fp.description',
+            'fp.course_id','fp.semester_id','fp.subject_id','fp.section_id',
+            'fp.academic_year','fp.year',
+            'fp.question_ids','fp.faculty_ids','fp.question_faculty','fp.student_ids',
+            'fp.sort_order','fp.status','fp.publish_at','fp.expire_at',
+            'fp.created_by','fp.created_at','fp.updated_at',
+            'fp.deleted_at',
+        ]);
+
+        /* =========================================================
+         | ✅ SEMESTER JOIN (AUTO DETECT TABLE + COLUMN)
+         |========================================================= */
+
+        // Try possible semester table names
+        $semTable = null;
+        foreach (['semesters', 'academic_semesters', 'course_semesters'] as $t) {
+            if (Schema::hasTable($t)) { $semTable = $t; break; }
+        }
+
+        if ($semTable) {
+            // ✅ detect join column in semester table
+            $semJoinCol = null;
+            foreach (['id', 'semester_id', 'sem_id'] as $candidate) {
+                if ($this->hasCol($semTable, $candidate)) {
+                    $semJoinCol = $candidate;
+                    break;
+                }
+            }
+            if (!$semJoinCol) $semJoinCol = 'id';
+
+            $q->leftJoin($semTable . ' as sem', "sem.$semJoinCol", '=', 'fp.semester_id');
+
+            // ✅ Add semester_name
+            if ($this->hasCol($semTable, 'name')) {
+                $q->addSelect(DB::raw('sem.name as semester_name'));
+            } elseif ($this->hasCol($semTable, 'title')) {
+                $q->addSelect(DB::raw('sem.title as semester_name'));
+            } elseif ($this->hasCol($semTable, 'semester_name')) {
+                $q->addSelect(DB::raw('sem.semester_name as semester_name'));
+            }
+
+            // ✅ Add semester_no
+            if ($this->hasCol($semTable, 'semester_no')) {
+                $q->addSelect(DB::raw('sem.semester_no as semester_no'));
+            } elseif ($this->hasCol($semTable, 'number')) {
+                $q->addSelect(DB::raw('sem.number as semester_no'));
+            } elseif ($this->hasCol($semTable, 'sem_no')) {
+                $q->addSelect(DB::raw('sem.sem_no as semester_no'));
+            } elseif ($this->hasCol($semTable, 'semester_number')) {
+                $q->addSelect(DB::raw('sem.semester_number as semester_no'));
+            }
+
+            // ✅ debug field (optional)
+            $q->addSelect(DB::raw("sem.$semJoinCol as joined_semester_id"));
+        }
+
+        /* =========================================================
+         | ✅ SUBJECT JOIN (SAFE + CODE + TYPE + OPTIONAL)
+         |========================================================= */
+
+        if (Schema::hasTable('subjects')) {
+            $q->leftJoin('subjects as sub', 'sub.id', '=', 'fp.subject_id');
+
+            // ✅ subject_name
+            if ($this->hasCol('subjects', 'name')) {
+                $q->addSelect(DB::raw('sub.name as subject_name'));
+            } elseif ($this->hasCol('subjects', 'title')) {
+                $q->addSelect(DB::raw('sub.title as subject_name'));
+            } elseif ($this->hasCol('subjects', 'subject_name')) {
+                $q->addSelect(DB::raw('sub.subject_name as subject_name'));
+            }
+
+            // ✅ subject_code
+            if ($this->hasCol('subjects', 'subject_code')) {
+                $q->addSelect(DB::raw('sub.subject_code as subject_code'));
+            } elseif ($this->hasCol('subjects', 'code')) {
+                $q->addSelect(DB::raw('sub.code as subject_code'));
+            } elseif ($this->hasCol('subjects', 'paper_code')) {
+                $q->addSelect(DB::raw('sub.paper_code as subject_code'));
+            }
+
+            // ✅ subject_type
+            if ($this->hasCol('subjects', 'subject_type')) {
+                $q->addSelect(DB::raw('sub.subject_type as subject_type'));
+            } elseif ($this->hasCol('subjects', 'type')) {
+                $q->addSelect(DB::raw('sub.type as subject_type'));
+            }
+
+            // ✅ Optional/Compulsory support
+            if ($this->hasCol('subjects', 'is_optional')) {
+                $q->addSelect(DB::raw('sub.is_optional as is_optional'));
+            } elseif ($this->hasCol('subjects', 'optional')) {
+                $q->addSelect(DB::raw('sub.optional as is_optional'));
+            } elseif ($this->hasCol('subjects', 'is_compulsory')) {
+                // compulsory=1 => optional=0
+                $q->addSelect(DB::raw('(CASE WHEN sub.is_compulsory = 1 THEN 0 ELSE 1 END) as is_optional'));
+            }
+        }
+
+        if (!$includeDeleted) $q->whereNull('fp.deleted_at');
+
+        return $q;
+    }
 
     /**
      * Student sees only posts where student_ids contains them.
@@ -241,7 +266,13 @@ class FeedbackSubmissionController extends Controller
             // ✅ extra display fields
             'semester_name' => property_exists($row, 'semester_name') ? ($row->semester_name !== null ? (string)$row->semester_name : null) : null,
             'semester_no'   => $semesterNo,
+
             'subject_name'  => property_exists($row, 'subject_name') ? ($row->subject_name !== null ? (string)$row->subject_name : null) : null,
+
+            // ✅ NEW: subject_code + type + optional
+            'subject_code'  => property_exists($row, 'subject_code') ? ($row->subject_code !== null ? (string)$row->subject_code : null) : null,
+            'subject_type'  => property_exists($row, 'subject_type') ? ($row->subject_type !== null ? (string)$row->subject_type : null) : null,
+            'is_optional'   => property_exists($row, 'is_optional') ? ((int)$row->is_optional === 1) : null,
 
             'academic_year' => $row->academic_year !== null ? (string)$row->academic_year : null,
             'year'          => $row->year !== null ? (int)$row->year : null,
@@ -355,9 +386,6 @@ class FeedbackSubmissionController extends Controller
     /* =========================================================
      | 1) LIST available posts for current user
      | GET /api/feedback-posts/available
-     | includes:
-     | - is_submitted
-     | - submission (if submitted): answers + submitted_at
      |========================================================= */
     public function available(Request $r)
     {
@@ -424,7 +452,6 @@ class FeedbackSubmissionController extends Controller
     /* =========================================================
      | 2) SUBMIT / UPDATE feedback (UPSERT)
      | POST /api/feedback-posts/{id|uuid}/submit
-     | - If already submitted => update answers (editable)
      |========================================================= */
     public function submit(Request $r, string $idOrUuid)
     {
