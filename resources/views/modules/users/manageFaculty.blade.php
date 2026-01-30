@@ -193,23 +193,22 @@ td .fw-semibold{color:var(--ink)}
           <button id="btnReset" class="btn btn-light">
             <i class="fa fa-rotate-left me-1"></i>Reset
           </button>
-  
-         
         </div>
 
         <div class="col-12 col-lg-auto ms-lg-auto d-flex justify-content-lg-end gap-3">
           <div class="col mb-6 gap-3">
- {{-- ✅ IMPORT --}}
-          <button id="btnImportFaculty" class="btn btn-outline-primary">
-            <i class="fa fa-file-arrow-up me-1"></i>Import CSV
-          </button>
-          <input type="file" id="importFacultyFile" accept=".csv,text/csv" class="d-none">
+            {{-- ✅ IMPORT --}}
+            <button id="btnImportFaculty" class="btn btn-outline-primary">
+              <i class="fa fa-file-arrow-up me-1"></i>Import CSV
+            </button>
+            <input type="file" id="importFacultyFile" accept=".csv,text/csv" class="d-none">
 
-          {{-- ✅ EXPORT --}}
-          <button id="btnExportFaculty" class="btn btn-outline-success">
-            <i class="fa fa-file-csv me-1"></i>Export CSV
-          </button>
-  </div>
+            {{-- ✅ EXPORT --}}
+            <button id="btnExportFaculty" class="btn btn-outline-success">
+              <i class="fa fa-file-csv me-1"></i>Export CSV
+            </button>
+          </div>
+
           <div id="writeControls" style="display:none;">
             <button type="button" class="btn btn-primary" id="btnAddUser">
               <i class="fa fa-plus me-1"></i> Add Faculty
@@ -357,6 +356,18 @@ td .fw-semibold{color:var(--ink)}
           <div class="col-md-12">
             <label class="form-label">Full Name <span class="text-danger">*</span></label>
             <input class="form-control" id="userName" required maxlength="190" placeholder="John Doe">
+          </div>
+
+          {{-- ✅ NEW: Short Name + Employee ID (optional) --}}
+          <div class="col-md-6">
+            <label class="form-label">Short Name (Short Code)</label>
+            <input class="form-control" id="userNameShort" maxlength="50" placeholder="e.g., DSA / AS / JD">
+            <div class="form-text">Saved in <code>name_short_form</code> (optional).</div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Employee ID</label>
+            <input class="form-control" id="userEmployeeId" maxlength="50" placeholder="e.g., EMP-1024">
+            <div class="form-text">Saved in <code>employee_id</code> (optional).</div>
           </div>
 
           <div class="col-md-6">
@@ -618,6 +629,11 @@ document.addEventListener('DOMContentLoaded', function () {
   const uuidInput = document.getElementById('userUuid');
   const editingUserIdInput = document.getElementById('editingUserId');
   const nameInput = document.getElementById('userName');
+
+  // ✅ NEW inputs
+  const nameShortInput = document.getElementById('userNameShort');
+  const empIdInput = document.getElementById('userEmployeeId');
+
   const emailInput = document.getElementById('userEmail');
   const phoneInput = document.getElementById('userPhone');
   const roleInput = document.getElementById('userRole');
@@ -1026,152 +1042,149 @@ document.addEventListener('DOMContentLoaded', function () {
     loadUsers();
   });
 
-  // ✅ Import CSV (Faculty) — FIXED:
-  // 1) Ask for Default Password (required by backend)
-  // 2) Send cookies too (credentials same-origin) to avoid "session expired" if route uses session middleware
   // ✅ Import CSV (Faculty) - With Swal dialog before file picker
-btnImportFaculty?.addEventListener('click', async () => {
-  if (!canCreate && !canEdit) {
-    err('You are not allowed to import faculty.');
-    return;
-  }
+  btnImportFaculty?.addEventListener('click', async () => {
+    if (!canCreate && !canEdit) {
+      err('You are not allowed to import faculty.');
+      return;
+    }
 
-  const { isConfirmed } = await Swal.fire({
-    title: 'Import Faculty (CSV)',
-    html: `
-      <div class="text-start" style="font-size:13px;line-height:1.4">
-        <div class="mb-2">
-          Upload a <b>.csv</b> file to create/update faculty users.
+    const { isConfirmed } = await Swal.fire({
+      title: 'Import Faculty (CSV)',
+      html: `
+        <div class="text-start" style="font-size:13px;line-height:1.4">
+          <div class="mb-2">
+            Upload a <b>.csv</b> file to create/update faculty users.
+          </div>
+          <div class="mb-2 text-muted">
+            Tip: role values must be from: <code>faculty</code>, <code>hod</code>, <code>technical_assistant</code>, <code>tpo</code> (or <code>placement_officer</code>)
+          </div>
+          <div class="form-check mt-2">
+            <input class="form-check-input" type="checkbox" id="swUpdateExisting" checked>
+            <label class="form-check-label" for="swUpdateExisting">Update existing users (match by email/uuid if supported)</label>
+          </div>
         </div>
-        <div class="mb-2 text-muted">
-          Tip: role values must be from: <code>faculty</code>, <code>hod</code>, <code>technical_assistant</code>, <code>tpo</code> (or <code>placement_officer</code>)
-        </div>
-        <div class="form-check mt-2">
-          <input class="form-check-input" type="checkbox" id="swUpdateExisting" checked>
-          <label class="form-check-label" for="swUpdateExisting">Update existing users (match by email/uuid if supported)</label>
-        </div>
-      </div>
-    `,
-    icon: 'info',
-    showCancelButton: true,
-    confirmButtonText: 'Choose CSV',
-    cancelButtonText: 'Cancel'
-  });
-
-  if (!isConfirmed) return;
-
-  // stash updateExisting preference for this selection
-  const updateExisting = document.getElementById('swUpdateExisting')?.checked ? '1' : '0';
-  importFacultyFile.dataset.update_existing = updateExisting;
-
-  importFacultyFile.value = '';
-  importFacultyFile.click();
-});
-  importFacultyFile?.addEventListener('change', async () => {
-  const file = importFacultyFile.files && importFacultyFile.files[0];
-  if (!file) return;
-
-  const isCsv = (file.type || '').includes('csv') || (file.name || '').toLowerCase().endsWith('.csv');
-  if (!isCsv) {
-    err('Please select a CSV file.');
-    importFacultyFile.value = '';
-    return;
-  }
-
-  const updateExisting = importFacultyFile.dataset.update_existing || '1';
-
-  // Show confirmation dialog with file details
-  const prettySize = (bytes) => {
-    const n = Number(bytes || 0);
-    if (n < 1024) return `${n} B`;
-    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-    if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-    return `${(n / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-  };
-
-  const confirm = await Swal.fire({
-    title: 'Upload Faculty CSV?',
-    html: `
-      <div class="text-start small">
-        <div><b>File:</b> ${escapeHtml(file.name)}</div>
-        <div><b>Size:</b> ${escapeHtml(prettySize(file.size))}</div>
-        <div><b>Update existing:</b> ${updateExisting === '1' ? 'Yes' : 'No'}</div>
-        <div class="mt-2 text-muted">
-          This will import faculty users based on the CSV rows.
-        </div>
-      </div>
-    `,
-    icon: 'question',
-    showCancelButton: true,
-    confirmButtonText: 'Yes, Upload',
-    cancelButtonText: 'Cancel'
-  });
-
-  if (!confirm.isConfirmed) {
-    importFacultyFile.value = '';
-    return;
-  }
-
-  try {
-    showGlobalLoading(true);
-
-    const fd = new FormData();
-    fd.append('file', file);
-
-    // optional hints (backend can ignore safely)
-    fd.append('scope', 'faculty');
-    fd.append('roles_allowed', rolesParamForFilter());
-    fd.append('update_existing', updateExisting);
-
-    const res = await fetch('/api/users/import-csv', {
-      method: 'POST',
-      headers: authHeaders(), // ✅ no manual content-type for FormData
-      body: fd,
-      credentials: 'same-origin'
+      `,
+      icon: 'info',
+      showCancelButton: true,
+      confirmButtonText: 'Choose CSV',
+      cancelButtonText: 'Cancel'
     });
 
-    if (handleAuthStatus(res, 'You are not allowed to import faculty.')) return;
+    if (!isConfirmed) return;
 
-    const ct = (res.headers.get('content-type') || '').toLowerCase();
-    let js = null, txt = '';
-    if (ct.includes('application/json')) js = await res.json().catch(() => null);
-    else txt = await res.text().catch(() => '');
+    // stash updateExisting preference for this selection
+    const updateExisting = document.getElementById('swUpdateExisting')?.checked ? '1' : '0';
+    importFacultyFile.dataset.update_existing = updateExisting;
 
-    if (!res.ok || (js && js.success === false)) {
-      let msg = (js?.error || js?.message || txt || 'Import failed').toString();
+    importFacultyFile.value = '';
+    importFacultyFile.click();
+  });
 
-      // show first validation error nicely (422)
-      if (js?.errors && typeof js.errors === 'object') {
-        const k = Object.keys(js.errors)[0];
-        if (k && Array.isArray(js.errors[k]) && js.errors[k][0]) msg = js.errors[k][0];
+  importFacultyFile?.addEventListener('change', async () => {
+    const file = importFacultyFile.files && importFacultyFile.files[0];
+    if (!file) return;
+
+    const isCsv = (file.type || '').includes('csv') || (file.name || '').toLowerCase().endsWith('.csv');
+    if (!isCsv) {
+      err('Please select a CSV file.');
+      importFacultyFile.value = '';
+      return;
+    }
+
+    const updateExisting = importFacultyFile.dataset.update_existing || '1';
+
+    const prettySize = (bytes) => {
+      const n = Number(bytes || 0);
+      if (n < 1024) return `${n} B`;
+      if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+      if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+      return `${(n / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+    };
+
+    const confirm = await Swal.fire({
+      title: 'Upload Faculty CSV?',
+      html: `
+        <div class="text-start small">
+          <div><b>File:</b> ${escapeHtml(file.name)}</div>
+          <div><b>Size:</b> ${escapeHtml(prettySize(file.size))}</div>
+          <div><b>Update existing:</b> ${updateExisting === '1' ? 'Yes' : 'No'}</div>
+          <div class="mt-2 text-muted">
+            This will import faculty users based on the CSV rows.
+          </div>
+        </div>
+      `,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Upload',
+      cancelButtonText: 'Cancel'
+    });
+
+    if (!confirm.isConfirmed) {
+      importFacultyFile.value = '';
+      return;
+    }
+
+    try {
+      showGlobalLoading(true);
+
+      const fd = new FormData();
+      fd.append('file', file);
+
+      // optional hints (backend can ignore safely)
+      fd.append('scope', 'faculty');
+      fd.append('roles_allowed', rolesParamForFilter());
+      fd.append('update_existing', updateExisting);
+
+      const res = await fetch('/api/users/import-csv', {
+        method: 'POST',
+        headers: authHeaders(), // ✅ no manual content-type for FormData
+        body: fd,
+        credentials: 'same-origin'
+      });
+
+      if (handleAuthStatus(res, 'You are not allowed to import faculty.')) return;
+
+      const ct = (res.headers.get('content-type') || '').toLowerCase();
+      let js = null, txt = '';
+      if (ct.includes('application/json')) js = await res.json().catch(() => null);
+      else txt = await res.text().catch(() => '');
+
+      if (!res.ok || (js && js.success === false)) {
+        let msg = (js?.error || js?.message || txt || 'Import failed').toString();
+
+        if (js?.errors && typeof js.errors === 'object') {
+          const k = Object.keys(js.errors)[0];
+          if (k && Array.isArray(js.errors[k]) && js.errors[k][0]) msg = js.errors[k][0];
+        }
+
+        throw new Error(msg);
       }
 
-      throw new Error(msg);
-    }
+      let msg = js?.message || js?.msg || 'Import completed';
+      if (js?.data) {
+        const ins = js.data.inserted ?? js.data.created ?? null;
+        const upd = js.data.updated ?? null;
+        const skp = js.data.skipped ?? null;
+        const errc = js.data.errors_count ?? js.data.failed ?? null;
+        const parts = [];
+        if (ins !== null) parts.push(`Inserted: ${ins}`);
+        if (upd !== null) parts.push(`Updated: ${upd}`);
+        if (skp !== null) parts.push(`Skipped: ${skp}`);
+        if (errc !== null) parts.push(`Errors: ${errc}`);
+        if (parts.length) msg = `${msg} (${parts.join(', ')})`;
+      }
 
-    let msg = js?.message || js?.msg || 'Import completed';
-    if (js?.data) {
-      const ins = js.data.inserted ?? js.data.created ?? null;
-      const upd = js.data.updated ?? null;
-      const skp = js.data.skipped ?? null;
-      const errc = js.data.errors_count ?? js.data.failed ?? null;
-      const parts = [];
-      if (ins !== null) parts.push(`Inserted: ${ins}`);
-      if (upd !== null) parts.push(`Updated: ${upd}`);
-      if (skp !== null) parts.push(`Skipped: ${skp}`);
-      if (errc !== null) parts.push(`Errors: ${errc}`);
-      if (parts.length) msg = `${msg} (${parts.join(', ')})`;
+      ok(msg);
+      await loadUsers(false);
+    } catch (ex) {
+      err(ex.message);
+    } finally {
+      showGlobalLoading(false);
+      importFacultyFile.value = '';
     }
+  });
 
-    ok(msg);
-    await loadUsers(false);
-  } catch (ex) {
-    err(ex.message);
-  } finally {
-    showGlobalLoading(false);
-    importFacultyFile.value = '';
-  }
-});
   // ✅ Export CSV (respects current role filter + search)
   btnExportFaculty?.addEventListener('click', async () => {
     try {
@@ -1372,6 +1385,11 @@ btnImportFaculty?.addEventListener('click', async () => {
     statusInput.value = 'active';
     if (deptInput) deptInput.value = '';
     if (roleInput) roleInput.value = 'faculty';
+
+    // ✅ NEW: clear extra fields explicitly (safe)
+    if (nameShortInput) nameShortInput.value = '';
+    if (empIdInput) empIdInput.value = '';
+
     pwdReq.style.display = 'inline';
     pwdHelp.textContent = 'Enter password for new user';
     currentPwdRow.style.display = 'none';
@@ -1403,6 +1421,11 @@ btnImportFaculty?.addEventListener('click', async () => {
       uuidInput.value = u.uuid || '';
       editingUserIdInput.value = u.id || '';
       nameInput.value = u.name || '';
+
+      // ✅ NEW: hydrate extra fields from API
+      if (nameShortInput) nameShortInput.value = (u.name_short_form ?? '') || '';
+      if (empIdInput) empIdInput.value = (u.employee_id ?? '') || '';
+
       emailInput.value = u.email || '';
       phoneInput.value = u.phone_number || '';
       altEmailInput.value = u.alternative_email || '';
@@ -1475,6 +1498,11 @@ btnImportFaculty?.addEventListener('click', async () => {
     const payload = {};
     payload.name = nameInput.value.trim();
     payload.email = emailInput.value.trim();
+
+    // ✅ NEW: always send (nullable) so edit can update/clear safely
+    payload.name_short_form = (nameShortInput?.value || '').trim() || null;
+    payload.employee_id = (empIdInput?.value || '').trim() || null;
+
     if (phoneInput.value.trim()) payload.phone_number = phoneInput.value.trim();
     if (altEmailInput.value.trim()) payload.alternative_email = altEmailInput.value.trim();
     if (altPhoneInput.value.trim()) payload.alternative_phone_number = altPhoneInput.value.trim();

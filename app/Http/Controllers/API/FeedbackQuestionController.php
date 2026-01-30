@@ -264,6 +264,28 @@ class FeedbackQuestionController extends Controller
     }
 
     /* =========================================================
+ | GROUP TITLES ONLY
+ | GET /api/feedback-questions/group-titles
+ |========================================================= */
+public function groupTitles(Request $r)
+{
+    // returns only distinct, trimmed, non-empty group_title values
+    $titles = DB::table(self::TABLE . ' as fq')
+        ->whereNull('fq.deleted_at')
+        ->whereNotNull('fq.group_title')
+        ->whereRaw("TRIM(fq.group_title) <> ''")
+        ->selectRaw("DISTINCT TRIM(fq.group_title) as group_title")
+        ->orderBy('group_title', 'asc')
+        ->pluck('group_title')
+        ->values();
+
+    return response()->json([
+        'success' => true,
+        'data'    => $titles,
+    ]);
+}
+
+    /* =========================================================
      | SHOW
      | GET /api/feedback-questions/{id|uuid}
      |========================================================= */

@@ -6,20 +6,10 @@
 <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}">
 
 <style>
-/* =========================
- * Feedback Questions (Manage) – same UI DNA as your other modules
- * ========================= */
-
 /* Dropdowns inside table */
 .table-wrap .dropdown{position:relative}
 .dropdown .dd-toggle{border-radius:10px}
-.dropdown-menu{
-  border-radius:12px;
-  border:1px solid var(--line-strong);
-  box-shadow:var(--shadow-2);
-  min-width:230px;
-  z-index:5000
-}
+.dropdown-menu{border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:230px;z-index:5000}
 .dropdown-menu.show{display:block !important}
 .dropdown-item{display:flex;align-items:center;gap:.6rem}
 .dropdown-item i{width:16px;text-align:center}
@@ -28,42 +18,20 @@
 /* Tabs */
 .nav.nav-tabs{border-color:var(--line-strong)}
 .nav-tabs .nav-link{color:var(--ink)}
-.nav-tabs .nav-link.active{
-  background:var(--surface);
-  border-color:var(--line-strong) var(--line-strong) var(--surface)
-}
+.nav-tabs .nav-link.active{background:var(--surface);border-color:var(--line-strong) var(--line-strong) var(--surface)}
 .tab-content,.tab-pane{overflow:visible}
 
 /* Shell */
 .fq-wrap{padding:14px 4px}
 
 /* Toolbar panel */
-.fq-toolbar.panel{
-  background:var(--surface);
-  border:1px solid var(--line-strong);
-  border-radius:16px;
-  box-shadow:var(--shadow-2);
-  padding:12px;
-}
+.fq-toolbar.panel{background:var(--surface);border:1px solid var(--line-strong);border-radius:16px;box-shadow:var(--shadow-2);padding:12px;}
 
 /* Table Card */
-.table-wrap.card{
-  position:relative;
-  border:1px solid var(--line-strong);
-  border-radius:16px;
-  background:var(--surface);
-  box-shadow:var(--shadow-2);
-  overflow:visible;
-}
+.table-wrap.card{position:relative;border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);overflow:visible;}
 .table-wrap .card-body{overflow:visible}
 .table{--bs-table-bg:transparent}
-.table thead th{
-  font-weight:600;
-  color:var(--muted-color);
-  font-size:13px;
-  border-bottom:1px solid var(--line-strong);
-  background:var(--surface)
-}
+.table thead th{font-weight:600;color:var(--muted-color);font-size:13px;border-bottom:1px solid var(--line-strong);background:var(--surface)}
 .table thead.sticky-top{z-index:3}
 .table tbody tr{border-top:1px solid var(--line-soft)}
 .table tbody tr:hover{background:var(--page-hover)}
@@ -77,146 +45,50 @@ td.col-title .sub{display:block;font-size:12.5px;color:var(--muted-color);max-wi
 
 th.col-group, td.col-group{width:260px;max-width:260px}
 td.col-group{overflow:hidden}
-td.col-group .pill{
-  display:inline-flex;align-items:center;gap:8px;
-  padding:6px 10px;border-radius:999px;
-  background:color-mix(in oklab, var(--primary-color) 10%, transparent);
-  color:var(--primary-color);
-  border:1px solid color-mix(in oklab, var(--primary-color) 18%, var(--line-soft));
-  font-size:12px;font-weight:700;
-  max-width:240px;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-}
+td.col-group .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:color-mix(in oklab, var(--primary-color) 10%, transparent);color:var(--primary-color);border:1px solid color-mix(in oklab, var(--primary-color) 18%, var(--line-soft));font-size:12px;font-weight:700;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 td.col-group .pill i{opacity:.85}
 
 /* Badges */
-.badge-soft-success{
-  background:color-mix(in oklab, var(--success-color) 12%, transparent);
-  color:var(--success-color)
-}
-.badge-soft-warning{
-  background:color-mix(in oklab, var(--warning-color, #f59e0b) 14%, transparent);
-  color:var(--warning-color, #f59e0b)
-}
-.badge-soft-muted{
-  background:color-mix(in oklab, var(--muted-color) 10%, transparent);
-  color:var(--muted-color)
-}
+.badge-soft-success{background:color-mix(in oklab, var(--success-color) 12%, transparent);color:var(--success-color)}
+.badge-soft-warning{background:color-mix(in oklab, var(--warning-color, #f59e0b) 14%, transparent);color:var(--warning-color, #f59e0b)}
+.badge-soft-muted{background:color-mix(in oklab, var(--muted-color) 10%, transparent);color:var(--muted-color)}
 
 /* Empty */
 .empty{color:var(--muted-color)}
 
 /* Button loading state */
 .btn-loading{position:relative;color:transparent !important}
-.btn-loading::after{
-  content:'';
-  position:absolute;
-  width:16px;height:16px;
-  top:50%;left:50%;
-  margin:-8px 0 0 -8px;
-  border:2px solid transparent;
-  border-top:2px solid currentColor;
-  border-radius:50%;
-  animation:spin 1s linear infinite
-}
+.btn-loading::after{content:'';position:absolute;width:16px;height:16px;top:50%;left:50%;margin:-8px 0 0 -8px;border:2px solid transparent;border-top:2px solid currentColor;border-radius:50%;animation:spin 1s linear infinite}
 @keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
 
 /* Responsive toolbar */
 @media (max-width: 768px){
   .fq-toolbar .d-flex{flex-direction:column;gap:12px !important}
   .fq-toolbar .position-relative{min-width:100% !important}
-  .toolbar-buttons{
-    display:flex;
-    gap:8px;
-    flex-wrap:wrap
-  }
-  .toolbar-buttons .btn{
-    flex:1;
-    min-width:120px
-  }
+  .toolbar-buttons{display:flex;gap:8px;flex-wrap:wrap}
+  .toolbar-buttons .btn{flex:1;min-width:120px}
 }
 
 /* Horizontal scroll */
-.table-responsive > .table{
-  width:max-content;
-  min-width:1200px;
-}
+.table-responsive > .table{width:max-content;min-width:1200px;}
 .table-responsive th,
-.table-responsive td{
-  white-space:nowrap;
-}
+.table-responsive td{white-space:nowrap;}
 
-/* =========================
- * RTE (lightweight) – same as your other module
- * ========================= */
 .rte-help{font-size:12px;color:var(--muted-color);margin-top:6px}
 .rte-row{margin-bottom:14px;}
-.rte-wrap{
-  border:1px solid var(--line-strong);
-  border-radius:14px;
-  overflow:hidden;
-  background:var(--surface);
-}
-.rte-toolbar{
-  display:flex;
-  align-items:center;
-  gap:6px;
-  flex-wrap:wrap;
-  padding:8px;
-  border-bottom:1px solid var(--line-strong);
-  background:color-mix(in oklab, var(--surface) 92%, transparent);
-}
-.rte-btn{
-  border:1px solid var(--line-soft);
-  background:transparent;
-  color:var(--ink);
-  padding:7px 9px;
-  border-radius:10px;
-  line-height:1;
-  cursor:pointer;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  gap:6px;
-  user-select:none;
-}
+.rte-wrap{border:1px solid var(--line-strong);border-radius:14px;overflow:hidden;background:var(--surface);}
+.rte-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px;border-bottom:1px solid var(--line-strong);background:color-mix(in oklab, var(--surface) 92%, transparent);}
+.rte-btn{border:1px solid var(--line-soft);background:transparent;color:var(--ink);padding:7px 9px;border-radius:10px;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;user-select:none;}
 .rte-btn:hover{background:var(--page-hover)}
-.rte-btn.active{
-  background:color-mix(in oklab, var(--primary-color) 14%, transparent);
-  border-color:color-mix(in oklab, var(--primary-color) 35%, var(--line-soft));
-}
+.rte-btn.active{background:color-mix(in oklab, var(--primary-color) 14%, transparent);border-color:color-mix(in oklab, var(--primary-color) 35%, var(--line-soft));}
 .rte-sep{width:1px;height:24px;background:var(--line-soft);margin:0 4px}
 
-.rte-tabs{
-  margin-left:auto;
-  display:flex;
-  border:1px solid var(--line-soft);
-  border-radius:0;
-  overflow:hidden;
-}
-.rte-tabs .tab{
-  border:0;
-  border-right:1px solid var(--line-soft);
-  border-radius:0;
-  padding:7px 12px;
-  font-size:12px;
-  cursor:pointer;
-  background:transparent;
-  color:var(--ink);
-  line-height:1;
-  user-select:none;
-}
+.rte-tabs{margin-left:auto;display:flex;border:1px solid var(--line-soft);border-radius:0;overflow:hidden;}
+.rte-tabs .tab{border:0;border-right:1px solid var(--line-soft);border-radius:0;padding:7px 12px;font-size:12px;cursor:pointer;background:transparent;color:var(--ink);line-height:1;user-select:none;}
 .rte-tabs .tab:last-child{border-right:0}
-.rte-tabs .tab.active{
-  background:color-mix(in oklab, var(--primary-color) 12%, transparent);
-  font-weight:700;
-}
+.rte-tabs .tab.active{background:color-mix(in oklab, var(--primary-color) 12%, transparent);font-weight:700;}
 .rte-area{position:relative}
-.rte-editor{
-  min-height:200px;
-  padding:12px 12px;
-  outline:none;
-}
+.rte-editor{min-height:200px;padding:12px 12px;outline:none;}
 .rte-editor:empty:before{content:attr(data-placeholder);color:var(--muted-color);}
 .rte-editor b, .rte-editor strong{font-weight:800}
 .rte-editor i, .rte-editor em{font-style:italic}
@@ -227,66 +99,17 @@ td.col-group .pill i{opacity:.85}
 .rte-editor ul, .rte-editor ol{padding-left:22px}
 .rte-editor p{margin:0 0 10px}
 .rte-editor a{color:var(--primary-color);text-decoration:underline}
-.rte-editor code{
-  padding:2px 6px;
-  border-radius:0;
-  background:color-mix(in oklab, var(--muted-color) 14%, transparent);
-  border:1px solid var(--line-soft);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size:12.5px;
-}
-.rte-editor pre{
-  padding:10px 12px;
-  border-radius:0;
-  background:color-mix(in oklab, var(--muted-color) 10%, transparent);
-  border:1px solid var(--line-soft);
-  overflow:auto;
-  margin:8px 0;
-}
+.rte-editor code{padding:2px 6px;border-radius:0;background:color-mix(in oklab, var(--muted-color) 14%, transparent);border:1px solid var(--line-soft);font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-size:12.5px;}
+.rte-editor pre{padding:10px 12px;border-radius:0;background:color-mix(in oklab, var(--muted-color) 10%, transparent);border:1px solid var(--line-soft);overflow:auto;margin:8px 0;}
 .rte-editor pre code{border:0;background:transparent;padding:0;display:block;white-space:pre;}
-.rte-code{
-  display:none;
-  width:100%;
-  min-height:200px;
-  padding:12px 12px;
-  border:0;
-  outline:none;
-  resize:vertical;
-  background:transparent;
-  color:var(--ink);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size:12.5px;
-  line-height:1.45;
-}
+.rte-code{display:none;width:100%;min-height:200px;padding:12px 12px;border:0;outline:none;resize:vertical;background:transparent;color:var(--ink);font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-size:12.5px;line-height:1.45;}
 .rte-wrap.mode-code .rte-editor{display:none;}
 .rte-wrap.mode-code .rte-code{display:block;}
 
 /* Metadata box */
-.meta-box{
-  border:1px solid var(--line-strong);
-  border-radius:14px;
-  background:var(--surface);
-  overflow:hidden;
-}
-.meta-box .meta-top{
-  display:flex;align-items:center;justify-content:space-between;
-  gap:10px;
-  padding:10px 12px;
-  border-bottom:1px solid var(--line-soft);
-}
-.meta-box textarea{
-  width:100%;
-  min-height:150px;
-  border:0;
-  outline:none;
-  resize:vertical;
-  padding:12px;
-  background:transparent;
-  color:var(--ink);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size:12.5px;
-  line-height:1.45;
-}
+.meta-box{border:1px solid var(--line-strong);border-radius:14px;background:var(--surface);overflow:hidden;}
+.meta-box .meta-top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line-soft);}
+.meta-box textarea{width:100%;min-height:150px;border:0;outline:none;resize:vertical;padding:12px;background:transparent;color:var(--ink);font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-size:12.5px;line-height:1.45;}
 
 /* ✅ FIX: Force global loading overlay controllable */
 #globalLoading.loading-overlay{ display:none !important; }
@@ -556,9 +379,24 @@ td.col-group .pill i{opacity:.85}
           <div class="col-lg-6">
             <div class="row g-3">
 
+              {{-- ✅ UPDATED: Group title dropdown + Other --}}
               <div class="col-12">
                 <label class="form-label">Group Title <span class="text-danger">*</span></label>
-                <input class="form-control" id="group_title" required maxlength="255" placeholder="e.g. Teaching Quality">
+
+                <select class="form-select" id="group_title_pick" required>
+                  <option value="">Select group…</option>
+                  {{-- options injected by JS from /api/feedback-questions/group-titles --}}
+                  <option value="__other__">Other (add new)…</option>
+                </select>
+
+                <div id="groupTitleOtherWrap" style="display:none;margin-top:10px;">
+                  <input class="form-control" id="group_title" maxlength="255" placeholder="Type new group title…">
+                  <div id="groupTitleDupMsg" class="form-text text-danger" style="display:none;">
+                    This group title already exists — please select it from the dropdown.
+                  </div>
+                  <div class="form-text">This will be saved as a new group title (unique).</div>
+                </div>
+
                 <div class="form-text">This will be used for filtering & grouping in UI.</div>
               </div>
 
@@ -719,6 +557,9 @@ td.col-group .pill i{opacity:.85}
     trashList: () => '/api/feedback-questions/trash',
     current:   () => '/api/feedback-questions/current',
 
+    // ✅ NEW: group titles (saved list)
+    groupTitles: () => '/api/feedback-questions/group-titles',
+
     create:    () => '/api/feedback-questions',
     update:    (id) => `/api/feedback-questions/${encodeURIComponent(id)}`,
     remove:    (id) => `/api/feedback-questions/${encodeURIComponent(id)}`,
@@ -742,8 +583,6 @@ td.col-group .pill i{opacity:.85}
       clearTimeout(t);
     }
   }
-
-  function isIntString(v){ return typeof v === 'string' && /^\d+$/.test(v.trim()); }
 
   function prettyDate(s){
     const v = (s ?? '').toString().trim();
@@ -783,6 +622,14 @@ td.col-group .pill i{opacity:.85}
       const isToggle = e.target.closest('.dd-toggle');
       if (!inside && !isToggle) hideAllDropdowns();
     });
+  }
+
+  // ✅ normalize + uniqueness helpers for group titles
+  function normalizeGroupTitle(v){
+    return (v ?? '').toString().trim().replace(/\s+/g,' ');
+  }
+  function lowerNorm(v){
+    return normalizeGroupTitle(v).toLowerCase();
   }
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -846,7 +693,12 @@ td.col-group .pill i{opacity:.85}
     const itemUuid = $('itemUuid');
     const itemId = $('itemId');
 
+    // ✅ group title UI pieces
+    const groupTitlePick = $('group_title_pick');
+    const groupTitleOtherWrap = $('groupTitleOtherWrap');
+    const groupTitleDupMsg = $('groupTitleDupMsg');
     const groupTitleInput = $('group_title');
+
     const titleInput = $('title');
     const hintInput = $('hint');
     const statusSel = $('status');
@@ -895,8 +747,85 @@ td.col-group .pill i{opacity:.85}
         inactive: { page:1, lastPage:1, items:[] },
         trash:    { page:1, lastPage:1, items:[] }
       },
-      groups: [] // discovered from loaded items
+      groups: [],                 // discovered from loaded items
+      groupTitlesSaved: []        // ✅ from /api/feedback-questions/group-titles
     };
+
+    // ✅ group title pick rebuild + UI sync
+    function rebuildGroupTitlePick(current=null){
+      if (!groupTitlePick) return;
+
+      const list = Array.isArray(state.groupTitlesSaved) ? state.groupTitlesSaved : [];
+      const opts = list.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
+
+      const keep = current ?? groupTitlePick.value ?? '';
+      groupTitlePick.innerHTML =
+        `<option value="">Select group…</option>` +
+        opts +
+        `<option value="__other__">Other (add new)…</option>`;
+
+      if (keep === '__other__'){
+        groupTitlePick.value = '__other__';
+      } else if (keep && list.includes(keep)){
+        groupTitlePick.value = keep;
+      } else if (keep && keep !== '' && !list.includes(keep)){
+        groupTitlePick.value = '__other__';
+      } else {
+        groupTitlePick.value = '';
+      }
+
+      syncGroupTitleUI();
+    }
+
+    function isDuplicateGroupTitle(title){
+      const t = lowerNorm(title);
+      if (!t) return false;
+      return (state.groupTitlesSaved || []).some(x => lowerNorm(x) === t);
+    }
+
+    function syncGroupTitleUI(){
+      if (!groupTitlePick || !groupTitleInput || !groupTitleOtherWrap) return;
+
+      const pick = (groupTitlePick.value || '').trim();
+
+      // Other selected -> show input, require input, do NOT overwrite typed value
+      if (pick === '__other__'){
+        groupTitleOtherWrap.style.display = '';
+        groupTitleInput.required = true;
+
+        // live duplicate hint
+        const cur = normalizeGroupTitle(groupTitleInput.value);
+        const dup = cur ? isDuplicateGroupTitle(cur) : false;
+        if (groupTitleDupMsg) groupTitleDupMsg.style.display = dup ? '' : 'none';
+
+        return;
+      }
+
+      // existing selected -> hide input, set input value (used for submit)
+      groupTitleOtherWrap.style.display = 'none';
+      groupTitleInput.required = false;
+      if (groupTitleDupMsg) groupTitleDupMsg.style.display = 'none';
+
+      const resolved = normalizeGroupTitle(pick);
+      groupTitleInput.value = resolved;
+    }
+
+    async function fetchGroupTitles(){
+      try{
+        const res = await fetchWithTimeout(API.groupTitles(), { headers: authHeaders() }, 10000);
+        if (!res.ok) return;
+
+        const js = await res.json().catch(()=> ({}));
+        const arr = Array.isArray(js?.data) ? js.data : [];
+        const set = new Set();
+        arr.forEach(x => {
+          const v = normalizeGroupTitle(x);
+          if (v) set.add(v);
+        });
+        state.groupTitlesSaved = Array.from(set).sort((a,b)=>a.localeCompare(b));
+        rebuildGroupTitlePick(groupTitlePick?.value || '');
+      }catch(_){}
+    }
 
     const getTabKey = () => {
       const a = document.querySelector('.nav-tabs .nav-link.active');
@@ -1158,7 +1087,6 @@ td.col-group .pill i{opacity:.85}
       if (modalStatus) modalStatus.value = state.filters.status || '';
       if (modalSort) modalSort.value = state.filters.sort || '-updated_at';
 
-      // group pick list is refreshed from state.groups
       if (modalGroupPick){
         modalGroupPick.value = state.groups.includes(state.filters.group_title) ? state.filters.group_title : '';
       }
@@ -1348,6 +1276,21 @@ td.col-group .pill i{opacity:.85}
       ok('Formatted');
     });
 
+    // ✅ group title pick listeners
+    groupTitlePick?.addEventListener('change', () => {
+      syncGroupTitleUI();
+      if (groupTitlePick.value === '__other__'){
+        setTimeout(()=>{ try{ groupTitleInput?.focus(); }catch(_){ } }, 0);
+      }
+    });
+
+    groupTitleInput?.addEventListener('input', debounce(() => {
+      if (!groupTitlePick || groupTitlePick.value !== '__other__') return;
+      const cur = normalizeGroupTitle(groupTitleInput.value);
+      const dup = cur ? isDuplicateGroupTitle(cur) : false;
+      if (groupTitleDupMsg) groupTitleDupMsg.style.display = dup ? '' : 'none';
+    }, 120));
+
     // ---------- modal helpers ----------
     let saving = false;
 
@@ -1361,6 +1304,13 @@ td.col-group .pill i{opacity:.85}
       itemForm?.reset();
       itemUuid.value = '';
       itemId.value = '';
+
+      // reset group title ui
+      if (groupTitleInput) groupTitleInput.value = '';
+      rebuildGroupTitlePick(''); // will call syncGroupTitleUI
+      if (groupTitleOtherWrap) groupTitleOtherWrap.style.display = 'none';
+      if (groupTitleDupMsg) groupTitleDupMsg.style.display = 'none';
+      if (groupTitleInput) groupTitleInput.required = false;
 
       if (rte.editor) rte.editor.innerHTML = '';
       if (rte.code) rte.code.value = '';
@@ -1387,7 +1337,24 @@ td.col-group .pill i{opacity:.85}
       itemUuid.value = r.uuid || r.id || '';
       itemId.value = r.id || '';
 
-      if (groupTitleInput) groupTitleInput.value = (r.group_title || '').toString();
+      // ✅ group title set
+      const gt = normalizeGroupTitle(r.group_title || '');
+      if (groupTitleInput) groupTitleInput.value = gt;
+
+      // pick if exists, else Other
+      if (groupTitlePick){
+        if (gt && (state.groupTitlesSaved || []).includes(gt)){
+          rebuildGroupTitlePick(gt);
+        } else if (gt){
+          rebuildGroupTitlePick('__other__');
+          if (groupTitleOtherWrap) groupTitleOtherWrap.style.display = '';
+          if (groupTitleInput) groupTitleInput.required = true;
+        } else {
+          rebuildGroupTitlePick('');
+        }
+        syncGroupTitleUI();
+      }
+
       if (titleInput) titleInput.value = (r.title || '').toString();
       if (hintInput) hintInput.value = (r.hint || '').toString();
 
@@ -1656,7 +1623,33 @@ td.col-group .pill i{opacity:.85}
         if (isEdit && !canEdit) return;
         if (!isEdit && !canCreate) return;
 
-        const groupTitle = (groupTitleInput?.value || '').trim();
+        // ✅ resolve group title from dropdown/other
+        let groupTitle = '';
+        const pick = (groupTitlePick?.value || '').trim();
+
+        if (pick && pick !== '__other__'){
+          groupTitle = normalizeGroupTitle(pick);
+          if (groupTitleInput) groupTitleInput.value = groupTitle; // keep compatibility
+        } else {
+          groupTitle = normalizeGroupTitle(groupTitleInput?.value || '');
+          if (pick === '__other__'){
+            if (!groupTitle){ err('Group title is required'); groupTitleInput?.focus(); return; }
+
+            // ✅ frontend uniqueness: prevent adding same title again
+            if (isDuplicateGroupTitle(groupTitle)){
+              if (groupTitleDupMsg) groupTitleDupMsg.style.display = '';
+              err('This group title already exists. Please select it from the dropdown.');
+              groupTitleInput?.focus();
+              return;
+            }
+          } else {
+            // pick empty
+            err('Group title is required');
+            groupTitlePick?.focus();
+            return;
+          }
+        }
+
         const title = (titleInput?.value || '').trim();
         const hint = (hintInput?.value || '').trim();
         const statusUi = (statusSel?.value || 'active').trim().toLowerCase();
@@ -1668,7 +1661,7 @@ td.col-group .pill i{opacity:.85}
         const cleanDesc = ensurePreHasCode(rawDesc).trim();
         if (rte.hidden) rte.hidden.value = cleanDesc;
 
-        if (!groupTitle){ err('Group title is required'); groupTitleInput.focus(); return; }
+        if (!groupTitle){ err('Group title is required'); groupTitlePick?.focus(); return; }
         if (!title){ err('Question title is required'); titleInput.focus(); return; }
 
         // metadata
@@ -1721,6 +1714,15 @@ td.col-group .pill i{opacity:.85}
           throw new Error(msg);
         }
 
+        // ✅ keep dropdown list fresh (frontend add + also refetch for certainty)
+        if (!isDuplicateGroupTitle(groupTitle)){
+          const set = new Set(state.groupTitlesSaved.map(x => normalizeGroupTitle(x)));
+          set.add(groupTitle);
+          state.groupTitlesSaved = Array.from(set).sort((a,b)=>a.localeCompare(b));
+          rebuildGroupTitlePick(groupTitle);
+        }
+        await fetchGroupTitles();
+
         ok(isEdit ? 'Updated' : 'Created');
         itemModal && itemModal.hide();
 
@@ -1741,7 +1743,9 @@ td.col-group .pill i{opacity:.85}
       try{
         bindGlobalDropdownClosers();
         await fetchMe();
+        await fetchGroupTitles(); // ✅ load saved group titles for dropdown
         await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
+        rebuildGroupTitlePick(''); // ensure UI consistent on first open
       }catch(ex){
         err(ex?.message || 'Initialization failed');
       }finally{

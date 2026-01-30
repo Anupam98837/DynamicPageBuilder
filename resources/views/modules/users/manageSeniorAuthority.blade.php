@@ -357,6 +357,19 @@ td .fw-semibold{color:var(--ink)}
             <input class="form-control" id="userName" required maxlength="190" placeholder="John Doe">
           </div>
 
+          {{-- ✅ NEW: Short Name + Employee ID --}}
+          <div class="col-md-6">
+            <label class="form-label">Short Name</label>
+            <input class="form-control" id="userShortName" maxlength="50" placeholder="e.g., DSA">
+            <div class="form-text">Stored as <code>name_short_form</code></div>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label">Employee ID</label>
+            <input class="form-control" id="userEmployeeId" maxlength="50" placeholder="e.g., EMP-102">
+            <div class="form-text">Stored as <code>employee_id</code></div>
+          </div>
+
           <div class="col-md-6">
             <label class="form-label">Email <span class="text-danger">*</span></label>
             <input type="email" class="form-control" id="userEmail" required maxlength="255" placeholder="john.doe@example.com">
@@ -596,6 +609,11 @@ document.addEventListener('DOMContentLoaded', function () {
   const editingUserIdInput = document.getElementById('editingUserId');
   const nameInput = document.getElementById('userName');
   const emailInput = document.getElementById('userEmail');
+
+  // ✅ NEW refs
+  const shortNameInput = document.getElementById('userShortName');
+  const empIdInput = document.getElementById('userEmployeeId');
+
   const phoneInput = document.getElementById('userPhone');
   const roleInput = document.getElementById('userRole');
   const deptInput = document.getElementById('userDepartment');
@@ -1125,7 +1143,6 @@ document.addEventListener('DOMContentLoaded', function () {
       fd.append('allowed_roles', 'admin,super_admin,superadmin,super-admin,director,principal');
       fd.append('update_existing', updateExisting);
 
-      // If your backend supports applying current filter/search while importing (usually not needed), skip.
       const res = await fetch('/api/users/import-csv', {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/json' },
@@ -1340,6 +1357,11 @@ document.addEventListener('DOMContentLoaded', function () {
     form.reset();
     uuidInput.value = '';
     editingUserIdInput.value = '';
+
+    // ✅ NEW fields reset safety
+    if (shortNameInput) shortNameInput.value = '';
+    if (empIdInput) empIdInput.value = '';
+
     imgPrev.src = '';
     imgPrev.style.display = 'none';
     saveBtn.style.display = '';
@@ -1382,6 +1404,11 @@ document.addEventListener('DOMContentLoaded', function () {
       uuidInput.value = u.uuid || '';
       editingUserIdInput.value = u.id || '';
       nameInput.value = u.name || '';
+
+      // ✅ NEW: fill from API
+      if (shortNameInput) shortNameInput.value = u.name_short_form || '';
+      if (empIdInput) empIdInput.value = u.employee_id || '';
+
       emailInput.value = u.email || '';
       phoneInput.value = u.phone_number || '';
       altEmailInput.value = u.alternative_email || '';
@@ -1454,6 +1481,17 @@ document.addEventListener('DOMContentLoaded', function () {
     const payload = {};
     payload.name = nameInput.value.trim();
     payload.email = emailInput.value.trim();
+
+    // ✅ NEW: send to API (create: only if filled, edit: allow null to clear)
+    const sn = (shortNameInput?.value || '').trim();
+    const eid = (empIdInput?.value || '').trim();
+
+    if (sn) payload.name_short_form = sn;
+    else if (isEdit) payload.name_short_form = null;
+
+    if (eid) payload.employee_id = eid;
+    else if (isEdit) payload.employee_id = null;
+
     if (phoneInput.value.trim()) payload.phone_number = phoneInput.value.trim();
     if (altEmailInput.value.trim()) payload.alternative_email = altEmailInput.value.trim();
     if (altPhoneInput.value.trim()) payload.alternative_phone_number = altPhoneInput.value.trim();

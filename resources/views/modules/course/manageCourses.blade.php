@@ -6,22 +6,12 @@
 <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}">
 
 <style>
-/* =========================
- * Courses (Manage) – UI/UX inspired by Announcements
- * ========================= */
-
 /* Dropdowns inside table */
 .table-wrap .dropdown{position:relative}
 .table-responsive .dropdown{position:relative} /* ✅ same as reference page */
 
 .dropdown .dd-toggle{border-radius:10px}
-.dropdown-menu{
-  border-radius:12px;
-  border:1px solid var(--line-strong);
-  box-shadow:var(--shadow-2);
-  min-width:230px;
-  z-index:99999; /* ✅ higher to avoid being behind / clipped feeling */
-}
+.dropdown-menu{border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:230px;z-index:99999; /* ✅ higher to avoid being behind / clipped feeling */}
 .dropdown-menu.show{display:block !important}
 .dropdown-item{display:flex;align-items:center;gap:.6rem}
 .dropdown-item i{width:16px;text-align:center}
@@ -30,30 +20,14 @@
 /* Tabs */
 .nav.nav-tabs{border-color:var(--line-strong)}
 .nav-tabs .nav-link{color:var(--ink)}
-.nav-tabs .nav-link.active{
-  background:var(--surface);
-  border-color:var(--line-strong) var(--line-strong) var(--surface)
-}
+.nav-tabs .nav-link.active{background:var(--surface);border-color:var(--line-strong) var(--line-strong) var(--surface)}
 .tab-content,.tab-pane{overflow:visible}
 
 /* Table Card */
-.table-wrap.card{
-  position:relative;
-  border:1px solid var(--line-strong);
-  border-radius:16px;
-  background:var(--surface);
-  box-shadow:var(--shadow-2);
-  overflow:visible;
-}
+.table-wrap.card{position:relative;border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);overflow:visible;}
 .table-wrap .card-body{overflow:visible}
 .table{--bs-table-bg:transparent}
-.table thead th{
-  font-weight:600;
-  color:var(--muted-color);
-  font-size:13px;
-  border-bottom:1px solid var(--line-strong);
-  background:var(--surface)
-}
+.table thead th{font-weight:600;color:var(--muted-color);font-size:13px;border-bottom:1px solid var(--line-strong);background:var(--surface)}
 .table thead.sticky-top{z-index:3}
 .table tbody tr{border-top:1px solid var(--line-soft)}
 .table tbody tr:hover{background:var(--page-hover)}
@@ -63,205 +37,62 @@ td .fw-semibold{color:var(--ink)}
 /* ✅ UUID column smaller + ellipsis (replaces Code/Slug) */
 th.col-code, td.col-code{width:320px;max-width:320px}
 td.col-code{overflow:hidden}
-td.col-code code{
-  display:inline-block;
-  max-width:250px;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
-  vertical-align:bottom;
-}
+td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom;}
 
 /* ✅ UUID cell layout + copy button */
-.uuid-cell{
-  display:flex;
-  align-items:center;
-  gap:8px;
-}
-.uuid-copy{
-  border-radius:10px;
-  padding:6px 10px;
-  line-height:1;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-}
+.uuid-cell{display:flex;align-items:center;gap:8px;}
+.uuid-copy{border-radius:10px;padding:6px 10px;line-height:1;display:inline-flex;align-items:center;justify-content:center;}
 .uuid-copy i{font-size:14px;opacity:.85}
 
 /* Badges */
-.badge-soft-primary{
-  background:color-mix(in oklab, var(--primary-color) 12%, transparent);
-  color:var(--primary-color)
-}
-.badge-soft-success{
-  background:color-mix(in oklab, var(--success-color) 12%, transparent);
-  color:var(--success-color)
-}
-.badge-soft-muted{
-  background:color-mix(in oklab, var(--muted-color) 10%, transparent);
-  color:var(--muted-color)
-}
-.badge-soft-warning{
-  background:color-mix(in oklab, var(--warning-color, #f59e0b) 14%, transparent);
-  color:var(--warning-color, #f59e0b)
-}
-.badge-soft-danger{
-  background:color-mix(in oklab, var(--danger-color) 12%, transparent);
-  color:var(--danger-color)
-}
+.badge-soft-primary{background:color-mix(in oklab, var(--primary-color) 12%, transparent);color:var(--primary-color)}
+.badge-soft-success{background:color-mix(in oklab, var(--success-color) 12%, transparent);color:var(--success-color)}
+.badge-soft-muted{background:color-mix(in oklab, var(--muted-color) 10%, transparent);color:var(--muted-color)}
+.badge-soft-warning{background:color-mix(in oklab, var(--warning-color, #f59e0b) 14%, transparent);color:var(--warning-color, #f59e0b)}
+.badge-soft-danger{background:color-mix(in oklab, var(--danger-color) 12%, transparent);color:var(--danger-color)}
 
 /* Loading overlay */
-/* .loading-overlay{
-  position:fixed;
-  top:0;left:0;width:100%;height:100%;
-  background:rgba(0,0,0,0.45);
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  z-index:9999;
-  backdrop-filter:blur(2px)
-} */
-.loading-spinner{
-  background:var(--surface);
-  padding:20px 22px;
-  border-radius:14px;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  gap:10px;
-  box-shadow:0 10px 26px rgba(0,0,0,0.3)
-}
-.spinner{
-  width:40px;height:40px;
-  border-radius:50%;
-  border:4px solid rgba(148,163,184,0.3);
-  border-top:4px solid var(--primary-color);
-  animation:spin 1s linear infinite
-}
+/* .loading-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.45);display:flex;justify-content:center;align-items:center;z-index:9999;backdrop-filter:blur(2px)} */
+.loading-spinner{background:var(--surface);padding:20px 22px;border-radius:14px;display:flex;flex-direction:column;align-items:center;gap:10px;box-shadow:0 10px 26px rgba(0,0,0,0.3)}
+.spinner{width:40px;height:40px;border-radius:50%;border:4px solid rgba(148,163,184,0.3);border-top:4px solid var(--primary-color);animation:spin 1s linear infinite}
 @keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
 
 /* Button loading state */
 .btn-loading{position:relative;color:transparent !important}
-.btn-loading::after{
-  content:'';
-  position:absolute;
-  width:16px;height:16px;
-  top:50%;left:50%;
-  margin:-8px 0 0 -8px;
-  border:2px solid transparent;
-  border-top:2px solid currentColor;
-  border-radius:50%;
-  animation:spin 1s linear infinite
-}
+.btn-loading::after{content:'';position:absolute;width:16px;height:16px;top:50%;left:50%;margin:-8px 0 0 -8px;border:2px solid transparent;border-top:2px solid currentColor;border-radius:50%;animation:spin 1s linear infinite}
 
 /* Responsive toolbar */
 @media (max-width: 768px){
   .crs-toolbar .d-flex{flex-direction:column;gap:12px !important}
   .crs-toolbar .position-relative{min-width:100% !important}
-  .toolbar-buttons{
-    display:flex;
-    gap:8px;
-    flex-wrap:wrap
-  }
-  .toolbar-buttons .btn{
-    flex:1;
-    min-width:120px
-  }
+  .toolbar-buttons{display:flex;gap:8px;flex-wrap:wrap}
+  .toolbar-buttons .btn{flex:1;min-width:120px}
 }
 
 /* Horizontal scroll */
-.table-responsive{
-  display:block;
-  width:100%;
-  max-width:100%;
-  overflow-x:auto !important;
-  overflow-y:visible !important;
-  -webkit-overflow-scrolling:touch;
-  position:relative;
-}
-.table-responsive > .table{
-  width:max-content;
-  min-width:1180px;
-}
+.table-responsive{display:block;width:100%;max-width:100%;overflow-x:auto !important;overflow-y:visible !important;-webkit-overflow-scrolling:touch;position:relative;}
+.table-responsive > .table{width:max-content;min-width:1180px;}
 .table-responsive th,
-.table-responsive td{
-  white-space:nowrap;
-}
+.table-responsive td{white-space:nowrap;}
 @media (max-width: 576px){
   .table-responsive > .table{ min-width:1120px; }
 }
 
-/* =========================
- * RTE (lightweight)
- * ========================= */
 .rte-help{font-size:12px;color:var(--muted-color);margin-top:6px}
 .rte-row{margin-bottom:14px;}
-.rte-wrap{
-  border:1px solid var(--line-strong);
-  border-radius:14px;
-  overflow:hidden;
-  background:var(--surface);
-}
-.rte-toolbar{
-  display:flex;
-  align-items:center;
-  gap:6px;
-  flex-wrap:wrap;
-  padding:8px;
-  border-bottom:1px solid var(--line-strong);
-  background:color-mix(in oklab, var(--surface) 92%, transparent);
-}
-.rte-btn{
-  border:1px solid var(--line-soft);
-  background:transparent;
-  color:var(--ink);
-  padding:7px 9px;
-  border-radius:10px;
-  line-height:1;
-  cursor:pointer;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  gap:6px;
-  user-select:none;
-}
+.rte-wrap{border:1px solid var(--line-strong);border-radius:14px;overflow:hidden;background:var(--surface);}
+.rte-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px;border-bottom:1px solid var(--line-strong);background:color-mix(in oklab, var(--surface) 92%, transparent);}
+.rte-btn{border:1px solid var(--line-soft);background:transparent;color:var(--ink);padding:7px 9px;border-radius:10px;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;user-select:none;}
 .rte-btn:hover{background:var(--page-hover)}
-.rte-btn.active{
-  background:color-mix(in oklab, var(--primary-color) 14%, transparent);
-  border-color:color-mix(in oklab, var(--primary-color) 35%, var(--line-soft));
-}
+.rte-btn.active{background:color-mix(in oklab, var(--primary-color) 14%, transparent);border-color:color-mix(in oklab, var(--primary-color) 35%, var(--line-soft));}
 .rte-sep{width:1px;height:24px;background:var(--line-soft);margin:0 4px}
 
-.rte-tabs{
-  margin-left:auto;
-  display:flex;
-  border:1px solid var(--line-soft);
-  border-radius:0;
-  overflow:hidden;
-}
-.rte-tabs .tab{
-  border:0;
-  border-right:1px solid var(--line-soft);
-  border-radius:0;
-  padding:7px 12px;
-  font-size:12px;
-  cursor:pointer;
-  background:transparent;
-  color:var(--ink);
-  line-height:1;
-  user-select:none;
-}
+.rte-tabs{margin-left:auto;display:flex;border:1px solid var(--line-soft);border-radius:0;overflow:hidden;}
+.rte-tabs .tab{border:0;border-right:1px solid var(--line-soft);border-radius:0;padding:7px 12px;font-size:12px;cursor:pointer;background:transparent;color:var(--ink);line-height:1;user-select:none;}
 .rte-tabs .tab:last-child{border-right:0}
-.rte-tabs .tab.active{
-  background:color-mix(in oklab, var(--primary-color) 12%, transparent);
-  font-weight:700;
-}
+.rte-tabs .tab.active{background:color-mix(in oklab, var(--primary-color) 12%, transparent);font-weight:700;}
 .rte-area{position:relative}
-.rte-editor{
-  min-height:220px;
-  padding:12px 12px;
-  outline:none;
-}
+.rte-editor{min-height:220px;padding:12px 12px;outline:none;}
 .rte-editor:empty:before{content:attr(data-placeholder);color:var(--muted-color);}
 .rte-editor b, .rte-editor strong{font-weight:800}
 .rte-editor i, .rte-editor em{font-style:italic}
@@ -272,62 +103,18 @@ td.col-code code{
 .rte-editor ul, .rte-editor ol{padding-left:22px}
 .rte-editor p{margin:0 0 10px}
 .rte-editor a{color:var(--primary-color);text-decoration:underline}
-.rte-editor code{
-  padding:2px 6px;
-  border-radius:0;
-  background:color-mix(in oklab, var(--muted-color) 14%, transparent);
-  border:1px solid var(--line-soft);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size:12.5px;
-}
-.rte-editor pre{
-  padding:10px 12px;
-  border-radius:0;
-  background:color-mix(in oklab, var(--muted-color) 10%, transparent);
-  border:1px solid var(--line-soft);
-  overflow:auto;
-  margin:8px 0;
-}
+.rte-editor code{padding:2px 6px;border-radius:0;background:color-mix(in oklab, var(--muted-color) 14%, transparent);border:1px solid var(--line-soft);font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-size:12.5px;}
+.rte-editor pre{padding:10px 12px;border-radius:0;background:color-mix(in oklab, var(--muted-color) 10%, transparent);border:1px solid var(--line-soft);overflow:auto;margin:8px 0;}
 .rte-editor pre code{border:0;background:transparent;padding:0;display:block;white-space:pre;}
-.rte-code{
-  display:none;
-  width:100%;
-  min-height:220px;
-  padding:12px 12px;
-  border:0;
-  outline:none;
-  resize:vertical;
-  background:transparent;
-  color:var(--ink);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size:12.5px;
-  line-height:1.45;
-}
+.rte-code{display:none;width:100%;min-height:220px;padding:12px 12px;border:0;outline:none;resize:vertical;background:transparent;color:var(--ink);font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-size:12.5px;line-height:1.45;}
 .rte-wrap.mode-code .rte-editor{display:none;}
 .rte-wrap.mode-code .rte-code{display:block;}
 
 /* Cover preview box */
-.cover-box{
-  border:1px solid var(--line-strong);
-  border-radius:14px;
-  overflow:hidden;
-  background:var(--bg-soft, color-mix(in oklab, var(--surface) 88%, var(--bg-body)));
-}
-.cover-box .cover-top{
-  display:flex;align-items:center;justify-content:space-between;
-  gap:10px;
-  padding:10px 12px;
-  border-bottom:1px solid var(--line-soft);
-}
+.cover-box{border:1px solid var(--line-strong);border-radius:14px;overflow:hidden;background:var(--bg-soft, color-mix(in oklab, var(--surface) 88%, var(--bg-body)));}
+.cover-box .cover-top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line-soft);}
 .cover-box .cover-body{padding:12px;}
-.cover-box img{
-  width:100%;
-  max-height:260px;
-  object-fit:cover;
-  border-radius:12px;
-  border:1px solid var(--line-soft);
-  background:#fff;
-}
+.cover-box img{width:100%;max-height:260px;object-fit:cover;border-radius:12px;border:1px solid var(--line-soft);background:#fff;}
 .cover-meta{font-size:12.5px;color:var(--muted-color);margin-top:10px}
 </style>
 @endpush
@@ -659,8 +446,8 @@ td.col-code code{
               </div>
 
               <div class="col-md-6">
-                <label class="form-label">Department</label>
-                <select id="department_id" class="form-select">
+                <label class="form-label">Department <span class="text-danger">*</span></label>
+                <select id="department_id" class="form-select" required>
                   <option value="">Select department</option>
                 </select>
               </div>
@@ -1112,7 +899,7 @@ td.col-code code{
       // ✅ controller expects program_level (NOT level)
       if (state.filters.level) params.set('program_level', state.filters.level);
 
-      // ✅ strict tab filters: prevents “same course in multiple tabs”
+      // ✅ strict tab filters: prevents "same course in multiple tabs"
       if (tabKey === 'published') params.set('status', 'published');
       if (tabKey === 'draft')     params.set('status', 'draft');
       if (tabKey === 'archived')  params.set('status', 'archived');
@@ -1509,7 +1296,7 @@ td.col-code code{
     });
 
     filterModalEl?.addEventListener('show.bs.modal', () => {
-      // status filter is used as “jump to tab” (optional)
+      // status filter is used as "jump to tab" (optional)
       if (modalStatus) modalStatus.value = '';
       if (modalSort) modalSort.value = state.filters.sort || '-created_at';
       if (modalDepartment) modalDepartment.value = state.filters.department || '';
@@ -2174,6 +1961,7 @@ td.col-code code{
 
         if (!title){ err('Title is required'); titleInput.focus(); return; }
         if (!cleanDesc){ err('Description is required'); rteFocus(); return; }
+        if (!deptId){ err('Department is required'); deptSel?.focus(); return; }
 
         const fd = new FormData();
         fd.append('title', title);
@@ -2185,7 +1973,7 @@ td.col-code code{
         // ✅ controller expects program_level
         fd.append('program_level', level);
 
-        // ✅ duration_value + duration_unit (best-effort; won’t break if empty)
+        // ✅ duration_value + duration_unit (best-effort; won't break if empty)
         if (durationText){
           const m = durationText.match(/(\d+)/);
           if (m) fd.append('duration_value', m[1]);

@@ -1166,6 +1166,7 @@ Route::middleware('checkRole')->prefix('feedback-questions')->group(function () 
     Route::get('/',        [FeedbackQuestionController::class, 'index']);
     Route::get('/trash',   [FeedbackQuestionController::class, 'trash']);
     Route::get('/current', [FeedbackQuestionController::class, 'current']);
+    Route::get('/group-titles', [FeedbackQuestionController::class, 'groupTitles']);
     Route::get('/{idOrUuid}', [FeedbackQuestionController::class, 'show']);
 });
 

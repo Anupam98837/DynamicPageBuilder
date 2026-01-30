@@ -74,22 +74,30 @@ class FeedbackResultsController extends Controller
         return is_numeric($s) ? (int)$s : null;
     }
 
+    /**
+     * ✅ UPDATED:
+     * - Removed percent conversion (no % fields)
+     * - Keeps grade buckets counts + total + avg (grade)
+     */
     private function initDist(): array
     {
         return [
-            'counts'  => ['5'=>0,'4'=>0,'3'=>0,'2'=>0,'1'=>0],
-            'total'   => 0,
-            'avg'     => null,
-            'percent' => ['5'=>0,'4'=>0,'3'=>0,'2'=>0,'1'=>0],
+            'counts' => ['5'=>0,'4'=>0,'3'=>0,'2'=>0,'1'=>0],
+            'total'  => 0,
+            'avg'    => null,
         ];
     }
 
+    /**
+     * ✅ UPDATED:
+     * - No percentage calculation
+     * - Only avg grade calculation
+     */
     private function finalizeDist(array &$dist): void
     {
         $total = (int)($dist['total'] ?? 0);
         if ($total <= 0) {
             $dist['avg'] = null;
-            foreach ([5,4,3,2,1] as $s) $dist['percent'][(string)$s] = 0;
             return;
         }
 
@@ -99,11 +107,6 @@ class FeedbackResultsController extends Controller
         }
         $avg = $sum / $total;
         $dist['avg'] = round($avg, 2);
-
-        foreach ([5,4,3,2,1] as $s) {
-            $pct = ((int)($dist['counts'][(string)$s] ?? 0) * 100) / $total;
-            $dist['percent'][(string)$s] = (int) round($pct, 0);
-        }
     }
 
     /* =========================================================
@@ -114,6 +117,8 @@ class FeedbackResultsController extends Controller
      |   - faculty list
      |   - ✅ faculty distribution buckets added
      |   - ✅ Always includes faculty_id=0 Overall row
+     |   - ✅ faculty_name_short_form + employee_id added
+     |   - ✅ Removed percent conversion from distribution
      |========================================================= */
     public function results(Request $r)
     {
@@ -280,59 +285,56 @@ class FeedbackResultsController extends Controller
         }
 
         // Lookups (dept/course/subject)
-// Lookups (dept/course/subject)
-$deptMap = $hasDepts
-    ? DB::table('departments')->whereNull('deleted_at')->pluck($deptNameCol, 'id')->toArray()
-    : [];
+        $deptMap = $hasDepts
+            ? DB::table('departments')->whereNull('deleted_at')->pluck($deptNameCol, 'id')->toArray()
+            : [];
 
-$courseMap = $hasCourses
-    ? DB::table('courses')->whereNull('deleted_at')->pluck($courseNameCol, 'id')->toArray()
-    : [];
+        $courseMap = $hasCourses
+            ? DB::table('courses')->whereNull('deleted_at')->pluck($courseNameCol, 'id')->toArray()
+            : [];
 
-/* =========================
- | ✅ UPDATED: Subject maps
- | - subject_name will become: "SUBJECT_CODE - SUBJECT_NAME"
- | - also provides subject_code separately
- ========================= */
-$subLabelMap = [];
-$subCodeMap  = [];
+        /* =========================
+         | ✅ UPDATED: Subject maps
+         | - subject_name will become: "SUBJECT_CODE - SUBJECT_NAME"
+         | - also provides subject_code separately
+         ========================= */
+        $subLabelMap = [];
+        $subCodeMap  = [];
 
-if ($hasSubsTbl) {
-    $subHasCode = Schema::hasColumn('subjects', 'subject_code');
+        if ($hasSubsTbl) {
+            $subHasCode = Schema::hasColumn('subjects', 'subject_code');
 
-    $subjectRows = DB::table('subjects')
-        ->whereNull('deleted_at')
-        ->select([
-            'id',
-            DB::raw("$subNameCol as subject_name"),
-        ])
-        ->when($subHasCode, function ($q) {
-            $q->addSelect('subject_code');
-        })
-        ->get();
+            $subjectRows = DB::table('subjects')
+                ->whereNull('deleted_at')
+                ->select([
+                    'id',
+                    DB::raw("$subNameCol as subject_name"),
+                ])
+                ->when($subHasCode, function ($q) {
+                    $q->addSelect('subject_code');
+                })
+                ->get();
 
-    foreach ($subjectRows as $s) {
-        $id   = (int) ($s->id ?? 0);
-        if ($id <= 0) continue;
+            foreach ($subjectRows as $s) {
+                $id   = (int) ($s->id ?? 0);
+                if ($id <= 0) continue;
 
-        $name = trim((string) ($s->subject_name ?? ''));
-        $code = $subHasCode ? trim((string) ($s->subject_code ?? '')) : '';
+                $name = trim((string) ($s->subject_name ?? ''));
+                $code = $subHasCode ? trim((string) ($s->subject_code ?? '')) : '';
 
-        // store code map (optional)
-        $subCodeMap[$id] = ($code !== '') ? $code : null;
+                $subCodeMap[$id] = ($code !== '') ? $code : null;
 
-        // label shown to frontend
-        if ($code !== '' && $name !== '') {
-            $subLabelMap[$id] = $code . ' - ' . $name;
-        } elseif ($name !== '') {
-            $subLabelMap[$id] = $name;
-        } elseif ($code !== '') {
-            $subLabelMap[$id] = $code;
-        } else {
-            $subLabelMap[$id] = null;
+                if ($code !== '' && $name !== '') {
+                    $subLabelMap[$id] = $code . ' - ' . $name;
+                } elseif ($name !== '') {
+                    $subLabelMap[$id] = $name;
+                } elseif ($code !== '') {
+                    $subLabelMap[$id] = $code;
+                } else {
+                    $subLabelMap[$id] = null;
+                }
+            }
         }
-    }
-}
 
         // semester map
         $semMap = [];
@@ -358,14 +360,41 @@ if ($hasSubsTbl) {
             ->values()
             ->all();
 
-        $facultyMap = [];
+        /**
+         * ✅ UPDATED: Faculty info map
+         * - Includes name_short_form + employee_id (if columns exist)
+         * - Keeps schema-safe behavior
+         */
+        $facultyInfoMap = [];
         if (!empty($facultyIds) && $this->tableExists(self::USERS)) {
             $nameCol = $this->pickNameColumn(self::USERS, ['name','full_name'], 'id');
-            $facultyMap = DB::table(self::USERS)
+
+            $uHasShort = $this->hasCol(self::USERS, 'name_short_form');
+            $uHasEmp   = $this->hasCol(self::USERS, 'employee_id');
+
+            $q = DB::table(self::USERS)
                 ->whereIn('id', $facultyIds)
                 ->whereNull('deleted_at')
-                ->pluck($nameCol, 'id')
-                ->toArray();
+                ->select([
+                    'id',
+                    DB::raw("$nameCol as faculty_name"),
+                ]);
+
+            if ($uHasShort) $q->addSelect('name_short_form');
+            if ($uHasEmp)   $q->addSelect('employee_id');
+
+            $urows = $q->get();
+
+            foreach ($urows as $u) {
+                $id = (int)($u->id ?? 0);
+                if ($id <= 0) continue;
+
+                $facultyInfoMap[$id] = [
+                    'name'            => isset($u->faculty_name) ? (string)$u->faculty_name : ('Faculty #' . $id),
+                    'name_short_form' => $uHasShort ? (($u->name_short_form !== null && trim((string)$u->name_short_form) !== '') ? (string)$u->name_short_form : null) : null,
+                    'employee_id'     => $uHasEmp ? (($u->employee_id !== null && trim((string)$u->employee_id) !== '') ? (string)$u->employee_id : null) : null,
+                ];
+            }
         }
 
         // participated_students per post (distinct students)
@@ -437,17 +466,16 @@ if ($hasSubsTbl) {
             if (!isset($out[$deptKey]['courses'][$courseKey]['semesters'][$semKey]['subjects'][$subKey])) {
                 $out[$deptKey]['courses'][$courseKey]['semesters'][$semKey]['subjects'][$subKey] = [
                     'subject_id'   => $sbId ?: null,
-            
-                    // ✅ NEW: subject_code separate
+
+                    // ✅ subject_code separate
                     'subject_code' => ($sbId && array_key_exists($sbId, $subCodeMap)) ? $subCodeMap[$sbId] : null,
-            
-                    // ✅ UPDATED: subject_name now includes code + name label
+
+                    // ✅ subject_name now includes code + name label
                     'subject_name' => ($sbId && array_key_exists($sbId, $subLabelMap)) ? $subLabelMap[$sbId] : null,
-            
+
                     'sections' => [],
                 ];
             }
-            
 
             if (!isset($out[$deptKey]['courses'][$courseKey]['semesters'][$semKey]['subjects'][$subKey]['sections'][$secKey])) {
                 $out[$deptKey]['courses'][$courseKey]['semesters'][$semKey]['subjects'][$subKey]['sections'][$secKey] = [
@@ -503,22 +531,36 @@ if ($hasSubsTbl) {
             // ----------------------------
             // Faculty distribution (per question, per faculty)
             // ----------------------------
-            $fname = ($fId <= 0)
-                ? 'Overall'
-                : (isset($facultyMap[$fId]) ? (string)$facultyMap[$fId] : ('Faculty #' . $fId));
+            $fname = 'Overall';
+            $shortForm = null;
+            $empId = null;
+
+            if ($fId > 0) {
+                if (isset($facultyInfoMap[$fId])) {
+                    $fname      = (string)($facultyInfoMap[$fId]['name'] ?? ('Faculty #' . $fId));
+                    $shortForm  = $facultyInfoMap[$fId]['name_short_form'] ?? null;
+                    $empId      = $facultyInfoMap[$fId]['employee_id'] ?? null;
+                } else {
+                    $fname = 'Faculty #' . $fId;
+                }
+            }
 
             if (!isset($postRef['questions'][(string)$qId]['faculty'][(string)$fId])) {
                 $postRef['questions'][(string)$qId]['faculty'][(string)$fId] = [
-                    'faculty_id'   => $fId <= 0 ? 0 : $fId,
-                    'faculty_name' => $fname,
+                    'faculty_id'        => $fId <= 0 ? 0 : $fId,
+                    'faculty_name'      => $fname,
+
+                    // ✅ NEW: add these 2 fields under faculty
+                    'name_short_form'   => $fId <= 0 ? null : $shortForm,
+                    'employee_id'       => $fId <= 0 ? null : $empId,
 
                     // will be computed from distribution
-                    'avg_rating'   => null,
-                    'count'        => 0,
-                    'out_of'       => 5,
+                    'avg_rating'        => null,
+                    'count'             => 0,
+                    'out_of'            => 5,
 
-                    // ✅ NEW: rating buckets
-                    'distribution' => $this->initDist(),
+                    // rating buckets
+                    'distribution'      => $this->initDist(),
                 ];
             }
 
@@ -528,7 +570,7 @@ if ($hasSubsTbl) {
             }
         }
 
-        // finalize percent + avg + ensure Overall exists ALWAYS
+        // finalize avg + ensure Overall exists ALWAYS
         foreach ($out as &$dept) {
             foreach ($dept['courses'] as &$course) {
                 foreach ($course['semesters'] as &$sem) {
@@ -551,12 +593,17 @@ if ($hasSubsTbl) {
 
                                     // ✅ Force Overall row (id=0) to match overall distribution always
                                     $q['faculty']['0'] = [
-                                        'faculty_id'   => 0,
-                                        'faculty_name' => 'Overall',
-                                        'avg_rating'   => $q['distribution']['avg'],
-                                        'count'        => $overallTotal,
-                                        'out_of'       => 5,
-                                        'distribution' => $q['distribution'], // exact same bucket dist
+                                        'faculty_id'        => 0,
+                                        'faculty_name'      => 'Overall',
+
+                                        // ✅ NEW: keys for overall (null)
+                                        'name_short_form'   => null,
+                                        'employee_id'       => null,
+
+                                        'avg_rating'        => $q['distribution']['avg'],
+                                        'count'             => $overallTotal,
+                                        'out_of'            => 5,
+                                        'distribution'      => $q['distribution'],
                                     ];
 
                                     // sort: overall first then by id

@@ -281,10 +281,20 @@
             <a href="/course/manage" class="w3-link">Manage Courses</a>
             <a href="/course/semester/manage" class="w3-link">Manage Semesters</a>
             <a href="/course/semester/section/manage" class="w3-link">Manage Sections</a>
-            <a href="/course/subject/manage" class="w3-link">Manage Subject</a>
-            <a href="/student-subject-attendance" class="w3-link">Student Subject Attendance</a>
           </div>
         </div>
+
+        <!-- Subjects -->
+<div class="w3-group">
+  <a href="#" class="w3-link w3-toggle" data-target="sm-subjects" aria-expanded="false">
+    <i class="fa-solid fa-book"></i><span>Subjects</span>
+    <i class="fa fa-chevron-down w3-chev"></i>
+  </a>
+  <div id="sm-subjects" class="w3-submenu" role="group" aria-label="Subjects submenu">
+    <a href="/course/subject/manage" class="w3-link">Manage Subject</a>
+    <a href="/student-subject-attendance" class="w3-link">Student Subject Attendance</a>
+  </div>
+</div>
 
         <!-- Curriculum & Syllabus -->
 <a href="/department/curriculum-syllabus" class="w3-link">

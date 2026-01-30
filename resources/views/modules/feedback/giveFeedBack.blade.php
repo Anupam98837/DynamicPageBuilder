@@ -66,6 +66,31 @@
 .fb-post-ac-item.is-pending::before{ background: rgba(239,68,68,.55); }
 
 /* =========================
+ * ✅ NEW: Course + Department header pills (dynamic)
+ * ========================= */
+.fb-page-meta{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-bottom:10px;
+}
+.fb-meta-pill{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:7px 12px;
+  border-radius:999px;
+  font-weight:950;
+  font-size:12px;
+  border:1px solid var(--line-soft);
+  background:color-mix(in oklab, var(--primary-color) 8%, var(--surface));
+  color:var(--ink);
+}
+.fb-meta-pill .mut{color:var(--muted-color);font-weight:900}
+.fb-meta-pill i{opacity:.85}
+
+/* =========================
  * ✅ Two Tab Switch (Pending | Submitted)
  * ========================= */
 .fb-tabs{
@@ -289,10 +314,21 @@
   background:color-mix(in oklab, var(--primary-color) 6%, var(--surface));
 }
 
+/* =========================
+ * ✅ NEW: Bottom submit button area (end of accordion content)
+ * ========================= */
+.fb-post-submit-footer{
+  display:flex;
+  justify-content:flex-end;
+  margin-top:14px;
+}
+.fb-post-submit-footer .btn{min-width:150px}
+
 @media (max-width: 768px){
   .fbsub-panel .d-flex{flex-direction:column;gap:12px !important}
   .fb-table{min-width:860px}
   .rate-col{min-width: 105px}
+  .fb-post-submit-footer .btn{width:100%}
 }
 </style>
 @endpush
@@ -305,6 +341,10 @@
   </div>
 
   <div class="fbsub-panel mb-3">
+
+    {{-- ✅ NEW: Course + Department (filled dynamically from /api/feedback-posts/available) --}}
+    <div id="pageMeta" class="fb-page-meta" style="display:none;"></div>
+
     <div class="fbsub-toolbar">
       <div class="left">
         <div class="fw-semibold"><i class="fa fa-star me-2"></i>Submit Feedback</div>
@@ -372,8 +412,8 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 (() => {
-  if (window.__FEEDBACK_SUBMIT_PAGE_V14__) return;
-  window.__FEEDBACK_SUBMIT_PAGE_V14__ = true;
+  if (window.__FEEDBACK_SUBMIT_PAGE_V15__) return;
+  window.__FEEDBACK_SUBMIT_PAGE_V15__ = true;
 
   const $ = (id) => document.getElementById(id);
 
@@ -475,6 +515,74 @@
     if (String(fid) === '0') return 'Overall';
     const u = state.usersById.get(idNum(fid));
     return u ? userLabel(u) : `Faculty #${fid}`;
+  }
+
+  /* ======================================================
+   ✅ NEW: Page header meta (Course + Department) from posts
+  ====================================================== */
+  function courseTitleFromPost(post){
+    const tries = [
+      post?.course_title,
+      post?.course?.title,
+      post?.course?.name,
+      post?.course_name,
+      post?.courseTitle,
+    ];
+    for (const t of tries){
+      const s = String(t ?? '').trim();
+      if (s) return s;
+    }
+    return '';
+  }
+
+  function departmentTitleFromPost(post){
+    const tries = [
+      post?.department_title,
+      post?.department?.title,
+      post?.department?.name,
+      post?.department_name,
+      post?.departmentTitle,
+    ];
+    for (const t of tries){
+      const s = String(t ?? '').trim();
+      if (s) return s;
+    }
+    return '';
+  }
+
+  function updatePageMeta(){
+    const el = $('pageMeta');
+    if (!el) return;
+
+    const courses = new Set();
+    const depts   = new Set();
+
+    (state.posts || []).forEach(p => {
+      const c = courseTitleFromPost(p);
+      const d = departmentTitleFromPost(p);
+      if (c) courses.add(c);
+      if (d) depts.add(d);
+    });
+
+    const course = (courses.size === 1) ? Array.from(courses)[0] : (courses.size > 1 ? `Multiple Courses (${courses.size})` : '');
+    const dept   = (depts.size === 1)   ? Array.from(depts)[0]   : (depts.size > 1   ? `Multiple Departments (${depts.size})` : '');
+
+    if (!course && !dept){
+      el.style.display = 'none';
+      el.innerHTML = '';
+      return;
+    }
+
+    const parts = [];
+    if (course){
+      parts.push(`<span class="fb-meta-pill"><i class="fa fa-graduation-cap"></i><span class="mut">Course:</span> ${esc(course)}</span>`);
+    }
+    if (dept){
+      parts.push(`<span class="fb-meta-pill"><i class="fa fa-building-columns"></i><span class="mut">Department:</span> ${esc(dept)}</span>`);
+    }
+
+    el.innerHTML = parts.join(' ');
+    el.style.display = '';
   }
 
   /* ======================================================
@@ -984,6 +1092,12 @@
     const buttonIcon  = isReadOnly ? 'fa-check' : 'fa-paper-plane';
     const buttonDisabled = isReadOnly ? 'disabled aria-disabled="true"' : '';
 
+    const submitBtnHTML = `
+      <button class="btn btn-primary fb-post-submit-btn" data-post="${esc(String(postKey))}" ${buttonDisabled}>
+        <i class="fa ${buttonIcon} me-1"></i>${buttonLabel}
+      </button>
+    `;
+
     const submittedLine = (post?.is_submitted && post?.submission?.submitted_at)
       ? `<div class="text-mini mt-1"><i class="fa fa-check me-1" style="opacity:.8"></i>Submitted At: ${esc(String(post.submission.submitted_at))}</div>`
       : '';
@@ -1007,9 +1121,7 @@
             ${submittedLine}
           </div>
 
-          <button class="btn btn-primary fb-post-submit-btn" data-post="${esc(String(postKey))}" ${buttonDisabled}>
-            <i class="fa ${buttonIcon} me-1"></i>${buttonLabel}
-          </button>
+          ${submitBtnHTML}
         </div>
 
         <hr class="hr-soft my-3"/>
@@ -1031,6 +1143,11 @@
 
         <div id="tablePane_${esc(String(postKey))}">
           ${renderQuestionsTable(post, postKey, activeFid)}
+        </div>
+
+        {{-- ✅ NEW: Extra submit button at the END of accordion content --}}
+        <div class="fb-post-submit-footer">
+          ${submitBtnHTML}
         </div>
       </div>
     `;
@@ -1225,6 +1342,9 @@
 
     state.questionsById = new Map((state.questions || []).map(q => [idNum(q?.id), q]).filter(x => x[0] !== null));
     state.usersById = new Map((state.users || []).map(u => [idNum(u?.id), u]).filter(x => x[0] !== null));
+
+    // ✅ NEW: show Course + Department on top header
+    updatePageMeta();
 
     updateCounts();
 

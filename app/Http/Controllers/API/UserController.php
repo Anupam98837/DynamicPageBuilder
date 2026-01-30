@@ -36,23 +36,24 @@ class UserController extends Controller
     ];
 
     private const ROLE_SHORT_MAP = [
-    'admin'               => 'adm',
-    'director'            => 'DIR',
-    'principal'           => 'PRI',
-    'hod'                 => 'HOD',
-    'faculty'             => 'FAC',
-    'technical_assistant' => 'TA',
-    'it_person'           => 'IT',
-    'placement_officer'   => 'TPO',   // ✅ added
-    'student'             => 'STD',
-];
+        'admin'               => 'adm',
+        'director'            => 'DIR',
+        'principal'           => 'PRI',
+        'hod'                 => 'HOD',
+        'faculty'             => 'FAC',
+        'technical_assistant' => 'TA',
+        'it_person'           => 'IT',
+        'placement_officer'   => 'TPO',   // ✅ added
+        'student'             => 'STD',
+    ];
 
-
+    // ✅ Added: name_short_form + employee_id (nullable, not required/unique)
     private const SELECT_COLUMNS = [
         'id',
         'uuid',
         'slug',
         'name',
+        'name_short_form', // ✅ NEW
         'email',
         'phone_number',
         'alternative_email',
@@ -62,6 +63,7 @@ class UserController extends Controller
         'address',
         'role',
         'role_short_form',
+        'employee_id', // ✅ NEW
         'status',
         'last_login_at',
         'last_login_ip',
@@ -71,6 +73,25 @@ class UserController extends Controller
         'created_at',
         'updated_at',
     ];
+
+    /** cache for safe select columns */
+    protected ?array $selectColsCache = null;
+
+    /**
+     * ✅ Safe select columns (won't break if migration not run yet)
+     */
+    private function userSelectColumns(): array
+    {
+        if ($this->selectColsCache !== null) return $this->selectColsCache;
+
+        $cols = [];
+        foreach (self::SELECT_COLUMNS as $c) {
+            if (Schema::hasColumn('users', $c)) $cols[] = $c;
+        }
+
+        $this->selectColsCache = $cols;
+        return $cols;
+    }
 
     /* =========================
      * Auth / helpers
@@ -118,50 +139,45 @@ class UserController extends Controller
      * Normalize a role + derive short form.
      * If invalid/missing, default to "faculty" + "FAC".
      */
-    /**
- * Normalize a role + derive short form.
- * If invalid/missing, default to "faculty" + "FAC".
- */
-private function normalizeRole(?string $role): array
-{
-    $role = $role !== null ? strtolower(trim($role)) : '';
+    private function normalizeRole(?string $role): array
+    {
+        $role = $role !== null ? strtolower(trim($role)) : '';
 
-    // normalize separators
-    $role = str_replace([' ', '-'], '_', $role);
-    $role = preg_replace('/_+/', '_', $role) ?? $role;
-    $role = trim($role, '_');
+        // normalize separators
+        $role = str_replace([' ', '-'], '_', $role);
+        $role = preg_replace('/_+/', '_', $role) ?? $role;
+        $role = trim($role, '_');
 
-    // aliases/synonyms
-    if ($role === 'tech_assistant' || $role === 'techassistant') {
-        $role = 'technical_assistant';
+        // aliases/synonyms
+        if ($role === 'tech_assistant' || $role === 'techassistant') {
+            $role = 'technical_assistant';
+        }
+
+        // ✅ placement officer aliases
+        if (in_array($role, [
+            'po',
+            'tpo',
+            'placement',
+            'placementofficer',
+            'placement_officer',
+            'training_placement_officer',
+            'trainingplacementofficer',
+            'trainingandplacementofficer',
+            'training_and_placement_officer',
+            'placement_cell',
+            'placementcell',
+        ], true)) {
+            $role = 'placement_officer';
+        }
+
+        if (!in_array($role, self::ALLOWED_ROLES, true)) {
+            $role = 'faculty';
+        }
+
+        $short = self::ROLE_SHORT_MAP[$role] ?? strtoupper(substr($role, 0, 3));
+
+        return [$role, $short];
     }
-
-    // ✅ placement officer aliases
-    if (in_array($role, [
-        'po',
-        'tpo',
-        'placement',
-        'placementofficer',
-        'placement_officer',
-        'training_placement_officer',
-        'trainingplacementofficer',
-        'trainingandplacementofficer',
-        'training_and_placement_officer',
-        'placement_cell',
-        'placementcell',
-    ], true)) {
-        $role = 'placement_officer';
-    }
-
-    if (!in_array($role, self::ALLOWED_ROLES, true)) {
-        $role = 'faculty';
-    }
-
-    $short = self::ROLE_SHORT_MAP[$role] ?? strtoupper(substr($role, 0, 3));
-
-    return [$role, $short];
-}
-
 
     /**
      * Generate unique slug from name.
@@ -260,7 +276,7 @@ private function normalizeRole(?string $role): array
             ]);
 
         $fresh = DB::table('users')
-            ->select(self::SELECT_COLUMNS)
+            ->select($this->userSelectColumns())
             ->where('id', $user->id)
             ->first();
 
@@ -362,7 +378,7 @@ private function normalizeRole(?string $role): array
         }
 
         $user = DB::table('users')
-            ->select(self::SELECT_COLUMNS)
+            ->select($this->userSelectColumns())
             ->where('id', $pat->tokenable_id)
             ->whereNull('deleted_at')
             ->first();
@@ -402,55 +418,62 @@ private function normalizeRole(?string $role): array
     /**
      * GET /api/users
      * List users with optional filters (role, search).
-     * Allowed: director, principal, hod, technical_assistant, it_person
      */
     public function index(Request $request)
-{
-    $search = trim((string) $request->query('q', ''));
-    $role   = $request->query('role');
-    $status = $request->query('status'); // ← ADD THIS
+    {
+        $search = trim((string) $request->query('q', ''));
+        $role   = $request->query('role');
+        $status = $request->query('status');
 
-    $query = DB::table('users')
-        ->select(self::SELECT_COLUMNS)
-        ->whereNull('deleted_at');
+        $hasNameShort = Schema::hasColumn('users', 'name_short_form');
+        $hasEmpId     = Schema::hasColumn('users', 'employee_id');
 
-    if ($role) {
-        $query->where('role', $role);
+        $query = DB::table('users')
+            ->select($this->userSelectColumns())
+            ->whereNull('deleted_at');
+
+        if ($role) {
+            $query->where('role', $role);
+        }
+
+        if ($status && $status !== 'all') {
+            $query->where('status', $status);
+        }
+
+        if ($search !== '') {
+            $query->where(function ($q) use ($search, $hasNameShort, $hasEmpId) {
+                $q->where('name', 'like', '%' . $search . '%')
+                  ->orWhere('email', 'like', '%' . $search . '%')
+                  ->orWhere('phone_number', 'like', '%' . $search . '%');
+
+                if ($hasNameShort) $q->orWhere('name_short_form', 'like', '%' . $search . '%');
+                if ($hasEmpId)     $q->orWhere('employee_id', 'like', '%' . $search . '%');
+            });
+        }
+
+        $users = $query
+            ->orderBy('id', 'desc')
+            ->limit(200)
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data'    => $users,
+        ]);
     }
 
-    // ← ADD STATUS FILTER
-    if ($status && $status !== 'all') {
-        $query->where('status', $status);
-    }
-
-    if ($search !== '') {
-        $query->where(function ($q) use ($search) {
-            $q->where('name', 'like', '%' . $search . '%')
-              ->orWhere('email', 'like', '%' . $search . '%')
-              ->orWhere('phone_number', 'like', '%' . $search . '%');
-        });
-    }
-
-    $users = $query
-        ->orderBy('id', 'desc')
-        ->limit(200)
-        ->get();
-
-    return response()->json([
-        'success' => true,
-        'data'    => $users,
-    ]);
-}
     /**
      * POST /api/users
      * Create a new user.
-     * Allowed: director, principal, it_person
      */
     public function store(Request $request)
     {
-
+        // ✅ new cols are optional
         $v = Validator::make($request->all(), [
             'name'                      => ['required', 'string', 'max:190'],
+            'name_short_form'           => ['nullable', 'string', 'max:50'],   // ✅ NEW
+            'employee_id'               => ['nullable', 'string', 'max:50'],   // ✅ NEW
+
             'email'                     => ['required', 'email', 'max:255', 'unique:users,email'],
             'password'                  => ['required', 'string', 'min:8'],
             'phone_number'              => ['nullable', 'string', 'max:32', 'unique:users,phone_number'],
@@ -477,13 +500,16 @@ private function normalizeRole(?string $role): array
         $now   = Carbon::now();
         $actor = $this->actor($request);
 
+        $hasNameShort = Schema::hasColumn('users', 'name_short_form');
+        $hasEmpId     = Schema::hasColumn('users', 'employee_id');
+
         DB::beginTransaction();
 
         try {
             $uuid = (string) Str::uuid();
             $slug = $this->generateUniqueSlug($data['name']);
 
-            $id = DB::table('users')->insertGetId([
+            $insert = [
                 'name'                     => $data['name'],
                 'email'                    => $data['email'],
                 'password'                 => Hash::make($data['password']),
@@ -505,14 +531,20 @@ private function normalizeRole(?string $role): array
                 'created_at_ip'            => $request->ip(),
                 'created_at'               => $now,
                 'updated_at'               => $now,
-            ]);
+            ];
+
+            // ✅ optional fields (only if columns exist)
+            if ($hasNameShort) $insert['name_short_form'] = $data['name_short_form'] ?? null;
+            if ($hasEmpId)     $insert['employee_id']     = $data['employee_id'] ?? null;
+
+            $id = DB::table('users')->insertGetId($insert);
 
             DB::commit();
 
             $this->logWithActor('msit.users.store.success', $request, ['user_id' => $id]);
 
             $user = DB::table('users')
-                ->select(self::SELECT_COLUMNS)
+                ->select($this->userSelectColumns())
                 ->where('id', $id)
                 ->first();
 
@@ -537,162 +569,171 @@ private function normalizeRole(?string $role): array
     /**
      * GET /api/users/{uuid}
      * Show a single user.
-     * High roles can view anyone; others can only see themselves.
      */
     public function show(Request $request, string $uuid)
-{
-    // if ($resp = $this->requireRole($request, self::ALLOWED_ROLES)) {
-    //     return $resp;
-    // }
+    {
+        $user = DB::table('users')
+            ->select($this->userSelectColumns())
+            ->where('uuid', $uuid)
+            ->whereNull('deleted_at')
+            ->first();
 
-    $user = DB::table('users')
-        ->select(self::SELECT_COLUMNS)
-        ->where('uuid', $uuid)
-        ->whereNull('deleted_at')
-        ->first();
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'error'   => 'User not found',
+            ], 404);
+        }
 
-    if (!$user) {
-        return response()->json([
-            'success' => false,
-            'error'   => 'User not found',
-        ], 404);
-    }
-
-    return response()->json([
-        'success' => true,
-        'data'    => $user,
-    ]);
-}
-
-    /**
-     * PUT/PATCH /api/users/{uuid}
-     * Update profile (name, contact, image, address, role/status for high roles).
-     */
-    public function update(Request $request, string $uuid)
-{
-    // if ($resp = $this->requireRole($request, self::ALLOWED_ROLES)) {
-    //     return $resp;
-    // }
-
-    $user = DB::table('users')
-        ->where('uuid', $uuid)
-        ->whereNull('deleted_at')
-        ->first();
-
-    if (!$user) {
-        return response()->json([
-            'success' => false,
-            'error'   => 'User not found',
-        ], 404);
-    }
-
-    $v = Validator::make($request->all(), [
-        'name'                     => ['sometimes', 'required', 'string', 'max:190'],
-        'email'                    => [
-            'sometimes', 'required', 'email', 'max:255',
-            Rule::unique('users', 'email')->ignore($user->id),
-        ],
-        'password'                 => ['sometimes', 'nullable', 'string', 'min:8'],
-        'phone_number'             => [
-            'sometimes', 'nullable', 'string', 'max:32',
-            Rule::unique('users', 'phone_number')->ignore($user->id),
-        ],
-        'alternative_email'        => ['sometimes', 'nullable', 'email', 'max:255'],
-        'alternative_phone_number' => ['sometimes', 'nullable', 'string', 'max:32'],
-        'whatsapp_number'          => ['sometimes', 'nullable', 'string', 'max:32'],
-        'image'                    => ['sometimes', 'nullable', 'string', 'max:255'],
-        'address'                  => ['sometimes', 'nullable', 'string'],
-        'role'                     => ['sometimes', 'nullable', 'string'],
-        'status'                   => ['sometimes', 'nullable', 'string', 'max:20'],
-        'metadata'                 => ['sometimes', 'nullable', 'array'],
-    ]);
-
-    if ($v->fails()) {
-        return response()->json([
-            'success' => false,
-            'errors'  => $v->errors(),
-        ], 422);
-    }
-
-    $data   = $v->validated();
-    $update = [];
-    $now    = Carbon::now();
-
-    if (array_key_exists('name', $data)) {
-        $update['name'] = $data['name'];
-        $update['slug'] = $this->generateUniqueSlug($data['name'], (int) $user->id);
-    }
-
-    if (array_key_exists('email', $data)) {
-        $update['email'] = $data['email'];
-    }
-
-    if (array_key_exists('password', $data) && $data['password']) {
-        $update['password'] = Hash::make($data['password']);
-    }
-
-    if (array_key_exists('phone_number', $data)) {
-        $update['phone_number'] = $data['phone_number'] ?? null;
-    }
-    if (array_key_exists('alternative_email', $data)) {
-        $update['alternative_email'] = $data['alternative_email'] ?? null;
-    }
-    if (array_key_exists('alternative_phone_number', $data)) {
-        $update['alternative_phone_number'] = $data['alternative_phone_number'] ?? null;
-    }
-    if (array_key_exists('whatsapp_number', $data)) {
-        $update['whatsapp_number'] = $data['whatsapp_number'] ?? null;
-    }
-    if (array_key_exists('image', $data)) {
-        $update['image'] = $data['image'] ?? null;
-    }
-    if (array_key_exists('address', $data)) {
-        $update['address'] = $data['address'] ?? null;
-    }
-
-    if (array_key_exists('role', $data)) {
-        [$role, $short] = $this->normalizeRole($data['role']);
-        $update['role']            = $role;
-        $update['role_short_form'] = $short;
-    }
-
-    if (array_key_exists('status', $data)) {
-        $update['status'] = $data['status'] ?? 'active';
-    }
-
-    if (array_key_exists('metadata', $data)) {
-        $update['metadata'] = $data['metadata'] !== null
-            ? json_encode($data['metadata'])
-            : null;
-    }
-
-    if (empty($update)) {
         return response()->json([
             'success' => true,
             'data'    => $user,
         ]);
     }
 
-    $update['updated_at'] = $now;
+    /**
+     * PUT/PATCH /api/users/{uuid}
+     * Update profile (name, contact, image, address, role/status...)
+     */
+    public function update(Request $request, string $uuid)
+    {
+        $user = DB::table('users')
+            ->where('uuid', $uuid)
+            ->whereNull('deleted_at')
+            ->first();
 
-    DB::table('users')
-        ->where('id', $user->id)
-        ->update($update);
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'error'   => 'User not found',
+            ], 404);
+        }
 
-    $this->logWithActor('msit.users.update', $request, [
-        'user_id' => $user->id,
-    ]);
+        $hasNameShort = Schema::hasColumn('users', 'name_short_form');
+        $hasEmpId     = Schema::hasColumn('users', 'employee_id');
 
-    $fresh = DB::table('users')
-        ->select(self::SELECT_COLUMNS)
-        ->where('id', $user->id)
-        ->first();
+        $rules = [
+            'name'                     => ['sometimes', 'required', 'string', 'max:190'],
 
-    return response()->json([
-        'success' => true,
-        'data'    => $fresh,
-    ]);
-}
+            // ✅ NEW optional fields
+            'name_short_form'          => ['sometimes', 'nullable', 'string', 'max:50'],
+            'employee_id'              => ['sometimes', 'nullable', 'string', 'max:50'],
+
+            'email'                    => [
+                'sometimes', 'required', 'email', 'max:255',
+                Rule::unique('users', 'email')->ignore($user->id),
+            ],
+            'password'                 => ['sometimes', 'nullable', 'string', 'min:8'],
+            'phone_number'             => [
+                'sometimes', 'nullable', 'string', 'max:32',
+                Rule::unique('users', 'phone_number')->ignore($user->id),
+            ],
+            'alternative_email'        => ['sometimes', 'nullable', 'email', 'max:255'],
+            'alternative_phone_number' => ['sometimes', 'nullable', 'string', 'max:32'],
+            'whatsapp_number'          => ['sometimes', 'nullable', 'string', 'max:32'],
+            'image'                    => ['sometimes', 'nullable', 'string', 'max:255'],
+            'address'                  => ['sometimes', 'nullable', 'string'],
+            'role'                     => ['sometimes', 'nullable', 'string'],
+            'status'                   => ['sometimes', 'nullable', 'string', 'max:20'],
+            'metadata'                 => ['sometimes', 'nullable', 'array'],
+        ];
+
+        $v = Validator::make($request->all(), $rules);
+
+        if ($v->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors'  => $v->errors(),
+            ], 422);
+        }
+
+        $data   = $v->validated();
+        $update = [];
+        $now    = Carbon::now();
+
+        if (array_key_exists('name', $data)) {
+            $update['name'] = $data['name'];
+            $update['slug'] = $this->generateUniqueSlug($data['name'], (int) $user->id);
+        }
+
+        // ✅ NEW optional fields
+        if ($hasNameShort && array_key_exists('name_short_form', $data)) {
+            $update['name_short_form'] = $data['name_short_form'] ?? null;
+        }
+        if ($hasEmpId && array_key_exists('employee_id', $data)) {
+            $update['employee_id'] = $data['employee_id'] ?? null;
+        }
+
+        if (array_key_exists('email', $data)) {
+            $update['email'] = $data['email'];
+        }
+
+        if (array_key_exists('password', $data) && $data['password']) {
+            $update['password'] = Hash::make($data['password']);
+        }
+
+        if (array_key_exists('phone_number', $data)) {
+            $update['phone_number'] = $data['phone_number'] ?? null;
+        }
+        if (array_key_exists('alternative_email', $data)) {
+            $update['alternative_email'] = $data['alternative_email'] ?? null;
+        }
+        if (array_key_exists('alternative_phone_number', $data)) {
+            $update['alternative_phone_number'] = $data['alternative_phone_number'] ?? null;
+        }
+        if (array_key_exists('whatsapp_number', $data)) {
+            $update['whatsapp_number'] = $data['whatsapp_number'] ?? null;
+        }
+        if (array_key_exists('image', $data)) {
+            $update['image'] = $data['image'] ?? null;
+        }
+        if (array_key_exists('address', $data)) {
+            $update['address'] = $data['address'] ?? null;
+        }
+
+        if (array_key_exists('role', $data)) {
+            [$role, $short] = $this->normalizeRole($data['role']);
+            $update['role']            = $role;
+            $update['role_short_form'] = $short;
+        }
+
+        if (array_key_exists('status', $data)) {
+            $update['status'] = $data['status'] ?? 'active';
+        }
+
+        if (array_key_exists('metadata', $data)) {
+            $update['metadata'] = $data['metadata'] !== null
+                ? json_encode($data['metadata'])
+                : null;
+        }
+
+        if (empty($update)) {
+            return response()->json([
+                'success' => true,
+                'data'    => $user,
+            ]);
+        }
+
+        $update['updated_at'] = $now;
+
+        DB::table('users')
+            ->where('id', $user->id)
+            ->update($update);
+
+        $this->logWithActor('msit.users.update', $request, [
+            'user_id' => $user->id,
+        ]);
+
+        $fresh = DB::table('users')
+            ->select($this->userSelectColumns())
+            ->where('id', $user->id)
+            ->first();
+
+        return response()->json([
+            'success' => true,
+            'data'    => $fresh,
+        ]);
+    }
 
     /**
      * PATCH /api/users/{uuid}/password
@@ -836,7 +877,7 @@ private function normalizeRole(?string $role): array
         ]);
 
         $fresh = DB::table('users')
-            ->select(self::SELECT_COLUMNS)
+            ->select($this->userSelectColumns())
             ->where('id', $user->id)
             ->first();
 
@@ -848,19 +889,10 @@ private function normalizeRole(?string $role): array
 
     /**
      * DELETE /api/users/{uuid}
-     * Soft delete a user.
-     * Allowed: director, principal, it_person
+     * Soft delete a user (your code marks inactive)
      */
     public function destroy(Request $request, string $uuid)
     {
-        // if ($resp = $this->requireRole($request, [
-        //     'director',
-        //     'principal',
-        //     'it_person',
-        // ])) {
-        //     return $resp;
-        // }
-
         $user = DB::table('users')
             ->where('uuid', $uuid)
             ->whereNull('deleted_at')
@@ -902,7 +934,7 @@ private function normalizeRole(?string $role): array
 
     /**
      * GET /api/me
-     * View logged-in user's own profile (for all roles).
+     * View logged-in user's own profile
      */
     public function me(Request $request)
     {
@@ -915,7 +947,7 @@ private function normalizeRole(?string $role): array
         }
 
         $user = DB::table('users')
-            ->select(self::SELECT_COLUMNS)
+            ->select($this->userSelectColumns())
             ->where('id', $actor['id'])
             ->whereNull('deleted_at')
             ->first();
@@ -960,9 +992,17 @@ private function normalizeRole(?string $role): array
             ], 404);
         }
 
+        $hasNameShort = Schema::hasColumn('users', 'name_short_form');
+        $hasEmpId     = Schema::hasColumn('users', 'employee_id');
+
         // Base validation (text fields)
         $v = Validator::make($request->all(), [
             'name'                     => ['sometimes', 'required', 'string', 'max:190'],
+
+            // ✅ NEW optional fields
+            'name_short_form'          => ['sometimes', 'nullable', 'string', 'max:50'],
+            'employee_id'              => ['sometimes', 'nullable', 'string', 'max:50'],
+
             'email'                    => [
                 'sometimes', 'required', 'email', 'max:255',
                 Rule::unique('users', 'email')->ignore($user->id),
@@ -1043,6 +1083,14 @@ private function normalizeRole(?string $role): array
             $update['slug'] = $this->generateUniqueSlug($data['name'], (int) $user->id);
         }
 
+        // ✅ NEW optional fields
+        if ($hasNameShort && array_key_exists('name_short_form', $data)) {
+            $update['name_short_form'] = $data['name_short_form'] ?? null;
+        }
+        if ($hasEmpId && array_key_exists('employee_id', $data)) {
+            $update['employee_id'] = $data['employee_id'] ?? null;
+        }
+
         // Email
         if (array_key_exists('email', $data)) {
             $update['email'] = $data['email'];
@@ -1094,7 +1142,7 @@ private function normalizeRole(?string $role): array
         }
 
         if (empty($update)) {
-            $fresh = DB::table('users')->select(self::SELECT_COLUMNS)->where('id', $user->id)->first();
+            $fresh = DB::table('users')->select($this->userSelectColumns())->where('id', $user->id)->first();
             return response()->json(['success' => true, 'data' => $fresh]);
         }
 
@@ -1107,7 +1155,7 @@ private function normalizeRole(?string $role): array
         ]);
 
         $fresh = DB::table('users')
-            ->select(self::SELECT_COLUMNS)
+            ->select($this->userSelectColumns())
             ->where('id', $user->id)
             ->first();
 
@@ -1117,1130 +1165,1041 @@ private function normalizeRole(?string $role): array
         ]);
     }
 
- /* ============================================
- | PUBLIC: Faculty Index
- | GET /api/public/faculty
- |============================================ */
-public function facultyindex(Request $request)
+    /* ============================================
+     | PUBLIC: Faculty Index
+     | GET /api/public/faculty
+     |============================================ */
+    public function facultyindex(Request $request)
+    {
+        $page    = max(1, (int)$request->query('page', 1));
+        $perPage = (int)$request->query('per_page', 12);
+        $perPage = max(6, min(60, $perPage));
 
-{
+        $qText    = trim((string)$request->query('q', ''));
+        $status   = trim((string)$request->query('status', 'active')) ?: 'active';
+        $deptUuid = trim((string)$request->query('dept_uuid', ''));
 
-    $page    = max(1, (int)$request->query('page', 1));
+        $sort = (string)$request->query('sort', 'created_at');
+        $dir  = strtolower((string)$request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
 
-    $perPage = (int)$request->query('per_page', 12);
+        $allowedSort = ['created_at','updated_at','name','id'];
+        if (!in_array($sort, $allowedSort, true)) $sort = 'created_at';
 
-    $perPage = max(6, min(60, $perPage));
- 
-    $qText    = trim((string)$request->query('q', ''));
+        // ✅ exclude roles
+        $excludedRoles = ['super_admin', 'admin', 'student', 'students'];
 
-    $status   = trim((string)$request->query('status', 'active')) ?: 'active';
+        // ✅ detect where dept mapping exists
+        $upiHasDept  = Schema::hasColumn('user_personal_information', 'department_id');
+        $userHasDept = Schema::hasColumn('users', 'department_id');
 
-    $deptUuid = trim((string)$request->query('dept_uuid', '')); // ✅ new
- 
-    $sort = (string)$request->query('sort', 'created_at');
+        $base = DB::table('users as u')
+            ->leftJoin('user_personal_information as upi', 'upi.user_id', '=', 'u.id')
+            ->whereNull('u.deleted_at')
+            ->whereNotIn('u.role', $excludedRoles)
+            ->where('u.status', $status)
+            ->where(function ($w) {
+                $w->whereNull('upi.id')->orWhereNull('upi.deleted_at');
+            });
 
-    $dir  = strtolower((string)$request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
-
-    $allowedSort = ['created_at','updated_at','name','id'];
-
-    if (!in_array($sort, $allowedSort, true)) $sort = 'created_at';
- 
-    // ✅ exclude roles
-
-    $excludedRoles = ['super_admin', 'admin', 'student', 'students'];
- 
-    // ✅ detect where dept mapping exists
-
-    $upiHasDept  = Schema::hasColumn('user_personal_information', 'department_id');
-
-    $userHasDept = Schema::hasColumn('users', 'department_id');
- 
-    $base = DB::table('users as u')
-
-        ->leftJoin('user_personal_information as upi', 'upi.user_id', '=', 'u.id')
-
-        ->whereNull('u.deleted_at')
-
-        ->whereNotIn('u.role', $excludedRoles)
-
-        ->where('u.status', $status)
-
-        ->where(function ($w) {
-
-            $w->whereNull('upi.id')->orWhereNull('upi.deleted_at');
-
-        });
- 
-    // ✅ join departments if possible (so we can return uuid/title)
-
-    // priority: upi.department_id -> else users.department_id
-
-    if ($upiHasDept) {
-
-        $base->leftJoin('departments as d', 'd.id', '=', 'upi.department_id');
-
-    } elseif ($userHasDept) {
-
-        $base->leftJoin('departments as d', 'd.id', '=', 'u.department_id');
-
-    }
- 
-    // ✅ dept filter by dept_uuid (works like announcements deep-link)
-
-    if ($deptUuid !== '') {
-
-        $dept = DB::table('departments')
-
-            ->select(['id','uuid','title'])
-
-            ->where('uuid', $deptUuid)
-
-            ->whereNull('deleted_at')
-
-            ->first();
- 
-        if (!$dept) {
-
-            // no such dept -> return empty but valid payload
-
-            return response()->json([
-
-                'success' => true,
-
-                'data' => [],
-
-                'pagination' => [
-
-                    'page' => $page,
-
-                    'per_page' => $perPage,
-
-                    'total' => 0,
-
-                    'last_page' => 1,
-
-                ],
-
-            ]);
-
+        // ✅ join departments if possible
+        if ($upiHasDept) {
+            $base->leftJoin('departments as d', 'd.id', '=', 'upi.department_id');
+        } elseif ($userHasDept) {
+            $base->leftJoin('departments as d', 'd.id', '=', 'u.department_id');
         }
- 
-        $deptId = (int)$dept->id;
- 
-        // apply filter where mapping exists
 
-        $base->where(function ($w) use ($deptId, $upiHasDept, $userHasDept) {
+        // ✅ dept filter by dept_uuid
+        if ($deptUuid !== '') {
+            $dept = DB::table('departments')
+                ->select(['id','uuid','title'])
+                ->where('uuid', $deptUuid)
+                ->whereNull('deleted_at')
+                ->first();
 
-            // if both exist, accept either
+            if (!$dept) {
+                return response()->json([
+                    'success' => true,
+                    'data' => [],
+                    'pagination' => [
+                        'page' => $page,
+                        'per_page' => $perPage,
+                        'total' => 0,
+                        'last_page' => 1,
+                    ],
+                ]);
+            }
 
-            if ($upiHasDept)  $w->orWhere('upi.department_id', $deptId);
+            $deptId = (int)$dept->id;
 
-            if ($userHasDept) $w->orWhere('u.department_id', $deptId);
+            $base->where(function ($w) use ($deptId, $upiHasDept, $userHasDept) {
+                if ($upiHasDept)  $w->orWhere('upi.department_id', $deptId);
+                if ($userHasDept) $w->orWhere('u.department_id', $deptId);
+            });
+        }
 
-        });
+        if ($qText !== '') {
+            $term = '%' . $qText . '%';
+            $base->where(function ($w) use ($term) {
+                $w->where('u.name', 'like', $term)
+                  ->orWhere('u.name_short_form', 'like', $term)   // ✅ NEW (safe if col exists? if not, DB will error)
+                  ->orWhere('u.employee_id', 'like', $term)       // ✅ NEW (same note)
+                  ->orWhere('u.email', 'like', $term)
+                  ->orWhere('upi.affiliation', 'like', $term)
+                  ->orWhere('upi.specification', 'like', $term)
+                  ->orWhere('upi.experience', 'like', $term)
+                  ->orWhere('upi.interest', 'like', $term)
+                  ->orWhere('upi.administration', 'like', $term)
+                  ->orWhere('upi.research_project', 'like', $term);
+            });
+        }
 
-    }
- 
-    if ($qText !== '') {
+        $total    = (clone $base)->distinct('u.id')->count('u.id');
+        $lastPage = max(1, (int)ceil($total / $perPage));
 
-        $term = '%' . $qText . '%';
+        $deptIdSelect = $upiHasDept ? 'upi.department_id' : ($userHasDept ? 'u.department_id' : null);
 
-        $base->where(function ($w) use ($term) {
+        // ✅ only add these cols if exist (avoid breaking before migration)
+        $hasNameShort = Schema::hasColumn('users', 'name_short_form');
+        $hasEmpId     = Schema::hasColumn('users', 'employee_id');
 
-            $w->where('u.name', 'like', $term)
+        $rows = (clone $base)
+            ->select(array_filter([
+                'u.id',
+                'u.uuid',
+                'u.slug',
+                'u.name',
+                $hasNameShort ? 'u.name_short_form' : null, // ✅ NEW
+                'u.email',
+                'u.image',
+                'u.role',
+                'u.role_short_form',
+                $hasEmpId ? 'u.employee_id' : null, // ✅ NEW
+                'u.status',
+                'u.created_at',
+                'u.updated_at',
 
-              ->orWhere('u.email', 'like', $term)
+                'upi.uuid as personal_info_uuid',
+                'upi.qualification',
+                'upi.affiliation',
+                'upi.specification',
+                'upi.experience',
+                'upi.interest',
+                'upi.administration',
+                'upi.research_project',
 
-              ->orWhere('upi.affiliation', 'like', $term)
-
-              ->orWhere('upi.specification', 'like', $term)
-
-              ->orWhere('upi.experience', 'like', $term)
-
-              ->orWhere('upi.interest', 'like', $term)
-
-              ->orWhere('upi.administration', 'like', $term)
-
-              ->orWhere('upi.research_project', 'like', $term);
-
-        });
-
-    }
- 
-    $total    = (clone $base)->distinct('u.id')->count('u.id');
-
-    $lastPage = max(1, (int)ceil($total / $perPage));
- 
-    $deptIdSelect = $upiHasDept ? 'upi.department_id' : ($userHasDept ? 'u.department_id' : null);
- 
-    $rows = (clone $base)
-
-        ->select(array_filter([
-
-            'u.id',
-
-            'u.uuid',
-
-            'u.slug',
-
-            'u.name',
-
-            'u.email',
-
-            'u.image',
-
-            'u.role',
-
-            'u.role_short_form',
-
-            'u.status',
-
-            'u.created_at',
-
-            'u.updated_at',
- 
-            'upi.uuid as personal_info_uuid',
-
-            'upi.qualification',
-
-            'upi.affiliation',
-
-            'upi.specification',
-
-            'upi.experience',
-
-            'upi.interest',
-
-            'upi.administration',
-
-            'upi.research_project',
- 
-            // ✅ department fields
-
-            $deptIdSelect ? DB::raw($deptIdSelect . ' as department_id') : null,
-
-            ($upiHasDept || $userHasDept) ? 'd.uuid as department_uuid' : null,
-
-            ($upiHasDept || $userHasDept) ? 'd.title as department_title' : null,
-
-        ]))
-
-        ->orderBy($sort === 'name' ? 'u.name' : 'u.' . $sort, $dir)
-
-        ->orderBy('u.id', 'desc')
-
-        ->forPage($page, $perPage)
-
-        ->get();
- 
-    // socials (same as your code)
-
-    $ids = $rows->pluck('id')->filter()->values()->all();
-
-    $socialsByUserId = [];
- 
-    if (!empty($ids)) {
-
-        $socialRows = DB::table('user_social_media as usm')
-
-            ->select([
-
-                'usm.user_id',
-
-                'usm.platform',
-
-                'usm.icon',
-
-                'usm.link',
-
-                'usm.sort_order',
-
-                'usm.metadata',
-
-            ])
-
-            ->whereIn('usm.user_id', $ids)
-
-            ->whereNull('usm.deleted_at')
-
-            ->where('usm.active', 1)
-
-            ->orderBy('usm.sort_order', 'asc')
-
-            ->orderBy('usm.id', 'asc')
-
+                // ✅ department fields
+                $deptIdSelect ? DB::raw($deptIdSelect . ' as department_id') : null,
+                ($upiHasDept || $userHasDept) ? 'd.uuid as department_uuid' : null,
+                ($upiHasDept || $userHasDept) ? 'd.title as department_title' : null,
+            ]))
+            ->orderBy($sort === 'name' ? 'u.name' : 'u.' . $sort, $dir)
+            ->orderBy('u.id', 'desc')
+            ->forPage($page, $perPage)
             ->get();
- 
-        foreach ($socialRows as $s) {
 
-            $platform = strtolower(trim((string)$s->platform));
+        // socials (same as your code)
+        $ids = $rows->pluck('id')->filter()->values()->all();
+        $socialsByUserId = [];
 
-            $socialsByUserId[(int)$s->user_id][] = [
+        if (!empty($ids)) {
+            $socialRows = DB::table('user_social_media as usm')
+                ->select([
+                    'usm.user_id',
+                    'usm.platform',
+                    'usm.icon',
+                    'usm.link',
+                    'usm.sort_order',
+                    'usm.metadata',
+                ])
+                ->whereIn('usm.user_id', $ids)
+                ->whereNull('usm.deleted_at')
+                ->where('usm.active', 1)
+                ->orderBy('usm.sort_order', 'asc')
+                ->orderBy('usm.id', 'asc')
+                ->get();
 
-                'platform'   => $platform,
+            foreach ($socialRows as $s) {
+                $platform = strtolower(trim((string)$s->platform));
+                $socialsByUserId[(int)$s->user_id][] = [
+                    'platform'   => $platform,
+                    'icon'       => (string)($s->icon ?? ''),
+                    'url'        => (string)($s->link ?? ''),
+                    'sort_order' => (int)($s->sort_order ?? 0),
+                    'metadata'   => $this->maybeJson($s->metadata),
+                ];
+            }
+        }
 
-                'icon'       => (string)($s->icon ?? ''),
+        $rows->each(function ($r) use ($socialsByUserId) {
+            $r->socials = $socialsByUserId[(int)$r->id] ?? [];
+        });
 
-                'url'        => (string)($s->link ?? ''),
+        $items = $rows->map(fn($r) => $this->normalizeRow($r))->values()->all();
 
-                'sort_order' => (int)($s->sort_order ?? 0),
+        return response()->json([
+            'success' => true,
+            'data' => $items,
+            'pagination' => [
+                'page'      => $page,
+                'per_page'  => $perPage,
+                'total'     => $total,
+                'last_page' => $lastPage,
+            ],
+        ]);
+    }
 
-                'metadata'   => $this->maybeJson($s->metadata),
+    /* =========================
+     | Helpers for Faculty API
+     * ========================= */
 
+    protected function maybeJson($v)
+    {
+        if ($v === null) return null;
+        if (is_array($v) || is_object($v)) return $v;
+        $s = trim((string)$v);
+        if ($s === '') return null;
+        try { return json_decode($s, true, 512, JSON_THROW_ON_ERROR); }
+        catch (\Throwable $e) { return $v; }
+    }
+
+    protected function toUrl(?string $path): ?string
+    {
+        $path = trim((string)$path);
+        if ($path === '') return null;
+
+        // already absolute
+        if (preg_match('~^https?://~i', $path)) return $path;
+
+        // normalize to /...
+        $path = '/' . ltrim($path, '/');
+
+        return rtrim(config('app.url'), '/') . $path;
+    }
+
+    protected function normalizeRow($r): array
+    {
+        $qualification = $this->maybeJson($r->qualification);
+        if (is_array($qualification)) {
+            // keep array -> frontend can join
+        } elseif ($qualification === null) {
+            $qualification = null;
+        } else {
+            $qualification = (string)$qualification;
+        }
+
+        // website can also be stored as a "website" platform row (optional)
+        $website = null;
+        $socials = [];
+        $rawSocials = is_array($r->socials ?? null) ? $r->socials : [];
+
+        foreach ($rawSocials as $s) {
+            $plat = strtolower(trim((string)($s['platform'] ?? '')));
+            $url  = trim((string)($s['url'] ?? ''));
+
+            if ($plat === 'website' || $plat === 'site' || $plat === 'web' || $plat === 'personal_website') {
+                if ($website === null && $url !== '') $website = $url;
+                continue; // don’t show website as icon
+            }
+
+            $socials[] = [
+                'platform'   => $plat,
+                'icon'       => (string)($s['icon'] ?? ''),
+                'url'        => $url,
+                'sort_order' => (int)($s['sort_order'] ?? 0),
             ];
-
         }
 
-    }
- 
-    $rows->each(function ($r) use ($socialsByUserId) {
+        return [
+            'id' => (int)$r->id,
+            'uuid' => (string)$r->uuid,
+            'slug' => (string)($r->slug ?? ''),
+            'name' => (string)($r->name ?? ''),
+            'name_short_form' => (string)($r->name_short_form ?? ''), // ✅ NEW
+            'employee_id' => (string)($r->employee_id ?? ''),         // ✅ NEW
+            'email' => (string)($r->email ?? ''),
 
-        $r->socials = $socialsByUserId[(int)$r->id] ?? [];
+            'image' => (string)($r->image ?? ''),
+            'image_full_url' => $this->toUrl($r->image),
 
-    });
- 
-    $items = $rows->map(fn($r) => $this->normalizeRow($r))->values()->all();
- 
-    return response()->json([
+            // this line in your screenshot is basically "designation"
+            'designation' => (string)($r->affiliation ?? ''),
 
-        'success' => true,
+            'qualification' => $qualification,
+            'specification' => (string)($r->specification ?? ''),
+            'experience' => (string)($r->experience ?? ''),
 
-        'data' => $items,
+            'website' => $website,
 
-        'pagination' => [
+            'department_id'    => isset($r->department_id) ? (int)$r->department_id : null,
+            'department_uuid'  => (string)($r->department_uuid ?? ''),
+            'department_title' => (string)($r->department_title ?? ''),
 
-            'page'      => $page,
-
-            'per_page'  => $perPage,
-
-            'total'     => $total,
-
-            'last_page' => $lastPage,
-
-        ],
-
-    ]);
-
-}
-
- 
-/* =========================
- | Helpers for Faculty API
- * ========================= */
-
-protected function maybeJson($v)
-{
-    if ($v === null) return null;
-    if (is_array($v) || is_object($v)) return $v;
-    $s = trim((string)$v);
-    if ($s === '') return null;
-    try { return json_decode($s, true, 512, JSON_THROW_ON_ERROR); }
-    catch (\Throwable $e) { return $v; }
-}
-
-protected function toUrl(?string $path): ?string
-{
-    $path = trim((string)$path);
-    if ($path === '') return null;
-
-    // already absolute
-    if (preg_match('~^https?://~i', $path)) return $path;
-
-    // normalize to /...
-    $path = '/' . ltrim($path, '/');
-
-    return rtrim(config('app.url'), '/') . $path;
-}
-protected function normalizeRow($r): array
-{
-    $qualification = $this->maybeJson($r->qualification);
-    if (is_array($qualification)) {
-        // keep array -> frontend can join
-    } elseif ($qualification === null) {
-        $qualification = null;
-    } else {
-        $qualification = (string)$qualification;
-    }
- 
-    // website can also be stored as a "website" platform row (optional)
-    $website = null;
-    $socials = [];
-    $rawSocials = is_array($r->socials ?? null) ? $r->socials : [];
- 
-    foreach ($rawSocials as $s) {
-        $plat = strtolower(trim((string)($s['platform'] ?? '')));
-        $url  = trim((string)($s['url'] ?? ''));
- 
-        if ($plat === 'website' || $plat === 'site' || $plat === 'web' || $plat === 'personal_website') {
-            if ($website === null && $url !== '') $website = $url;
-            continue; // don’t show website as icon
-        }
- 
-        $socials[] = [
-            'platform'   => $plat,
-            'icon'       => (string)($s['icon'] ?? ''),
-            'url'        => $url,
-            'sort_order' => (int)($s['sort_order'] ?? 0),
+            // ✅ socials come from user_social_media
+            'socials' => $socials,
         ];
     }
- 
-    return [
-        'id' => (int)$r->id,
-        'uuid' => (string)$r->uuid,
-        'slug' => (string)($r->slug ?? ''),
-        'name' => (string)($r->name ?? ''),
-        'email' => (string)($r->email ?? ''),
- 
-        'image' => (string)($r->image ?? ''),
-        'image_full_url' => $this->toUrl($r->image),
- 
-        // this line in your screenshot is basically "designation"
-        'designation' => (string)($r->affiliation ?? ''),
- 
-        'qualification' => $qualification,
-        'specification' => (string)($r->specification ?? ''),
-        'experience' => (string)($r->experience ?? ''),
- 
-        'website' => $website,
- 
-        'department_id'    => isset($r->department_id) ? (int)$r->department_id : null,
-'department_uuid'  => (string)($r->department_uuid ?? ''),
-'department_title' => (string)($r->department_title ?? ''),
- 
- 
-        // ✅ socials come from user_social_media
-        'socials' => $socials,
-    ];
-}
- 
-/* ============================================
- | PUBLIC: Placement Officer Index
- | GET /api/public/placement-officers
- |============================================ */
-public function placementOfficerIndex(Request $request)
-{
-    $page    = max(1, (int)$request->query('page', 1));
-    $perPage = (int)$request->query('per_page', 12);
-    $perPage = max(6, min(60, $perPage));
- 
-    $qText   = trim((string)$request->query('q', ''));
-    $status  = trim((string)$request->query('status', 'active')) ?: 'active';
- 
-    // ✅ allow multiple param names (frontend can use any)
-    $deptUuid = trim((string)(
-        $request->query('dept_uuid', '') ?:
-        $request->query('department_uuid', '') ?:
-        $request->query('department', '')
-    ));
- 
-    $sort = (string)$request->query('sort', 'created_at');
-    $dir  = strtolower((string)$request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
- 
-    $allowedSort = ['created_at','updated_at','name','id'];
-    if (!in_array($sort, $allowedSort, true)) $sort = 'created_at';
- 
-    // ✅ keep only placement roles (your normalizeRole stores: placement_officer)
-    $placementRoles = [
-        'placement_officer',
-        'placement_officer_admin',
-        'tpo',
-        'training_placement_officer',
-        'placement',
-        'placement_cell',
-    ];
- 
-    // ✅ detect where dept mapping exists
-    $upiHasDept  = Schema::hasColumn('user_personal_information', 'department_id');
-    $userHasDept = Schema::hasColumn('users', 'department_id');
- 
-    $base = DB::table('users as u')
-        ->leftJoin('user_personal_information as upi', 'upi.user_id', '=', 'u.id')
-        ->whereNull('u.deleted_at')
-        ->where('u.status', $status)
-        ->where(function ($w) use ($placementRoles) {
-            // allow either role match OR short form match
-            $w->whereIn('u.role', $placementRoles)
-              ->orWhere('u.role_short_form', 'TPO');
-        })
-        ->where(function ($w) {
-            $w->whereNull('upi.id')->orWhereNull('upi.deleted_at');
-        });
- 
-    // ✅ join departments (support both storages)
-    if ($upiHasDept) {
-        $base->leftJoin('departments as d_upi', function ($join) {
-            $join->on('d_upi.id', '=', 'upi.department_id')
-                 ->whereNull('d_upi.deleted_at');
-        });
-    }
-    if ($userHasDept) {
-        $base->leftJoin('departments as d_user', function ($join) {
-            $join->on('d_user.id', '=', 'u.department_id')
-                 ->whereNull('d_user.deleted_at');
-        });
-    }
- 
-    // ✅ dept filter by dept_uuid (optional)
-    if ($deptUuid !== '') {
-        if (!($upiHasDept || $userHasDept)) {
-            // mapping not available anywhere -> return empty but valid payload
-            return response()->json([
-                'success' => true,
-                'data' => [],
-                'pagination' => [
-                    'page' => $page,
-                    'per_page' => $perPage,
-                    'total' => 0,
-                    'last_page' => 1,
-                ],
-            ]);
+
+    /* ============================================
+     | PUBLIC: Placement Officer Index
+     | GET /api/public/placement-officers
+     |============================================ */
+    public function placementOfficerIndex(Request $request)
+    {
+        $page    = max(1, (int)$request->query('page', 1));
+        $perPage = (int)$request->query('per_page', 12);
+        $perPage = max(6, min(60, $perPage));
+
+        $qText   = trim((string)$request->query('q', ''));
+        $status  = trim((string)$request->query('status', 'active')) ?: 'active';
+
+        // ✅ allow multiple param names (frontend can use any)
+        $deptUuid = trim((string)(
+            $request->query('dept_uuid', '') ?:
+            $request->query('department_uuid', '') ?:
+            $request->query('department', '')
+        ));
+
+        $sort = (string)$request->query('sort', 'created_at');
+        $dir  = strtolower((string)$request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+
+        $allowedSort = ['created_at','updated_at','name','id'];
+        if (!in_array($sort, $allowedSort, true)) $sort = 'created_at';
+
+        // ✅ keep only placement roles (your normalizeRole stores: placement_officer)
+        $placementRoles = [
+            'placement_officer',
+            'placement_officer_admin',
+            'tpo',
+            'training_placement_officer',
+            'placement',
+            'placement_cell',
+        ];
+
+        // ✅ detect where dept mapping exists
+        $upiHasDept  = Schema::hasColumn('user_personal_information', 'department_id');
+        $userHasDept = Schema::hasColumn('users', 'department_id');
+
+        $base = DB::table('users as u')
+            ->leftJoin('user_personal_information as upi', 'upi.user_id', '=', 'u.id')
+            ->whereNull('u.deleted_at')
+            ->where('u.status', $status)
+            ->where(function ($w) use ($placementRoles) {
+                $w->whereIn('u.role', $placementRoles)
+                  ->orWhere('u.role_short_form', 'TPO');
+            })
+            ->where(function ($w) {
+                $w->whereNull('upi.id')->orWhereNull('upi.deleted_at');
+            });
+
+        // ✅ join departments (support both storages)
+        if ($upiHasDept) {
+            $base->leftJoin('departments as d_upi', function ($join) {
+                $join->on('d_upi.id', '=', 'upi.department_id')
+                     ->whereNull('d_upi.deleted_at');
+            });
         }
- 
-        $dept = DB::table('departments')
-            ->select(['id','uuid','title'])
-            ->where('uuid', $deptUuid)
-            ->whereNull('deleted_at')
-            ->first();
- 
-        if (!$dept) {
-            return response()->json([
-                'success' => true,
-                'data' => [],
-                'pagination' => [
-                    'page' => $page,
-                    'per_page' => $perPage,
-                    'total' => 0,
-                    'last_page' => 1,
-                ],
-            ]);
+        if ($userHasDept) {
+            $base->leftJoin('departments as d_user', function ($join) {
+                $join->on('d_user.id', '=', 'u.department_id')
+                     ->whereNull('d_user.deleted_at');
+            });
         }
- 
-        $deptId = (int)$dept->id;
- 
-        $base->where(function ($w) use ($deptId, $upiHasDept, $userHasDept) {
-            if ($upiHasDept)  $w->orWhere('upi.department_id', $deptId);
-            if ($userHasDept) $w->orWhere('u.department_id', $deptId);
-        });
-    }
- 
-    // ✅ search
-    if ($qText !== '') {
-        $term = '%' . $qText . '%';
-        $base->where(function ($w) use ($term) {
-            $w->where('u.name', 'like', $term)
-              ->orWhere('u.email', 'like', $term)
-              ->orWhere('upi.affiliation', 'like', $term)
-              ->orWhere('upi.specification', 'like', $term)
-              ->orWhere('upi.experience', 'like', $term)
-              ->orWhere('upi.interest', 'like', $term)
-              ->orWhere('upi.administration', 'like', $term)
-              ->orWhere('upi.research_project', 'like', $term);
-        });
-    }
- 
-    $total    = (clone $base)->distinct('u.id')->count('u.id');
-    $lastPage = max(1, (int)ceil($total / $perPage));
- 
-    // ✅ select dept fields correctly
-    $deptIdSelect = null;
-    $deptUuidSelect = null;
-    $deptTitleSelect = null;
- 
-    if ($upiHasDept && $userHasDept) {
-        $deptIdSelect    = DB::raw('COALESCE(upi.department_id, u.department_id) as department_id');
-        $deptUuidSelect  = DB::raw('COALESCE(d_upi.uuid, d_user.uuid) as department_uuid');
-        $deptTitleSelect = DB::raw('COALESCE(d_upi.title, d_user.title) as department_title');
-    } elseif ($upiHasDept) {
-        $deptIdSelect    = DB::raw('upi.department_id as department_id');
-        $deptUuidSelect  = DB::raw('d_upi.uuid as department_uuid');
-        $deptTitleSelect = DB::raw('d_upi.title as department_title');
-    } elseif ($userHasDept) {
-        $deptIdSelect    = DB::raw('u.department_id as department_id');
-        $deptUuidSelect  = DB::raw('d_user.uuid as department_uuid');
-        $deptTitleSelect = DB::raw('d_user.title as department_title');
-    }
- 
-    $rows = (clone $base)
-        ->select(array_filter([
-            'u.id',
-            'u.uuid',
-            'u.slug',
-            'u.name',
-            'u.email',
-            'u.image',
-            'u.role',
-            'u.role_short_form',
-            'u.status',
-            'u.created_at',
-            'u.updated_at',
- 
-            'upi.uuid as personal_info_uuid',
-            'upi.qualification',
-            'upi.affiliation',
-            'upi.specification',
-            'upi.experience',
-            'upi.interest',
-            'upi.administration',
-            'upi.research_project',
- 
-            // ✅ dept fields
-            $deptIdSelect,
-            $deptUuidSelect,
-            $deptTitleSelect,
-        ]))
-        ->orderBy($sort === 'name' ? 'u.name' : 'u.' . $sort, $dir)
-        ->orderBy('u.id', 'desc')
-        ->forPage($page, $perPage)
-        ->get();
- 
-    // socials (same as your code)
-    $ids = $rows->pluck('id')->filter()->values()->all();
-    $socialsByUserId = [];
- 
-    if (!empty($ids)) {
-        $socialRows = DB::table('user_social_media as usm')
-            ->select([
-                'usm.user_id',
-                'usm.platform',
-                'usm.icon',
-                'usm.link',
-                'usm.sort_order',
-                'usm.metadata',
-            ])
-            ->whereIn('usm.user_id', $ids)
-            ->whereNull('usm.deleted_at')
-            ->where('usm.active', 1)
-            ->orderBy('usm.sort_order', 'asc')
-            ->orderBy('usm.id', 'asc')
+
+        // ✅ dept filter by dept_uuid (optional)
+        if ($deptUuid !== '') {
+            if (!($upiHasDept || $userHasDept)) {
+                return response()->json([
+                    'success' => true,
+                    'data' => [],
+                    'pagination' => [
+                        'page' => $page,
+                        'per_page' => $perPage,
+                        'total' => 0,
+                        'last_page' => 1,
+                    ],
+                ]);
+            }
+
+            $dept = DB::table('departments')
+                ->select(['id','uuid','title'])
+                ->where('uuid', $deptUuid)
+                ->whereNull('deleted_at')
+                ->first();
+
+            if (!$dept) {
+                return response()->json([
+                    'success' => true,
+                    'data' => [],
+                    'pagination' => [
+                        'page' => $page,
+                        'per_page' => $perPage,
+                        'total' => 0,
+                        'last_page' => 1,
+                    ],
+                ]);
+            }
+
+            $deptId = (int)$dept->id;
+
+            $base->where(function ($w) use ($deptId, $upiHasDept, $userHasDept) {
+                if ($upiHasDept)  $w->orWhere('upi.department_id', $deptId);
+                if ($userHasDept) $w->orWhere('u.department_id', $deptId);
+            });
+        }
+
+        // ✅ search
+        if ($qText !== '') {
+            $term = '%' . $qText . '%';
+            $base->where(function ($w) use ($term) {
+                $w->where('u.name', 'like', $term)
+                  ->orWhere('u.name_short_form', 'like', $term)   // ✅ NEW
+                  ->orWhere('u.employee_id', 'like', $term)       // ✅ NEW
+                  ->orWhere('u.email', 'like', $term)
+                  ->orWhere('upi.affiliation', 'like', $term)
+                  ->orWhere('upi.specification', 'like', $term)
+                  ->orWhere('upi.experience', 'like', $term)
+                  ->orWhere('upi.interest', 'like', $term)
+                  ->orWhere('upi.administration', 'like', $term)
+                  ->orWhere('upi.research_project', 'like', $term);
+            });
+        }
+
+        $total    = (clone $base)->distinct('u.id')->count('u.id');
+        $lastPage = max(1, (int)ceil($total / $perPage));
+
+        // ✅ select dept fields correctly
+        $deptIdSelect = null;
+        $deptUuidSelect = null;
+        $deptTitleSelect = null;
+
+        if ($upiHasDept && $userHasDept) {
+            $deptIdSelect    = DB::raw('COALESCE(upi.department_id, u.department_id) as department_id');
+            $deptUuidSelect  = DB::raw('COALESCE(d_upi.uuid, d_user.uuid) as department_uuid');
+            $deptTitleSelect = DB::raw('COALESCE(d_upi.title, d_user.title) as department_title');
+        } elseif ($upiHasDept) {
+            $deptIdSelect    = DB::raw('upi.department_id as department_id');
+            $deptUuidSelect  = DB::raw('d_upi.uuid as department_uuid');
+            $deptTitleSelect = DB::raw('d_upi.title as department_title');
+        } elseif ($userHasDept) {
+            $deptIdSelect    = DB::raw('u.department_id as department_id');
+            $deptUuidSelect  = DB::raw('d_user.uuid as department_uuid');
+            $deptTitleSelect = DB::raw('d_user.title as department_title');
+        }
+
+        $hasNameShort = Schema::hasColumn('users', 'name_short_form');
+        $hasEmpId     = Schema::hasColumn('users', 'employee_id');
+
+        $rows = (clone $base)
+            ->select(array_filter([
+                'u.id',
+                'u.uuid',
+                'u.slug',
+                'u.name',
+                $hasNameShort ? 'u.name_short_form' : null, // ✅ NEW
+                'u.email',
+                'u.image',
+                'u.role',
+                'u.role_short_form',
+                $hasEmpId ? 'u.employee_id' : null, // ✅ NEW
+                'u.status',
+                'u.created_at',
+                'u.updated_at',
+
+                'upi.uuid as personal_info_uuid',
+                'upi.qualification',
+                'upi.affiliation',
+                'upi.specification',
+                'upi.experience',
+                'upi.interest',
+                'upi.administration',
+                'upi.research_project',
+
+                // ✅ dept fields
+                $deptIdSelect,
+                $deptUuidSelect,
+                $deptTitleSelect,
+            ]))
+            ->orderBy($sort === 'name' ? 'u.name' : 'u.' . $sort, $dir)
+            ->orderBy('u.id', 'desc')
+            ->forPage($page, $perPage)
             ->get();
- 
-        foreach ($socialRows as $s) {
-            $platform = strtolower(trim((string)$s->platform));
-            $socialsByUserId[(int)$s->user_id][] = [
-                'platform'   => $platform,
-                'icon'       => (string)($s->icon ?? ''),
-                'url'        => (string)($s->link ?? ''),
-                'sort_order' => (int)($s->sort_order ?? 0),
-                'metadata'   => $this->maybeJson($s->metadata),
-            ];
-        }
-    }
- 
-    $rows->each(function ($r) use ($socialsByUserId) {
-        $r->socials = $socialsByUserId[(int)$r->id] ?? [];
-    });
- 
-    $items = $rows->map(fn($r) => $this->normalizeRow($r))->values()->all();
- 
-    return response()->json([
-        'success' => true,
-        'data' => $items,
-        'pagination' => [
-            'page'      => $page,
-            'per_page'  => $perPage,
-            'total'     => $total,
-            'last_page' => $lastPage,
-        ],
-    ]);
-}
-public function exportUsersCsv(Request $request)
-{
-    $filename = 'users_export_' . now()->format('Y-m-d_His') . '.csv';
 
-    $query = DB::table('users')
-        ->select(['name', 'email', 'phone_number', 'role'])
-        ->whereNull('deleted_at')
-        ->orderBy('id', 'asc');
+        // socials (same as your code)
+        $ids = $rows->pluck('id')->filter()->values()->all();
+        $socialsByUserId = [];
 
-    // ✅ optional filter: /api/users/export-csv?role=student
-    if ($request->filled('role')) {
-        $query->where('role', $request->query('role'));
-    }
+        if (!empty($ids)) {
+            $socialRows = DB::table('user_social_media as usm')
+                ->select([
+                    'usm.user_id',
+                    'usm.platform',
+                    'usm.icon',
+                    'usm.link',
+                    'usm.sort_order',
+                    'usm.metadata',
+                ])
+                ->whereIn('usm.user_id', $ids)
+                ->whereNull('usm.deleted_at')
+                ->where('usm.active', 1)
+                ->orderBy('usm.sort_order', 'asc')
+                ->orderBy('usm.id', 'asc')
+                ->get();
 
-    $headers = [
-        'Content-Type'        => 'text/csv; charset=UTF-8',
-        'Content-Disposition' => 'attachment; filename="'.$filename.'"',
-        'Cache-Control'       => 'no-store, no-cache, must-revalidate',
-        'Pragma'              => 'no-cache',
-    ];
-
-    return response()->stream(function () use ($query) {
-        $out = fopen('php://output', 'w');
-
-        // (Optional but helpful for Excel UTF-8)
-        // fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF));
-
-        fputcsv($out, ['name', 'email', 'phno', 'role']);
-
-        $seenEmail = [];
-        $seenPhone = [];
-
-        foreach ($query->cursor() as $u) {
-            $name  = trim((string)($u->name ?? ''));
-            $email = strtolower(trim((string)($u->email ?? '')));
-            $phno  = trim((string)($u->phone_number ?? ''));
-            $role  = trim((string)($u->role ?? ''));
-
-            if ($name === '' && $email === '' && $phno === '' && $role === '') continue;
-
-            if ($email !== '') {
-                if (isset($seenEmail[$email])) continue;
-                $seenEmail[$email] = true;
+            foreach ($socialRows as $s) {
+                $platform = strtolower(trim((string)$s->platform));
+                $socialsByUserId[(int)$s->user_id][] = [
+                    'platform'   => $platform,
+                    'icon'       => (string)($s->icon ?? ''),
+                    'url'        => (string)($s->link ?? ''),
+                    'sort_order' => (int)($s->sort_order ?? 0),
+                    'metadata'   => $this->maybeJson($s->metadata),
+                ];
             }
-
-            if ($phno !== '') {
-                if (isset($seenPhone[$phno])) continue;
-                $seenPhone[$phno] = true;
-            }
-
-            fputcsv($out, [$name, $email, $phno, $role]);
         }
 
-        fclose($out);
-    }, 200, $headers);
-}
+        $rows->each(function ($r) use ($socialsByUserId) {
+            $r->socials = $socialsByUserId[(int)$r->id] ?? [];
+        });
 
-public function importUsersCsv(Request $request)
-{
-    $request->validate([
-        'file' => 'required|file|mimes:csv,txt',
-        'update_existing' => 'nullable|boolean',
-        'create_missing'  => 'nullable|boolean',
-    ]);
+        $items = $rows->map(fn($r) => $this->normalizeRow($r))->values()->all();
 
-    $updateExisting = (bool) $request->input('update_existing', true);
-    $createMissing  = (bool) $request->input('create_missing', true);
-
-    // ✅ default password if CSV password is missing
-    $DEFAULT_PASSWORD = '12345678';
-
-    $file = $request->file('file');
-    $path = $file->getRealPath();
-
-    $imported = 0;
-    $updated  = 0;
-    $skipped  = 0;
-
-    // ✅ NEW: academic counters
-    $academicCreated = 0;
-    $academicUpdated = 0;
-    $academicSkipped = 0;
-
-    $errors   = [];
-
-    $handle = fopen($path, 'r');
-    if (!$handle) {
-        return response()->json(['success' => false, 'error' => 'Failed to read uploaded CSV.'], 422);
+        return response()->json([
+            'success' => true,
+            'data' => $items,
+            'pagination' => [
+                'page'      => $page,
+                'per_page'  => $perPage,
+                'total'     => $total,
+                'last_page' => $lastPage,
+            ],
+        ]);
     }
 
-    $header = fgetcsv($handle);
-    if (!$header) {
-        fclose($handle);
-        return response()->json(['success' => false, 'error' => 'CSV header missing.'], 422);
+    public function exportUsersCsv(Request $request)
+    {
+        $filename = 'users_export_' . now()->format('Y-m-d_His') . '.csv';
+
+        $hasNameShort = Schema::hasColumn('users', 'name_short_form');
+        $hasEmpId     = Schema::hasColumn('users', 'employee_id');
+
+        // ✅ keep original first columns, append new ones at end (won't break simple consumers)
+        $selectCols = array_filter([
+            'name',
+            'email',
+            'phone_number',
+            'role',
+            $hasNameShort ? 'name_short_form' : null,
+            $hasEmpId ? 'employee_id' : null,
+        ]);
+
+        $query = DB::table('users')
+            ->select($selectCols)
+            ->whereNull('deleted_at')
+            ->orderBy('id', 'asc');
+
+        // ✅ optional filter: /api/users/export-csv?role=student
+        if ($request->filled('role')) {
+            $query->where('role', $request->query('role'));
+        }
+
+        $headers = [
+            'Content-Type'        => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            'Cache-Control'       => 'no-store, no-cache, must-revalidate',
+            'Pragma'              => 'no-cache',
+        ];
+
+        return response()->stream(function () use ($query, $hasNameShort, $hasEmpId) {
+            $out = fopen('php://output', 'w');
+
+            // header (original + optional new)
+            $header = ['name', 'email', 'phno', 'role'];
+            if ($hasNameShort) $header[] = 'name_short_form';
+            if ($hasEmpId)     $header[] = 'employee_id';
+            fputcsv($out, $header);
+
+            $seenEmail = [];
+            $seenPhone = [];
+
+            foreach ($query->cursor() as $u) {
+                $name  = trim((string)($u->name ?? ''));
+                $email = strtolower(trim((string)($u->email ?? '')));
+                $phno  = trim((string)($u->phone_number ?? ''));
+                $role  = trim((string)($u->role ?? ''));
+
+                if ($name === '' && $email === '' && $phno === '' && $role === '') continue;
+
+                if ($email !== '') {
+                    if (isset($seenEmail[$email])) continue;
+                    $seenEmail[$email] = true;
+                }
+
+                if ($phno !== '') {
+                    if (isset($seenPhone[$phno])) continue;
+                    $seenPhone[$phno] = true;
+                }
+
+                $row = [$name, $email, $phno, $role];
+                if ($hasNameShort) $row[] = trim((string)($u->name_short_form ?? ''));
+                if ($hasEmpId)     $row[] = trim((string)($u->employee_id ?? ''));
+
+                fputcsv($out, $row);
+            }
+
+            fclose($out);
+        }, 200, $headers);
     }
 
-    // ✅ normalize header (remove BOM on first column too)
-    $cols = array_map(function ($h) {
-        $h = trim((string)$h);
-        $h = preg_replace('/^\xEF\xBB\xBF/', '', $h); // BOM
-        return strtolower($h);
-    }, $header);
+    public function importUsersCsv(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:csv,txt',
+            'update_existing' => 'nullable|boolean',
+            'create_missing'  => 'nullable|boolean',
+        ]);
 
-    $idx = array_flip($cols);
+        $updateExisting = (bool) $request->input('update_existing', true);
+        $createMissing  = (bool) $request->input('create_missing', true);
 
-    foreach (['name', 'email'] as $c) {
-        if (!array_key_exists($c, $idx)) {
+        // ✅ default password if CSV password is missing
+        $DEFAULT_PASSWORD = '12345678';
+
+        $file = $request->file('file');
+        $path = $file->getRealPath();
+
+        $imported = 0;
+        $updated  = 0;
+        $skipped  = 0;
+
+        // ✅ NEW: academic counters
+        $academicCreated = 0;
+        $academicUpdated = 0;
+        $academicSkipped = 0;
+
+        $errors   = [];
+
+        $handle = fopen($path, 'r');
+        if (!$handle) {
+            return response()->json(['success' => false, 'error' => 'Failed to read uploaded CSV.'], 422);
+        }
+
+        $header = fgetcsv($handle);
+        if (!$header) {
             fclose($handle);
-            return response()->json(['success' => false, 'error' => "Missing required column: {$c}"], 422);
+            return response()->json(['success' => false, 'error' => 'CSV header missing.'], 422);
         }
-    }
 
-    // ✅ tiny helpers
-    $get = function(array $row, string $key) use ($idx) {
-        if (!isset($idx[$key])) return null;
-        $v = $row[$idx[$key]] ?? null;
-        $v = is_string($v) ? trim($v) : $v;
-        return ($v === '' ? null : $v);
-    };
+        // ✅ normalize header (remove BOM on first column too)
+        $cols = array_map(function ($h) {
+            $h = trim((string)$h);
+            $h = preg_replace('/^\xEF\xBB\xBF/', '', $h); // BOM
+            return strtolower($h);
+        }, $header);
 
-    $getAny = function(array $row, array $keys) use ($get) {
-        foreach ($keys as $k) {
-            $v = $get($row, $k);
-            if ($v !== null) return $v;
+        $idx = array_flip($cols);
+
+        foreach (['name', 'email'] as $c) {
+            if (!array_key_exists($c, $idx)) {
+                fclose($handle);
+                return response()->json(['success' => false, 'error' => "Missing required column: {$c}"], 422);
+            }
         }
-        return null;
-    };
 
-    $makeUniqueSlug = function(string $base, ?int $ignoreId = null) {
-        $base = Str::slug($base) ?: 'user';
-        $try = $base;
+        $hasNameShort = Schema::hasColumn('users', 'name_short_form');
+        $hasEmpId     = Schema::hasColumn('users', 'employee_id');
 
-        $i = 0;
-        while (true) {
-            $q = DB::table('users')->where('slug', $try);
-            if ($ignoreId) $q->where('id', '!=', $ignoreId);
-            if (!$q->exists()) break;
+        // ✅ tiny helpers
+        $get = function(array $row, string $key) use ($idx) {
+            if (!isset($idx[$key])) return null;
+            $v = $row[$idx[$key]] ?? null;
+            $v = is_string($v) ? trim($v) : $v;
+            return ($v === '' ? null : $v);
+        };
 
-            $i++;
-            $try = $base . '-' . Str::lower(Str::random(6));
-            if ($i > 30) break;
-        }
-        return $try;
-    };
-
-    // ✅ always student short form
-    $roleShort = function() {
-        return 'STD';
-    };
-
-    // ✅ resolve id from uuid helper
-    $idFromUuid = function(string $table, ?string $uuid): ?int {
-        if (!$uuid) return null;
-        if (!Schema::hasTable($table)) return null;
-        if (!Schema::hasColumn($table, 'uuid')) return null;
-        $id = DB::table($table)->where('uuid', $uuid)->value('id');
-        return $id ? (int) $id : null;
-    };
-
-    // ✅ academic mode: if header contains academic columns
-    $hasAcademicHeader = (
-        isset($idx['course_uuid']) || isset($idx['course_id']) ||
-        isset($idx['semester_uuid']) || isset($idx['semester_id']) ||
-        isset($idx['section_uuid']) || isset($idx['section_id']) ||
-        isset($idx['roll_no']) || isset($idx['registration_no']) ||
-        isset($idx['admission_no'])
-    );
-
-    $rowNum = 1;
-
-    DB::beginTransaction();
-    try {
-
-        while (($row = fgetcsv($handle)) !== false) {
-            $rowNum++;
-
-            // skip blank row
-            if (count(array_filter($row, fn($v) => trim((string)$v) !== '')) === 0) {
-                continue;
+        $getAny = function(array $row, array $keys) use ($get) {
+            foreach ($keys as $k) {
+                $v = $get($row, $k);
+                if ($v !== null) return $v;
             }
+            return null;
+        };
 
-            $name  = $get($row, 'name');
-            $email = $get($row, 'email');
+        $makeUniqueSlug = function(string $base, ?int $ignoreId = null) {
+            $base = Str::slug($base) ?: 'user';
+            $try = $base;
 
-            if (!$email) { $skipped++; $errors[] = ['row' => $rowNum, 'error' => 'Email missing']; continue; }
-            if (!$name)  { $skipped++; $errors[] = ['row' => $rowNum, 'error' => 'Name missing']; continue; }
+            $i = 0;
+            while (true) {
+                $q = DB::table('users')->where('slug', $try);
+                if ($ignoreId) $q->where('id', '!=', $ignoreId);
+                if (!$q->exists()) break;
 
-            $email = strtolower(trim($email));
-
-            // ✅ FORCE role student (because this import page is only for students)
-            $role  = 'student';
-            $short = $roleShort();
-
-            // status
-            $stRaw  = strtolower((string)($getAny($row, ['status']) ?? 'active'));
-            $status = ($stRaw === 'inactive') ? 'inactive' : 'active';
-
-            // department_id (optional, but needed if you want academic insert)
-            $dep = $getAny($row, ['department_id', 'dept_id', 'department']);
-            $departmentId = null;
-            if ($dep !== null) {
-                $depInt = (int)$dep;
-                $departmentId = $depInt > 0 ? $depInt : null;
+                $i++;
+                $try = $base . '-' . Str::lower(Str::random(6));
+                if ($i > 30) break;
             }
+            return $try;
+        };
 
-            // uuid/slug from csv if present, else generate
-            $uuid = $getAny($row, ['uuid']);
-            if (!$uuid || strlen((string)$uuid) < 10) $uuid = (string) Str::uuid();
+        // ✅ always student short form
+        $roleShort = function() {
+            return 'STD';
+        };
 
-            $slugInCsv = $getAny($row, ['slug']);
-            $slugBase  = $slugInCsv ?: $name;
+        // ✅ resolve id from uuid helper
+        $idFromUuid = function(string $table, ?string $uuid): ?int {
+            if (!$uuid) return null;
+            if (!Schema::hasTable($table)) return null;
+            if (!Schema::hasColumn($table, 'uuid')) return null;
+            $id = DB::table($table)->where('uuid', $uuid)->value('id');
+            return $id ? (int) $id : null;
+        };
 
-            // password: use CSV password if present, else default
-            $csvPassword   = $getAny($row, ['password', 'pass']);
-            $finalPassword = ($csvPassword !== null && trim((string)$csvPassword) !== '')
-                ? trim((string)$csvPassword)
-                : $DEFAULT_PASSWORD;
+        // ✅ academic mode: if header contains academic columns
+        $hasAcademicHeader = (
+            isset($idx['course_uuid']) || isset($idx['course_id']) ||
+            isset($idx['semester_uuid']) || isset($idx['semester_id']) ||
+            isset($idx['section_uuid']) || isset($idx['section_id']) ||
+            isset($idx['roll_no']) || isset($idx['registration_no']) ||
+            isset($idx['admission_no'])
+        );
 
-            // optional fields
-            $phone    = $getAny($row, ['phone_number','phone','mobile','phno']);
-            $altEmail = $getAny($row, ['alternative_email','alt_email']);
-            $altPhone = $getAny($row, ['alternative_phone_number','alt_phone']);
-            $wa       = $getAny($row, ['whatsapp_number','whatsapp']);
-            $image    = $getAny($row, ['image','image_url']);
-            $address  = $getAny($row, ['address']);
+        $rowNum = 1;
 
-            // ✅ normalize phone (remove spaces)
-            if (is_string($phone)) {
-                $phone = trim($phone);
-                $phone = preg_replace('/\s+/', '', $phone);
-                if ($phone === '') $phone = null;
-            }
+        DB::beginTransaction();
+        try {
 
-            // find existing even if soft deleted
-            $existing = DB::table('users')->where('email', $email)->first();
+            while (($row = fgetcsv($handle)) !== false) {
+                $rowNum++;
 
-            // =========================================================
-            // ✅✅ MAIN FIX: PHONE DUPLICATE CHECK (FRIENDLY MESSAGE)
-            // If same number exists for another user -> error + skip row
-            // =========================================================
-            if ($phone !== null) {
-                $phoneOwnerId = DB::table('users')
-                    ->where('phone_number', $phone)
-                    ->value('id');
-
-                if ($phoneOwnerId && (!$existing || (int)$phoneOwnerId !== (int)$existing->id)) {
-                    $skipped++;
-                    $errors[] = [
-                        'row' => $rowNum,
-                        'error' => 'This number already exists',
-                        'phone_number' => $phone,
-                    ];
+                // skip blank row
+                if (count(array_filter($row, fn($v) => trim((string)$v) !== '')) === 0) {
                     continue;
                 }
-            }
 
-            $now = now();
-            $userId = null;
+                $name  = $get($row, 'name');
+                $email = $get($row, 'email');
 
-            // ✅ extra safety: catch any duplicate constraint still happens
-            try {
+                if (!$email) { $skipped++; $errors[] = ['row' => $rowNum, 'error' => 'Email missing']; continue; }
+                if (!$name)  { $skipped++; $errors[] = ['row' => $rowNum, 'error' => 'Name missing']; continue; }
 
-                if ($existing) {
-                    if (!$updateExisting) { $skipped++; continue; }
+                $email = strtolower(trim($email));
 
-                    $newSlug = $existing->slug;
-                    if ($slugInCsv) {
-                        $newSlug = $makeUniqueSlug($slugBase, (int)$existing->id);
+                // ✅ NEW optional CSV fields
+                $nameShort = $getAny($row, ['name_short_form', 'short_name', 'name_short', 'initials']);
+                $empId     = $getAny($row, ['employee_id', 'emp_id', 'employeeid']);
+
+                // ✅ FORCE role student (because this import page is only for students)
+                $role  = 'student';
+                $short = $roleShort();
+
+                // status
+                $stRaw  = strtolower((string)($getAny($row, ['status']) ?? 'active'));
+                $status = ($stRaw === 'inactive') ? 'inactive' : 'active';
+
+                // department_id (optional, but needed if you want academic insert)
+                $dep = $getAny($row, ['department_id', 'dept_id', 'department']);
+                $departmentId = null;
+                if ($dep !== null) {
+                    $depInt = (int)$dep;
+                    $departmentId = $depInt > 0 ? $depInt : null;
+                }
+
+                // uuid/slug from csv if present, else generate
+                $uuid = $getAny($row, ['uuid']);
+                if (!$uuid || strlen((string)$uuid) < 10) $uuid = (string) Str::uuid();
+
+                $slugInCsv = $getAny($row, ['slug']);
+                $slugBase  = $slugInCsv ?: $name;
+
+                // password: use CSV password if present, else default
+                $csvPassword   = $getAny($row, ['password', 'pass']);
+                $finalPassword = ($csvPassword !== null && trim((string)$csvPassword) !== '')
+                    ? trim((string)$csvPassword)
+                    : $DEFAULT_PASSWORD;
+
+                // optional fields
+                $phone    = $getAny($row, ['phone_number','phone','mobile','phno']);
+                $altEmail = $getAny($row, ['alternative_email','alt_email']);
+                $altPhone = $getAny($row, ['alternative_phone_number','alt_phone']);
+                $wa       = $getAny($row, ['whatsapp_number','whatsapp']);
+                $image    = $getAny($row, ['image','image_url']);
+                $address  = $getAny($row, ['address']);
+
+                // ✅ normalize phone (remove spaces)
+                if (is_string($phone)) {
+                    $phone = trim($phone);
+                    $phone = preg_replace('/\s+/', '', $phone);
+                    if ($phone === '') $phone = null;
+                }
+
+                // find existing even if soft deleted
+                $existing = DB::table('users')->where('email', $email)->first();
+
+                // ✅ phone duplicate check
+                if ($phone !== null) {
+                    $phoneOwnerId = DB::table('users')
+                        ->where('phone_number', $phone)
+                        ->value('id');
+
+                    if ($phoneOwnerId && (!$existing || (int)$phoneOwnerId !== (int)$existing->id)) {
+                        $skipped++;
+                        $errors[] = [
+                            'row' => $rowNum,
+                            'error' => 'This number already exists',
+                            'phone_number' => $phone,
+                        ];
+                        continue;
                     }
-
-                    $updateData = [
-                        'name'            => $name,
-                        'email'           => $email,
-                        'role'            => $role,
-                        'role_short_form' => $short,
-                        'status'          => $status,
-                        'department_id'   => $departmentId ?? $existing->department_id ?? null,
-                        'slug'            => $newSlug ?: $existing->slug,
-                        'uuid'            => $existing->uuid ?: $uuid,
-                        'updated_at'      => $now,
-                        'deleted_at'      => null, // ✅ restore if soft deleted
-                    ];
-
-                    if ($phone !== null)    $updateData['phone_number'] = $phone;
-                    if ($altEmail !== null) $updateData['alternative_email'] = $altEmail;
-                    if ($altPhone !== null) $updateData['alternative_phone_number'] = $altPhone;
-                    if ($wa !== null)       $updateData['whatsapp_number'] = $wa;
-                    if ($image !== null)    $updateData['image'] = $image;
-                    if ($address !== null)  $updateData['address'] = $address;
-
-                    // ✅ update password only if provided explicitly in CSV
-                    if ($csvPassword !== null && trim((string)$csvPassword) !== '') {
-                        $updateData['password'] = Hash::make($finalPassword);
-                    }
-
-                    DB::table('users')->where('id', $existing->id)->update($updateData);
-                    $updated++;
-
-                    $userId = (int)$existing->id;
-
-                } else {
-                    if (!$createMissing) { $skipped++; continue; }
-
-                    $newSlug = $makeUniqueSlug($slugBase, null);
-
-                    $insertData = [
-                        'uuid'            => $uuid,
-                        'name'            => $name,
-                        'slug'            => $newSlug,
-                        'email'           => $email,
-                        'password'        => Hash::make($finalPassword),
-                        'role'            => $role,
-                        'role_short_form' => $short,
-                        'status'          => $status,
-                        'department_id'   => $departmentId,
-                        'created_at'      => $now,
-                        'updated_at'      => $now,
-                    ];
-
-                    if ($phone !== null)    $insertData['phone_number'] = $phone;
-                    if ($altEmail !== null) $insertData['alternative_email'] = $altEmail;
-                    if ($altPhone !== null) $insertData['alternative_phone_number'] = $altPhone;
-                    if ($wa !== null)       $insertData['whatsapp_number'] = $wa;
-                    if ($image !== null)    $insertData['image'] = $image;
-                    if ($address !== null)  $insertData['address'] = $address;
-
-                    $userId = (int) DB::table('users')->insertGetId($insertData);
-                    $imported++;
                 }
 
-            } catch (\Illuminate\Database\QueryException $qe) {
-                $skipped++;
-
-                $msg = $qe->getMessage();
-                if (Str::contains($msg, 'users_phone_number_unique')) {
-                    $errors[] = ['row' => $rowNum, 'error' => 'This number already exists', 'phone_number' => $phone];
-                    continue;
-                }
-
-                $errors[] = ['row' => $rowNum, 'error' => 'User row error: ' . $qe->getMessage()];
-                continue;
-            }
-
-            // =========================================================
-            // ✅ ACADEMIC DETAILS IMPORT (same API)
-            // =========================================================
-            if ($hasAcademicHeader && $userId > 0 && Schema::hasTable('student_academic_details')) {
-
-                // If row has course_uuid/course_id then treat as academic row
-                $courseUuid = $getAny($row, ['course_uuid']);
-                $courseIdRaw = $getAny($row, ['course_id']);
-
-                $hasCourseInput = ($courseUuid !== null && $courseUuid !== '') || ($courseIdRaw !== null && (int)$courseIdRaw > 0);
-
-                if (!$hasCourseInput) {
-                    $academicSkipped++;
-                    continue;
-                }
+                $now = now();
+                $userId = null;
 
                 try {
-                    // ✅ department id: from CSV OR users.department_id
-                    $finalDeptId = $departmentId ?: (int) (DB::table('users')->where('id', $userId)->value('department_id') ?? 0);
-                    if ($finalDeptId <= 0) {
-                        $academicSkipped++;
-                        $errors[] = ['row' => $rowNum, 'error' => 'Academic skipped: department_id missing'];
-                        continue;
-                    }
 
-                    // ✅ course: UUID -> ID (preferred)
-                    $finalCourseId = null;
-                    if ($courseUuid) {
-                        $finalCourseId = $idFromUuid('courses', $courseUuid);
-                    }
-                    if (!$finalCourseId && $courseIdRaw) {
-                        $finalCourseId = (int) $courseIdRaw;
-                    }
-                    if (!$finalCourseId || $finalCourseId <= 0) {
-                        $academicSkipped++;
-                        $errors[] = ['row' => $rowNum, 'error' => 'Academic skipped: invalid course_uuid/course_id'];
-                        continue;
-                    }
+                    if ($existing) {
+                        if (!$updateExisting) { $skipped++; continue; }
 
-                    // ✅ optional semester/section (uuid preferred)
-                    $semUuid = $getAny($row, ['semester_uuid']);
-                    $secUuid = $getAny($row, ['section_uuid']);
-
-                    $semIdRaw = $getAny($row, ['semester_id']);
-                    $secIdRaw = $getAny($row, ['section_id']);
-
-                    $finalSemId = $semUuid ? $idFromUuid('course_semesters', $semUuid) : null;
-                    if (!$finalSemId && $semIdRaw) $finalSemId = (int)$semIdRaw;
-
-                    $finalSecId = $secUuid ? $idFromUuid('course_semester_sections', $secUuid) : null;
-                    if (!$finalSecId && $secIdRaw) $finalSecId = (int)$secIdRaw;
-
-                    $acadStatus = strtolower((string)($getAny($row, ['acad_status','academic_status']) ?? 'active'));
-                    if (!in_array($acadStatus, ['active','inactive','passed-out'], true)) $acadStatus = 'active';
-
-                    // optional academic columns
-                    $acadYear   = $getAny($row, ['academic_year']);
-                    $year       = $getAny($row, ['year']);
-                    $rollNo     = $getAny($row, ['roll_no']);
-                    $regNo      = $getAny($row, ['registration_no']);
-                    $admNo      = $getAny($row, ['admission_no']);
-                    $admDate    = $getAny($row, ['admission_date']);
-                    $batch      = $getAny($row, ['batch']);
-                    $session    = $getAny($row, ['session']);
-                    $attendance = $getAny($row, ['attendance_percentage']);
-
-                    // upsert by user_id (one academic record per user)
-                    $existingAcad = DB::table('student_academic_details')
-                        ->where('user_id', $userId)
-                        ->first();
-
-                    $acadPayload = [
-                        'department_id' => $finalDeptId,
-                        'course_id'     => $finalCourseId,
-                        'semester_id'   => ($finalSemId && $finalSemId > 0) ? $finalSemId : null,
-                        'section_id'    => ($finalSecId && $finalSecId > 0) ? $finalSecId : null,
-
-                        'academic_year' => $acadYear,
-                        'year'          => ($year !== null && is_numeric($year)) ? (int)$year : null,
-                        'roll_no'       => $rollNo,
-                        'registration_no' => $regNo,
-                        'admission_no'  => $admNo,
-                        'admission_date'=> $admDate,
-                        'batch'         => $batch,
-                        'session'       => $session,
-                        'attendance_percentage' => ($attendance !== null && is_numeric($attendance)) ? (float)$attendance : null,
-
-                        'status'        => $acadStatus,
-                        'updated_at'    => $now,
-                    ];
-
-                    // ✅ keep user department synced
-                    if (Schema::hasColumn('users', 'department_id')) {
-                        DB::table('users')->where('id', $userId)->update([
-                            'department_id' => $finalDeptId,
-                            'updated_at'    => $now,
-                        ]);
-                    }
-
-                    if ($existingAcad) {
-                        DB::table('student_academic_details')
-                            ->where('id', $existingAcad->id)
-                            ->update($acadPayload);
-
-                        $academicUpdated++;
-                    } else {
-                        $acadPayload['user_id']    = $userId;
-                        $acadPayload['uuid']       = (string) Str::uuid();
-                        $acadPayload['created_at'] = $now;
-
-                        // optionally created_by
-                        if (Schema::hasColumn('student_academic_details', 'created_by')) {
-                            $actor = $this->actor($request);
-                            $acadPayload['created_by'] = $actor['id'] ?: null;
+                        $newSlug = $existing->slug;
+                        if ($slugInCsv) {
+                            $newSlug = $makeUniqueSlug($slugBase, (int)$existing->id);
                         }
 
-                        DB::table('student_academic_details')->insert($acadPayload);
-                        $academicCreated++;
+                        $updateData = [
+                            'name'            => $name,
+                            'email'           => $email,
+                            'role'            => $role,
+                            'role_short_form' => $short,
+                            'status'          => $status,
+                            'department_id'   => $departmentId ?? $existing->department_id ?? null,
+                            'slug'            => $newSlug ?: $existing->slug,
+                            'uuid'            => $existing->uuid ?: $uuid,
+                            'updated_at'      => $now,
+                            'deleted_at'      => null, // ✅ restore if soft deleted
+                        ];
+
+                        // ✅ NEW optional fields
+                        if ($hasNameShort && $nameShort !== null) $updateData['name_short_form'] = $nameShort;
+                        if ($hasEmpId && $empId !== null)         $updateData['employee_id']     = $empId;
+
+                        if ($phone !== null)    $updateData['phone_number'] = $phone;
+                        if ($altEmail !== null) $updateData['alternative_email'] = $altEmail;
+                        if ($altPhone !== null) $updateData['alternative_phone_number'] = $altPhone;
+                        if ($wa !== null)       $updateData['whatsapp_number'] = $wa;
+                        if ($image !== null)    $updateData['image'] = $image;
+                        if ($address !== null)  $updateData['address'] = $address;
+
+                        // ✅ update password only if provided explicitly in CSV
+                        if ($csvPassword !== null && trim((string)$csvPassword) !== '') {
+                            $updateData['password'] = Hash::make($finalPassword);
+                        }
+
+                        DB::table('users')->where('id', $existing->id)->update($updateData);
+                        $updated++;
+
+                        $userId = (int)$existing->id;
+
+                    } else {
+                        if (!$createMissing) { $skipped++; continue; }
+
+                        $newSlug = $makeUniqueSlug($slugBase, null);
+
+                        $insertData = [
+                            'uuid'            => $uuid,
+                            'name'            => $name,
+                            'slug'            => $newSlug,
+                            'email'           => $email,
+                            'password'        => Hash::make($finalPassword),
+                            'role'            => $role,
+                            'role_short_form' => $short,
+                            'status'          => $status,
+                            'department_id'   => $departmentId,
+                            'created_at'      => $now,
+                            'updated_at'      => $now,
+                        ];
+
+                        // ✅ NEW optional fields
+                        if ($hasNameShort && $nameShort !== null) $insertData['name_short_form'] = $nameShort;
+                        if ($hasEmpId && $empId !== null)         $insertData['employee_id']     = $empId;
+
+                        if ($phone !== null)    $insertData['phone_number'] = $phone;
+                        if ($altEmail !== null) $insertData['alternative_email'] = $altEmail;
+                        if ($altPhone !== null) $insertData['alternative_phone_number'] = $altPhone;
+                        if ($wa !== null)       $insertData['whatsapp_number'] = $wa;
+                        if ($image !== null)    $insertData['image'] = $image;
+                        if ($address !== null)  $insertData['address'] = $address;
+
+                        $userId = (int) DB::table('users')->insertGetId($insertData);
+                        $imported++;
                     }
 
-                } catch (\Throwable $e) {
-                    $academicSkipped++;
-                    $errors[] = ['row' => $rowNum, 'error' => 'Academic error: ' . $e->getMessage()];
+                } catch (\Illuminate\Database\QueryException $qe) {
+                    $skipped++;
+
+                    $msg = $qe->getMessage();
+                    if (Str::contains($msg, 'users_phone_number_unique')) {
+                        $errors[] = ['row' => $rowNum, 'error' => 'This number already exists', 'phone_number' => $phone];
+                        continue;
+                    }
+
+                    $errors[] = ['row' => $rowNum, 'error' => 'User row error: ' . $qe->getMessage()];
+                    continue;
+                }
+
+                // =========================================================
+                // ✅ ACADEMIC DETAILS IMPORT (same API)
+                // =========================================================
+                if ($hasAcademicHeader && $userId > 0 && Schema::hasTable('student_academic_details')) {
+
+                    $courseUuid = $getAny($row, ['course_uuid']);
+                    $courseIdRaw = $getAny($row, ['course_id']);
+
+                    $hasCourseInput = ($courseUuid !== null && $courseUuid !== '') || ($courseIdRaw !== null && (int)$courseIdRaw > 0);
+
+                    if (!$hasCourseInput) {
+                        $academicSkipped++;
+                        continue;
+                    }
+
+                    try {
+                        // ✅ department id: from CSV OR users.department_id
+                        $finalDeptId = $departmentId ?: (int) (DB::table('users')->where('id', $userId)->value('department_id') ?? 0);
+                        if ($finalDeptId <= 0) {
+                            $academicSkipped++;
+                            $errors[] = ['row' => $rowNum, 'error' => 'Academic skipped: department_id missing'];
+                            continue;
+                        }
+
+                        // ✅ course: UUID -> ID (preferred)
+                        $finalCourseId = null;
+                        if ($courseUuid) {
+                            $finalCourseId = $idFromUuid('courses', $courseUuid);
+                        }
+                        if (!$finalCourseId && $courseIdRaw) {
+                            $finalCourseId = (int) $courseIdRaw;
+                        }
+                        if (!$finalCourseId || $finalCourseId <= 0) {
+                            $academicSkipped++;
+                            $errors[] = ['row' => $rowNum, 'error' => 'Academic skipped: invalid course_uuid/course_id'];
+                            continue;
+                        }
+
+                        // ✅ optional semester/section (uuid preferred)
+                        $semUuid = $getAny($row, ['semester_uuid']);
+                        $secUuid = $getAny($row, ['section_uuid']);
+
+                        $semIdRaw = $getAny($row, ['semester_id']);
+                        $secIdRaw = $getAny($row, ['section_id']);
+
+                        $finalSemId = $semUuid ? $idFromUuid('course_semesters', $semUuid) : null;
+                        if (!$finalSemId && $semIdRaw) $finalSemId = (int)$semIdRaw;
+
+                        $finalSecId = $secUuid ? $idFromUuid('course_semester_sections', $secUuid) : null;
+                        if (!$finalSecId && $secIdRaw) $finalSecId = (int)$secIdRaw;
+
+                        $acadStatus = strtolower((string)($getAny($row, ['acad_status','academic_status']) ?? 'active'));
+                        if (!in_array($acadStatus, ['active','inactive','passed-out'], true)) $acadStatus = 'active';
+
+                        // optional academic columns
+                        $acadYear   = $getAny($row, ['academic_year']);
+                        $year       = $getAny($row, ['year']);
+                        $rollNo     = $getAny($row, ['roll_no']);
+                        $regNo      = $getAny($row, ['registration_no']);
+                        $admNo      = $getAny($row, ['admission_no']);
+                        $admDate    = $getAny($row, ['admission_date']);
+                        $batch      = $getAny($row, ['batch']);
+                        $session    = $getAny($row, ['session']);
+                        $attendance = $getAny($row, ['attendance_percentage']);
+
+                        // upsert by user_id (one academic record per user)
+                        $existingAcad = DB::table('student_academic_details')
+                            ->where('user_id', $userId)
+                            ->first();
+
+                        $acadPayload = [
+                            'department_id' => $finalDeptId,
+                            'course_id'     => $finalCourseId,
+                            'semester_id'   => ($finalSemId && $finalSemId > 0) ? $finalSemId : null,
+                            'section_id'    => ($finalSecId && $finalSecId > 0) ? $finalSecId : null,
+
+                            'academic_year' => $acadYear,
+                            'year'          => ($year !== null && is_numeric($year)) ? (int)$year : null,
+                            'roll_no'       => $rollNo,
+                            'registration_no' => $regNo,
+                            'admission_no'  => $admNo,
+                            'admission_date'=> $admDate,
+                            'batch'         => $batch,
+                            'session'       => $session,
+                            'attendance_percentage' => ($attendance !== null && is_numeric($attendance)) ? (float)$attendance : null,
+
+                            'status'        => $acadStatus,
+                            'updated_at'    => $now,
+                        ];
+
+                        // ✅ keep user department synced
+                        if (Schema::hasColumn('users', 'department_id')) {
+                            DB::table('users')->where('id', $userId)->update([
+                                'department_id' => $finalDeptId,
+                                'updated_at'    => $now,
+                            ]);
+                        }
+
+                        if ($existingAcad) {
+                            DB::table('student_academic_details')
+                                ->where('id', $existingAcad->id)
+                                ->update($acadPayload);
+
+                            $academicUpdated++;
+                        } else {
+                            $acadPayload['user_id']    = $userId;
+                            $acadPayload['uuid']       = (string) Str::uuid();
+                            $acadPayload['created_at'] = $now;
+
+                            // optionally created_by
+                            if (Schema::hasColumn('student_academic_details', 'created_by')) {
+                                $actor = $this->actor($request);
+                                $acadPayload['created_by'] = $actor['id'] ?: null;
+                            }
+
+                            DB::table('student_academic_details')->insert($acadPayload);
+                            $academicCreated++;
+                        }
+
+                    } catch (\Throwable $e) {
+                        $academicSkipped++;
+                        $errors[] = ['row' => $rowNum, 'error' => 'Academic error: ' . $e->getMessage()];
+                    }
                 }
             }
+
+            DB::commit();
+
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            fclose($handle);
+
+            return response()->json([
+                'success' => false,
+                'error'   => $e->getMessage(),
+                'row'     => $rowNum,
+            ], 500);
         }
 
-        DB::commit();
-
-    } catch (\Throwable $e) {
-        DB::rollBack();
         fclose($handle);
 
         return response()->json([
-            'success' => false,
-            'error'   => $e->getMessage(),
-            'row'     => $rowNum,
-        ], 500);
+            'success' => true,
+            'imported' => $imported,
+            'updated'  => $updated,
+            'skipped'  => $skipped,
+
+            // ✅ new academic report
+            'academic_created' => $academicCreated,
+            'academic_updated' => $academicUpdated,
+            'academic_skipped' => $academicSkipped,
+
+            'errors' => $errors,
+        ]);
     }
-
-    fclose($handle);
-
-    return response()->json([
-        'success' => true,
-        'imported' => $imported,
-        'updated'  => $updated,
-        'skipped'  => $skipped,
-
-        // ✅ new academic report
-        'academic_created' => $academicCreated,
-        'academic_updated' => $academicUpdated,
-        'academic_skipped' => $academicSkipped,
-
-        'errors' => $errors,
-    ]);
-}
-
 }

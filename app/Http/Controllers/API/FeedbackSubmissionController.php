@@ -205,6 +205,83 @@ class FeedbackSubmissionController extends Controller
             }
         }
 
+        /* =========================================================
+         | ✅ COURSE + DEPARTMENT JOIN
+         | Adds:
+         | - course_title (from courses table)
+         | - department_id + department_title (from departments table)
+         |========================================================= */
+        if (Schema::hasTable('courses')) {
+            // detect join column in courses table for fp.course_id
+            $courseJoinCol = null;
+            foreach (['id', 'course_id'] as $candidate) {
+                if ($this->hasCol('courses', $candidate)) { $courseJoinCol = $candidate; break; }
+            }
+            if (!$courseJoinCol) $courseJoinCol = 'id';
+
+            $q->leftJoin('courses as c', "c.$courseJoinCol", '=', 'fp.course_id');
+
+            // ✅ course_title
+            if ($this->hasCol('courses', 'title')) {
+                $q->addSelect(DB::raw('c.title as course_title'));
+            } elseif ($this->hasCol('courses', 'name')) {
+                $q->addSelect(DB::raw('c.name as course_title'));
+            } elseif ($this->hasCol('courses', 'course_title')) {
+                $q->addSelect(DB::raw('c.course_title as course_title'));
+            } elseif ($this->hasCol('courses', 'course_name')) {
+                $q->addSelect(DB::raw('c.course_name as course_title'));
+            }
+
+            // ✅ departments join (prefer via courses.department_id)
+            if (Schema::hasTable('departments')) {
+                // detect PK in departments table
+                $depPk = null;
+                foreach (['id', 'department_id', 'dept_id'] as $candidate) {
+                    if ($this->hasCol('departments', $candidate)) { $depPk = $candidate; break; }
+                }
+                if (!$depPk) $depPk = 'id';
+
+                // detect FK in courses table
+                $courseDeptFk = null;
+                foreach (['department_id', 'dept_id', 'depart_id', 'department', 'dept'] as $candidate) {
+                    if ($this->hasCol('courses', $candidate)) { $courseDeptFk = $candidate; break; }
+                }
+
+                // fallback: some schemas store department on feedback_posts
+                $postDeptFk = null;
+                if (!$courseDeptFk) {
+                    foreach (['department_id', 'dept_id', 'depart_id'] as $candidate) {
+                        if ($this->hasCol(self::POSTS, $candidate)) { $postDeptFk = $candidate; break; }
+                    }
+                }
+
+                $depJoined = false;
+                if ($courseDeptFk) {
+                    $q->leftJoin('departments as dep', "dep.$depPk", '=', "c.$courseDeptFk");
+                    $depJoined = true;
+                } elseif ($postDeptFk) {
+                    $q->leftJoin('departments as dep', "dep.$depPk", '=', "fp.$postDeptFk");
+                    $depJoined = true;
+                }
+
+                if ($depJoined) {
+                    // ✅ department_id (from departments PK)
+                    $q->addSelect(DB::raw("dep.$depPk as department_id"));
+
+                    // ✅ department_title
+                    if ($this->hasCol('departments', 'title')) {
+                        $q->addSelect(DB::raw('dep.title as department_title'));
+                    } elseif ($this->hasCol('departments', 'name')) {
+                        $q->addSelect(DB::raw('dep.name as department_title'));
+                    } elseif ($this->hasCol('departments', 'department_name')) {
+                        $q->addSelect(DB::raw('dep.department_name as department_title'));
+                    } elseif ($this->hasCol('departments', 'dept_name')) {
+                        $q->addSelect(DB::raw('dep.dept_name as department_title'));
+                    }
+                }
+            }
+        }
+
         if (!$includeDeleted) $q->whereNull('fp.deleted_at');
 
         return $q;
@@ -263,13 +340,18 @@ class FeedbackSubmissionController extends Controller
             'subject_id'  => $row->subject_id !== null ? (int)$row->subject_id : null,
             'section_id'  => $row->section_id !== null ? (int)$row->section_id : null,
 
+            // ✅ NEW: course title + department details
+            'course_title' => property_exists($row, 'course_title') ? ($row->course_title !== null ? (string)$row->course_title : null) : null,
+            'department_id' => property_exists($row, 'department_id') ? ($row->department_id !== null ? (int)$row->department_id : null) : null,
+            'department_title' => property_exists($row, 'department_title') ? ($row->department_title !== null ? (string)$row->department_title : null) : null,
+
             // ✅ extra display fields
             'semester_name' => property_exists($row, 'semester_name') ? ($row->semester_name !== null ? (string)$row->semester_name : null) : null,
             'semester_no'   => $semesterNo,
 
             'subject_name'  => property_exists($row, 'subject_name') ? ($row->subject_name !== null ? (string)$row->subject_name : null) : null,
 
-            // ✅ NEW: subject_code + type + optional
+            // ✅ subject_code + type + optional
             'subject_code'  => property_exists($row, 'subject_code') ? ($row->subject_code !== null ? (string)$row->subject_code : null) : null,
             'subject_type'  => property_exists($row, 'subject_type') ? ($row->subject_type !== null ? (string)$row->subject_type : null) : null,
             'is_optional'   => property_exists($row, 'is_optional') ? ((int)$row->is_optional === 1) : null,
