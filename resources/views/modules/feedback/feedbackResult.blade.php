@@ -14,6 +14,14 @@
  *   - "Overall %" / "Average %" removed, replaced with Total + Avg Grade info
  * ✅ NEW CHANGE (as requested):
  *   - Faculty tab buttons (fac-tabbtn) show ONLY `name_short_form` from API (fallback to faculty_name if missing)
+ * ✅ NEW CHANGE (as requested now):
+ *   - Remove "Total ratings: X"
+ *   - Remove ALL totals of every columns (no totals row counts)
+ *   - Keep ONLY Avg. Grade
+ *   - Apply same removal for exports (CSV/PDF)
+ * ✅ NEW CHANGE (as requested now):
+ *   - Make the lower (avg row) `.qtext` full 100% width
+ *   - Remove all other td's from the lower portion (avg row has ONLY one td with colspan)
  * Everything else unchanged
  * ========================= */
 
@@ -193,6 +201,12 @@ td .fw-semibold{color:var(--ink)}
 }
 .matrix .avgrow td{
   background:color-mix(in oklab, var(--primary-color) 6%, transparent);
+}
+/* ✅ ensure avg-row single cell truly behaves like full-width content */
+.matrix .avgrow td.qtext{
+  width:100%;
+  text-align:center;
+  white-space:normal;
 }
 .matrix .submeta{
   display:block;
@@ -1183,6 +1197,7 @@ td .fw-semibold{color:var(--ink)}
     function renderMatrixHtml({ questions, mode, fid, facName }){
       const rowCounts = [];
 
+      // keep for avg-grade computation only (NOT displayed as totals)
       const totalCounts = {'5':0,'4':0,'3':0,'2':0,'1':0};
 
       const rowsHtml = (questions || []).map((q, idx) => {
@@ -1200,7 +1215,7 @@ td .fw-semibold{color:var(--ink)}
         const counts = dist ? normalizeCountMap(dist.counts || {}) : {'5':0,'4':0,'3':0,'2':0,'1':0};
         const total = dist ? Number(dist.total || 0) : 0;
 
-        // accumulate totals
+        // accumulate totals ONLY for avg grade (not for showing totals)
         ['5','4','3','2','1'].forEach(k => totalCounts[k] += Number(counts[k] || 0));
 
         rowCounts.push({
@@ -1225,23 +1240,17 @@ td .fw-semibold{color:var(--ink)}
       }).join('');
 
       const agg = computeAvgGradeFromCounts(totalCounts);
-      const totalRatings = agg.total;
       const avgGrade = agg.avg;
+      const totalRatings = agg.total; // kept for internal compatibility (not displayed/used)
 
-      const totalRowHtml = `
+      // ✅ CHANGED (NOW): avg row has ONLY ONE td and spans all columns => `.qtext` becomes full 100%
+      const avgRowHtml = `
         <tr class="avgrow">
-          <td class="qtext">
-            <b>Total</b>
-            <span class="submeta">
-              Total ratings: <b>${esc(String(totalRatings))}</b>
-              ${avgGrade !== null ? ` • Avg grade: <b>${esc(String(avgGrade))}</b> / 5` : ''}
-            </span>
+          <td class="qtext" colspan="6">
+            <b>Avg grade:</b>
+            ${avgGrade !== null ? `<b>${esc(String(avgGrade))}</b> / 5` : '—'}
+            <span class="submeta">This is based on all submitted ratings.</span>
           </td>
-          <td class="col5">${esc(String(totalCounts['5'] ?? 0))}</td>
-          <td class="col4">${esc(String(totalCounts['4'] ?? 0))}</td>
-          <td class="col3">${esc(String(totalCounts['3'] ?? 0))}</td>
-          <td class="col2">${esc(String(totalCounts['2'] ?? 0))}</td>
-          <td class="col1">${esc(String(totalCounts['1'] ?? 0))}</td>
         </tr>
       `;
 
@@ -1260,7 +1269,7 @@ td .fw-semibold{color:var(--ink)}
             </thead>
             <tbody>
               ${rowsHtml}
-              ${totalRowHtml}
+              ${avgRowHtml}
             </tbody>
           </table>
         </div>
@@ -1514,18 +1523,16 @@ td .fw-semibold{color:var(--ink)}
           ].map(csvEscape).join(','));
         });
 
-        const tot = normalizeCountMap(matrix.totalCounts || {});
+        // ✅ CHANGED: No totals / no ratings. Keep ONLY Avg Grade.
         const avg = matrix.avgGrade;
-        const totalRatings = matrix.totalRatings || 0;
-
         lines.push([
           '',
-          `Total (Avg Grade: ${avg !== null ? avg : '—'}/5, Ratings: ${totalRatings})`,
-          String(tot['5'] ?? 0),
-          String(tot['4'] ?? 0),
-          String(tot['3'] ?? 0),
-          String(tot['2'] ?? 0),
-          String(tot['1'] ?? 0),
+          `Avg Grade: ${avg !== null ? avg : '—'}/5`,
+          '',
+          '',
+          '',
+          '',
+          '',
         ].map(csvEscape).join(','));
 
         if (idx !== ordered.length - 1){
@@ -1598,17 +1605,15 @@ td .fw-semibold{color:var(--ink)}
           return [q, String(c['5']), String(c['4']), String(c['3']), String(c['2']), String(c['1'])];
         });
 
-        const tot = normalizeCountMap(matrix.totalCounts || {});
+        // ✅ CHANGED: No totals / no ratings. Keep ONLY Avg Grade.
         const avg = matrix.avgGrade;
-        const totalRatings = matrix.totalRatings || 0;
-
         body.push([
-          `Total (Avg Grade: ${avg !== null ? avg : '—'}/5, Ratings: ${totalRatings})`,
-          String(tot['5']),
-          String(tot['4']),
-          String(tot['3']),
-          String(tot['2']),
-          String(tot['1']),
+          `Avg Grade: ${avg !== null ? avg : '—'}/5`,
+          '',
+          '',
+          '',
+          '',
+          '',
         ]);
 
         doc.setFont('helvetica','bold');
@@ -1632,6 +1637,7 @@ td .fw-semibold{color:var(--ink)}
           },
           margin: { left: margin, right: margin },
           didParseCell: (data) => {
+            // highlight last row (avg row)
             if (data.section === 'body' && data.row.index === body.length - 1){
               data.cell.styles.fillColor = [245,245,245];
               data.cell.styles.fontStyle = 'bold';
