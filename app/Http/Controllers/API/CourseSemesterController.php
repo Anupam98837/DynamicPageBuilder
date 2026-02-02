@@ -745,4 +745,291 @@ class CourseSemesterController extends Controller
             'item'    => $this->normalizeRow($row),
         ]);
     }
+    public function importCsv(Request $request)
+{
+    $actor = $this->actor($request);
+
+    // Accept either "csv" or "file" as input name (frontend can use any)
+    $request->validate([
+        'csv'  => ['nullable', 'file', 'max:20480', 'mimes:csv,txt'],
+        'file' => ['nullable', 'file', 'max:20480', 'mimes:csv,txt'],
+    ]);
+
+    $file = $request->file('csv') ?: $request->file('file');
+    if (!$file || !$file->isValid()) {
+        return response()->json(['success' => false, 'message' => 'CSV file is required'], 422);
+    }
+
+    $path = $file->getRealPath();
+    $handle = @fopen($path, 'r');
+    if (!$handle) {
+        return response()->json(['success' => false, 'message' => 'Unable to read CSV file'], 422);
+    }
+
+    // ---------- helpers ----------
+    $normHeader = function ($h) {
+        $h = (string) $h;
+        // remove UTF-8 BOM if present
+        $h = preg_replace('/^\xEF\xBB\xBF/', '', $h);
+        $h = trim($h);
+        $h = strtolower($h);
+        // normalize separators
+        $h = preg_replace('/[^a-z0-9]+/', '_', $h);
+        $h = trim($h, '_');
+        return $h;
+    };
+
+    $pickIndex = function (array $map, array $candidates) {
+        foreach ($candidates as $k) {
+            if (array_key_exists($k, $map)) return $map[$k];
+        }
+        return null;
+    };
+
+    $cell = function (array $row, $idx) {
+        if ($idx === null) return '';
+        return isset($row[$idx]) ? trim((string) $row[$idx]) : '';
+    };
+
+    // ---------- read header ----------
+    $header = fgetcsv($handle);
+    if (!$header || !is_array($header)) {
+        fclose($handle);
+        return response()->json(['success' => false, 'message' => 'CSV header row is missing'], 422);
+    }
+
+    $headerMap = [];
+    foreach ($header as $i => $h) {
+        $headerMap[$normHeader($h)] = $i;
+    }
+
+    // Required columns (flexible matching)
+    $idxDept = $pickIndex($headerMap, [
+        'department', 'department_uuid', 'dept', 'dept_uuid'
+    ]);
+    $idxCourse = $pickIndex($headerMap, [
+        'course', 'course_uuid'
+    ]);
+    $idxSemNo = $pickIndex($headerMap, [
+        'semester_no', 'semester_no_', 'semester', 'semester_no', 'semester_number',
+        'semester_no', 'sem_no', 'sem', 'semester_no', 'semester_no', 'semester_no__',
+        'semester_no', 'semester_no.', 'semester_no_',
+        'semester_no', 'semester_no__',
+        // common "Semester No." normalizes to "semester_no"
+        'semester_no'
+    ]);
+    // also allow "semester_no" from "Semester No."
+    if ($idxSemNo === null && isset($headerMap['semester_no'])) $idxSemNo = $headerMap['semester_no'];
+
+    $idxTitle = $pickIndex($headerMap, [
+        'semester_title', 'title', 'semester', 'semester_name'
+    ]);
+    $idxCode = $pickIndex($headerMap, [
+        'code'
+    ]);
+    $idxSlug = $pickIndex($headerMap, [
+        'slug'
+    ]);
+
+    // Validate required columns exist
+    $missing = [];
+    if ($idxDept === null)   $missing[] = 'Department';
+    if ($idxCourse === null) $missing[] = 'Course';
+    if ($idxSemNo === null)  $missing[] = 'Semester No.';
+    if ($idxTitle === null)  $missing[] = 'Semester Title';
+
+    if (!empty($missing)) {
+        fclose($handle);
+        return response()->json([
+            'success' => false,
+            'message' => 'Missing required CSV columns: ' . implode(', ', $missing),
+        ], 422);
+    }
+
+    // Column existence checks (avoid SQL errors on older schema)
+    $hasCodeCol   = $this->hasCol('course_semesters', 'code');
+    $hasSlugCol   = $this->hasCol('course_semesters', 'slug');
+    $hasMetaCol   = $this->hasCol('course_semesters', 'metadata');
+    $hasDescCol   = $this->hasCol('course_semesters', 'description');
+    $hasSortCol   = $this->hasCol('course_semesters', 'sort_order');
+    $hasStatusCol = $this->hasCol('course_semesters', 'status');
+    $hasPubCol    = $this->hasCol('course_semesters', 'publish_at');
+    $hasExpCol    = $this->hasCol('course_semesters', 'expire_at');
+    $hasCByCol    = $this->hasCol('course_semesters', 'created_by');
+    $hasCAipCol   = $this->hasCol('course_semesters', 'created_at_ip');
+    $hasUAipCol   = $this->hasCol('course_semesters', 'updated_at_ip');
+    $hasCreditsCol= $this->hasCol('course_semesters', 'total_credits');
+    $hasSylCol    = $this->hasCol('course_semesters', 'syllabus_url');
+    $hasDeletedAt = $this->hasCol('course_semesters', 'deleted_at');
+
+    $now = now();
+    $ip  = $request->ip();
+
+    // Cache UUID->row for speed
+    $deptCache = [];
+    $courseCache = [];
+
+    $inserted = 0;
+    $skipped  = 0;
+    $failed   = [];
+
+    $rowNum = 1; // header = 1
+    DB::beginTransaction();
+    try {
+        while (($row = fgetcsv($handle)) !== false) {
+            $rowNum++;
+
+            // Skip empty lines
+            $allEmpty = true;
+            foreach ($row as $v) { if (trim((string)$v) !== '') { $allEmpty = false; break; } }
+            if ($allEmpty) continue;
+
+            $deptUuid  = $cell($row, $idxDept);
+            $courseUuid= $cell($row, $idxCourse);
+            $semNoRaw  = $cell($row, $idxSemNo);
+            $title     = $cell($row, $idxTitle);
+            $code      = $cell($row, $idxCode);
+            $slug      = $cell($row, $idxSlug);
+
+            // Basic validations
+            if (!$deptUuid || !Str::isUuid($deptUuid)) {
+                $failed[] = ['row' => $rowNum, 'message' => 'Invalid Department UUID'];
+                continue;
+            }
+            if (!$courseUuid || !Str::isUuid($courseUuid)) {
+                $failed[] = ['row' => $rowNum, 'message' => 'Invalid Course UUID'];
+                continue;
+            }
+
+            $semNo = (int) trim((string)$semNoRaw);
+            if ($semNo <= 0 || $semNo > 50) {
+                $failed[] = ['row' => $rowNum, 'message' => 'Semester No. must be 1..50'];
+                continue;
+            }
+            if (!$title || mb_strlen($title) > 255) {
+                $failed[] = ['row' => $rowNum, 'message' => 'Semester Title is required (max 255)'];
+                continue;
+            }
+
+            if ($code !== '' && mb_strlen($code) > 80) {
+                $failed[] = ['row' => $rowNum, 'message' => 'Code max length is 80'];
+                continue;
+            }
+            if ($slug !== '' && mb_strlen($slug) > 160) {
+                $failed[] = ['row' => $rowNum, 'message' => 'Slug max length is 160'];
+                continue;
+            }
+
+            // Resolve department by UUID (not deleted)
+            if (!array_key_exists($deptUuid, $deptCache)) {
+                $dq = DB::table('departments')->where('uuid', $deptUuid);
+                if ($this->hasCol('departments', 'deleted_at')) $dq->whereNull('deleted_at');
+                $deptCache[$deptUuid] = $dq->first();
+            }
+            $dept = $deptCache[$deptUuid];
+            if (!$dept) {
+                $failed[] = ['row' => $rowNum, 'message' => 'Department not found for UUID: ' . $deptUuid];
+                continue;
+            }
+
+            // Resolve course by UUID (not deleted)
+            if (!array_key_exists($courseUuid, $courseCache)) {
+                $cq = DB::table('courses')->where('uuid', $courseUuid);
+                if ($this->hasCol('courses', 'deleted_at')) $cq->whereNull('deleted_at');
+                $courseCache[$courseUuid] = $cq->first();
+            }
+            $course = $courseCache[$courseUuid];
+            if (!$course) {
+                $failed[] = ['row' => $rowNum, 'message' => 'Course not found for UUID: ' . $courseUuid];
+                continue;
+            }
+
+            // Ensure course belongs to department (recommended for consistency)
+            if (!empty($course->department_id) && (int)$course->department_id !== (int)$dept->id) {
+                $failed[] = [
+                    'row' => $rowNum,
+                    'message' => 'Course does not belong to given Department (course.department_id mismatch)'
+                ];
+                continue;
+            }
+
+            // Defaults if not provided
+            if ($code === '') $code = $this->codeDefault($semNo);
+            if ($slug === '') $slug = $this->slugDefault($title, $semNo);
+
+            // Skip duplicates (same course_id + semester_no) if exists and not deleted
+            $existsQ = DB::table('course_semesters')
+                ->where('course_id', (int)$course->id)
+                ->where('semester_no', (int)$semNo);
+
+            if ($hasDeletedAt) $existsQ->whereNull('deleted_at');
+
+            $exists = $existsQ->first();
+            if ($exists) {
+                $skipped++;
+                continue;
+            }
+
+            // Build insert
+            $uuid = (string) Str::uuid();
+            $ins = [
+                'uuid'        => $uuid,
+                'course_id'   => (int) $course->id,
+                'department_id' => (int) $dept->id,
+                'semester_no' => (int) $semNo,
+                'title'       => $title,
+                'created_at'  => $now,
+                'updated_at'  => $now,
+            ];
+
+            if ($hasDescCol)   $ins['description'] = null; // CSV doesn't include description
+            if ($hasSortCol)   $ins['sort_order'] = 0;
+            if ($hasStatusCol) $ins['status'] = 'active';
+            if ($hasPubCol)    $ins['publish_at'] = null;
+            if ($hasExpCol)    $ins['expire_at'] = null;
+            if ($hasCreditsCol)$ins['total_credits'] = 0;
+            if ($hasSylCol)    $ins['syllabus_url'] = null;
+
+            if ($hasCByCol)  $ins['created_by'] = $actor['id'] ?: null;
+            if ($hasCAipCol) $ins['created_at_ip'] = $ip;
+            if ($hasUAipCol) $ins['updated_at_ip'] = $ip;
+
+            // Save code/slug to columns if exist
+            if ($hasCodeCol) $ins['code'] = $code;
+            if ($hasSlugCol) $ins['slug'] = $slug;
+
+            // Otherwise store them in metadata (keeps UI logic consistent)
+            if ($hasMetaCol && (!$hasCodeCol || !$hasSlugCol)) {
+                $meta = [];
+                if (!$hasCodeCol) $meta['code'] = $code;
+                if (!$hasSlugCol) $meta['slug'] = $slug;
+                $ins['metadata'] = json_encode($meta);
+            }
+
+            DB::table('course_semesters')->insert($ins);
+            $inserted++;
+        }
+
+        DB::commit();
+    } catch (\Throwable $e) {
+        DB::rollBack();
+        fclose($handle);
+        return response()->json([
+            'success' => false,
+            'message' => 'Import failed: ' . $e->getMessage(),
+        ], 500);
+    }
+
+    fclose($handle);
+
+    return response()->json([
+        'success'  => true,
+        'message'  => 'Import completed',
+        'inserted' => $inserted,
+        'skipped'  => $skipped,
+        'failed'   => count($failed),
+        'errors'   => array_slice($failed, 0, 50), // keep response light
+    ]);
+}
+
 }

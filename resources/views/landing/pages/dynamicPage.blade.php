@@ -152,6 +152,23 @@
             border-radius:12px;
             overflow:hidden;
         }
+
+        /* =========================================================
+           ✅ CHANGE: Smart Sticky Columns (desktop only)
+           - If sidebar is taller -> stick RIGHT content card
+           - If content is taller -> stick LEFT sidebar card
+           - Uses JS to also set min-height of the shorter column
+             so sticky actually works even with align-items-start
+        ========================================================== */
+        :root{ --dp-sticky-top: 16px; }
+
+        @media (min-width: 992px){
+            .dp-sticky{
+                position: sticky;
+                top: var(--dp-sticky-top, 16px);
+                z-index: 2;
+            }
+        }
     </style>
 </head>
 <body>
@@ -170,7 +187,7 @@
         <div class="row g-4 align-items-start" id="dpRow">
             {{-- Sidebar --}}
             <aside class="col-lg-3 d-none" id="sidebarCol" aria-label="Page Sidebar">
-                <div class="hallienz-side">
+                <div class="hallienz-side" id="sidebarCard">
                     <div class="hallienz-side__head" id="sidebarHeading">Menu</div>
                     <ul class="hallienz-side__list" id="submenuList"></ul>
                 </div>
@@ -178,7 +195,7 @@
 
             {{-- Content --}}
             <section class="col-12" id="contentCol">
-                <div class="dp-card">
+                <div class="dp-card" id="contentCard">
                     <div class="dp-loading" id="pageLoading">
                         <div class="spinner-border" role="status" aria-label="Loading"></div>
                         <div class="mt-2" id="loadingText">Loading page…</div>
@@ -304,6 +321,10 @@
     const submenuList = document.getElementById('submenuList');
     const sidebarHead = document.getElementById('sidebarHeading');
 
+    // ✅ CHANGE: sticky targets
+    const sidebarCard = document.getElementById('sidebarCard') || (sidebarCol ? sidebarCol.querySelector('.hallienz-side') : null);
+    const contentCard = document.getElementById('contentCard') || (contentCol ? contentCol.querySelector('.dp-card') : null);
+
     function setMeta(text){
         const t = String(text || '').trim();
         if (!t){
@@ -416,6 +437,120 @@
     function safeCssEscape(s){
         try { return CSS.escape(s); } catch(e){ return String(s).replace(/["\\]/g, '\\$&'); }
     }
+
+    // ------------------------------------------------------------------
+    // ✅ CHANGE: Smart Sticky Columns (sidebar/content auto)
+    // ------------------------------------------------------------------
+    let __dpStickyRaf = 0;
+    let __dpStickyRO  = null;
+
+    function dpDebounce(fn, ms){
+        let t = null;
+        return function(){
+            const args = arguments;
+            clearTimeout(t);
+            t = setTimeout(() => fn.apply(this, args), ms);
+        };
+    }
+
+    function isDesktopSticky(){
+        try { return window.matchMedia('(min-width: 992px)').matches; } catch(e){ return window.innerWidth >= 992; }
+    }
+
+    function resetStickyMode(){
+        if (sidebarCard) sidebarCard.classList.remove('dp-sticky');
+        if (contentCard) contentCard.classList.remove('dp-sticky');
+
+        if (sidebarCol) sidebarCol.style.minHeight = '';
+        if (contentCol) contentCol.style.minHeight = '';
+    }
+
+    function computeStickyTop(){
+        // default gap inside content area
+        let top = 16;
+
+        try{
+            // Sum visible fixed/sticky headers at top (cap to avoid overcount)
+            const nodes = Array.from(document.querySelectorAll('.fixed-top, .sticky-top, header, nav'));
+            const used = new Set();
+            let sum = 0;
+
+            nodes.forEach((el) => {
+                if (!el || used.has(el)) return;
+
+                const st = window.getComputedStyle(el);
+                const pos = (st.position || '').toLowerCase();
+                if (pos !== 'fixed' && pos !== 'sticky') return;
+
+                const topVal = parseFloat(st.top || '0');
+                if (isNaN(topVal) || topVal > 2) return;
+
+                const h = Math.max(0, el.getBoundingClientRect().height || 0);
+                if (h > 0 && h < 220) sum += h;
+
+                used.add(el);
+            });
+
+            top += Math.min(sum, 220);
+        }catch(e){}
+
+        document.documentElement.style.setProperty('--dp-sticky-top', top + 'px');
+    }
+
+    function updateStickyMode(){
+        if (!isDesktopSticky()){
+            resetStickyMode();
+            return;
+        }
+        if (!sidebarCol || sidebarCol.classList.contains('d-none') || !sidebarCard || !contentCard){
+            resetStickyMode();
+            return;
+        }
+
+        computeStickyTop();
+
+        // Clear min-heights for accurate measurement
+        sidebarCol.style.minHeight = '';
+        contentCol.style.minHeight = '';
+
+        const sH = Math.ceil(sidebarCard.getBoundingClientRect().height || 0);
+        const cH = Math.ceil(contentCard.getBoundingClientRect().height || 0);
+
+        resetStickyMode();
+
+        // tiny differences -> no sticky needed
+        const THRESH = 40;
+        if (!sH || !cH || Math.abs(sH - cH) < THRESH) return;
+
+        if (sH > cH){
+            // Sidebar is taller => stick RIGHT content card
+            contentCol.style.minHeight = sH + 'px';
+            contentCard.classList.add('dp-sticky');
+        } else {
+            // Content is taller => stick LEFT sidebar card
+            sidebarCol.style.minHeight = cH + 'px';
+            sidebarCard.classList.add('dp-sticky');
+        }
+    }
+
+    function scheduleStickyUpdate(){
+        cancelAnimationFrame(__dpStickyRaf);
+        __dpStickyRaf = requestAnimationFrame(updateStickyMode);
+    }
+
+    function setupStickyObservers(){
+        if (__dpStickyRO) return;
+        if (!('ResizeObserver' in window)) return;
+
+        __dpStickyRO = new ResizeObserver(() => scheduleStickyUpdate());
+        try{
+            if (sidebarCard) __dpStickyRO.observe(sidebarCard);
+            if (contentCard) __dpStickyRO.observe(contentCard);
+        }catch(e){}
+    }
+
+    window.addEventListener('resize', dpDebounce(scheduleStickyUpdate, 120));
+    window.addEventListener('load', () => scheduleStickyUpdate());
 
     // ------------------------------------------------------------------
     // Dept helpers (kept)
@@ -728,6 +863,7 @@
                 : ('Load failed: ' + r.status);
 
             showError(msg);
+            scheduleStickyUpdate();
             return;
         }
 
@@ -782,6 +918,9 @@
         elWrap.classList.remove('d-none');
         if (elNotFound) elNotFound.classList.add('d-none');
         hideError();
+
+        // ✅ CHANGE: update sticky after content changes
+        scheduleStickyUpdate();
     }
 
     /* ==============================
@@ -948,6 +1087,7 @@
         if (!pageId && !pageSlug && !headerMenuId){
             sidebarCol.classList.add('d-none');
             contentCol.className = 'col-12';
+            scheduleStickyUpdate();
             return { hasSidebar:false, firstSubmenuSlug:'' };
         }
 
@@ -964,6 +1104,7 @@
         if (!r.ok) {
             sidebarCol.classList.add('d-none');
             contentCol.className = 'col-12';
+            scheduleStickyUpdate();
             return { hasSidebar:false, firstSubmenuSlug:'' };
         }
 
@@ -973,6 +1114,7 @@
         if (!nodes.length) {
             sidebarCol.classList.add('d-none');
             contentCol.className = 'col-12';
+            scheduleStickyUpdate();
             return { hasSidebar:false, firstSubmenuSlug:'' };
         }
 
@@ -989,6 +1131,10 @@
         renderTree(nodes, '', submenuList, 0);
 
         const firstSubmenuSlug = findFirstSubmenuSlug(nodes);
+
+        // ✅ CHANGE: update sticky after sidebar renders / column widths change
+        scheduleStickyUpdate();
+
         return { hasSidebar:true, firstSubmenuSlug };
     }
 
@@ -1032,6 +1178,7 @@
 
     async function init(){
         hideError();
+        setupStickyObservers(); // ✅ CHANGE
 
         const slugCandidate = getSlugCandidate();
         const currentLower = toLowerSafe(slugCandidate);
@@ -1039,6 +1186,7 @@
         if (!slugCandidate) {
             elLoading.classList.add('d-none');
             showError("No page slug provided. Use /link/page/<slug>  OR  /page/<slug>  OR  ?slug=about-us");
+            scheduleStickyUpdate();
             return;
         }
 
@@ -1052,6 +1200,7 @@
 
         if (!page) {
             showNotFound(slugCandidate);
+            scheduleStickyUpdate();
             return;
         }
 
@@ -1096,21 +1245,27 @@
             }
             await loadSubmenuRightContent(submenuSlug, window.__DP_PAGE_SCOPE__);
         }
+
+        // ✅ CHANGE: final sticky update after everything
+        scheduleStickyUpdate();
     }
 
     init().catch((e) => {
         console.error(e);
         showError(e?.message || 'Something went wrong.');
+        scheduleStickyUpdate();
     });
 
     document.addEventListener('DOMContentLoaded', function() {
         setupHeaderMenuClicks();
+        scheduleStickyUpdate(); // ✅ CHANGE
     });
 
     window.addEventListener('popstate', function() {
         init().catch((e) => {
             console.error(e);
             showError(e?.message || 'Something went wrong.');
+            scheduleStickyUpdate();
         });
     });
 

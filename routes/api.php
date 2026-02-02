@@ -1005,6 +1005,9 @@ Route::middleware('checkRole')->group(function () {
 
 // Modify (authenticated role-based)
 Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+    // Bulk import (CSV)
+Route::post('/course-semesters/import', [CourseSemesterController::class, 'importCsv']);
+
     // Create (global)
     Route::post('/course-semesters', [CourseSemesterController::class, 'store']);
 

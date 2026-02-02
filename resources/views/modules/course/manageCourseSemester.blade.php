@@ -6,20 +6,10 @@
 <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}">
 
 <style>
-/* =========================
- * Course Semesters (Manage) – UI/UX inspired by Courses
- * ========================= */
-
 /* Dropdowns inside table */
 .table-wrap .dropdown{position:relative}
 .dropdown .dd-toggle{border-radius:10px}
-.dropdown-menu{
-  border-radius:12px;
-  border:1px solid var(--line-strong);
-  box-shadow:var(--shadow-2);
-  min-width:230px;
-  z-index:5000
-}
+.dropdown-menu{border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:230px;z-index:5000}
 .dropdown-menu.show{display:block !important}
 .dropdown-item{display:flex;align-items:center;gap:.6rem}
 .dropdown-item i{width:16px;text-align:center}
@@ -28,42 +18,20 @@
 /* Tabs */
 .nav.nav-tabs{border-color:var(--line-strong)}
 .nav-tabs .nav-link{color:var(--ink)}
-.nav-tabs .nav-link.active{
-  background:var(--surface);
-  border-color:var(--line-strong) var(--line-strong) var(--surface)
-}
+.nav-tabs .nav-link.active{background:var(--surface);border-color:var(--line-strong) var(--line-strong) var(--surface)}
 .tab-content,.tab-pane{overflow:visible}
 
 /* Shell */
 .csem-wrap{padding:14px 4px}
 
 /* Toolbar panel */
-.csem-toolbar.panel{
-  background:var(--surface);
-  border:1px solid var(--line-strong);
-  border-radius:16px;
-  box-shadow:var(--shadow-2);
-  padding:12px;
-}
+.csem-toolbar.panel{background:var(--surface);border:1px solid var(--line-strong);border-radius:16px;box-shadow:var(--shadow-2);padding:12px;}
 
 /* Table Card */
-.table-wrap.card{
-  position:relative;
-  border:1px solid var(--line-strong);
-  border-radius:16px;
-  background:var(--surface);
-  box-shadow:var(--shadow-2);
-  overflow:visible;
-}
+.table-wrap.card{position:relative;border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);overflow:visible;}
 .table-wrap .card-body{overflow:visible}
 .table{--bs-table-bg:transparent}
-.table thead th{
-  font-weight:600;
-  color:var(--muted-color);
-  font-size:13px;
-  border-bottom:1px solid var(--line-strong);
-  background:var(--surface)
-}
+.table thead th{font-weight:600;color:var(--muted-color);font-size:13px;border-bottom:1px solid var(--line-strong);background:var(--surface)}
 .table thead.sticky-top{z-index:3}
 .table tbody tr{border-top:1px solid var(--line-soft)}
 .table tbody tr:hover{background:var(--page-hover)}
@@ -73,64 +41,20 @@ td .fw-semibold{color:var(--ink)}
 /* ✅ UUID column (replaces Code/Slug) */
 th.col-uuid, td.col-uuid{width:320px;max-width:320px}
 td.col-uuid{overflow:hidden}
-.uuid-cell{
-  display:flex;
-  align-items:center;
-  gap:8px;
-  max-width:310px;
-}
-.uuid-cell code{
-  display:inline-block;
-  max-width:250px;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
-  vertical-align:bottom;
-}
-.btn-copy-uuid{
-  border-radius:10px;
-  height:30px;
-  width:34px;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  padding:0;
-}
+.uuid-cell{display:flex;align-items:center;gap:8px;max-width:310px;}
+.uuid-cell code{display:inline-block;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom;}
+.btn-copy-uuid{border-radius:10px;height:30px;width:34px;display:inline-flex;align-items:center;justify-content:center;padding:0;}
 
 /* Badges */
-.badge-soft-primary{
-  background:color-mix(in oklab, var(--primary-color) 12%, transparent);
-  color:var(--primary-color)
-}
-.badge-soft-success{
-  background:color-mix(in oklab, var(--success-color) 12%, transparent);
-  color:var(--success-color)
-}
-.badge-soft-muted{
-  background:color-mix(in oklab, var(--muted-color) 10%, transparent);
-  color:var(--muted-color)
-}
-.badge-soft-warning{
-  background:color-mix(in oklab, var(--warning-color, #f59e0b) 14%, transparent);
-  color:var(--warning-color, #f59e0b)
-}
-.badge-soft-danger{
-  background:color-mix(in oklab, var(--danger-color) 12%, transparent);
-  color:var(--danger-color)
-}
+.badge-soft-primary{background:color-mix(in oklab, var(--primary-color) 12%, transparent);color:var(--primary-color)}
+.badge-soft-success{background:color-mix(in oklab, var(--success-color) 12%, transparent);color:var(--success-color)}
+.badge-soft-muted{background:color-mix(in oklab, var(--muted-color) 10%, transparent);color:var(--muted-color)}
+.badge-soft-warning{background:color-mix(in oklab, var(--warning-color, #f59e0b) 14%, transparent);color:var(--warning-color, #f59e0b)}
+.badge-soft-danger{background:color-mix(in oklab, var(--danger-color) 12%, transparent);color:var(--danger-color)}
 
 /* Button loading state */
 .btn-loading{position:relative;color:transparent !important}
-.btn-loading::after{
-  content:'';
-  position:absolute;
-  width:16px;height:16px;
-  top:50%;left:50%;
-  margin:-8px 0 0 -8px;
-  border:2px solid transparent;
-  border-top:2px solid currentColor;
-  border-radius:50%;
-  animation:spin 1s linear infinite
+.btn-loading::after{content:'';position:absolute;width:16px;height:16px;top:50%;left:50%;margin:-8px 0 0 -8px;border:2px solid transparent;border-top:2px solid currentColor;border-radius:50%;animation:spin 1s linear infinite
 }
 @keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
 
@@ -138,101 +62,33 @@ td.col-uuid{overflow:hidden}
 @media (max-width: 768px){
   .csem-toolbar .d-flex{flex-direction:column;gap:12px !important}
   .csem-toolbar .position-relative{min-width:100% !important}
-  .toolbar-buttons{
-    display:flex;
-    gap:8px;
-    flex-wrap:wrap
-  }
-  .toolbar-buttons .btn{
-    flex:1;
-    min-width:120px
-  }
+  .toolbar-buttons{display:flex;gap:8px;flex-wrap:wrap}
+  .toolbar-buttons .btn{flex:1;min-width:120px}
 }
 
 /* Horizontal scroll */
-.table-responsive > .table{
-  width:max-content;
-  min-width:1180px;
-}
+.table-responsive > .table{width:max-content;min-width:1180px;}
 .table-responsive th,
-.table-responsive td{
-  white-space:nowrap;
-}
+.table-responsive td{white-space:nowrap;}
 @media (max-width: 576px){
   .table-responsive > .table{ min-width:1120px; }
 }
 
-/* =========================
- * RTE (lightweight)
- * ========================= */
 .rte-help{font-size:12px;color:var(--muted-color);margin-top:6px}
 .rte-row{margin-bottom:14px;}
-.rte-wrap{
-  border:1px solid var(--line-strong);
-  border-radius:14px;
-  overflow:hidden;
-  background:var(--surface);
-}
-.rte-toolbar{
-  display:flex;
-  align-items:center;
-  gap:6px;
-  flex-wrap:wrap;
-  padding:8px;
-  border-bottom:1px solid var(--line-strong);
-  background:color-mix(in oklab, var(--surface) 92%, transparent);
-}
-.rte-btn{
-  border:1px solid var(--line-soft);
-  background:transparent;
-  color:var(--ink);
-  padding:7px 9px;
-  border-radius:10px;
-  line-height:1;
-  cursor:pointer;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  gap:6px;
-  user-select:none;
-}
+.rte-wrap{border:1px solid var(--line-strong);border-radius:14px;overflow:hidden;background:var(--surface);}
+.rte-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px;border-bottom:1px solid var(--line-strong);background:color-mix(in oklab, var(--surface) 92%, transparent);}
+.rte-btn{border:1px solid var(--line-soft);background:transparent;color:var(--ink);padding:7px 9px;border-radius:10px;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;user-select:none;}
 .rte-btn:hover{background:var(--page-hover)}
-.rte-btn.active{
-  background:color-mix(in oklab, var(--primary-color) 14%, transparent);
-  border-color:color-mix(in oklab, var(--primary-color) 35%, var(--line-soft));
-}
+.rte-btn.active{background:color-mix(in oklab, var(--primary-color) 14%, transparent);border-color:color-mix(in oklab, var(--primary-color) 35%, var(--line-soft));}
 .rte-sep{width:1px;height:24px;background:var(--line-soft);margin:0 4px}
 
-.rte-tabs{
-  margin-left:auto;
-  display:flex;
-  border:1px solid var(--line-soft);
-  border-radius:0;
-  overflow:hidden;
-}
-.rte-tabs .tab{
-  border:0;
-  border-right:1px solid var(--line-soft);
-  border-radius:0;
-  padding:7px 12px;
-  font-size:12px;
-  cursor:pointer;
-  background:transparent;
-  color:var(--ink);
-  line-height:1;
-  user-select:none;
-}
+.rte-tabs{margin-left:auto;display:flex;border:1px solid var(--line-soft);border-radius:0;overflow:hidden;}
+.rte-tabs .tab{border:0;border-right:1px solid var(--line-soft);border-radius:0;padding:7px 12px;font-size:12px;cursor:pointer;background:transparent;color:var(--ink);line-height:1;user-select:none;}
 .rte-tabs .tab:last-child{border-right:0}
-.rte-tabs .tab.active{
-  background:color-mix(in oklab, var(--primary-color) 12%, transparent);
-  font-weight:700;
-}
+.rte-tabs .tab.active{background:color-mix(in oklab, var(--primary-color) 12%, transparent);font-weight:700;}
 .rte-area{position:relative}
-.rte-editor{
-  min-height:220px;
-  padding:12px 12px;
-  outline:none;
-}
+.rte-editor{min-height:220px;padding:12px 12px;outline:none;}
 .rte-editor:empty:before{content:attr(data-placeholder);color:var(--muted-color);}
 .rte-editor b, .rte-editor strong{font-weight:800}
 .rte-editor i, .rte-editor em{font-style:italic}
@@ -243,63 +99,24 @@ td.col-uuid{overflow:hidden}
 .rte-editor ul, .rte-editor ol{padding-left:22px}
 .rte-editor p{margin:0 0 10px}
 .rte-editor a{color:var(--primary-color);text-decoration:underline}
-.rte-editor code{
-  padding:2px 6px;
-  border-radius:0;
-  background:color-mix(in oklab, var(--muted-color) 14%, transparent);
-  border:1px solid var(--line-soft);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size:12.5px;
-}
-.rte-editor pre{
-  padding:10px 12px;
-  border-radius:0;
-  background:color-mix(in oklab, var(--muted-color) 10%, transparent);
-  border:1px solid var(--line-soft);
-  overflow:auto;
-  margin:8px 0;
-}
+.rte-editor code{padding:2px 6px;border-radius:0;background:color-mix(in oklab, var(--muted-color) 14%, transparent);border:1px solid var(--line-soft);font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-size:12.5px;}
+.rte-editor pre{padding:10px 12px;border-radius:0;background:color-mix(in oklab, var(--muted-color) 10%, transparent);border:1px solid var(--line-soft);overflow:auto;margin:8px 0;}
 .rte-editor pre code{border:0;background:transparent;padding:0;display:block;white-space:pre;}
-.rte-code{
-  display:none;
-  width:100%;
-  min-height:220px;
-  padding:12px 12px;
-  border:0;
-  outline:none;
-  resize:vertical;
-  background:transparent;
-  color:var(--ink);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size:12.5px;
-  line-height:1.45;
-}
+.rte-code{display:none;width:100%;min-height:220px;padding:12px 12px;border:0;outline:none;resize:vertical;background:transparent;color:var(--ink);font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-size:12.5px;line-height:1.45;}
 .rte-wrap.mode-code .rte-editor{display:none;}
 .rte-wrap.mode-code .rte-code{display:block;}
 
 /* Banner preview box (optional) */
-.cover-box{
-  border:1px solid var(--line-strong);
-  border-radius:14px;
-  overflow:hidden;
-  background:var(--bg-soft, color-mix(in oklab, var(--surface) 88%, var(--bg-body)));
-}
-.cover-box .cover-top{
-  display:flex;align-items:center;justify-content:space-between;
-  gap:10px;
-  padding:10px 12px;
-  border-bottom:1px solid var(--line-soft);
-}
+.cover-box{border:1px solid var(--line-strong);border-radius:14px;overflow:hidden;background:var(--bg-soft, color-mix(in oklab, var(--surface) 88%, var(--bg-body)));}
+.cover-box .cover-top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line-soft);}
 .cover-box .cover-body{padding:12px;}
-.cover-box img{
-  width:100%;
-  max-height:260px;
-  object-fit:cover;
-  border-radius:12px;
-  border:1px solid var(--line-soft);
-  background:#fff;
-}
+.cover-box img{width:100%;max-height:260px;object-fit:cover;border-radius:12px;border:1px solid var(--line-soft);background:#fff;}
 .cover-meta{font-size:12.5px;color:var(--muted-color);margin-top:10px}
+
+/* Import modal helpers */
+.imp-help{font-size:12.5px;color:var(--muted-color)}
+.imp-cols code{display:inline-block;padding:2px 8px;border:1px solid var(--line-soft);border-radius:999px;background:color-mix(in oklab, var(--muted-color) 10%, transparent);margin:2px 4px 0 0}
+#importPreview{max-height:160px;overflow:auto;border:1px dashed var(--line-soft);border-radius:12px;padding:10px;background:color-mix(in oklab, var(--surface) 92%, transparent);font-size:12.5px}
 
 /* ✅ FIX: Force global loading overlay to be controllable (wins even if main.css uses !important) */
 #globalLoading.loading-overlay{ display:none !important; }
@@ -367,7 +184,12 @@ td.col-uuid{overflow:hidden}
         </div>
 
         <div class="col-12 col-lg-auto ms-lg-auto d-flex justify-content-lg-end">
-          <div id="writeControls" style="display:none;">
+          <div id="writeControls" class="toolbar-buttons d-flex gap-2" style="display:none;">
+            {{-- ✅ NEW: Import CSV --}}
+            <button type="button" class="btn btn-outline-primary" id="btnImportCsv">
+              <i class="fa-solid fa-file-arrow-up me-1"></i> Import
+            </button>
+
             <button type="button" class="btn btn-primary" id="btnAddItem">
               <i class="fa fa-plus me-1"></i> Add Semester
             </button>
@@ -384,8 +206,9 @@ td.col-uuid{overflow:hidden}
                 <tr>
                   <th>Semester</th>
                   <th class="col-uuid">Semester UUID</th>
-                  <th style="width:220px;">Course</th>
+                  {{-- ✅ REORDER: Department first, Course after --}}
                   <th style="width:180px;">Department</th>
+                  <th style="width:220px;">Course</th>
                   <th style="width:110px;">Status</th>
                   <th style="width:120px;">No.</th>
                   <th style="width:170px;">Updated</th>
@@ -421,8 +244,9 @@ td.col-uuid{overflow:hidden}
                 <tr>
                   <th>Semester</th>
                   <th class="col-uuid">Semester UUID</th>
-                  <th style="width:220px;">Course</th>
+                  {{-- ✅ REORDER: Department first, Course after --}}
                   <th style="width:180px;">Department</th>
+                  <th style="width:220px;">Course</th>
                   <th style="width:110px;">Status</th>
                   <th style="width:120px;">No.</th>
                   <th style="width:170px;">Updated</th>
@@ -458,8 +282,9 @@ td.col-uuid{overflow:hidden}
                 <tr>
                   <th>Semester</th>
                   <th class="col-uuid">Semester UUID</th>
-                  <th style="width:220px;">Course</th>
+                  {{-- ✅ REORDER: Department first, Course after --}}
                   <th style="width:180px;">Department</th>
+                  <th style="width:220px;">Course</th>
                   <th style="width:150px;">Deleted</th>
                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
@@ -497,15 +322,7 @@ td.col-uuid{overflow:hidden}
 
       <div class="modal-body">
         <div class="row g-3">
-          <div class="col-12">
-            <label class="form-label">Status</label>
-            <select id="modal_status" class="form-select">
-              <option value="">All</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </div>
-
+          {{-- ✅ REORDER: Department first, Course after --}}
           <div class="col-12">
             <label class="form-label">Department</label>
             <select id="modal_department" class="form-select">
@@ -517,6 +334,15 @@ td.col-uuid{overflow:hidden}
             <label class="form-label">Course</label>
             <select id="modal_course" class="form-select">
               <option value="">All</option>
+            </select>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">Status</label>
+            <select id="modal_status" class="form-select">
+              <option value="">All</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
             </select>
           </div>
 
@@ -547,6 +373,67 @@ td.col-uuid{overflow:hidden}
   </div>
 </div>
 
+{{-- ✅ NEW: Import CSV Modal --}}
+<div class="modal fade" id="importModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <form class="modal-content" id="importForm" autocomplete="off">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa-solid fa-file-arrow-up me-2"></i>Import Semesters (CSV)</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label">Upload CSV <span class="text-danger">*</span></label>
+            <input type="file" id="importCsvFile" class="form-control" accept=".csv,text/csv" required>
+            <div class="imp-help mt-2">
+              Columns expected:
+              <div class="imp-cols mt-1">
+                <code>Department</code>
+                <code>Course</code>
+                <code>Semester No.</code>
+                <code>Semester Title</code>
+                <code>Code</code>
+                <code>Slug</code>
+              </div>
+              <div class="mt-2">
+                Notes:
+                <ul class="mb-0">
+                  <li><b>Department</b> and <b>Course</b can be names (preferred) or numeric IDs.</li>
+                  <li><b>Code</b> and <b>Slug</b> are optional. If slug is blank, it will be generated from title.</li>
+                  <li>Status will be imported as <b>Active</b> by default.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12 d-flex flex-wrap gap-2 align-items-center">
+            <a id="sampleCsvLink" class="btn btn-light" href="#" download="course_semesters_sample.csv">
+              <i class="fa fa-download me-1"></i> Download sample CSV
+            </a>
+            <button type="button" class="btn btn-outline-primary" id="btnRebuildSample">
+              <i class="fa fa-rotate me-1"></i> Regenerate sample
+            </button>
+          </div>
+
+          <div class="col-12">
+            <div class="fw-semibold mb-2">Preview</div>
+            <div id="importPreview" class="text-muted">No file selected.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="btnDoImport">
+          <i class="fa fa-bolt me-1"></i> Import
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
 {{-- Add/Edit/View Modal --}}
 <div class="modal fade" id="itemModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-centered">
@@ -564,7 +451,15 @@ td.col-uuid{overflow:hidden}
           <div class="col-lg-6">
             <div class="row g-3">
 
-              <div class="col-12">
+              {{-- ✅ REORDER: Department first, Course after --}}
+              <div class="col-md-6">
+                <label class="form-label">Department (optional)</label>
+                <select id="department_id" class="form-select">
+                  <option value="">Select department</option>
+                </select>
+              </div>
+
+              <div class="col-md-6">
                 <label class="form-label">Course <span class="text-danger">*</span></label>
                 <select id="course_id" class="form-select" required>
                   <option value="">Select course</option>
@@ -578,9 +473,10 @@ td.col-uuid{overflow:hidden}
               </div>
 
               <div class="col-md-6">
-                <label class="form-label">Department (optional)</label>
-                <select id="department_id" class="form-select">
-                  <option value="">Select department</option>
+                <label class="form-label">Status</label>
+                <select class="form-select" id="status">
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
                 </select>
               </div>
 
@@ -598,14 +494,6 @@ td.col-uuid{overflow:hidden}
                 <label class="form-label">Slug (optional)</label>
                 <input class="form-control" id="slug" maxlength="160" placeholder="semester-1">
                 <div class="form-text">Auto-generated from title until you edit this field manually.</div>
-              </div>
-
-              <div class="col-md-6">
-                <label class="form-label">Status</label>
-                <select class="form-select" id="status">
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
               </div>
 
               <div class="col-md-6">
@@ -643,7 +531,8 @@ td.col-uuid{overflow:hidden}
           <div class="col-lg-6">
             {{-- RTE for Description --}}
             <div class="rte-row">
-              <label class="form-label">Description (HTML allowed) <span class="text-danger">*</span></label>
+              {{-- ✅ CHANGE: Description is optional (no asterisk) --}}
+              <label class="form-label">Description (HTML allowed) <span class="text-muted small">(optional)</span></label>
 
               <div class="rte-wrap" id="descWrap">
                 <div class="rte-toolbar" data-for="description">
@@ -678,9 +567,9 @@ td.col-uuid{overflow:hidden}
                 </div>
 
                 <div class="rte-area">
-                  <div id="descEditor" class="rte-editor" contenteditable="true" data-placeholder="Write semester description…"></div>
+                  <div id="descEditor" class="rte-editor" contenteditable="true" data-placeholder="Write semester description… (optional)"></div>
                   <textarea id="descCode" class="rte-code" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"
-                    placeholder="HTML code…"></textarea>
+                    placeholder="HTML code… (optional)"></textarea>
                 </div>
               </div>
 
@@ -769,6 +658,7 @@ td.col-uuid{overflow:hidden}
     remove:       (id) => `/api/course-semesters/${encodeURIComponent(id)}`,
     restore:      (id) => `/api/course-semesters/${encodeURIComponent(id)}/restore`,
     force:        (id) => `/api/course-semesters/${encodeURIComponent(id)}/force`,
+    importCsv:    () => '/api/course-semesters/import',
     toggle:       (id) => `/api/course-semesters/${encodeURIComponent(id)}`
   };
 
@@ -899,6 +789,19 @@ td.col-uuid{overflow:hidden}
     });
   }
 
+  // ✅ FIX: remove stuck backdrops / modal-open after dynamic interactions (RTE, filters, etc.)
+  function cleanupModalBackdrops(){
+    setTimeout(() => {
+      const openModals = document.querySelectorAll('.modal.show').length;
+      if (openModals === 0){
+        document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('padding-right');
+        document.body.style.removeProperty('overflow');
+      }
+    }, 80);
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     const token = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
     if (!token) { window.location.href = '/'; return; }
@@ -927,6 +830,17 @@ td.col-uuid{overflow:hidden}
     const btnApplyFilters = $('btnApplyFilters');
     const writeControls = $('writeControls');
     const btnAddItem = $('btnAddItem');
+
+    // ✅ Import controls
+    const btnImportCsv = $('btnImportCsv');
+    const importModalEl = $('importModal');
+    const importModal = importModalEl ? new bootstrap.Modal(importModalEl) : null;
+    const importForm = $('importForm');
+    const importCsvFile = $('importCsvFile');
+    const importPreview = $('importPreview');
+    const sampleCsvLink = $('sampleCsvLink');
+    const btnRebuildSample = $('btnRebuildSample');
+    const btnDoImport = $('btnDoImport');
 
     const tbodyActive = $('tbody-active');
     const tbodyInactive = $('tbody-inactive');
@@ -1216,8 +1130,9 @@ td.col-uuid{overflow:hidden}
             <tr data-uuid="${esc(uuidForAction)}">
               <td class="fw-semibold">${esc(title)}</td>
               <td class="col-uuid">${uuidCell(uuidDisplay)}</td>
-              <td>${esc(course)}</td>
+              {{-- ✅ REORDER: Department first, Course after --}}
               <td>${esc(dept)}</td>
+              <td>${esc(course)}</td>
               <td>${esc(String(deleted))}</td>
               <td class="text-end">${actions}</td>
             </tr>`;
@@ -1227,8 +1142,9 @@ td.col-uuid{overflow:hidden}
           <tr data-uuid="${esc(uuidForAction)}">
             <td class="fw-semibold">${esc(title)}</td>
             <td class="col-uuid">${uuidCell(uuidDisplay)}</td>
-            <td>${esc(course)}</td>
+            {{-- ✅ REORDER: Department first, Course after --}}
             <td>${esc(dept)}</td>
+            <td>${esc(course)}</td>
             <td>${statusBadge(status)}</td>
             <td>${esc(String(semNo))}</td>
             <td>${esc(String(updated))}</td>
@@ -1353,6 +1269,7 @@ td.col-uuid{overflow:hidden}
       state.filters.course = modalCourse?.value || '';
       state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
       filterModal && filterModal.hide();
+      cleanupModalBackdrops(); // ✅ FIX: ensure backdrop removed
       reloadCurrent();
     });
 
@@ -1678,13 +1595,13 @@ td.col-uuid{overflow:hidden}
       itemUuid.value = r.uuid || r.id || r.identifier || '';
       itemId.value = r.id || '';
 
-      const rawCourse = getCourseIdFromRow(r);
-      const cid = resolveId(rawCourse, state.courses);
-      if (courseSel) courseSel.value = cid ? String(cid) : '';
-
       const rawDid = getDeptIdFromRow(r);
       const did = resolveId(rawDid, state.departments);
       if (deptSel) deptSel.value = did ? String(did) : '';
+
+      const rawCourse = getCourseIdFromRow(r);
+      const cid = resolveId(rawCourse, state.courses);
+      if (courseSel) courseSel.value = cid ? String(cid) : '';
 
       semNoInput.value = getSemesterNoFromRow(r) || '';
       sortOrderInput.value = (r.sort_order ?? r.order ?? r.position ?? '')?.toString?.() || '';
@@ -1781,9 +1698,13 @@ td.col-uuid{overflow:hidden}
       itemModal && itemModal.show();
     });
 
+    // ✅ Backdrop cleanup
+    filterModalEl?.addEventListener('hidden.bs.modal', cleanupModalBackdrops);
     itemModalEl?.addEventListener('hidden.bs.modal', () => {
       if (bannerObjectUrl){ try{ URL.revokeObjectURL(bannerObjectUrl); }catch(_){ } bannerObjectUrl=null; }
+      cleanupModalBackdrops();
     });
+    importModalEl?.addEventListener('hidden.bs.modal', cleanupModalBackdrops);
 
     // ✅ FIX: toggle active/inactive updates status reliably
     async function toggleActive(uuid, makeActive){
@@ -2017,7 +1938,7 @@ td.col-uuid{overflow:hidden}
         if (!courseId){ err('Course is required'); courseSel.focus(); return; }
         if (!semNo || !/^\d+$/.test(semNo)){ err('Semester No is required'); semNoInput.focus(); return; }
         if (!title){ err('Semester title is required'); titleInput.focus(); return; }
-        if (!cleanDesc){ err('Description is required'); rteFocus(); return; }
+        // ✅ CHANGE: Description is OPTIONAL (no blocking validation)
 
         const fd = new FormData();
         fd.append('course_id', String(parseInt(courseId, 10)));
@@ -2040,7 +1961,8 @@ td.col-uuid{overflow:hidden}
         fd.append('is_active', activeVal);
         fd.append('isActive', activeVal);
 
-        fd.append('description', cleanDesc);
+        // ✅ CHANGE: still send description key, but can be empty
+        fd.append('description', cleanDesc || '');
 
         if (pub) fd.append('publish_at', pub.replace('T',' ')+':00');
         if (exp) fd.append('expire_at', exp.replace('T',' ')+':00');
@@ -2076,6 +1998,7 @@ td.col-uuid{overflow:hidden}
 
         ok(isEdit ? 'Updated' : 'Created');
         itemModal && itemModal.hide();
+        cleanupModalBackdrops();
 
         state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
         await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
@@ -2088,11 +2011,337 @@ td.col-uuid{overflow:hidden}
       }
     });
 
+    // =========================
+    // ✅ CSV IMPORT (client-side -> create API)
+    // =========================
+    function csvEscape(v){
+      const s = (v ?? '').toString();
+      if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g,'""')}"`;
+      return s;
+    }
+
+function buildSampleCsv(){
+  const header = ['Department','Course','Semester No.','Semester Title','Code','Slug'];
+
+  // best effort: pick a course + its department uuid (if available)
+  const firstCourse = (state.courses || [])[0] || {};
+  const courseUuid = (firstCourse.uuid || '').toString().trim();
+
+  const deptId = (firstCourse.department_id ?? firstCourse.department?.id ?? '').toString().trim();
+  const deptObj = (state.departments || []).find(d => String(d.id) === String(deptId)) || {};
+  const deptUuid = (deptObj.uuid || '').toString().trim();
+
+  const sample = [
+    deptUuid || 'DEPARTMENT_UUID_HERE',
+    courseUuid || 'COURSE_UUID_HERE',
+    '1',
+    'Semester 1',
+    'SEM-1',
+    'semester-1'
+  ];
+
+  return header.map(csvEscape).join(',') + '\n' + sample.map(csvEscape).join(',') + '\n';
+}
+
+
+    function setSampleCsvLink(){
+      if (!sampleCsvLink) return;
+      const csv = buildSampleCsv();
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      sampleCsvLink.href = url;
+
+      // revoke old on next tick if changed later
+      sampleCsvLink.dataset.blobUrl && URL.revokeObjectURL(sampleCsvLink.dataset.blobUrl);
+      sampleCsvLink.dataset.blobUrl = url;
+    }
+
+    // Robust CSV parsing (handles quoted values)
+    function parseCsv(text){
+      const rows = [];
+      let i=0, cur='', inQuotes=false;
+      const pushCell = (row) => { row.push(cur); cur=''; };
+      const pushRow = (row) => { rows.push(row); };
+
+      let row = [];
+      while (i < text.length){
+        const ch = text[i];
+
+        if (inQuotes){
+          if (ch === '"'){
+            const next = text[i+1];
+            if (next === '"'){ cur += '"'; i += 2; continue; }
+            inQuotes = false; i++; continue;
+          }
+          cur += ch; i++; continue;
+        }
+
+        if (ch === '"'){ inQuotes = true; i++; continue; }
+
+        if (ch === ','){ pushCell(row); i++; continue; }
+
+        if (ch === '\r'){
+          // ignore; handle \r\n in \n branch
+          i++; continue;
+        }
+
+        if (ch === '\n'){
+          pushCell(row);
+          pushRow(row);
+          row = [];
+          i++; continue;
+        }
+
+        cur += ch;
+        i++;
+      }
+
+      // last cell
+      if (cur.length || row.length){
+        pushCell(row);
+        pushRow(row);
+      }
+
+      // remove completely empty rows
+      return rows
+        .map(r => r.map(c => (c ?? '').toString().trim()))
+        .filter(r => r.some(c => c !== ''));
+    }
+
+    function normalizeHeader(h){
+      return (h || '')
+        .toString()
+        .trim()
+        .toLowerCase()
+        .replace(/\u00a0/g,' ')
+        .replace(/\s+/g,' ')
+        .replace(/\.+/g,'.');
+    }
+
+    function mapHeaders(headers){
+      const map = {};
+      headers.forEach((h, idx) => {
+        const k = normalizeHeader(h);
+        if (!k) return;
+
+        if (k === 'department' || k.startsWith('department ')) map.department = idx;
+        else if (k === 'course' || k.startsWith('course ')) map.course = idx;
+        else if (k.includes('semester no') || k.includes('semester number') || k === 'sem no' || k === 'sem no.') map.semester_no = idx;
+        else if (k.includes('semester title') || k === 'semester' || k === 'title') map.title = idx;
+        else if (k === 'code') map.code = idx;
+        else if (k === 'slug') map.slug = idx;
+      });
+      return map;
+    }
+
+    function findByNameOrId(list, value){
+      const v = (value ?? '').toString().trim();
+      if (!v) return null;
+
+      if (isIntString(v)){
+        return list.find(x => String(x.id) === v) || null;
+      }
+
+      const low = v.toLowerCase();
+      return list.find(x => {
+        const name = (x?.title || x?.name || x?.department_name || x?.course_title || '').toString().trim().toLowerCase();
+        return name === low;
+      }) || null;
+    }
+
+    function previewRows(rows, max=8){
+      if (!importPreview) return;
+      if (!rows.length){ importPreview.textContent = 'No rows found.'; return; }
+      const head = rows[0];
+      const body = rows.slice(1);
+      const shown = body.slice(0, max);
+
+      const lines = [];
+      lines.push(`Headers: ${head.join(' | ')}`);
+      lines.push(`Rows found: ${body.length}`);
+      lines.push('---');
+      shown.forEach((r, i) => lines.push(`${i+1}) ${r.join(' | ')}`));
+      if (body.length > max) lines.push(`...and ${body.length - max} more`);
+      importPreview.textContent = lines.join('\n');
+    }
+
+    function resetImportModal(){
+      if (importForm) importForm.reset();
+      if (importPreview) importPreview.textContent = 'No file selected.';
+      setSampleCsvLink();
+    }
+
+    btnImportCsv?.addEventListener('click', () => {
+      if (!canCreate) return;
+      resetImportModal();
+      importModal && importModal.show();
+    });
+
+    btnRebuildSample?.addEventListener('click', () => {
+      setSampleCsvLink();
+      ok('Sample CSV updated');
+    });
+
+    importCsvFile?.addEventListener('change', async () => {
+      const f = importCsvFile.files?.[0];
+      if (!f){ if (importPreview) importPreview.textContent = 'No file selected.'; return; }
+      try{
+        const txt = await f.text();
+        const rows = parseCsv(txt);
+        previewRows(rows);
+      }catch(_){
+        if (importPreview) importPreview.textContent = 'Failed to read file.';
+      }
+    });
+
+    async function createFromCsvRow(rowObj){
+      const deptValue = (rowObj.department || '').trim();
+      const courseValue = (rowObj.course || '').trim();
+      const semNo = (rowObj.semester_no || '').trim();
+      const title = (rowObj.title || '').trim();
+      const code = (rowObj.code || '').trim();
+      let slug = (rowObj.slug || '').trim();
+
+      if (!courseValue) throw new Error('Course is required');
+      if (!semNo || !/^\d+$/.test(semNo)) throw new Error('Semester No. must be a number');
+      if (!title) throw new Error('Semester Title is required');
+
+      const course = findByNameOrId(state.courses, courseValue);
+      if (!course) throw new Error(`Course not found: ${courseValue}`);
+
+      let dept = null;
+      if (deptValue){
+        dept = findByNameOrId(state.departments, deptValue);
+        if (!dept) throw new Error(`Department not found: ${deptValue}`);
+      }
+
+      if (!slug) slug = slugify(title);
+
+      const fd = new FormData();
+      fd.append('course_id', String(parseInt(String(course.id), 10)));
+      if (dept?.id) fd.append('department_id', String(parseInt(String(dept.id), 10)));
+
+      fd.append('semester_no', semNo);
+      fd.append('title', title);
+      if (code) fd.append('code', code);
+      if (slug) fd.append('slug', slug);
+
+      // default status active
+      fd.append('status', 'active');
+      fd.append('active', '1');
+      fd.append('is_active', '1');
+      fd.append('isActive', '1');
+
+      // description optional
+      fd.append('description', '');
+
+      const res = await fetchWithTimeout(API.create(), {
+        method: 'POST',
+        headers: authHeaders(),
+        body: fd
+      }, 20000);
+
+      const js = await res.json().catch(()=> ({}));
+      if (!res.ok || js.success === false){
+        let msg = js?.message || 'Import save failed';
+        if (js?.errors){
+          const k = Object.keys(js.errors)[0];
+          if (k && js.errors[k] && js.errors[k][0]) msg = js.errors[k][0];
+        }
+        throw new Error(msg);
+      }
+      return true;
+    }
+
+importForm?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+
+  if (!canCreate) return;
+
+  const f = importCsvFile?.files?.[0];
+  if (!f){ err('Please choose a CSV file'); return; }
+
+  const confirm = await Swal.fire({
+    title: 'Import semesters?',
+    html: `<div class="text-muted small">This will upload the CSV and import on server.</div>`,
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Start Import'
+  });
+  if (!confirm.isConfirmed) return;
+
+  setBtnLoading(btnDoImport, true);
+  showLoading(true);
+
+  try{
+    const fd = new FormData();
+    // your controller accepts 'csv' OR 'file'
+    fd.append('csv', f);
+
+    const res = await fetchWithTimeout(API.importCsv(), {
+      method: 'POST',
+      headers: authHeaders(), // DO NOT set Content-Type manually
+      body: fd
+    }, 60000); // import can take longer
+
+    const js = await res.json().catch(()=> ({}));
+    if (!res.ok || js.success === false){
+      throw new Error(js?.message || 'Import failed');
+    }
+
+    importModal && importModal.hide();
+    cleanupModalBackdrops();
+
+    // refresh lists
+    state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
+    await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
+
+    // ... after await Promise.all([loadTab(...)])
+
+const failed = Array.isArray(js.errors) ? js.errors : [];
+const failHtml = failed.length
+  ? `<div class="mt-3 text-start">
+      <div class="fw-semibold mb-2">Failed rows (${failed.length})</div>
+      <div style="max-height:220px;overflow:auto;border:1px solid rgba(0,0,0,.12);border-radius:10px;padding:10px;">
+        ${failed.map(f => `<div><code>Row ${esc(f.row)}</code> — ${esc(f.message)}</div>`).join('')}
+      </div>
+    </div>`
+  : `<div class="text-success mt-2"><i class="fa fa-check me-1"></i>All rows imported successfully.</div>`;
+
+// ✅ IMPORTANT: stop loaders BEFORE awaiting Swal
+setBtnLoading(btnDoImport, false);
+showLoading(false);
+
+await Swal.fire({
+  title: 'Import complete',
+  html: `
+    <div class="text-start">
+      <div>Inserted: <b>${js.inserted ?? 0}</b></div>
+      <div>Skipped: <b>${js.skipped ?? 0}</b></div>
+      <div>Failed: <b>${js.failed ?? 0}</b></div>
+      ${failHtml}
+    </div>
+  `,
+  icon: (js.failed ?? 0) ? 'warning' : 'success'
+});
+
+
+  }catch(ex){
+    err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
+  }finally{
+    setBtnLoading(btnDoImport, false);
+    showLoading(false);
+  }
+});
+
+
     // ---------- init ----------
     (async () => {
       showLoading(true);
       try{
         bindGlobalDropdownClosers();
+        setSampleCsvLink();
         await fetchMe();
         await Promise.all([loadDepartments(), loadCourses()]);
         await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
