@@ -165,6 +165,10 @@ body{margin:0;background:var(--ce-bg);color:var(--ce-text);}
 }
 .ce-device-btn.active { background: var(--ce-accent-light); color: var(--ce-accent); }
 .ce-device-btn i { font-size: 16px; }
+/* ✅ Default Section Padding (existing + new) */
+.ce-block[data-key^="ce-section-"] section{
+  padding:12px 0 !important;
+}
 
 /* Responsive canvas sizes */
 .ce-canvas.desktop { max-width: 100%; }
@@ -235,20 +239,20 @@ body{margin:0;background:var(--ce-bg);color:var(--ce-text);}
         <!-- =========================
              TEXT BASICS
         ========================== -->
-        <div class="ce-component" draggable="true" data-key="ce-personalized-greeting"
+        {{-- <div class="ce-component" draggable="true" data-key="ce-personalized-greeting"
           data-html="<p style='margin:0 0 12px 0; line-height:1.5; font-size:1rem;'>Hi %%first_name%%,</p>">
           <i class="fa-solid fa-hand-wave"></i> Personalized Greeting
-        </div>
+        </div> --}}
       
         <div class="ce-component" draggable="true" data-key="ce-heading"
           data-html="<h2 style='margin:0 0 12px 0;'>Your Heading</h2>">
           <i class="fa-solid fa-heading"></i> Heading
         </div>
       
-        <div class="ce-component" draggable="true" data-key="ce-subtitle"
+        {{-- <div class="ce-component" draggable="true" data-key="ce-subtitle"
           data-html="<h3 style='margin:0 0 12px 0;font-size:1.1rem;color:#374151;font-weight:600;'>Sub Title</h3>">
           <i class="fa-solid fa-heading"></i> Sub Title
-        </div>
+        </div> --}}
       
         <div class="ce-component" draggable="true" data-key="ce-paragraph"
           data-html="<p style='margin:0 0 12px 0;line-height:1.5;'>Your paragraph text goes here…</p>">
@@ -375,11 +379,12 @@ body{margin:0;background:var(--ce-bg);color:var(--ce-text);}
       
 
       <div class="ce-components-list" id="list-sections">
-        <div class="ce-component" draggable="true" data-key="ce-section-1" data-html="<section style='margin:0 auto;padding:0;'><div class='ce-section-slot-wrapper' style='width:100%!important;display:flex;justify-content:space-between;flex-wrap:wrap;'><div class='ce-section-slot' style='flex:1;min-width:100%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div></div></section>"><i class="fa-solid fa-square"></i> 1 Column</div>
-        <div class="ce-component" draggable="true" data-key="ce-section-2" data-html="<section style='margin:0 auto;padding:0;'><div class='ce-section-slot-wrapper' style='width:100%!important;display:flex;justify-content:space-between;flex-wrap:wrap;'><div class='ce-section-slot' style='flex:1;min-width:49%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1;min-width:49%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div></div></section>"><i class="fa-solid fa-table-columns"></i> 2 Columns</div>
-        <div class="ce-component" draggable="true" data-key="ce-section-3" data-html="<section style='margin:0 auto;padding:0;'><div class='ce-section-slot-wrapper' style='width:100%!important;display:flex;justify-content:space-between;flex-wrap:wrap;'><div class='ce-section-slot' style='flex:1;min-width:32%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1;min-width:32%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1;min-width:32%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div></div></section>"><i class="fa-solid fa-border-all"></i> 3 Columns</div>
-        <div class="ce-component" draggable="true" data-key="ce-section-4" data-html="<section style='margin:0 auto;padding:0;'><div class='ce-section-slot-wrapper' style='width:100%!important;display:flex;justify-content:space-between;flex-wrap:wrap;'><div class='ce-section-slot' style='flex:1;min-width:23%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1;min-width:23%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1;min-width:23%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1;min-width:23%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div></div></section>"><i class="fa-solid fa-grip-lines"></i> 4 Columns</div>
+        <div class="ce-component" draggable="true" data-key="ce-section-1" data-html="<section style='margin:0 auto;padding:12px 0;'><div class='ce-section-slot-wrapper' style='width:100%!important;display:flex;justify-content:space-between;flex-wrap:wrap;'><div class='ce-section-slot' style='flex:1;min-width:100%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div></div></section>"><i class='fa-solid fa-square'></i> 1 Column</div>
+        <div class="ce-component" draggable="true" data-key="ce-section-2" data-html="<section style='margin:0 auto;padding:12px 0;'><div class='ce-section-slot-wrapper' style='width:100%!important;display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;'><div class='ce-section-slot' style='flex:1 1 calc(50% - 8px);min-width:calc(50% - 8px);position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1 1 calc(50% - 8px);min-width:calc(50% - 8px);position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div></div></section>"><i class='fa-solid fa-table-columns'></i> 2 Columns</div>
+        <div class="ce-component" draggable="true" data-key="ce-section-3" data-html="<section style='margin:0 auto;padding:12px 0;'><div class='ce-section-slot-wrapper' style='width:100%!important;display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;'><div class='ce-section-slot' style='flex:1 1 calc(33.333% - 11px);min-width:calc(33.333% - 11px);position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1 1 calc(33.333% - 11px);min-width:calc(33.333% - 11px);position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1 1 calc(33.333% - 11px);min-width:calc(33.333% - 11px);position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div></div></section>"><i class='fa-solid fa-border-all'></i> 3 Columns</div>
+        <div class="ce-component" draggable="true" data-key="ce-section-4" data-html="<section style='margin:0 auto;padding:12px 0;'><div class='ce-section-slot-wrapper' style='width:100%!important;display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;'><div class='ce-section-slot' style='flex:1 1 calc(25% - 12px);min-width:calc(25% - 12px);position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1 1 calc(25% - 12px);min-width:calc(25% - 12px);position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1 1 calc(25% - 12px);min-width:calc(25% - 12px);position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1 1 calc(25% - 12px);min-width:calc(25% - 12px);position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div></div></section>"><i class='fa-solid fa-grip-lines'></i> 4 Columns</div>
       </div>
+      
     </aside>
   </div>
 </div>
@@ -423,17 +428,20 @@ let importedDocHead = '';
 
 (function(){
   const state = {
-    editEl:null,
-    outEl:null,
-    markerEl:null,
-    selectedBlock:null,
-    undoStack:[],
-    redoStack:[],
-    saving:false,
-    currentUnit: 'px',
-    currentDevice: 'desktop',
-    propTabByBlockId: {} /* ✅ keep active inspector tab per block */
-  };
+  editEl:null,
+  outEl:null,
+  markerEl:null,
+  selectedBlock:null,
+  undoStack:[],
+  redoStack:[],
+  saving:false,
+  currentUnit: 'px',
+  currentDevice: 'desktop',
+  propTabByBlockId: {},
+  popupEl: null,    
+  popupAnchor: null 
+};
+
 
   /* ===== HISTORY ===== */
   function pushHistory(){
@@ -599,13 +607,31 @@ let importedDocHead = '';
     block.addEventListener('dragstart', onDragStartBlock);
 
     // double click to edit table cell in place
-    block.addEventListener('dblclick', (e)=>{
-      const cell = e.target.closest('td,th');
-      if(!cell || !block.contains(cell)) return;
-      e.stopPropagation();
-      e.preventDefault();
-      enableCellEdit(cell);
-    });
+// ✅ double click to edit ANY text on canvas (and tables too)
+block.addEventListener('dblclick', (e)=>{
+  // ignore UI controls
+  if(isUI(e.target)) return;
+
+  // 1) table cells -> existing behavior
+  const cell = e.target.closest('td,th');
+  if(cell && block.contains(cell)){
+    e.stopPropagation();
+    e.preventDefault();
+    enableCellEdit(cell);
+    return;
+  }
+
+  // 2) all other text -> inline edit
+  const target = getEditableTargetFromDblClick(e.target);
+  if(!target || !block.contains(target)) return;
+
+  // prevent selecting block while editing
+  e.stopPropagation();
+  e.preventDefault();
+
+  enableInlineTextEdit(target);
+});
+
   }
 
   function bindAddInside(container){
@@ -617,76 +643,113 @@ let importedDocHead = '';
     });
   }
 
-  /* ===== ADD POPUP ===== */
+  /* ===== ADD POPUP (FIXED) ===== */
   function openAddPopup(anchor) {
-    closePopup();
+  closePopup(); // ✅ Close any existing popup before opening a new one
 
-    const items = Array.from(document.querySelectorAll('#list-elements .ce-component')).map(el => ({
-      key: el.dataset.key,
-      label: el.textContent.trim()
-    }));
+  state.popupAnchor = anchor;
 
-    const popup = document.createElement('div');
-    popup.className = 'ce-add-popup';
-    popup.innerHTML = `<h4>Add element</h4>${items.map(i => `<button data-key="${i.key}">${i.label}</button>`).join('')}`;
-    document.body.appendChild(popup);
+  const items = Array.from(document.querySelectorAll('#list-elements .ce-component')).map(el => ({
+    key: el.dataset.key,
+    label: el.textContent.trim()
+  }));
 
-    const rect = anchor.getBoundingClientRect();
-    const margin = 6;
-    let top = rect.bottom + window.scrollY + margin;
-    let left = rect.left + window.scrollX;
+  const popup = document.createElement('div');
+  popup.className = 'ce-add-popup';
+  popup.innerHTML = `<h4>Add element</h4>${items
+    .map(i => `<button type="button" data-key="${i.key}">${i.label}</button>`)
+    .join('')}`;
+  document.body.appendChild(popup);
 
+  state.popupEl = popup;
+
+  const rect = anchor.getBoundingClientRect();
+  const margin = 6;
+
+  let top = rect.bottom + window.scrollY + margin;
+  let left = rect.left + window.scrollX;
+
+  popup.style.top = top + 'px';
+  popup.style.left = left + 'px';
+
+  // ✅ Measure after positioning
+  const popupHeight = popup.offsetHeight;
+  const viewportBottom = window.scrollY + window.innerHeight;
+
+  // ✅ Flip up if overflowing bottom
+  if (top + popupHeight > viewportBottom) {
+    top = rect.top + window.scrollY - popupHeight - margin;
+    // ✅ Clamp if still too high
+    if (top < window.scrollY + margin) top = window.scrollY + margin;
     popup.style.top = top + 'px';
-    popup.style.left = left + 'px';
+  }
 
-    const popupHeight = popup.offsetHeight;
-    const viewportBottom = window.scrollY + window.innerHeight;
+  // ✅ Prevent outside-close firing when clicking inside popup
+  popup.addEventListener('pointerdown', e => e.stopPropagation());
 
-    if (top + popupHeight > viewportBottom) {
-      top = rect.top + window.scrollY - popupHeight - margin;
-      popup.style.top = top + 'px';
+  popup.addEventListener('click', e => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+
+    const key = btn.dataset.key;
+    const data = getComponentDataByKey(key);
+    if (!data) return;
+
+    pushHistory();
+
+    if (key === 'ce-html') {
+      const html = prompt('Enter custom HTML:', '<div>Custom</div>');
+      if (html !== null) data.html = html;
+      else { closePopup(); return; }
     }
 
-    popup.addEventListener('click', e => {
-      if (e.target.tagName === 'BUTTON') {
-        const key = e.target.dataset.key;
-        const data = getComponentDataByKey(key);
-        if (!data) return;
+    const block = createBlock(data.html, data.key);
 
-        pushHistory();
+    // ✅ Always detect correct slot when clicked from Section Add-content
+    let slot = null;
+    const sectionSlot = anchor.closest('.ce-section-slot');
+    if (sectionSlot) slot = sectionSlot.querySelector('.ce-slot');
 
-        if (key === 'ce-html') {
-          const html = prompt('Enter custom HTML:', '<div>Custom</div>');
-          if (html !== null) data.html = html;
-          else { closePopup(); return; }
-        }
+    slot =
+      slot ||
+      anchor.previousElementSibling ||
+      anchor.parentElement.querySelector('.ce-slot') ||
+      anchor.parentElement ||
+      state.editEl;
 
-        const block = createBlock(data.html, data.key);
+    slot.appendChild(block);
 
-        let slot = null;
-        const sectionSlot = anchor.closest('.ce-section-slot');
-        if (sectionSlot) slot = sectionSlot.querySelector('.ce-slot');
-        slot = slot || anchor.previousElementSibling || anchor.parentElement.querySelector('.ce-slot') || anchor.parentElement || state.editEl;
+    closePopup();
+    syncExport();
+  });
 
-        slot.appendChild(block);
-        closePopup();
-        syncExport();
-      }
-    });
+  // ✅ Attach outside close AFTER current click finishes
+  setTimeout(() => {
+    document.addEventListener('pointerdown', closePopup, { once: true });
+  }, 0);
+}
 
-    popup.addEventListener('click', e => e.stopPropagation());
-    document.addEventListener('click', closePopup, { once: true });
+function closePopup(e) {
+  const p = state.popupEl || document.querySelector('.ce-add-popup');
+  if (!p) return;
+
+  // ✅ If clicked inside popup or on the same anchor -> ignore
+  if (e) {
+    if (p.contains(e.target)) return;
+    if (state.popupAnchor && state.popupAnchor.contains && state.popupAnchor.contains(e.target)) return;
   }
 
-  function closePopup(){
-    const p=document.querySelector('.ce-add-popup');
-    if(p) p.remove();
-  }
-  function getComponentDataByKey(key){
-    const el=document.querySelector(`.ce-component[data-key="${key}"]`);
-    if(!el) return null;
-    return {key:el.dataset.key, html:el.dataset.html};
-  }
+  p.remove();
+  state.popupEl = null;
+  state.popupAnchor = null;
+}
+
+function getComponentDataByKey(key) {
+  const el = document.querySelector(`.ce-component[data-key="${key}"]`);
+  if (!el) return null;
+  return { key: el.dataset.key, html: el.dataset.html };
+}
+
 
   /* ===== INSPECTOR ===== */
   function renderInspector(block){
@@ -732,7 +795,17 @@ let importedDocHead = '';
 
     const contentHTML=getInnerHTMLWithoutUI(block);
     const tagNames=['H1','H2','H3','H4','H5','H6','P','A','SPAN','BUTTON','LI'];
-    const textNodes=block.querySelectorAll(tagNames.join(','));
+    const textNodes = getOutermostTextNodes(block);
+
+    function getOutermostTextNodes(block){
+      // only “main” text containers (NOT span/a inside them)
+      const selector = 'h1,h2,h3,h4,h5,h6,p,figcaption';
+      const all = Array.from(block.querySelectorAll(selector));
+
+      // keep only the highest-level ones (skip nested)
+      return all.filter(el => !el.parentElement.closest(selector));
+    }
+
 
     const unitToggle = document.createElement('div');
     unitToggle.className = 'ce-unit-toggle';
@@ -796,48 +869,49 @@ block.querySelectorAll('a').forEach((el,i)=>{
     }
   }
 
-/* === styling/content helpers === */
-    function addAlignField(panel, block){
-    // ✅ read current align from actual block
-    const cs = getComputedStyle(block);
-    let currentAlign = (block.style.textAlign || cs.textAlign || 'left').toLowerCase();
-    if(!['left','center','right'].includes(currentAlign)) currentAlign = 'left';
- 
-    const field = document.createElement('div');
-    field.className = 'ce-field';
-    field.innerHTML = `
-      <label>Horizontal Align</label>
-      <div class="ce-align-group">
-        <button class="ce-align-btn ${currentAlign === 'left' ? 'active' : ''}" data-align="left"><i class="fa-solid fa-align-left"></i></button>
-        <button class="ce-align-btn ${currentAlign === 'center' ? 'active' : ''}" data-align="center"><i class="fa-solid fa-align-center"></i></button>
-        <button class="ce-align-btn ${currentAlign === 'right' ? 'active' : ''}" data-align="right"><i class="fa-solid fa-align-right"></i></button>
-      </div>
-    `;
- 
-    field.querySelectorAll('.ce-align-btn').forEach(b => {
-      b.addEventListener('click', () => {
-        pushHistory();
-        const align = b.dataset.align;
- 
-        field.querySelectorAll('.ce-align-btn').forEach(x => x.classList.remove('active'));
-        b.classList.add('active');
- 
-        // ✅ actually apply alignment
-        block.style.textAlign = align;
- 
-        // ✅ special cases (buttons/images often need inline-block to respect text-align)
-        block.querySelectorAll('a, button, img, figure').forEach(el=>{
-          if(el.closest('.cs-social-links')) return; // keep social editor separate
-          const d = getComputedStyle(el).display;
-          if(d === 'inline' || d === 'inline-flex') el.style.display = 'inline-block';
-        });
- 
-        syncExport();
+  /* === styling/content helpers === */
+  function addAlignField(panel, block){
+  // ✅ read current align from actual block
+  const cs = getComputedStyle(block);
+  let currentAlign = (block.style.textAlign || cs.textAlign || 'left').toLowerCase();
+  if(!['left','center','right'].includes(currentAlign)) currentAlign = 'left';
+
+  const field = document.createElement('div');
+  field.className = 'ce-field';
+  field.innerHTML = `
+    <label>Horizontal Align</label>
+    <div class="ce-align-group">
+      <button class="ce-align-btn ${currentAlign === 'left' ? 'active' : ''}" data-align="left"><i class="fa-solid fa-align-left"></i></button>
+      <button class="ce-align-btn ${currentAlign === 'center' ? 'active' : ''}" data-align="center"><i class="fa-solid fa-align-center"></i></button>
+      <button class="ce-align-btn ${currentAlign === 'right' ? 'active' : ''}" data-align="right"><i class="fa-solid fa-align-right"></i></button>
+    </div>
+  `;
+
+  field.querySelectorAll('.ce-align-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      pushHistory();
+      const align = b.dataset.align;
+
+      field.querySelectorAll('.ce-align-btn').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+
+      // ✅ actually apply alignment
+      block.style.textAlign = align;
+
+      // ✅ special cases (buttons/images often need inline-block to respect text-align)
+      block.querySelectorAll('a, button, img, figure').forEach(el=>{
+        if(el.closest('.cs-social-links')) return; // keep social editor separate
+        const d = getComputedStyle(el).display;
+        if(d === 'inline' || d === 'inline-flex') el.style.display = 'inline-block';
       });
+
+      syncExport();
     });
- 
-    panel.appendChild(field);
-  } 
+  });
+
+  panel.appendChild(field);
+}
+
 
   function addSpacingField(panel, block){
     const cs=getComputedStyle(block);
@@ -1031,28 +1105,65 @@ block.querySelectorAll('a').forEach((el,i)=>{
     panel.appendChild(field);
   }
 
-  function addButtonContentField(panel, el, idx) {
+    function addButtonContentField(panel, el, idx) {
+    // Helper: ensure link has a dedicated label node so we can edit text safely
+    function ensureLabelNode(aEl) {
+      let label = aEl.querySelector('[data-ce-label]');
+      if (label) return label;
+
+      // collect existing text nodes (preserve icons/other elements)
+      const textNodes = Array.from(aEl.childNodes).filter(n => n.nodeType === 3);
+
+      const combinedText = textNodes.map(n => n.textContent).join('').trim();
+      textNodes.forEach(n => n.remove());
+
+      label = document.createElement('span');
+      label.setAttribute('data-ce-label', '1');
+      label.textContent = combinedText || aEl.textContent.trim() || 'Click me';
+
+      // append label at end (keeps any existing <i> icons etc.)
+      aEl.appendChild(label);
+      return label;
+    }
+
+    const labelNode = ensureLabelNode(el);
+
     const field = document.createElement('div');
     field.className = 'ce-field';
     field.innerHTML = `
-      <label>Link ${idx+1} URL</label>
-      <input type="text" class="ce-btn-link-url" placeholder="https://example.com" value="${el.getAttribute('href')||''}" />
+      <label>Button ${idx + 1} Text</label>
+      <input type="text" class="ce-btn-link-text" value="${(labelNode.textContent || '').trim()}" />
+
+      <label style="margin-top:10px;">Link ${idx + 1} URL</label>
+      <input type="text" class="ce-btn-link-url" placeholder="https://example.com" value="${el.getAttribute('href') || ''}" />
+
       <div style="margin-top:8px;">
         <label style="display:flex;gap:8px;align-items:center;">
-          <input type="checkbox" class="ce-btn-link-target" ${el.target === '_blank' ? 'checked' : ''}/>
+          <input type="checkbox" class="ce-btn-link-target" ${el.getAttribute('target') === '_blank' ? 'checked' : ''}/>
           Open in new tab
         </label>
       </div>
     `;
+
+    const textInput = field.querySelector('.ce-btn-link-text');
     const urlInput = field.querySelector('.ce-btn-link-url');
     const targetCheckbox = field.querySelector('.ce-btn-link-target');
 
+    // ✅ Button text editing
+    textInput.addEventListener('input', e => {
+      pushHistory();
+      labelNode.textContent = e.target.value;
+      syncExport();
+    });
+
+    // Existing URL editing
     urlInput.addEventListener('input', e => {
       pushHistory();
       el.setAttribute('href', e.target.value);
       syncExport();
     });
 
+    // Existing target editing
     targetCheckbox.addEventListener('change', e => {
       pushHistory();
       if (e.target.checked) {
@@ -1067,6 +1178,7 @@ block.querySelectorAll('a').forEach((el,i)=>{
 
     panel.appendChild(field);
   }
+
 
   function addImageStyleEditors(panel, block){
     const imgs=block.querySelectorAll('img');
@@ -1097,31 +1209,45 @@ block.querySelectorAll('a').forEach((el,i)=>{
     });
   }
 
-  function addTextEditors(panel, nodes) {
+    function addTextEditors(panel, nodes) {
     nodes.forEach((node, idx) => {
       if (isUI(node)) return;
       if (node.classList && node.classList.contains('ce-tag')) return;
       if (node.closest && node.closest('.cs-social-links')) return;
 
+      // ✅ IMPORTANT FIX: skip LI (list items will be handled by addListEditors)
+      if (node.tagName === 'LI') return;
+
       const wrap = document.createElement('div');
       wrap.className = 'ce-field';
       wrap.innerHTML = `
         <label>Text ${idx + 1}</label>
+
         <div class="ce-text-toolbar">
           <button type="button" data-cmd="bold"><b>B</b></button>
           <button type="button" data-cmd="italic"><i>I</i></button>
           <button type="button" data-cmd="underline"><u>U</u></button>
           <button type="button" data-cmd="strikethrough"><s>S</s></button>
+
+          <!-- ✅ NEW: List Buttons -->
+          <button type="button" data-cmd="insertUnorderedList" title="Bullet List">• List</button>
+          <button type="button" data-cmd="insertOrderedList" title="Numbered List">1. List</button>
+
           <button type="button" data-cmd="createLink">🔗</button>
           <input type="color" data-cmd="foreColor" title="Text color">
+
           <div class="ce-font-controls">
             <select data-cmd="fontName">
               <option value="Arial">Arial</option>
+              <option value="Book Antiqua">Book Antiqua</option>
+              <option value="Cambria">Cambria</option>
+              <option value="Century Schoolbook">Century Schoolbook</option>
               <option value="Georgia">Georgia</option>
               <option value="Tahoma">Tahoma</option>
               <option value="Times New Roman">Times New Roman</option>
               <option value="Verdana">Verdana</option>
             </select>
+
             <select data-cmd="fontSize">
               <option value="1">10px</option>
               <option value="2">13px</option>
@@ -1133,17 +1259,21 @@ block.querySelectorAll('a').forEach((el,i)=>{
             </select>
           </div>
         </div>
+
         <div class="ce-text-area" contenteditable="true">${node.innerHTML}</div>
       `;
 
+      // ✅ Buttons work automatically (UL/OL will work too)
       wrap.querySelectorAll('.ce-text-toolbar button').forEach(btn => {
         btn.addEventListener('click', () => {
           const cmd = btn.dataset.cmd;
           let val = null;
+
           if (cmd === 'createLink') {
             val = prompt('Enter URL:', 'https://');
             if (!val) return;
           }
+
           document.execCommand(cmd, false, val);
           wrap.querySelector('.ce-text-area').focus();
         });
@@ -1167,45 +1297,148 @@ block.querySelectorAll('a').forEach((el,i)=>{
     });
   }
 
+
+
   function addListEditors(panel, block){
     const lists = block.querySelectorAll('ul,ol');
     lists.forEach((list, idx)=>{
       if(isUI(list)) return;
-      const field=document.createElement('div');field.className='ce-field';
-      field.innerHTML=`<label>List ${idx+1} Items</label>
-        <div class="ce-list-items" style="margin-bottom:6px;"></div>
-        <button type="button" class="ce-btn-sm ce-primary ce-add-li"><i class="fa-solid fa-plus"></i> Add item</button>`;
+
+      const field=document.createElement('div');
+      field.className='ce-field';
+      field.innerHTML=`
+        <label>List ${idx+1} Items</label>
+        <div class="ce-list-items" style="display:flex;flex-direction:column;gap:10px;margin-bottom:8px;"></div>
+        <button type="button" class="ce-btn-sm ce-primary ce-add-li">
+          <i class="fa-solid fa-plus"></i> Add item
+        </button>
+      `;
+
       const itemsWrap = field.querySelector('.ce-list-items');
 
-      function makeRow(li){
-        const row=document.createElement('div');row.style.display='flex';row.style.gap='6px';row.style.marginBottom='4px';
-        row.innerHTML=`<input type="text" value="${li.textContent}" style="flex:1;">
-          <button type="button" class="ce-btn-sm ce-del-li"><i class="fa-solid fa-trash"></i></button>`;
-        row.querySelector('input').addEventListener('input',e=>{
-          pushHistory(); li.textContent=e.target.value; syncExport();
+      function makeEditorRow(li){
+        const row = document.createElement('div');
+        row.style.border = '1px solid var(--ce-border)';
+        row.style.borderRadius = '6px';
+        row.style.padding = '8px';
+        row.style.background = '#fff';
+
+        row.innerHTML = `
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+            <strong style="font-size:12px;">Item</strong>
+            <button type="button" class="ce-btn-sm ce-del-li" style="margin-left:auto;">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </div>
+
+          <div class="ce-text-toolbar">
+            <button type="button" data-cmd="bold"><b>B</b></button>
+            <button type="button" data-cmd="italic"><i>I</i></button>
+            <button type="button" data-cmd="underline"><u>U</u></button>
+            <button type="button" data-cmd="strikethrough"><s>S</s></button>
+
+            <!-- ✅ NEW: List buttons inside LI editor -->
+            <button type="button" data-cmd="insertUnorderedList" title="Bullet List">• List</button>
+            <button type="button" data-cmd="insertOrderedList" title="Numbered List">1. List</button>
+
+            <button type="button" data-cmd="createLink">🔗</button>
+            <input type="color" data-cmd="foreColor" title="Text color">
+
+            <div class="ce-font-controls">
+              <select data-cmd="fontName">
+                <option value="Arial">Arial</option>
+                <option value="Book Antiqua">Book Antiqua</option>
+                <option value="Cambria">Cambria</option>
+                <option value="Century Schoolbook">Century Schoolbook</option>
+                <option value="Georgia">Georgia</option>
+                <option value="Tahoma">Tahoma</option>
+                <option value="Times New Roman">Times New Roman</option>
+                <option value="Verdana">Verdana</option>
+              </select>
+
+              <select data-cmd="fontSize">
+                <option value="1">10px</option>
+                <option value="2">13px</option>
+                <option value="3" selected>16px</option>
+                <option value="4">18px</option>
+                <option value="5">24px</option>
+                <option value="6">32px</option>
+                <option value="7">48px</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="ce-text-area ce-li-editor" contenteditable="true">${li.innerHTML}</div>
+        `;
+
+        const editor = row.querySelector('.ce-li-editor');
+
+        // Toolbar actions
+        row.querySelectorAll('.ce-text-toolbar button').forEach(btn=>{
+          btn.addEventListener('click', ()=>{
+            editor.focus();
+            const cmd = btn.dataset.cmd;
+            let val = null;
+
+            if(cmd === 'createLink'){
+              val = prompt('Enter URL:', 'https://');
+              if(!val) return;
+            }
+
+            document.execCommand(cmd, false, val);
+            editor.focus();
+          });
         });
-        row.querySelector('.ce-del-li').addEventListener('click',()=>{
-          pushHistory(); li.remove(); row.remove(); syncExport();
+
+        row.querySelectorAll('.ce-text-toolbar select, .ce-text-toolbar input[type="color"]').forEach(ctrl=>{
+          ctrl.addEventListener('change', e=>{
+            editor.focus();
+            document.execCommand(ctrl.dataset.cmd, false, e.target.value);
+            editor.focus();
+          });
         });
+
+        // Live sync to LI HTML
+        let armed=false;
+        editor.addEventListener('input', ()=>{
+          if(!armed){ pushHistory(); armed=true; }
+          li.innerHTML = editor.innerHTML;
+          syncExport();
+        });
+        editor.addEventListener('blur', ()=>{ armed=false; });
+
+        // Delete
+        row.querySelector('.ce-del-li').addEventListener('click', ()=>{
+          pushHistory();
+          li.remove();
+          row.remove();
+          syncExport();
+        });
+
         return row;
       }
 
+      // Build existing items
       Array.from(list.children).forEach(li=>{
-        if(li.tagName!=='LI') return;
-        itemsWrap.appendChild(makeRow(li));
+        if(li.tagName !== 'LI') return;
+        itemsWrap.appendChild(makeEditorRow(li));
       });
 
-      field.querySelector('.ce-add-li').addEventListener('click',()=>{
+      // Add item (✅ creates editor also)
+      field.querySelector('.ce-add-li').addEventListener('click', ()=>{
         pushHistory();
-        const li=document.createElement('li');li.textContent='New item';
+        const li=document.createElement('li');
+        li.innerHTML = 'New item';
         list.appendChild(li);
-        itemsWrap.appendChild(makeRow(li));
+        itemsWrap.appendChild(makeEditorRow(li));
         syncExport();
       });
 
       panel.appendChild(field);
     });
   }
+
+
 
   function addImageContentEditors(panel, block){
     const imgs=block.querySelectorAll('img');
@@ -1900,6 +2133,115 @@ block.querySelectorAll('a').forEach((el,i)=>{
     return td;
   }
 
+  /* ✅ Double-click inline editing for ANY text on canvas */
+function isSafeInlineTextContainer(el){
+  if(!el || el === state.editEl) return false;
+  if(isUI(el)) return false;
+  if(el.closest('.ce-block-handle') || el.classList?.contains('ce-add-inside')) return false;
+  if(el.classList?.contains('ce-block')) return false;     // never make wrapper editable
+  if(el.classList?.contains('ce-slot')) return false;      // slot container should not be edited
+
+  // If user double-clicks inside a complex container, choose a sensible text container
+  const okTags = ['H1','H2','H3','H4','H5','H6','P','LI','FIGCAPTION','A','BUTTON','SPAN','DIV'];
+  if(!okTags.includes(el.tagName)) return false;
+
+  // Avoid editing containers that contain other big blocks (prevents breaking layout)
+  // Allow DIV only if it doesn't contain other block-level tags
+  if(el.tagName === 'DIV'){
+    const bad = el.querySelector('h1,h2,h3,h4,h5,h6,p,ul,ol,table,section,article,figure,blockquote');
+    if(bad) return false;
+  }
+
+  // Must have some text or allow typing into empty
+  return true;
+}
+
+function getEditableTargetFromDblClick(startEl){
+  if(!startEl) return null;
+
+  // If clicking inside a table cell, table editor handles it
+  const cell = startEl.closest && startEl.closest('td,th');
+  if(cell) return cell;
+
+  // Otherwise, walk up to find a safe text container
+  let el = startEl;
+  while(el && el !== state.editEl){
+    if(isSafeInlineTextContainer(el)) return el;
+    el = el.parentElement;
+  }
+
+  // Fallback: if you double-click on a container with text, try its first text child
+  const b = getClosestBlock(startEl);
+  if(b){
+    const candidate = b.querySelector('h1,h2,h3,h4,h5,h6,p,li,figcaption,a,button,span');
+    if(candidate && isSafeInlineTextContainer(candidate)) return candidate;
+  }
+  return null;
+}
+
+function enableInlineTextEdit(el){
+  if(!el) return;
+
+  // Table cells are handled by enableCellEdit()
+  if(el.matches && el.matches('td,th')) return;
+
+  if(el.getAttribute('contenteditable') === 'true') return;
+
+  pushHistory();
+
+  const original = el.innerHTML;
+
+  el.setAttribute('contenteditable','true');
+  el.setAttribute('spellcheck','true');
+  el.dataset.ceEditing = '1';
+
+  // place caret at end
+  try{
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    r.collapse(false);
+    const s = window.getSelection();
+    s.removeAllRanges();
+    s.addRange(r);
+  }catch(_){}
+
+  el.focus();
+
+  const onKey = (e)=>{
+    // ESC = cancel changes
+    if(e.key === 'Escape'){
+      e.preventDefault();
+      el.innerHTML = original;
+      el.blur();
+      return;
+    }
+
+    // ENTER behavior:
+    // - Headings: Enter finishes edit
+    // - Others: allow newline with Shift+Enter, normal Enter finishes
+    const isHeading = /^H[1-6]$/.test(el.tagName);
+    if(e.key === 'Enter' && !e.shiftKey){
+      if(isHeading){
+        e.preventDefault();
+        el.blur();
+      }
+    }
+  };
+
+  const finish = ()=>{
+    el.removeAttribute('contenteditable');
+    delete el.dataset.ceEditing;
+
+    el.removeEventListener('keydown', onKey);
+    el.removeEventListener('blur', finish);
+
+    syncExport();
+  };
+
+  el.addEventListener('keydown', onKey);
+  el.addEventListener('blur', finish);
+}
+
   function makeHeaderCellLike(sample){
     const th = document.createElement('th');
     th.textContent = 'Header';
@@ -2013,93 +2355,289 @@ block.querySelectorAll('a').forEach((el,i)=>{
 
   /* ✅ Table: styling + header toggle + add row/col (restored) */
   function addTableEditors(panel, stylePanel, block){
-    const table = block.querySelector('table.ce-table, table');
-    if(!table || isUI(table)) return;
+  const table = block.querySelector('table.ce-table, table');
+  if(!table || isUI(table)) return;
 
-    const firstCell = table.querySelector('th,td');
-    const cellCS = firstCell ? getComputedStyle(firstCell) : null;
-    const bColor = cellCS ? rgb2hex(cellCS.borderColor) : '#e5e7eb';
-    const bWidth = cellCS ? (parseInt(cellCS.borderWidth,10)||1) : 1;
-    const pad    = cellCS ? (parseInt(cellCS.paddingTop,10)||10) : 10;
+  const firstCell = table.querySelector('th,td');
+  const cellCS = firstCell ? getComputedStyle(firstCell) : null;
+  const bColor = cellCS ? rgb2hex(cellCS.borderColor) : '#e5e7eb';
+  const bWidth = cellCS ? (parseInt(cellCS.borderWidth,10)||1) : 1;
+  const pad    = cellCS ? (parseInt(cellCS.paddingTop,10)||10) : 10;
 
-    const styleField = document.createElement('div');
-    styleField.className='ce-field';
-    styleField.innerHTML = `
-      <label>Table Styling</label>
-      <div style="display:flex;gap:6px;align-items:center;">
-        <input type="number" min="0" value="${bWidth}" style="width:70px;" title="Border width (px)">
-        <input type="color" value="${bColor}" title="Border color" style="width:34px;height:34px;padding:0;border:none;">
-        <input type="number" min="0" value="${pad}" style="width:90px;" title="Cell padding (px)">
-        <button type="button" class="ce-btn-sm" id="ceTblToggleHead" style="margin-left:auto;">
-          <i class="fa-solid fa-heading"></i> Header
-        </button>
-      </div>
-    `;
-    const [bwInp, bcInp, padInp] = styleField.querySelectorAll('input');
+  // =========================
+  // Table Styling (same)
+  // =========================
+  const styleField = document.createElement('div');
+  styleField.className='ce-field';
+  styleField.innerHTML = `
+    <label>Table Styling</label>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <input type="number" min="0" value="${bWidth}" style="width:70px;" title="Border width (px)">
+      <input type="color" value="${bColor}" title="Border color" style="width:34px;height:34px;padding:0;border:none;">
+      <input type="number" min="0" value="${pad}" style="width:90px;" title="Cell padding (px)">
+      <button type="button" class="ce-btn-sm" id="ceTblToggleHead" style="margin-left:auto;">
+        <i class="fa-solid fa-heading"></i> Header
+      </button>
+    </div>
+  `;
+  const [bwInp, bcInp, padInp] = styleField.querySelectorAll('input');
 
-    bwInp.addEventListener('input', e=>{
-      pushHistory();
-      const v = parseInt(e.target.value||'0',10) || 0;
-      table.querySelectorAll('th,td').forEach(c=>{
-        c.style.borderWidth = v+'px';
-        c.style.borderStyle = c.style.borderStyle || 'solid';
-        c.style.borderColor = c.style.borderColor || bcInp.value;
-      });
-      syncExport();
+  bwInp.addEventListener('input', e=>{
+    pushHistory();
+    const v = parseInt(e.target.value||'0',10) || 0;
+    table.querySelectorAll('th,td').forEach(c=>{
+      c.style.borderWidth = v+'px';
+      c.style.borderStyle = c.style.borderStyle || 'solid';
+      c.style.borderColor = c.style.borderColor || bcInp.value;
     });
+    syncExport();
+  });
 
-    bcInp.addEventListener('input', e=>{
-      pushHistory();
-      table.querySelectorAll('th,td').forEach(c=>{
-        c.style.borderColor = e.target.value;
-        c.style.borderStyle = c.style.borderStyle || 'solid';
-        c.style.borderWidth = c.style.borderWidth || (bwInp.value+'px');
-      });
-      syncExport();
+  bcInp.addEventListener('input', e=>{
+    pushHistory();
+    table.querySelectorAll('th,td').forEach(c=>{
+      c.style.borderColor = e.target.value;
+      c.style.borderStyle = c.style.borderStyle || 'solid';
+      c.style.borderWidth = c.style.borderWidth || (bwInp.value+'px');
     });
+    syncExport();
+  });
 
-    padInp.addEventListener('input', e=>{
-      pushHistory();
-      const v = parseInt(e.target.value||'0',10) || 0;
-      table.querySelectorAll('th,td').forEach(c=>c.style.padding = v+'px');
-      syncExport();
-    });
+  padInp.addEventListener('input', e=>{
+    pushHistory();
+    const v = parseInt(e.target.value||'0',10) || 0;
+    table.querySelectorAll('th,td').forEach(c=>c.style.padding = v+'px');
+    syncExport();
+  });
 
-    styleField.querySelector('#ceTblToggleHead').addEventListener('click', ()=>{
+  styleField.querySelector('#ceTblToggleHead').addEventListener('click', ()=>{
+    pushHistory();
+    toggleTableHeader(table);
+    syncExport();
+    renderInspector(block);
+  });
+
+  stylePanel.appendChild(styleField);
+
+  // =========================
+  // Rows / Cols (same)
+  // =========================
+  const ctrl = document.createElement('div');
+  ctrl.className='ce-field';
+  ctrl.innerHTML = `
+    <label>Table Rows / Columns</label>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      <button type="button" class="ce-btn-sm" data-act="addRow"><i class="fa-solid fa-plus"></i> Row</button>
+      <button type="button" class="ce-btn-sm" data-act="delRow"><i class="fa-solid fa-minus"></i> Row</button>
+      <button type="button" class="ce-btn-sm" data-act="addCol"><i class="fa-solid fa-plus"></i> Col</button>
+      <button type="button" class="ce-btn-sm" data-act="delCol"><i class="fa-solid fa-minus"></i> Col</button>
+    </div>
+    <div class="ce-muted" style="padding:6px 0 0 0;">Tip: click any cell to edit in inspector.</div>
+  `;
+  ctrl.querySelectorAll('button[data-act]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const act = btn.dataset.act;
       pushHistory();
-      toggleTableHeader(table);
+      if(act==='addRow') tableAddRow(table);
+      if(act==='delRow') tableDelRow(table);
+      if(act==='addCol') tableAddCol(table);
+      if(act==='delCol') tableDelCol(table);
       syncExport();
       renderInspector(block);
     });
+  });
+  panel.appendChild(ctrl);
 
-    stylePanel.appendChild(styleField);
+  // =========================
+  // ✅ Cell editor (AUTO works on click)
+  // =========================
 
-    const ctrl = document.createElement('div');
-    ctrl.className='ce-field';
-    ctrl.innerHTML = `
-      <label>Table Rows / Columns</label>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;">
-        <button type="button" class="ce-btn-sm" data-act="addRow"><i class="fa-solid fa-plus"></i> Row</button>
-        <button type="button" class="ce-btn-sm" data-act="delRow"><i class="fa-solid fa-minus"></i> Row</button>
-        <button type="button" class="ce-btn-sm" data-act="addCol"><i class="fa-solid fa-plus"></i> Col</button>
-        <button type="button" class="ce-btn-sm" data-act="delCol"><i class="fa-solid fa-minus"></i> Col</button>
+  // avoid duplicating editor when renderInspector() is called repeatedly
+  if(panel.querySelector('.ce-table-editor-wrap')) return;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'ce-field ce-table-editor-wrap';
+  wrap.innerHTML = `
+    <label>Table Cell Editor</label>
+
+    <div class="ce-muted ce-cell-hint" style="margin:-2px 0 8px 0;">
+      Click a cell to edit its content here.
+    </div>
+
+    <div class="ce-text-toolbar ce-cell-toolbar" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+      <button type="button" data-cmd="bold"><b>B</b></button>
+      <button type="button" data-cmd="italic"><i>I</i></button>
+      <button type="button" data-cmd="underline"><u>U</u></button>
+      <button type="button" data-cmd="strikethrough"><s>S</s></button>
+
+      <button type="button" data-cmd="insertUnorderedList" title="Bullet List">• List</button>
+      <button type="button" data-cmd="insertOrderedList" title="Numbered List">1. List</button>
+
+      <button type="button" data-cmd="createLink" title="Insert link">🔗</button>
+      <input type="color" data-cmd="foreColor" title="Text color">
+
+      <div class="ce-font-controls" style="display:flex;gap:6px;align-items:center;">
+        <select data-cmd="fontName">
+          <option value="Arial">Arial</option>
+          <option value="Book Antiqua">Book Antiqua</option>
+          <option value="Cambria">Cambria</option>
+          <option value="Century Schoolbook">Century Schoolbook</option>
+          <option value="Georgia">Georgia</option>
+          <option value="Tahoma">Tahoma</option>
+          <option value="Times New Roman">Times New Roman</option>
+          <option value="Verdana">Verdana</option>
+        </select>
+
+        <select data-cmd="fontSize">
+          <option value="1">10px</option>
+          <option value="2">13px</option>
+          <option value="3" selected>16px</option>
+          <option value="4">18px</option>
+          <option value="5">24px</option>
+          <option value="6">32px</option>
+          <option value="7">48px</option>
+        </select>
       </div>
-      <div class="ce-muted" style="padding:6px 0 0 0;">Tip: double-click any cell to edit inside canvas.</div>
-    `;
-    ctrl.querySelectorAll('button[data-act]').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        const act = btn.dataset.act;
-        pushHistory();
-        if(act==='addRow') tableAddRow(table);
-        if(act==='delRow') tableDelRow(table);
-        if(act==='addCol') tableAddCol(table);
-        if(act==='delCol') tableDelCol(table);
-        syncExport();
-        renderInspector(block);
-      });
-    });
-    panel.appendChild(ctrl);
+    </div>
+
+    <div class="ce-text-area ce-cell-editor" contenteditable="true"
+         style="min-height:110px;border:1px solid var(--line-strong,#e5e7eb);border-radius:10px;padding:10px;outline:none;">
+    </div>
+  `;
+  panel.appendChild(wrap);
+
+  const cellEditor  = wrap.querySelector('.ce-cell-editor');
+  const cellHint    = wrap.querySelector('.ce-cell-hint');
+  const colorInp    = wrap.querySelector('input[data-cmd="foreColor"]');
+  const fontNameSel = wrap.querySelector('select[data-cmd="fontName"]');
+  const fontSizeSel = wrap.querySelector('select[data-cmd="fontSize"]');
+
+  // Keep active cell reference IN BLOCK so re-render keeps it
+  if(!block.__ceTbl) block.__ceTbl = {};
+  const state = block.__ceTbl;
+
+  const ensureActiveCellStyle = ()=>{
+    if(document.getElementById('ceActiveCellStyle')) return;
+    const st = document.createElement('style');
+    st.id = 'ceActiveCellStyle';
+    st.textContent = `.ce-active-cell{outline:2px solid rgba(201,75,80,.55); outline-offset:-2px;}`;
+    document.head.appendChild(st);
+  };
+  ensureActiveCellStyle();
+
+  const clearActiveCellUI = ()=>{
+    table.querySelectorAll('th,td').forEach(c=>c.classList.remove('ce-active-cell'));
+  };
+
+  const setActiveCell = (cell)=>{
+    if(!cell) return;
+    state.activeCell = cell;
+
+    clearActiveCellUI();
+    cell.classList.add('ce-active-cell');
+
+    cellEditor.innerHTML = cell.innerHTML || '';
+    cellHint.textContent = `Editing ${cell.tagName.toLowerCase()} (click another cell to switch).`;
+
+    // ✅ auto put caret in editor end
+    cellEditor.focus();
+    placeCaretAtEnd(cellEditor);
+  };
+
+  // helper to place caret end (no selection bugs)
+  function placeCaretAtEnd(el){
+    try{
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      range.collapse(false);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }catch(_){}
   }
+
+  // commit helper
+  let typingTimer = null;
+  const commitCell = (withHistory)=>{
+    const cell = state.activeCell;
+    if(!cell) return;
+    if(withHistory) pushHistory();
+    cell.innerHTML = cellEditor.innerHTML;
+    syncExport();
+  };
+
+  // ✅ Important fix:
+  // 1) Only bind click handler once per table (avoid duplicate listeners)
+  // 2) Do not lose click due to contenteditable focus / selection
+  if(!state.bound){
+    state.bound = true;
+
+    table.addEventListener('mousedown', (e)=>{
+      const cell = e.target.closest('th,td');
+      if(!cell || !table.contains(cell) || isUI(cell)) return;
+
+      // Prevent selection inside table from stealing focus on quick click
+      // (but allow double click editing inside canvas if you want)
+      e.preventDefault();
+
+      setActiveCell(cell);
+    });
+  }
+
+  // If inspector re-rendered, re-attach UI to previously active cell
+  if(state.activeCell && table.contains(state.activeCell)){
+    setActiveCell(state.activeCell);
+  } else {
+    // auto select first cell so editor is "auto working" even before click
+    const c0 = table.querySelector('th,td');
+    if(c0) setActiveCell(c0);
+  }
+
+  // Editor typing -> write back
+  cellEditor.addEventListener('input', ()=>{
+    if(!state.activeCell) return;
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(()=>commitCell(true), 200);
+  });
+
+  // toolbar exec helper
+  const execOnCellEditor = (cmd, value=null)=>{
+    if(!state.activeCell) return;
+    cellEditor.focus();
+
+    if(cmd === 'createLink'){
+      const url = prompt('Enter URL:', 'https://');
+      if(!url) return;
+      pushHistory();
+      document.execCommand('createLink', false, url);
+      commitCell(false);
+      return;
+    }
+
+    pushHistory();
+    document.execCommand(cmd, false, value);
+    commitCell(false);
+  };
+
+  wrap.querySelectorAll('.ce-cell-toolbar button[data-cmd]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      execOnCellEditor(btn.dataset.cmd);
+    });
+  });
+
+  colorInp.addEventListener('input', (e)=>{
+    execOnCellEditor('foreColor', e.target.value);
+  });
+
+  fontNameSel.addEventListener('change', (e)=>{
+    execOnCellEditor('fontName', e.target.value);
+  });
+
+  fontSizeSel.addEventListener('change', (e)=>{
+    execOnCellEditor('fontSize', e.target.value);
+  });
+}
+
 
   /* ✅ Table Content Editor (fix: edit cell text + header text) */
   function addTableContentEditors(panel, block){

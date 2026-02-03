@@ -20,148 +20,70 @@
         .page-content { padding: 2rem 0; min-height: 70vh; }
 
         /* ===== Sidebar (hallienz-ish) ===== */
-        .hallienz-side{
-            border-radius: 18px;
-            overflow: hidden;
-            background: var(--surface, #fff);
-            border: 1px solid var(--line-strong, #e6c8ca);
-            box-shadow: var(--shadow-2, 0 8px 22px rgba(0,0,0,.08));
-        }
-        .hallienz-side__head{
-            background: var(--primary-color, #9E363A);
-            color: #fff;
-            font-weight: 700;
-            padding: 14px 16px;
-            font-size: 20px;
-            letter-spacing: .2px;
-        }
-        .hallienz-side__list{
-            margin: 0;
-            padding: 6px 0 0;
-            list-style: none;
-            border-bottom: 0.5rem solid #9E363A;
-        }
+        .hallienz-side{border-radius: 18px;overflow: hidden;background: var(--surface, #fff);border: 1px solid var(--line-strong, #e6c8ca);box-shadow: var(--shadow-2, 0 8px 22px rgba(0,0,0,.08));}
+        .hallienz-side__head{background: var(--primary-color, #9E363A);color: #fff;font-weight: 700;padding: 14px 16px;font-size: 20px;letter-spacing: .2px;}
+        .hallienz-side__list{margin: 0;padding: 6px 0 0;list-style: none;border-bottom: 0.5rem solid #9E363A;}
         .hallienz-side__item{ position: relative; }
 
         .hallienz-side__row{ display:flex; align-items:stretch; }
 
-        .hallienz-side__link{
-            flex: 1 1 auto;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 10px 14px;
-            text-decoration: none;
-            color: #0b5ed7;
-            border-bottom: 1px dotted rgba(0,0,0,.18);
-            transition: background .25s ease, color .25s ease;
-            min-width: 0;
-        }
-        .hallienz-side__link:hover{
-            background: rgba(158, 54, 58, .06);
-            color: var(--primary-color, #9E363A);
-        }
-        .hallienz-side__link.active{
-            background: rgba(158, 54, 58, .10);
-            color: var(--primary-color, #9E363A);
-            font-weight: 700;
-        }
-        .hallienz-side__text{
-            display:block;
-            overflow:hidden;
-            text-overflow:ellipsis;
-            white-space:nowrap;
-        }
+        .hallienz-side__link{flex: 1 1 auto;display: flex;align-items: center;gap: 12px;padding: 10px 14px;text-decoration: none;color: #0b5ed7;border-bottom: 1px dotted rgba(0,0,0,.18);transition: background .25s ease, color .25s ease;min-width: 0;}
+        .hallienz-side__link:hover{background: rgba(158, 54, 58, .06);color: var(--primary-color, #9E363A);}
+        .hallienz-side__link.active{background: rgba(158, 54, 58, .10);color: var(--primary-color, #9E363A);font-weight: 700;}
+        .hallienz-side__text{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
-        .hallienz-side__toggle{
-            flex: 0 0 auto;
-            width: 44px;
-            display:inline-flex;
-            align-items:center;
-            justify-content:center;
-            border: none;
-            background: transparent;
-            color: rgba(0,0,0,.55);
-            border-bottom: 1px dotted rgba(0,0,0,.18);
-            transition: background .25s ease, color .25s ease, transform .25s ease;
-            cursor:pointer;
-        }
-        .hallienz-side__toggle:hover{
-            background: rgba(158, 54, 58, .06);
-            color: var(--primary-color, #9E363A);
-        }
+        .hallienz-side__toggle{flex: 0 0 auto;width: 44px;display:inline-flex;align-items:center;justify-content:center;border: none;background: transparent;color: rgba(0,0,0,.55);border-bottom: 1px dotted rgba(0,0,0,.18);transition: background .25s ease, color .25s ease, transform .25s ease;cursor:pointer;}
+        .hallienz-side__toggle:hover{background: rgba(158, 54, 58, .06);color: var(--primary-color, #9E363A);}
         .hallienz-side__toggle i{ transition: transform .22s ease; }
         .hallienz-side__item.open > .hallienz-side__row .hallienz-side__toggle i{ transform: rotate(90deg); }
 
-        .hallienz-side__children{
-            list-style:none;
-            margin: 0;
-            padding: 0;
-            display:none;
-            border-bottom: 1px dotted rgba(0,0,0,.18);
-            background: rgba(158, 54, 58, .03);
-        }
+        .hallienz-side__children{list-style:none;margin: 0;padding: 0;display:none;border-bottom: 1px dotted rgba(0,0,0,.18);background: rgba(158, 54, 58, .03);}
         .hallienz-side__item.open > .hallienz-side__children{ display:block; }
 
-        .hallienz-side__children .hallienz-side__link{
-            border-bottom: 1px dotted rgba(0,0,0,.14);
-            font-size: 14px;
-        }
-        .hallienz-side__children .hallienz-side__toggle{
-            border-bottom: 1px dotted rgba(0,0,0,.14);
-        }
+        .hallienz-side__children .hallienz-side__link{border-bottom: 1px dotted rgba(0,0,0,.14);font-size: 14px;}
+        .hallienz-side__children .hallienz-side__toggle{border-bottom: 1px dotted rgba(0,0,0,.14);}
 
-        /* =========================================================
-           ✅ CHANGE: Hover-to-open ALL children (no click needed)
-           - Works for infinite levels
-           - Keeps click-toggle as fallback for touch devices
-        ========================================================== */
         @media (hover:hover) and (pointer:fine){
-            .hallienz-side__item:hover .hallienz-side__children{
-                display:block;
-            }
-            .hallienz-side__item:hover > .hallienz-side__row .hallienz-side__toggle i{
-                transform: rotate(90deg);
-            }
+            .hallienz-side__item:hover .hallienz-side__children{display:block;}
+            .hallienz-side__item:hover > .hallienz-side__row .hallienz-side__toggle i{transform: rotate(90deg);}
         }
 
         /* ===== Content Card ===== */
-        .dp-card{
-            border-radius: 18px;
-            background: var(--surface, #fff);
-            border: 1px solid var(--line-strong, #e6c8ca);
-            box-shadow: var(--shadow-2, 0 8px 22px rgba(0,0,0,.08));
-            padding: 18px;
-        }
-
-        .dp-title{
-            font-weight: 800;
-            margin: 0 0 12px;
-            color: var(--ink, #111);
-            text-align: center;
-        }
-
+        .dp-card{border-radius: 18px;background: var(--surface, #fff);border: 1px solid var(--line-strong, #e6c8ca);box-shadow: var(--shadow-2, 0 8px 22px rgba(0,0,0,.08));padding: 18px;}
+        .dp-title{font-weight: 800;margin: 0 0 12px;color: var(--ink, #111);text-align: center;}
         .dp-muted{ color: var(--muted-color, #6b7280); font-size: 13px; margin-bottom: 12px; }
         .dp-loading{ padding: 28px 0; text-align: center; color: var(--muted-color, #6b7280); }
+        .dp-iframe{border:1px solid rgba(0,0,0,.1);border-radius:12px;overflow:hidden;}
 
-        .dp-iframe{
-            border:1px solid rgba(0,0,0,.1);
-            border-radius:12px;
-            overflow:hidden;
-        }
-
-        /* =========================================================
-           ✅ Smart Sticky Columns (desktop only)
-        ========================================================== */
         :root{ --dp-sticky-top: 16px; }
 
         @media (min-width: 992px){
-            .dp-sticky{
-                position: sticky;
-                top: var(--dp-sticky-top, 16px);
-                z-index: 2;
-            }
+            .dp-sticky{position: sticky;top: var(--dp-sticky-top, 16px);z-index: 2;}
         }
+
+        @media (max-width: 991.98px){
+            #sidebarCol.dp-side-preload{ display:none !important; }
+        }
+
+        .dp-skel-wrap{ padding: 12px 12px 14px; border-bottom: 0.5rem solid #9E363A; background: rgba(158, 54, 58, .02); }
+        .dp-skel-stack{ display:grid; gap: 10px; }
+        .dp-skel-line{position: relative;height: 14px;border-radius: 12px;overflow: hidden;background: rgba(0,0,0,.08);}
+        .dp-skel-line.sm{ height: 12px; }
+        .dp-skel-line.lg{ height: 18px; }
+        .dp-skel-line::after{content:"";position:absolute;inset:0;transform: translateX(-120%);background: linear-gradient(90deg, transparent, rgba(255,255,255,.65), transparent);animation: dpShimmer 1.15s infinite;}
+
+        @keyframes dpShimmer{
+            0%{ transform: translateX(-120%); }
+            100%{ transform: translateX(120%); }
+        }
+
+        @media (prefers-reduced-motion: reduce){
+            .dp-skel-line::after{ animation: none; }
+        }
+
+        html.theme-dark .dp-skel-wrap{ background: rgba(255,255,255,.03); }
+        html.theme-dark .dp-skel-line{ background: rgba(255,255,255,.10); }
+        html.theme-dark .dp-skel-line::after{background: linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent);}
     </style>
 </head>
 <body>
@@ -179,15 +101,34 @@
     <div class="container">
         <div class="row g-4 align-items-start" id="dpRow">
             {{-- Sidebar --}}
-            <aside class="col-lg-3 d-none" id="sidebarCol" aria-label="Page Sidebar">
+            {{-- ✅ Reserve space on desktop to avoid full-width → shrink.
+                Starts in "preload" mode (skeleton), then:
+                - if sidebar exists → render tree & show
+                - if no sidebar → hide column & expand content --}}
+            <aside class="col-12 col-lg-3 dp-side-preload" id="sidebarCol" aria-label="Page Sidebar">
                 <div class="hallienz-side" id="sidebarCard">
                     <div class="hallienz-side__head" id="sidebarHeading">Menu</div>
-                    <ul class="hallienz-side__list" id="submenuList"></ul>
+
+                    {{-- ✅ Real list (hidden until loaded) --}}
+                    <ul class="hallienz-side__list d-none" id="submenuList"></ul>
+
+                    {{-- ✅ Skeleton list while page submenus are loading --}}
+                    <div id="submenuSkeleton" class="dp-skel-wrap" aria-hidden="true">
+                        <div class="dp-skel-stack">
+                            <div class="dp-skel-line lg" style="width:72%;"></div>
+                            <div class="dp-skel-line" style="width:92%;"></div>
+                            <div class="dp-skel-line" style="width:84%;"></div>
+                            <div class="dp-skel-line" style="width:88%;"></div>
+                            <div class="dp-skel-line" style="width:78%;"></div>
+                            <div class="dp-skel-line sm" style="width:60%;"></div>
+                        </div>
+                    </div>
                 </div>
             </aside>
 
             {{-- Content --}}
-            <section class="col-12" id="contentCol">
+            {{-- ✅ Start as col-lg-9 so width doesn't jump on desktop --}}
+            <section class="col-12 col-lg-9" id="contentCol">
                 <div class="dp-card" id="contentCard">
                     <div class="dp-loading" id="pageLoading">
                         <div class="spinner-border" role="status" aria-label="Loading"></div>
@@ -311,9 +252,41 @@
     const contentCol  = document.getElementById('contentCol');
     const submenuList = document.getElementById('submenuList');
     const sidebarHead = document.getElementById('sidebarHeading');
+    const submenuSkeleton = document.getElementById('submenuSkeleton');
 
     const sidebarCard = document.getElementById('sidebarCard') || (sidebarCol ? sidebarCol.querySelector('.hallienz-side') : null);
     const contentCard = document.getElementById('contentCard') || (contentCol ? contentCol.querySelector('.dp-card') : null);
+
+    /* =========================================================
+       ✅ Skeleton helpers (only affects sidebar preload visuals)
+    ========================================================= */
+    function showSidebarSkeleton(){
+        try{
+            if (submenuSkeleton) submenuSkeleton.classList.remove('d-none');
+            if (submenuList) submenuList.classList.add('d-none');
+        }catch(e){}
+    }
+
+    function hideSidebarSkeleton(){
+        try{
+            if (submenuSkeleton) submenuSkeleton.classList.add('d-none');
+            if (submenuList) submenuList.classList.remove('d-none');
+        }catch(e){}
+    }
+
+    function resetSidebarPreloadState(){
+        // reserve desktop space immediately so content doesn't jump
+        try{
+            if (sidebarCol){
+                sidebarCol.classList.remove('d-none');
+                sidebarCol.classList.add('dp-side-preload');
+            }
+            if (contentCol){
+                contentCol.className = 'col-12 col-lg-9';
+            }
+            showSidebarSkeleton();
+        }catch(e){}
+    }
 
     function setMeta(text){
         const t = String(text || '').trim();
@@ -1083,6 +1056,9 @@
 
     // ✅ UPDATED: loadSidebarIfAny now respects backend fallback scope.header_menu_id
     async function loadSidebarIfAny(page){
+        // ✅ show sidebar skeleton while tree loads
+        showSidebarSkeleton();
+
         const pageId   = pick(page, ['id']);
         const pageSlug = pick(page, ['slug']);
 
@@ -1093,7 +1069,10 @@
         const headerMenuRequested = headerMenuFromUrl > 0 ? headerMenuFromUrl : headerMenuFromPage;
 
         if (!pageId && !pageSlug && !headerMenuRequested){
+            // no sidebar possible
+            hideSidebarSkeleton();
             sidebarCol.classList.add('d-none');
+            sidebarCol.classList.remove('dp-side-preload');
             contentCol.className = 'col-12';
             scheduleStickyUpdate();
             return { hasSidebar:false, firstSubmenuSlug:'' };
@@ -1110,7 +1089,10 @@
         const r = await fetchJsonWithStatus(treeUrl.toString());
 
         if (!r.ok) {
+            // hide sidebar on failure, expand content
+            hideSidebarSkeleton();
             sidebarCol.classList.add('d-none');
+            sidebarCol.classList.remove('dp-side-preload');
             contentCol.className = 'col-12';
             scheduleStickyUpdate();
             return { hasSidebar:false, firstSubmenuSlug:'' };
@@ -1138,13 +1120,18 @@
         nodes = filterTreeByHeaderMenuId(nodes, headerMenuEffective);
 
         if (!nodes.length) {
+            // no sidebar items: hide column & expand content
+            hideSidebarSkeleton();
             sidebarCol.classList.add('d-none');
+            sidebarCol.classList.remove('dp-side-preload');
             contentCol.className = 'col-12';
             scheduleStickyUpdate();
             return { hasSidebar:false, firstSubmenuSlug:'' };
         }
 
+        // sidebar exists: show & render
         sidebarCol.classList.remove('d-none');
+        sidebarCol.classList.remove('dp-side-preload');
         contentCol.className = 'col-12 col-lg-9';
 
         submenuList.innerHTML = '';
@@ -1155,6 +1142,9 @@
         renderTree(nodes, '', submenuList, 0);
 
         const firstSubmenuSlug = findFirstSubmenuSlug(nodes);
+
+        // ✅ switch from skeleton to real list
+        hideSidebarSkeleton();
 
         scheduleStickyUpdate();
 
@@ -1202,12 +1192,20 @@
         hideError();
         setupStickyObservers();
 
+        // ✅ reset layout preload state every init (including popstate)
+        resetSidebarPreloadState();
+
         const slugCandidate = getSlugCandidate();
         const currentLower = toLowerSafe(slugCandidate);
 
         if (!slugCandidate) {
             elLoading.classList.add('d-none');
             showError("No page slug provided. Use /link/page/<slug>  OR  /page/<slug>  OR  ?slug=about-us");
+            // no sidebar when slug missing
+            hideSidebarSkeleton();
+            sidebarCol.classList.add('d-none');
+            sidebarCol.classList.remove('dp-side-preload');
+            contentCol.className = 'col-12';
             scheduleStickyUpdate();
             return;
         }
@@ -1222,6 +1220,11 @@
 
         if (!page) {
             showNotFound(slugCandidate);
+            // no sidebar if page not found
+            hideSidebarSkeleton();
+            sidebarCol.classList.add('d-none');
+            sidebarCol.classList.remove('dp-side-preload');
+            contentCol.className = 'col-12';
             scheduleStickyUpdate();
             return;
         }
@@ -1275,6 +1278,11 @@
     init().catch((e) => {
         console.error(e);
         showError(e?.message || 'Something went wrong.');
+        // fail safe: hide sidebar preload
+        hideSidebarSkeleton();
+        sidebarCol.classList.add('d-none');
+        sidebarCol.classList.remove('dp-side-preload');
+        contentCol.className = 'col-12';
         scheduleStickyUpdate();
     });
 
@@ -1287,6 +1295,11 @@
         init().catch((e) => {
             console.error(e);
             showError(e?.message || 'Something went wrong.');
+            // fail safe: hide sidebar preload
+            hideSidebarSkeleton();
+            sidebarCol.classList.add('d-none');
+            sidebarCol.classList.remove('dp-side-preload');
+            contentCol.className = 'col-12';
             scheduleStickyUpdate();
         });
     });
