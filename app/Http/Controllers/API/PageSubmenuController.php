@@ -1166,15 +1166,99 @@ if (array_key_exists('page_slug', $data)) {
         return response()->json(['success' => true, 'message' => 'Order updated']);
     }
 
+// public function publicTree(Request $r)
+// {
+//     $onlyTopLevel = (int) $r->query('top_level', 0) === 1;
+
+//     $pageId = $this->resolvePageIdFromRequest($r);
+//     $headerMenuId = $this->resolveHeaderMenuIdFromRequest($r);
+
+//     // ✅ NEW: allow header_menu_id as main scope
+//     if ($pageId <= 0 && $headerMenuId <= 0) {
+//         return response()->json([
+//             'error' => 'Missing page_id/page_slug OR header_menu_id'
+//         ], 422);
+//     }
+
+//     if ($pageId > 0) {
+//         $this->validatePage($pageId);
+//     }
+
+//     if (Schema::hasColumn($this->table, 'header_menu_id') && $headerMenuId > 0) {
+//         $this->validateHeaderMenu($headerMenuId);
+//     } else {
+//         $headerMenuId = 0;
+//     }
+
+//     $q = DB::table($this->table)
+//         ->whereNull('deleted_at')
+//         ->where('active', true);
+
+//     // ✅ MAIN SCOPE: header_menu_id
+//     if ($headerMenuId > 0 && Schema::hasColumn($this->table, 'header_menu_id')) {
+//         $q->where('header_menu_id', $headerMenuId);
+
+//         // ✅ If pageId exists -> allow both page-level + header-level (page_id NULL)
+//         if ($pageId > 0) {
+//             $q->where(function ($x) use ($pageId) {
+//                 $x->where('page_id', $pageId)
+//                   ->orWhereNull('page_id');
+//             });
+//         } else {
+//             // header-only scope
+//             $q->whereNull('page_id');
+//         }
+//     }
+//     else {
+//         // ✅ fallback: page scope only (old behavior)
+//         if ($pageId > 0) {
+//             $q->where('page_id', $pageId);
+//         } else {
+//             $q->whereNull('page_id');
+//         }
+//     }
+
+//     if ($onlyTopLevel) {
+//         $q->whereNull('parent_id');
+//     }
+
+//     $rows = $q->orderBy('position', 'asc')
+//               ->orderBy('id', 'asc')
+//               ->get();
+
+//     // build tree
+//     $byParent = [];
+//     foreach ($rows as $row) {
+//         $pid = $row->parent_id ?? 0;
+//         $byParent[$pid][] = $row;
+//     }
+
+//     $make = function ($pid) use (&$make, &$byParent) {
+//         $nodes = $byParent[$pid] ?? [];
+//         foreach ($nodes as $n) {
+//             $n->children = $make($n->id);
+//         }
+//         return $nodes;
+//     };
+
+//     return response()->json([
+//         'success' => true,
+//         'scope'   => [
+//             'page_id' => $pageId ?: null,
+//             'header_menu_id' => $headerMenuId ?: null,
+//         ],
+//         'data' => $make(0),
+//     ]);
+// }
 public function publicTree(Request $r)
 {
     $onlyTopLevel = (int) $r->query('top_level', 0) === 1;
 
     $pageId = $this->resolvePageIdFromRequest($r);
-    $headerMenuId = $this->resolveHeaderMenuIdFromRequest($r);
+    $requestedHeaderMenuId = $this->resolveHeaderMenuIdFromRequest($r);
 
     // ✅ NEW: allow header_menu_id as main scope
-    if ($pageId <= 0 && $headerMenuId <= 0) {
+    if ($pageId <= 0 && $requestedHeaderMenuId <= 0) {
         return response()->json([
             'error' => 'Missing page_id/page_slug OR header_menu_id'
         ], 422);
@@ -1184,19 +1268,24 @@ public function publicTree(Request $r)
         $this->validatePage($pageId);
     }
 
-    if (Schema::hasColumn($this->table, 'header_menu_id') && $headerMenuId > 0) {
+    $hasHeaderCol = Schema::hasColumn($this->table, 'header_menu_id');
+
+    $headerMenuId = $requestedHeaderMenuId;
+    if ($hasHeaderCol && $headerMenuId > 0) {
         $this->validateHeaderMenu($headerMenuId);
     } else {
         $headerMenuId = 0;
     }
 
-    $q = DB::table($this->table)
-        ->whereNull('deleted_at')
-        ->where('active', true);
-
-    // ✅ MAIN SCOPE: header_menu_id
-    if ($headerMenuId > 0 && Schema::hasColumn($this->table, 'header_menu_id')) {
-        $q->where('header_menu_id', $headerMenuId);
+    /**
+     * Helper: build the exact query for a given header_menu_id (and current pageId rules)
+     * Keeps behavior same as current code.
+     */
+    $buildQueryForHeader = function (int $hmId) use ($pageId, $onlyTopLevel) {
+        $q = DB::table($this->table)
+            ->whereNull('deleted_at')
+            ->where('active', true)
+            ->where('header_menu_id', $hmId);
 
         // ✅ If pageId exists -> allow both page-level + header-level (page_id NULL)
         if ($pageId > 0) {
@@ -1208,23 +1297,75 @@ public function publicTree(Request $r)
             // header-only scope
             $q->whereNull('page_id');
         }
-    }
-    else {
+
+        if ($onlyTopLevel) {
+            $q->whereNull('parent_id');
+        }
+
+        return $q->orderBy('position', 'asc')
+                 ->orderBy('id', 'asc');
+    };
+
+    $rows = collect();
+    $resolvedHeaderMenuId = $headerMenuId;
+
+    /**
+     * ✅ NEW: header_menu_id fallback chain
+     * If current header_menu_id has NO submenus (in the same scope),
+     * try parent header_menu_id, then grand-parent, etc.
+     */
+    if ($hasHeaderCol && $headerMenuId > 0) {
+
+        $visited = [];
+        $hmId = $headerMenuId;
+
+        while ($hmId > 0 && !isset($visited[$hmId])) {
+            $visited[$hmId] = true;
+
+            $candidate = $buildQueryForHeader($hmId)->get();
+
+            if ($candidate->count() > 0) {
+                $rows = $candidate;
+                $resolvedHeaderMenuId = $hmId;
+                break;
+            }
+
+            // move to parent header menu
+            $parentId = DB::table('header_menus')
+                ->where('id', $hmId)
+                ->whereNull('deleted_at')
+                ->value('parent_id');
+
+            $hmId = $parentId ? (int) $parentId : 0;
+        }
+
+        // If nothing found up the chain, keep empty rows and resolvedHeaderMenuId = original headerMenuId
+        if ($rows->count() === 0) {
+            $resolvedHeaderMenuId = $headerMenuId;
+        }
+
+    } else {
         // ✅ fallback: page scope only (old behavior)
+        $q = DB::table($this->table)
+            ->whereNull('deleted_at')
+            ->where('active', true);
+
         if ($pageId > 0) {
             $q->where('page_id', $pageId);
         } else {
             $q->whereNull('page_id');
         }
-    }
 
-    if ($onlyTopLevel) {
-        $q->whereNull('parent_id');
-    }
+        if ($onlyTopLevel) {
+            $q->whereNull('parent_id');
+        }
 
-    $rows = $q->orderBy('position', 'asc')
-              ->orderBy('id', 'asc')
-              ->get();
+        $rows = $q->orderBy('position', 'asc')
+                  ->orderBy('id', 'asc')
+                  ->get();
+
+        $resolvedHeaderMenuId = 0;
+    }
 
     // build tree
     $byParent = [];
@@ -1245,7 +1386,10 @@ public function publicTree(Request $r)
         'success' => true,
         'scope'   => [
             'page_id' => $pageId ?: null,
-            'header_menu_id' => $headerMenuId ?: null,
+            // keep backward compat key (now shows the header actually used for response)
+            'header_menu_id' => $resolvedHeaderMenuId ?: null,
+            // helpful debug (doesn't break existing key)
+            'requested_header_menu_id' => $requestedHeaderMenuId ?: null,
         ],
         'data' => $make(0),
     ]);

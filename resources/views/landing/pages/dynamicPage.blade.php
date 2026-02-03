@@ -117,11 +117,9 @@
            - Keeps click-toggle as fallback for touch devices
         ========================================================== */
         @media (hover:hover) and (pointer:fine){
-            /* Hover any parent: show its full subtree */
             .hallienz-side__item:hover .hallienz-side__children{
                 display:block;
             }
-            /* Rotate arrow on hover like "open" */
             .hallienz-side__item:hover > .hallienz-side__row .hallienz-side__toggle i{
                 transform: rotate(90deg);
             }
@@ -136,7 +134,6 @@
             padding: 18px;
         }
 
-        /* ✅ Title centered */
         .dp-title{
             font-weight: 800;
             margin: 0 0 12px;
@@ -154,11 +151,7 @@
         }
 
         /* =========================================================
-           ✅ CHANGE: Smart Sticky Columns (desktop only)
-           - If sidebar is taller -> stick RIGHT content card
-           - If content is taller -> stick LEFT sidebar card
-           - Uses JS to also set min-height of the shorter column
-             so sticky actually works even with align-items-start
+           ✅ Smart Sticky Columns (desktop only)
         ========================================================== */
         :root{ --dp-sticky-top: 16px; }
 
@@ -201,16 +194,13 @@
                         <div class="mt-2" id="loadingText">Loading page…</div>
                     </div>
 
-                    {{-- fallback error box --}}
                     <div id="pageError" class="alert alert-danger d-none mb-0"></div>
 
-                    {{-- Not Found Partial Holder --}}
                     <div id="pageNotFoundWrap" class="d-none">
                         @include('partials.pageNotFound')
                     </div>
 
                     <div id="pageWrap" class="d-none">
-                        {{-- ✅ meta hidden (slug/shortcode removed) --}}
                         <div class="dp-muted d-none" id="pageMeta"></div>
 
                         <h1 class="dp-title" id="pageTitle">Dynamic Page</h1>
@@ -230,6 +220,7 @@
 @php
   $apiBase = rtrim(url('/api'), '/');
 @endphp
+
 <script>
 (function(){
     const API_BASE  = @json($apiBase);
@@ -287,7 +278,7 @@
     })();
 
     // ------------------------------------------------------------------
-    // ✅ FIX: read header_menu_id from URL query (?header_menu_id=1)
+    // ✅ read header_menu_id from URL query (?header_menu_id=1)
     // ------------------------------------------------------------------
     function readHeaderMenuIdFromUrl(){
         try{
@@ -321,7 +312,6 @@
     const submenuList = document.getElementById('submenuList');
     const sidebarHead = document.getElementById('sidebarHeading');
 
-    // ✅ CHANGE: sticky targets
     const sidebarCard = document.getElementById('sidebarCard') || (sidebarCol ? sidebarCol.querySelector('.hallienz-side') : null);
     const contentCard = document.getElementById('contentCard') || (contentCol ? contentCol.querySelector('.dp-card') : null);
 
@@ -407,7 +397,6 @@
         return m ? decodeURIComponent(m[1]) : '';
     }
 
-    // ✅ Supports: /link/page/institute OR /page/institute
     function getSlugCandidate(){
         const qs = new URLSearchParams(window.location.search);
         const qSlug = qs.get('slug') || qs.get('page_slug') || qs.get('selfslug') || qs.get('shortcode');
@@ -439,7 +428,7 @@
     }
 
     // ------------------------------------------------------------------
-    // ✅ CHANGE: Smart Sticky Columns (sidebar/content auto)
+    // ✅ Smart Sticky Columns
     // ------------------------------------------------------------------
     let __dpStickyRaf = 0;
     let __dpStickyRO  = null;
@@ -466,11 +455,9 @@
     }
 
     function computeStickyTop(){
-        // default gap inside content area
         let top = 16;
 
         try{
-            // Sum visible fixed/sticky headers at top (cap to avoid overcount)
             const nodes = Array.from(document.querySelectorAll('.fixed-top, .sticky-top, header, nav'));
             const used = new Set();
             let sum = 0;
@@ -509,7 +496,6 @@
 
         computeStickyTop();
 
-        // Clear min-heights for accurate measurement
         sidebarCol.style.minHeight = '';
         contentCol.style.minHeight = '';
 
@@ -518,16 +504,13 @@
 
         resetStickyMode();
 
-        // tiny differences -> no sticky needed
         const THRESH = 40;
         if (!sH || !cH || Math.abs(sH - cH) < THRESH) return;
 
         if (sH > cH){
-            // Sidebar is taller => stick RIGHT content card
             contentCol.style.minHeight = sH + 'px';
             contentCard.classList.add('dp-sticky');
         } else {
-            // Content is taller => stick LEFT sidebar card
             sidebarCol.style.minHeight = cH + 'px';
             sidebarCard.classList.add('dp-sticky');
         }
@@ -598,7 +581,11 @@
         return parts.length ? ('?' + parts.join('&')) : '';
     }
 
-    // ✅ FIX: keep header_menu_id ALWAYS when pushing submenu state
+    /**
+     * ✅ IMPORTANT CHANGE (for new publicTree response):
+     * - Keep REQUESTED header_menu_id in URL (so header highlights stay correct)
+     * - Use EFFECTIVE header_menu_id (from API scope) for all API calls (render/tree)
+     */
     function pushUrlStateSubmenu(submenuSlug, deptTokenMaybe){
         const u = new URL(window.location.href);
 
@@ -608,12 +595,16 @@
 
         const params = new URLSearchParams(u.search);
 
-        // ✅ ensure header_menu_id stays even if it was missing
-        const hm = (window.__DP_PAGE_SCOPE__ && window.__DP_PAGE_SCOPE__.header_menu_id)
-            ? parseInt(window.__DP_PAGE_SCOPE__.header_menu_id || 0, 10)
-            : readHeaderMenuIdFromUrl();
-        if (hm > 0 && !params.get('header_menu_id')) {
-            params.set('header_menu_id', String(hm));
+        // keep requested header menu id in URL if present.
+        // If missing, set it from requested_header_menu_id (fallback to effective, then url).
+        const hmRequested =
+            (window.__DP_PAGE_SCOPE__ && parseInt(window.__DP_PAGE_SCOPE__.requested_header_menu_id || 0, 10)) ||
+            readHeaderMenuIdFromUrl() ||
+            (window.__DP_PAGE_SCOPE__ && parseInt(window.__DP_PAGE_SCOPE__.header_menu_id || 0, 10)) ||
+            0;
+
+        if (hmRequested > 0 && !params.get('header_menu_id')) {
+            params.set('header_menu_id', String(hmRequested));
         }
 
         const deptTokenFinal = (deptTokenMaybe && isDeptToken(deptTokenMaybe))
@@ -663,7 +654,6 @@
         return map;
     }
 
-    // ✅ FIX: resolvePublicPage now supports header_menu_id
     async function resolvePublicPage(slug, headerMenuId = 0){
         const raw = String(slug || '').trim();
         if (!raw) return null;
@@ -671,7 +661,7 @@
         const u = new URL(API_BASE + '/public/pages/resolve', window.location.origin);
         u.searchParams.set('slug', raw);
 
-        // ✅ attach header_menu_id if provided
+        // requested header menu (keep)
         const hm = parseInt(headerMenuId || 0, 10);
         if (hm > 0) u.searchParams.set('header_menu_id', String(hm));
 
@@ -835,10 +825,26 @@
         });
     }
 
-    /* ==============================
-     * ✅ Submenu loader (NOW supports header_menu_id)
-     * ============================== */
+    // ------------------------------------------------------------------
+    // ✅ NEW helper: read effective/requested header_menu_id from publicTree scope
+    // ------------------------------------------------------------------
+    function parseTreeScope(treeBody, fallbackRequested){
+        const scope = (treeBody && typeof treeBody === 'object' && treeBody.scope) ? treeBody.scope : {};
+        const effective = parseInt(scope?.header_menu_id ?? 0, 10) || 0;
 
+        // new backend sends requested_header_menu_id, but if not present, use fallbackRequested
+        const requested =
+            parseInt(scope?.requested_header_menu_id ?? 0, 10) ||
+            parseInt(scope?.requestedHeaderMenuId ?? 0, 10) ||
+            parseInt(fallbackRequested || 0, 10) ||
+            0;
+
+        return { effective, requested, raw: scope || {} };
+    }
+
+    /* ==============================
+     * ✅ Submenu loader (uses EFFECTIVE header_menu_id)
+     * ============================== */
     async function loadSubmenuRightContent(submenuSlug, pageScope){
         const sslug = String(submenuSlug || '').trim();
         if (!sslug) return;
@@ -848,9 +854,13 @@
         const u = new URL(API_BASE + '/public/page-submenus/render', window.location.origin);
         u.searchParams.set('slug', sslug);
 
-        // ✅ FIX: always pass header_menu_id (scope -> url fallback)
-        const hm = parseInt(pageScope?.header_menu_id || 0, 10) || readHeaderMenuIdFromUrl();
-        if (hm > 0) u.searchParams.set('header_menu_id', String(hm));
+        // ✅ always pass EFFECTIVE header_menu_id (falls back to requested only if effective missing)
+        const hmEffective =
+            parseInt(pageScope?.header_menu_id || 0, 10) ||
+            parseInt(pageScope?.requested_header_menu_id || 0, 10) ||
+            readHeaderMenuIdFromUrl();
+
+        if (hmEffective > 0) u.searchParams.set('header_menu_id', String(hmEffective));
 
         if (pageScope?.page_id) u.searchParams.set('page_id', pageScope.page_id);
         else if (pageScope?.page_slug) u.searchParams.set('page_slug', pageScope.page_slug);
@@ -919,14 +929,12 @@
         if (elNotFound) elNotFound.classList.add('d-none');
         hideError();
 
-        // ✅ CHANGE: update sticky after content changes
         scheduleStickyUpdate();
     }
 
     /* ==============================
-     * Sidebar renderer (recursive) - UPDATED
+     * Sidebar renderer (recursive)
      * ============================== */
-
     function renderTree(nodes, currentLower, parentUl, level = 0){
         let anyActiveInThisList = false;
 
@@ -1011,7 +1019,6 @@
                     btn.setAttribute('aria-expanded', 'true');
                 }
 
-                // ✅ keep click toggle for touch devices (hover won't work on mobile)
                 btn.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -1074,7 +1081,7 @@
         return out;
     }
 
-    // ✅ FIX: loadSidebarIfAny - REMOVED the first "Home - Page" link
+    // ✅ UPDATED: loadSidebarIfAny now respects backend fallback scope.header_menu_id
     async function loadSidebarIfAny(page){
         const pageId   = pick(page, ['id']);
         const pageSlug = pick(page, ['slug']);
@@ -1082,9 +1089,10 @@
         const headerMenuFromPage = parseInt(pick(page, ['header_menu_id','headerMenuId','menu_id']) || 0, 10);
         const headerMenuFromUrl  = readHeaderMenuIdFromUrl();
 
-        const headerMenuId = headerMenuFromUrl > 0 ? headerMenuFromUrl : headerMenuFromPage;
+        // This is the REQUESTED menu id (keep from URL if present)
+        const headerMenuRequested = headerMenuFromUrl > 0 ? headerMenuFromUrl : headerMenuFromPage;
 
-        if (!pageId && !pageSlug && !headerMenuId){
+        if (!pageId && !pageSlug && !headerMenuRequested){
             sidebarCol.classList.add('d-none');
             contentCol.className = 'col-12';
             scheduleStickyUpdate();
@@ -1093,8 +1101,8 @@
 
         const treeUrl = new URL(API_BASE + '/public/page-submenus/tree', window.location.origin);
 
-        // ✅ FIX: attach header_menu_id ALWAYS if exists
-        if (headerMenuId > 0) treeUrl.searchParams.set('header_menu_id', String(headerMenuId));
+        // ✅ always send REQUESTED header_menu_id (server will fallback if needed)
+        if (headerMenuRequested > 0) treeUrl.searchParams.set('header_menu_id', String(headerMenuRequested));
 
         if (pageId) treeUrl.searchParams.set('page_id', pageId);
         else if (pageSlug) treeUrl.searchParams.set('page_slug', pageSlug);
@@ -1108,8 +1116,26 @@
             return { hasSidebar:false, firstSubmenuSlug:'' };
         }
 
-        let nodes = normalizeTree(r.data);
-        nodes = filterTreeByHeaderMenuId(nodes, headerMenuId);
+        const body = r.data || {};
+        const scopeParsed = parseTreeScope(body, headerMenuRequested);
+
+        // ✅ EFFECTIVE header_menu_id (parent/grandparent fallback result)
+        const headerMenuEffective = scopeParsed.effective || headerMenuRequested || 0;
+
+        // ✅ store both in global scope:
+        // - requested_header_menu_id stays as the user's selected menu (URL)
+        // - header_menu_id becomes the effective menu used for API calls (render/tree result)
+        window.__DP_PAGE_SCOPE__ = window.__DP_PAGE_SCOPE__ || {};
+        if (!window.__DP_PAGE_SCOPE__.page_id && pageId) window.__DP_PAGE_SCOPE__.page_id = pageId;
+        if (!window.__DP_PAGE_SCOPE__.page_slug && pageSlug) window.__DP_PAGE_SCOPE__.page_slug = pageSlug;
+
+        window.__DP_PAGE_SCOPE__.requested_header_menu_id = scopeParsed.requested || headerMenuRequested || null;
+        window.__DP_PAGE_SCOPE__.header_menu_id = headerMenuEffective || null;
+
+        let nodes = normalizeTree(body);
+
+        // (safe) filter using EFFECTIVE menu id (so requested=10 still shows effective=7)
+        nodes = filterTreeByHeaderMenuId(nodes, headerMenuEffective);
 
         if (!nodes.length) {
             sidebarCol.classList.add('d-none');
@@ -1122,17 +1148,14 @@
         contentCol.className = 'col-12 col-lg-9';
 
         submenuList.innerHTML = '';
-        
-        // ✅ FIX: Use page title as sidebar heading instead of "The Hallienz"
+
         const pageTitle = pick(page, ['title']) || 'Menu';
         sidebarHead.textContent = pageTitle;
 
-        // ✅ Now directly render the tree without any parent page link
         renderTree(nodes, '', submenuList, 0);
 
         const firstSubmenuSlug = findFirstSubmenuSlug(nodes);
 
-        // ✅ CHANGE: update sticky after sidebar renders / column widths change
         scheduleStickyUpdate();
 
         return { hasSidebar:true, firstSubmenuSlug };
@@ -1148,24 +1171,23 @@
         }catch(e){}
     }
 
-    // ✅ FIX: Setup header menu click tracking
     function setupHeaderMenuClicks() {
         document.addEventListener('click', function(e) {
-            const headerLink = e.target.closest('a[data-header-menu]') || 
+            const headerLink = e.target.closest('a[data-header-menu]') ||
                               e.target.closest('a[href*="header_menu_id"]');
-            
+
             if (headerLink) {
                 e.preventDefault();
-                
-                let menuId = headerLink.getAttribute('data-menu-id') || 
+
+                let menuId = headerLink.getAttribute('data-menu-id') ||
                            headerLink.getAttribute('data-header-menu-id');
-                
+
                 if (!menuId) {
                     const href = headerLink.getAttribute('href') || '';
                     const url = new URL(href, window.location.origin);
                     menuId = url.searchParams.get('header_menu_id');
                 }
-                
+
                 if (menuId) {
                     const currentUrl = new URL(window.location);
                     currentUrl.searchParams.set('header_menu_id', menuId);
@@ -1178,7 +1200,7 @@
 
     async function init(){
         hideError();
-        setupStickyObservers(); // ✅ CHANGE
+        setupStickyObservers();
 
         const slugCandidate = getSlugCandidate();
         const currentLower = toLowerSafe(slugCandidate);
@@ -1194,7 +1216,7 @@
 
         showLoading('Loading page…');
 
-        // ✅ FIX: resolve page WITH header_menu_id from URL
+        // Requested header menu id comes from URL (keep)
         const headerMenuFromUrl = readHeaderMenuIdFromUrl();
         const page = await resolvePublicPage(slugCandidate, headerMenuFromUrl);
 
@@ -1204,8 +1226,8 @@
             return;
         }
 
-        // ✅ FIX: store final header_menu_id in scope (URL overrides page)
-        const headerMenuFinal =
+        // Store requested in scope (effective will be updated after publicTree response)
+        const headerMenuRequested =
             headerMenuFromUrl > 0
                 ? headerMenuFromUrl
                 : (parseInt(pick(page, ['header_menu_id','headerMenuId','menu_id']) || 0, 10) || 0);
@@ -1213,7 +1235,10 @@
         window.__DP_PAGE_SCOPE__ = {
             page_id: pick(page, ['id']) || null,
             page_slug: pick(page, ['slug']) || null,
-            header_menu_id: headerMenuFinal || null
+
+            // start both as requested; loadSidebarIfAny will overwrite header_menu_id with effective fallback
+            header_menu_id: headerMenuRequested || null,
+            requested_header_menu_id: headerMenuRequested || null
         };
 
         elTitle.textContent = pick(page, ['title']) || slugCandidate;
@@ -1229,13 +1254,11 @@
         await loadSidebarIfAny(page);
 
         let submenuSlug = (readSubmenuFromPathname() || '').trim();
-
         if (!submenuSlug){
             const qs = new URLSearchParams(window.location.search);
             submenuSlug = (qs.get('submenu') || '').trim();
         }
 
-        // ✅ Only load submenu if explicitly specified in URL
         if (submenuSlug) {
             const link = document.querySelector('.hallienz-side__link[data-submenu-slug="' + safeCssEscape(submenuSlug) + '"]');
             if (link) {
@@ -1246,7 +1269,6 @@
             await loadSubmenuRightContent(submenuSlug, window.__DP_PAGE_SCOPE__);
         }
 
-        // ✅ CHANGE: final sticky update after everything
         scheduleStickyUpdate();
     }
 
@@ -1258,7 +1280,7 @@
 
     document.addEventListener('DOMContentLoaded', function() {
         setupHeaderMenuClicks();
-        scheduleStickyUpdate(); // ✅ CHANGE
+        scheduleStickyUpdate();
     });
 
     window.addEventListener('popstate', function() {
