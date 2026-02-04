@@ -6,58 +6,17 @@
 <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}">
 
 <style>
-/* =========================
- * Feedback Results (Manage) – same UI DNA
- * ONLY CHANGES (as requested):
- * ✅ Grade system only (NO % anywhere)
- *   - Matrix shows COUNT of grades (5..1)
- *   - "Overall %" / "Average %" removed, replaced with Total + Avg Grade info
- * ✅ NEW CHANGE (as requested):
- *   - Faculty tab buttons (fac-tabbtn) show ONLY `name_short_form` from API (fallback to faculty_name if missing)
- * ✅ NEW CHANGE (as requested now):
- *   - Remove "Total ratings: X"
- *   - Remove ALL totals of every columns (no totals row counts)
- *   - Keep ONLY Avg. Grade
- *   - Apply same removal for exports (CSV/PDF)
- * ✅ NEW CHANGE (as requested now):
- *   - Make the lower (avg row) `.qtext` full 100% width
- *   - Remove all other td's from the lower portion (avg row has ONLY one td with colspan)
- * ✅ NEW CHANGE (as requested now):
- *   - After applying attendance filter, show "X out of Y" (Participated out of Eligible) in details + exports
- * ✅ FIX (frontend issue):
- *   - If filter finds nothing, dropdown options should NOT get wiped; next filtering must still work
- * Everything else unchanged
- * ========================= */
 
 .fq-wrap{padding:14px 4px}
 
 /* Toolbar panel */
-.fq-toolbar.panel{
-  background:var(--surface);
-  border:1px solid var(--line-strong);
-  border-radius:16px;
-  box-shadow:var(--shadow-2);
-  padding:12px;
-}
+.fq-toolbar.panel{background:var(--surface);border:1px solid var(--line-strong);border-radius:16px;box-shadow:var(--shadow-2);padding:12px;}
 
 /* Table Card */
-.table-wrap.card{
-  position:relative;
-  border:1px solid var(--line-strong);
-  border-radius:16px;
-  background:var(--surface);
-  box-shadow:var(--shadow-2);
-  overflow:visible;
-}
+.table-wrap.card{position:relative;border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);overflow:visible;}
 .table-wrap .card-body{overflow:visible}
 .table{--bs-table-bg:transparent}
-.table thead th{
-  font-weight:600;
-  color:var(--muted-color);
-  font-size:13px;
-  border-bottom:1px solid var(--line-strong);
-  background:var(--surface)
-}
+.table thead th{font-weight:600;color:var(--muted-color);font-size:13px;border-bottom:1px solid var(--line-strong);background:var(--surface)}
 .table thead.sticky-top{z-index:3}
 .table tbody tr{border-top:1px solid var(--line-soft)}
 .table tbody tr:hover{background:var(--page-hover)}
@@ -70,21 +29,11 @@ td .fw-semibold{color:var(--ink)}
 /* Tabs */
 .nav.nav-tabs{border-color:var(--line-strong)}
 .nav-tabs .nav-link{color:var(--ink)}
-.nav-tabs .nav-link.active{
-  background:var(--surface);
-  border-color:var(--line-strong) var(--line-strong) var(--surface)
-}
+.nav-tabs .nav-link.active{background:var(--surface);border-color:var(--line-strong) var(--line-strong) var(--surface)}
 
 /* Empty */
 .empty{color:var(--muted-color)}
-.pill{
-  display:inline-flex;align-items:center;gap:8px;
-  padding:6px 10px;border-radius:999px;
-  background:color-mix(in oklab, var(--primary-color) 10%, transparent);
-  color:var(--primary-color);
-  border:1px solid color-mix(in oklab, var(--primary-color) 18%, var(--line-soft));
-  font-size:12px;font-weight:700;
-}
+.pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:color-mix(in oklab, var(--primary-color) 10%, transparent);color:var(--primary-color);border:1px solid color-mix(in oklab, var(--primary-color) 18%, var(--line-soft));font-size:12px;font-weight:700;}
 .pill i{opacity:.85}
 
 /* Clickable row */
@@ -96,129 +45,36 @@ td .fw-semibold{color:var(--ink)}
 #globalLoading.loading-overlay.is-show{ display:flex !important; }
 
 /* Detail modal head */
-.detail-head{
-  display:flex; align-items:flex-start; justify-content:space-between;
-  gap:14px;
-}
+.detail-head{display:flex; align-items:flex-start; justify-content:space-between;gap:14px;}
 .detail-meta{display:flex; flex-wrap:wrap; gap:8px;}
-.detail-meta .chip{
-  display:inline-flex; align-items:center; gap:8px;
-  padding:6px 10px; border-radius:999px;
-  border:1px solid var(--line-strong);
-  background:color-mix(in oklab, var(--surface) 92%, transparent);
-  font-size:12px;
-  color:var(--ink);
-}
+.detail-meta .chip{display:inline-flex; align-items:center; gap:8px;padding:6px 10px; border-radius:999px;border:1px solid var(--line-strong);background:color-mix(in oklab, var(--surface) 92%, transparent);font-size:12px;color:var(--ink);}
 .detail-meta .chip i{opacity:.75}
 
 /* Key-value info */
-.kv{
-  display:grid;
-  grid-template-columns: 160px 1fr;
-  gap:6px 12px;
-  font-size:13px;
-}
+.kv{display:grid;grid-template-columns: 160px 1fr;gap:6px 12px;font-size:13px;}
 .kv .k{color:var(--muted-color)}
 .kv .v{color:var(--ink); font-weight:700}
 
 /* Faculty tabs (inside detail modal) */
-.fac-tabsbar{
-  display:flex;
-  gap:8px;
-  flex-wrap:wrap;
-  padding:10px;
-  border:1px solid var(--line-strong);
-  background:var(--surface);
-  border-radius:14px;
-  box-shadow:var(--shadow-2);
-}
-.fac-tabbtn{
-  display:inline-flex;
-  align-items:center;
-  gap:8px;
-  padding:8px 10px;
-  border-radius:999px;
-  border:1px solid var(--line-strong);
-  background:color-mix(in oklab, var(--surface) 92%, transparent);
-  color:var(--ink);
-  font-weight:800;
-  font-size:12.5px;
-  cursor:pointer;
-  transition:transform .08s ease, background .12s ease, border-color .12s ease;
-  user-select:none;
-  max-width: 100%;
-}
+.fac-tabsbar{display:flex;gap:8px;flex-wrap:wrap;padding:10px;border:1px solid var(--line-strong);background:var(--surface);border-radius:14px;box-shadow:var(--shadow-2);}
+.fac-tabbtn{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border-radius:999px;border:1px solid var(--line-strong);background:color-mix(in oklab, var(--surface) 92%, transparent);color:var(--ink);font-weight:800;font-size:12.5px;cursor:pointer;transition:transform .08s ease, background .12s ease, border-color .12s ease;user-select:none;max-width: 100%;}
 .fac-tabbtn:active{transform:translateY(.5px)}
 .fac-tabbtn i{opacity:.85}
-.fac-tabbtn .nm{
-  display:inline-block;
-  max-width: 240px;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
-}
-.fac-tabbtn.active{
-  background:color-mix(in oklab, var(--primary-color) 12%, transparent);
-  border-color:color-mix(in oklab, var(--primary-color) 30%, var(--line-strong));
-  color:var(--primary-color);
-}
+.fac-tabbtn .nm{display:inline-block;max-width: 240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.fac-tabbtn.active{background:color-mix(in oklab, var(--primary-color) 12%, transparent);border-color:color-mix(in oklab, var(--primary-color) 30%, var(--line-strong));color:var(--primary-color);}
 
 /* Screenshot-like matrix */
-.matrix-wrap{
-  border:1px solid var(--line-strong);
-  border-radius:14px;
-  overflow:auto;
-  background:var(--surface);
-  box-shadow:var(--shadow-2);
-}
-.matrix{
-  width:max-content;
-  min-width:100%;
-  border-collapse:collapse;
-}
-.matrix th, .matrix td{
-  border:1px solid var(--line-soft);
-  padding:10px 10px;
-  font-size:13px;
-  vertical-align:top;
-}
-.matrix thead th{
-  background:color-mix(in oklab, var(--surface) 90%, var(--page-hover));
-  font-weight:800;
-  color:var(--ink);
-  text-align:center;
-  white-space:nowrap;
-}
-.matrix .qcol{
-  min-width:520px;
-  max-width:720px;
-  text-align:left;
-}
-.matrix td{
-  text-align:center;
-  font-weight:800;
-}
-.matrix td.qtext{
-  text-align:left;
-  font-weight:700;
-  color:var(--ink);
-}
-.matrix .avgrow td{
-  background:color-mix(in oklab, var(--primary-color) 6%, transparent);
-}
+.matrix-wrap{border:1px solid var(--line-strong);border-radius:14px;overflow:auto;background:var(--surface);box-shadow:var(--shadow-2);}
+.matrix{width:max-content;min-width:100%;border-collapse:collapse;}
+.matrix th, .matrix td{border:1px solid var(--line-soft);padding:10px 10px;font-size:13px;vertical-align:top;}
+.matrix thead th{background:color-mix(in oklab, var(--surface) 90%, var(--page-hover));font-weight:800;color:var(--ink);text-align:center;white-space:nowrap;}
+.matrix .qcol{min-width:520px;max-width:720px;text-align:left;}
+.matrix td{text-align:center;font-weight:800;}
+.matrix td.qtext{text-align:left;font-weight:700;color:var(--ink);}
+.matrix .avgrow td{background:color-mix(in oklab, var(--primary-color) 6%, transparent);}
 /* ✅ ensure avg-row single cell truly behaves like full-width content */
-.matrix .avgrow td.qtext{
-  width:100%;
-  text-align:center;
-  white-space:normal;
-}
-.matrix .submeta{
-  display:block;
-  margin-top:6px;
-  font-size:12px;
-  color:var(--muted-color);
-  font-weight:600;
-}
+.matrix .avgrow td.qtext{width:100%;text-align:center;white-space:normal;}
+.matrix .submeta{display:block;margin-top:6px;font-size:12px;color:var(--muted-color);font-weight:600;}
 
 /* ✅ Column colors (5..1) */
 :root{
@@ -249,23 +105,8 @@ td .fw-semibold{color:var(--ink)}
 .matrix .avgrow td.col1{ background:color-mix(in oklab, var(--rate-1) 12%, color-mix(in oklab, var(--primary-color) 6%, transparent)); }
 
 /* Export modal helpers */
-.export-pills{
-  display:flex; flex-wrap:wrap; gap:8px;
-  padding:10px;
-  border:1px dashed var(--line-soft);
-  border-radius:14px;
-  background:color-mix(in oklab, var(--surface) 92%, transparent);
-}
-.export-pill{
-  display:inline-flex; align-items:center; gap:8px;
-  padding:8px 10px;
-  border:1px solid var(--line-strong);
-  border-radius:999px;
-  background:var(--surface);
-  font-weight:800;
-  font-size:12.5px;
-  color:var(--ink);
-}
+.export-pills{display:flex; flex-wrap:wrap; gap:8px;padding:10px;border:1px dashed var(--line-soft);border-radius:14px;background:color-mix(in oklab, var(--surface) 92%, transparent);}
+.export-pill{display:inline-flex; align-items:center; gap:8px;padding:8px 10px;border:1px solid var(--line-strong);border-radius:999px;background:var(--surface);font-weight:800;font-size:12.5px;color:var(--ink);}
 .export-pill input{ transform:translateY(1px); }
 .export-pill i{opacity:.85}
 
@@ -830,11 +671,9 @@ td .fw-semibold{color:var(--ink)}
     const fYear   = $('f_year');
 
     const filterModalEl = $('filterModal');
-    const filterModal   = filterModalEl ? new bootstrap.Modal(filterModalEl) : null;
 
     // Detail modal fields
     const detailModalEl = $('detailModal');
-    const detailModal   = detailModalEl ? new bootstrap.Modal(detailModalEl) : null;
 
     const detailTitle     = $('detailTitle');
     const detailPostName  = $('detailPostName');
@@ -867,12 +706,41 @@ td .fw-semibold{color:var(--ink)}
     // Export modal fields
     const btnExport = $('btnExport');
     const exportModalEl = $('exportModal');
-    const exportModal = exportModalEl ? new bootstrap.Modal(exportModalEl) : null;
     const exportPostTitle = $('exportPostTitle');
     const exportPostSub = $('exportPostSub');
     const exportTargets = $('exportTargets');
     const btnDoCsv = $('btnDoCsv');
     const btnDoPdf = $('btnDoPdf');
+
+    /* =========================================================
+     * ✅ FIX: Orphan backdrop cleanup (prevents stuck backdrop)
+     * - Happens when modal is hidden programmatically but backdrop
+     *   doesn't get removed due to transition/interruption.
+     * ========================================================= */
+    function cleanupOrphanBackdrops(){
+      // If any modal is currently open, do nothing.
+      if (document.querySelector('.modal.show')) return;
+
+      document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+
+      document.body.classList.remove('modal-open');
+      document.body.style.removeProperty('overflow');
+      document.body.style.removeProperty('padding-right');
+    }
+
+    // Always use getOrCreateInstance (prevents instance mismatch)
+    const filterModal = filterModalEl ? bootstrap.Modal.getOrCreateInstance(filterModalEl) : null;
+    const detailModal = detailModalEl ? bootstrap.Modal.getOrCreateInstance(detailModalEl) : null;
+    const exportModal = exportModalEl ? bootstrap.Modal.getOrCreateInstance(exportModalEl) : null;
+
+    // Cleanup on any modal hidden (safety net)
+    [filterModalEl, detailModalEl, exportModalEl].forEach(elm => {
+      if (!elm) return;
+      elm.addEventListener('hidden.bs.modal', () => {
+        // allow Bootstrap to finish its own cleanup first, then force-remove any leftovers
+        setTimeout(cleanupOrphanBackdrops, 0);
+      });
+    });
 
     // State
     const state = {
@@ -914,7 +782,15 @@ td .fw-semibold{color:var(--ink)}
       lastDetailCtx: null,
       lastDetailPost: null,
       lastDetailQuestions: [],
+
+      // ✅ keep the “opened post” pinned even if filtering returns empty once
+      pinnedDetailPostKey: null,
     };
+
+    detailModalEl?.addEventListener('hidden.bs.modal', () => {
+      state.pinnedDetailPostKey = null;
+      state.lastDetailPostKey = null;
+    });
 
     function clampAttendance(v){
       const s = (v ?? '').toString().trim();
@@ -1378,16 +1254,11 @@ td .fw-semibold{color:var(--ink)}
       if (detailAcadYear) detailAcadYear.textContent = (post.academic_year ?? '—') || '—';
       if (detailYear) detailYear.textContent = (post.year ?? '—') || '—';
 
-      // ✅ UPDATED: show "X out of Y" if eligible_students exists
       const participated = Number(post.participated_students ?? 0) || 0;
-      const eligibleRaw = (post.eligible_students === null || post.eligible_students === undefined) ? null : Number(post.eligible_students);
-      const eligible = (eligibleRaw !== null && Number.isFinite(eligibleRaw)) ? eligibleRaw : null;
 
-      if (detailParticipated) {
-        detailParticipated.textContent = (eligible !== null)
-          ? `${participated} out of ${eligible}`
-          : String(participated);
-      }
+if (detailParticipated) {
+  detailParticipated.textContent = String(participated);
+}
 
       // ✅ keep modal input in sync with current filter
       if (attMin) attMin.value = (state.filters.min_attendance ?? '');
@@ -1468,9 +1339,7 @@ td .fw-semibold{color:var(--ink)}
 
     function buildBasicMetaRows(post, ctx){
       const participated = Number(post?.participated_students ?? 0) || 0;
-      const eligibleRaw = (post?.eligible_students === null || post?.eligible_students === undefined) ? null : Number(post?.eligible_students);
-      const eligible = (eligibleRaw !== null && Number.isFinite(eligibleRaw)) ? eligibleRaw : null;
-      const participatedLabel = (eligible !== null) ? `${participated} out of ${eligible}` : String(participated);
+const participatedLabel = String(participated);
 
       return [
         ['Feedback Post', safeText(post?.title)],
@@ -1801,8 +1670,6 @@ td .fw-semibold{color:var(--ink)}
         // ✅ FIX: if empty result, keep dropdowns (do not wipe), but still clear posts
         rebuildFromHierarchy();
 
-        // ✅ If this is the FIRST load and we somehow got empty, ensure selects still have something usable:
-        // (no endpoint to rebuild lists, so we simply leave current options as-is)
         renderTable();
 
       }catch(ex){
@@ -1856,6 +1723,10 @@ td .fw-semibold{color:var(--ink)}
       state.activeFacultyId = 0;
       state.activeFacultyName = 'Overall';
 
+      // ✅ PIN this post so attendance filter can recover after an empty load
+      state.pinnedDetailPostKey = String(postKey);
+      state.lastDetailPostKey   = String(postKey);
+
       renderDetail(postKey);
       if (detailSearch) detailSearch.value = '';
       detailModal && detailModal.show();
@@ -1885,8 +1756,26 @@ td .fw-semibold{color:var(--ink)}
       state.filters.year = (fYear?.value || '').trim();
 
       state.page = 1;
-      filterModal && filterModal.hide();
-      loadResults();
+
+      // ✅ FIX: hide modal first, then load results AFTER hidden (prevents stuck backdrop)
+      if (filterModalEl && filterModal){
+        let done = false;
+        const fireOnce = () => {
+          if (done) return;
+          done = true;
+          cleanupOrphanBackdrops();
+          loadResults();
+        };
+
+        filterModalEl.addEventListener('hidden.bs.modal', fireOnce, { once: true });
+        filterModal.hide();
+
+        // failsafe: if hidden event doesn't fire (rare), cleanup + load anyway
+        setTimeout(fireOnce, 600);
+      } else {
+        cleanupOrphanBackdrops();
+        loadResults();
+      }
     });
 
     btnReset?.addEventListener('click', () => {
@@ -1923,23 +1812,29 @@ td .fw-semibold{color:var(--ink)}
 
     btnRefresh?.addEventListener('click', () => loadResults());
 
-    // ✅ Attendance filter apply/clear (modal)
     async function applyAttendanceFromModal(){
       const val = clampAttendance(attMin ? attMin.value : '');
       state.filters.min_attendance = val;
       if (attMin) attMin.value = val;
 
-      const keepPost = state.lastDetailPostKey ? String(state.lastDetailPostKey) : null;
+      // ✅ Use pinned key so we can recover even after a "0 results" load
+      const keepPost = state.pinnedDetailPostKey ? String(state.pinnedDetailPostKey) : null;
 
       await loadResults();
 
       if (keepPost && state.postIndex.has(keepPost)){
+        // ✅ Post exists again under loosened attendance -> re-render details
+        state.lastDetailPostKey = keepPost;
         renderDetail(keepPost);
       } else if (keepPost) {
-        // if post disappears due to filter, keep modal open but show friendly message
-        state.lastDetailPostKey = null;
+        // ✅ Post doesn't match this attendance threshold -> show friendly msg
+        // ❌ DO NOT clear pinnedDetailPostKey (that was the bug)
+        state.lastDetailPostKey = null; // disables export and prevents stale state
+
         if (detailFacultyTabs) detailFacultyTabs.style.display = 'none';
-        if (detailMatrixTitle) detailMatrixTitle.innerHTML = `<i class="fa fa-table me-2"></i>Question-wise Grade Distribution`;
+        if (detailMatrixTitle) detailMatrixTitle.innerHTML =
+          `<i class="fa fa-table me-2"></i>Question-wise Grade Distribution`;
+
         if (detailQuestions) detailQuestions.innerHTML =
           `<div class="text-center text-muted" style="padding:22px;">No results for this post under current attendance filter.</div>`;
       }

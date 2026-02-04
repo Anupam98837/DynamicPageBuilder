@@ -65,6 +65,7 @@ use App\Http\Controllers\API\FacultyPreviewOrderController;
 use App\Http\Controllers\API\StickyButtonController;
 use App\Http\Controllers\API\MasterApprovalController;
 use App\Http\Controllers\API\StudentSubjectController;
+use App\Http\Controllers\API\TechnicalAssistantPreviewOrderController;
 
 /*
 |--------------------------------------------------------------------------
@@ -143,6 +144,7 @@ Route::middleware(['checkRole:admin,director,principal,hod'])->group(function ()
     Route::post('/users/{user_uuid}/personal-info/restore', [UserPersonalInformationController::class, 'restore']);
 });
     
+Route::get('/public/users/',               [UserController::class, 'index']);
     
 Route::middleware(['checkRole:admin,director,principal,hod'])->group(function () {
 
@@ -2011,6 +2013,18 @@ Route::prefix('public')->group(function () {
     Route::get('/faculty-preview-order', [FacultyPreviewOrderController::class, 'publicIndex']);
     Route::get('/faculty-preview-order/{department}', [FacultyPreviewOrderController::class, 'publicShow']);
 });
+
+
+// Technical Assistant Preview Order
+
+Route::get('technical-assistant-preview-order', [TechnicalAssistantPreviewOrderController::class, 'index']);
+Route::get('technical-assistant-preview-order/{department}', [TechnicalAssistantPreviewOrderController::class, 'show']);
+Route::post('technical-assistant-preview-order/{department}/save', [TechnicalAssistantPreviewOrderController::class, 'save']);
+Route::post('technical-assistant-preview-order/{department}/toggle-active', [TechnicalAssistantPreviewOrderController::class, 'toggleActive']);
+Route::delete('technical-assistant-preview-order/{department}', [TechnicalAssistantPreviewOrderController::class, 'destroy']);
+
+Route::get('public/technical-assistant-preview-order', [TechnicalAssistantPreviewOrderController::class, 'publicIndex']);
+Route::get('public/technical-assistant-preview-order/{department}', [TechnicalAssistantPreviewOrderController::class, 'publicShow']);
 
 
 /*

@@ -451,6 +451,10 @@ Route::get('/faculty-preview-order', function () {
     return view('pages.users.pages.faculty.facultyPreviewOrder');
 });
  
+Route::get('/technical-assistant-preview-order', function () {
+    return view('pages.users.pages.technicalAssistant.technicalAssistantPreviewOrder');
+});
+ 
 Route::get('/sticky-buttons/manage', function () {
     return view('pages.users.pages.stickyButtons.manageStickyButtons');
 });

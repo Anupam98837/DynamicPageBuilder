@@ -433,6 +433,30 @@
         try { return CSS.escape(s); } catch(e){ return String(s).replace(/["\\]/g, '\\$&'); }
     }
 
+    // ✅ NEW: normalize external link/url safely (supports relative + scheme-less)
+    function normalizeExternalUrl(raw){
+        const s0 = String(raw || '').trim();
+        if (!s0) return '';
+        const low = s0.toLowerCase();
+
+        const bad = ['null','undefined','#','0','about:blank'];
+        if (bad.includes(low)) return '';
+        if (low.startsWith('javascript:')) return '';
+
+        try{
+            // handles absolute + relative (relative becomes same-origin)
+            return new URL(s0, window.location.origin).toString();
+        }catch(e){
+            // scheme-less like "www.google.com/..."
+            try{
+                if (/^[\w.-]+\.[a-z]{2,}([\/?#]|$)/i.test(s0)){
+                    return new URL('https://' + s0).toString();
+                }
+            }catch(e2){}
+            return '';
+        }
+    }
+
     // ------------------------------------------------------------------
     // ✅ Smart Sticky Columns
     // ------------------------------------------------------------------
@@ -851,9 +875,12 @@
     /* ==============================
      * ✅ Submenu loader (uses EFFECTIVE header_menu_id)
      * ============================== */
-    async function loadSubmenuRightContent(submenuSlug, pageScope){
+    async function loadSubmenuRightContent(submenuSlug, pageScope, preOpenedWin = null){
         const sslug = String(submenuSlug || '').trim();
-        if (!sslug) return;
+        if (!sslug) {
+            try{ if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close(); }catch(e){}
+            return;
+        }
 
         showLoading('Loading submenu…');
 
@@ -874,6 +901,7 @@
         const r = await fetchJsonWithStatus(u.toString());
 
         if (!r.ok) {
+            try{ if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close(); }catch(e){}
             const msg = (r.data && (r.data.message || r.data.error))
                 ? (r.data.message || r.data.error)
                 : ('Load failed: ' + r.status);
@@ -891,6 +919,7 @@
 
         // ✅ SPECIFIC CHANGE: handle coming_soon type (no red error)
         if (type === 'coming_soon') {
+            try{ if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close(); }catch(e){}
             clearModuleAssets();
             showComingSoon(sslug, payload);
             scheduleStickyUpdate();
@@ -898,6 +927,7 @@
         }
 
         if (type === 'includable') {
+            try{ if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close(); }catch(e){}
             if (elComingSoon) elComingSoon.classList.add('d-none'); // ✅ NEW
             injectModuleStyles(payload?.assets?.styles || '');
 
@@ -910,6 +940,7 @@
             injectModuleScripts(payload?.assets?.scripts || '');
         }
         else if (type === 'page') {
+            try{ if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close(); }catch(e){}
             if (elComingSoon) elComingSoon.classList.add('d-none'); // ✅ NEW
             clearModuleAssets();
             const out = payload.html || '';
@@ -919,24 +950,35 @@
             );
         }
         else if (type === 'url') {
+            // ✅ SPECIFIC CHANGE: if submenu has a link, open it in a new tab
             if (elComingSoon) elComingSoon.classList.add('d-none'); // ✅ NEW
             clearModuleAssets();
-            const url = payload.url || '';
-            const safeUrl = url ? url : 'about:blank';
 
-            const iframe = `
-              <div class="mb-2 d-flex gap-2 flex-wrap">
-                <a class="btn btn-sm btn-outline-primary" href="${safeUrl}" target="_blank" rel="noopener">
-                  Open link in new tab
-                </a>
+            const rawUrl = payload.url || payload.link || payload.href || '';
+            const safeUrl = normalizeExternalUrl(rawUrl) || (rawUrl ? rawUrl : 'about:blank');
+
+            let opened = false;
+            try{
+                // Best effort: use a pre-opened window created on click (avoids popup blockers)
+                if (preOpenedWin && !preOpenedWin.closed && safeUrl && safeUrl !== 'about:blank'){
+                    preOpenedWin.location.href = safeUrl;
+                    opened = true;
+                } else if (safeUrl && safeUrl !== 'about:blank'){
+                    const w = window.open(safeUrl, '_blank', 'noopener,noreferrer');
+                    opened = !!w;
+                }
+            }catch(e){}
+
+            // Show a tiny fallback in case popup is blocked
+            setInnerHTMLWithScripts(elHtml, `
+              <div class="alert alert-info mb-0">
+                ${opened ? 'Opened link in a new tab.' : 'Popup blocked. Please open the link:'}
+                <a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="ms-1">Open link</a>
               </div>
-              <div class="dp-iframe">
-                <iframe src="${safeUrl}" style="width:100%; height:75vh; border:0;" loading="lazy"></iframe>
-              </div>
-            `;
-            setInnerHTMLWithScripts(elHtml, iframe);
+            `);
         }
         else {
+            try{ if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close(); }catch(e){}
             if (elComingSoon) elComingSoon.classList.add('d-none'); // ✅ NEW
             clearModuleAssets();
             setInnerHTMLWithScripts(elHtml, '<p class="text-muted mb-0">Unknown content type.</p>');
@@ -975,6 +1017,14 @@
             a.dataset.submenuSlug = nodeSlug;
             a.setAttribute('data-submenu-slug', nodeSlug);
 
+            // ✅ NEW: if tree node already carries a link/url, mark it (open in new tab)
+            const nodeLink = String(pick(node, ['link','url','href','external_url','externalLink','page_link','page_url']) || '').trim();
+            if (nodeLink) a.dataset.submenuLink = nodeLink;
+
+            // ✅ NEW: if tree node type hints it's a link (so we can pre-open a window to avoid popup blockers)
+            const nodeTypeHint = String(pick(node, ['type','content_type','submenu_type','render_type']) || '').toLowerCase().trim();
+            if (nodeTypeHint === 'url') a.dataset.submenuType = 'url';
+
             const nodeDeptId = parseInt(pick(node, ['department_id','dept_id']) || 0, 10);
             if (nodeDeptId > 0) a.dataset.deptId = String(nodeDeptId);
 
@@ -994,6 +1044,20 @@
             a.addEventListener('click', async (e) => {
                 e.preventDefault();
                 e.stopPropagation();
+
+                // ✅ SPECIFIC CHANGE:
+                // If this submenu has a link/url attached, open in a new tab immediately.
+                const directLinkRaw = (a.dataset.submenuLink || '').trim();
+                const directLink = normalizeExternalUrl(directLinkRaw);
+                if (directLink){
+                    try { window.open(directLink, '_blank', 'noopener,noreferrer'); } catch(err) {}
+
+                    // optional: highlight clicked item (keeps UX consistent)
+                    document.querySelectorAll('.hallienz-side__link.active').forEach(x => x.classList.remove('active'));
+                    a.classList.add('active');
+                    scheduleStickyUpdate();
+                    return;
+                }
 
                 // ✅ SPECIFIC FIX:
                 // If this menu node has NO destination slug, show Coming Soon (or just toggle children).
@@ -1025,7 +1089,16 @@
                 document.querySelectorAll('.hallienz-side__link.active').forEach(x => x.classList.remove('active'));
                 a.classList.add('active');
 
-                await loadSubmenuRightContent(sslug, window.__DP_PAGE_SCOPE__ || null);
+                // ✅ NEW: If this submenu is expected to be a URL type, pre-open a tab (avoids popup blockers).
+                let preWin = null;
+                try{
+                    const hinted = String(a.dataset.submenuType || '').toLowerCase().trim();
+                    if (hinted === 'url'){
+                        preWin = window.open('about:blank', '_blank', 'noopener,noreferrer');
+                    }
+                }catch(e2){}
+
+                await loadSubmenuRightContent(sslug, window.__DP_PAGE_SCOPE__ || null, preWin);
 
                 const deptId = parseInt(a.dataset.deptId || '0', 10);
                 const deptUuid =
@@ -1377,7 +1450,6 @@
 
 })();
 </script>
-
 
 @stack('scripts')
 </body>
