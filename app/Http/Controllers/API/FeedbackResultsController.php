@@ -119,6 +119,7 @@ class FeedbackResultsController extends Controller
      |   - ✅ Always includes faculty_id=0 Overall row
      |   - ✅ faculty_name_short_form + employee_id added
      |   - ✅ Removed percent conversion from distribution
+     |   - ✅ NEW: Attendance filter (min_attendance)
      |========================================================= */
     public function results(Request $r)
     {
@@ -133,6 +134,12 @@ class FeedbackResultsController extends Controller
         $year       = $this->toInt($r->query('year'));
         $acadYear   = trim((string)$r->query('academic_year', ''));
 
+        // ✅ NEW: Attendance filter input (frontend can send min_attendance or attendance)
+        $minAttendance = $r->query('min_attendance', $r->query('attendance', null));
+        $minAttendance = ($minAttendance !== null && $minAttendance !== '')
+            ? max(0, min(100, (float)$minAttendance))
+            : null;
+
         // Master tables existence
         $hasDepts   = $this->tableExists('departments');
         $hasCourses = $this->tableExists('courses');
@@ -145,6 +152,9 @@ class FeedbackResultsController extends Controller
         // Fallback tables
         $hasSemsTbl     = $this->tableExists('semesters');
         $hasSectionsTbl = $this->tableExists('sections');
+
+        // ✅ NEW: Attendance table exists?
+        $hasStudentSubjectTbl = $this->tableExists('student_subject');
 
         // Name columns
         $deptNameCol   = $hasDepts   ? $this->pickNameColumn('departments', ['name','title'], 'id') : null;
@@ -171,6 +181,13 @@ class FeedbackResultsController extends Controller
         $fpHasYear   = $this->hasCol(self::POSTS, 'year');
 
         $fsHasStudent = $this->hasCol(self::SUBS, 'student_id');
+
+        // ✅ NEW: Can we apply attendance filter safely?
+        // Needs: min_attendance + student_subject table + submissions.student_id + posts.subject_id
+        $canAttendanceFilter = ($minAttendance !== null)
+            && $hasStudentSubjectTbl
+            && $fsHasStudent
+            && $fpHasSub;
 
         /*
          |--------------------------------------------------------------------------
@@ -249,6 +266,33 @@ class FeedbackResultsController extends Controller
         if ($fpHasSec && $sectionId !== null)   { $sql .= " AND fp.section_id = ? ";    $bindings[] = $sectionId; }
         if ($fpHasAcad && $acadYear !== '')     { $sql .= " AND fp.academic_year = ? "; $bindings[] = $acadYear; }
         if ($fpHasYear && $year !== null)       { $sql .= " AND fp.year = ? ";          $bindings[] = $year; }
+
+        // ✅ NEW: Attendance filter (exclude submissions where student's attendance is below threshold)
+        if ($canAttendanceFilter) {
+            $sql .= "
+                AND EXISTS (
+                    SELECT 1
+                    FROM student_subject ss
+                    JOIN JSON_TABLE(
+                        ss.subject_json,
+                        '$[*]' COLUMNS (
+                            student_id INT PATH '$.student_id',
+                            subject_id INT PATH '$.subject_id',
+                            current_attendance DECIMAL(6,2) PATH '$.current_attendance'
+                        )
+                    ) sj
+                    WHERE ss.deleted_at IS NULL
+                      AND (ss.status IS NULL OR ss.status = 'active')
+                      ".($fpHasDept   ? " AND ss.department_id = fp.department_id " : "")."
+                      ".($fpHasCourse ? " AND ss.course_id     = fp.course_id "     : "")."
+                      ".($fpHasSem    ? " AND ss.semester_id  <=> fp.semester_id "  : "")."
+                      AND sj.student_id = fs.student_id
+                      AND sj.subject_id = fp.subject_id
+                      AND sj.current_attendance >= ?
+                )
+            ";
+            $bindings[] = $minAttendance;
+        }
 
         $sql .= "
             GROUP BY
@@ -596,7 +640,7 @@ class FeedbackResultsController extends Controller
                                         'faculty_id'        => 0,
                                         'faculty_name'      => 'Overall',
 
-                                        // ✅ NEW: keys for overall (null)
+                                        // ✅ keys for overall (null)
                                         'name_short_form'   => null,
                                         'employee_id'       => null,
 

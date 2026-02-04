@@ -57,11 +57,6 @@
   </script>
 
   <style>
-    /* =========================================================
-       Public Footer (Render) – adjusted to match main.css + header menu
-       ✅ Section2: 4 departments in a row, child menus in a column
-       ========================================================= */
-
     :root{
       --ft-bg: var(--primary-color, #9E363A);
       --ft-ink: #ffffff;
@@ -85,229 +80,48 @@
     }
 
     .ft-wrap, .ft-wrap *{ box-sizing:border-box; }
-
-    .ft-wrap{
-      width:100%;
-      background:var(--ft-bg);
-      color:var(--ft-ink);
-      font-family: var(--font-sans, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Noto Sans', sans-serif);
-    }
-
-    .ft-inner{
-      max-width:var(--ft-max);
-      margin:0 auto;
-      padding:22px 16px 18px;
-    }
-
-    .ft-rule{
-      height:0;
-      border:none;
-      border-top:1px solid var(--ft-rule);
-      margin:18px 0;
-      opacity:1;
-    }
+    .ft-wrap{width:100%;background:var(--ft-bg);color:var(--ft-ink);font-family: var(--font-sans, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Noto Sans', sans-serif);}
+    .ft-inner{max-width:var(--ft-max);margin:0 auto;padding:22px 16px 18px;}
+    .ft-rule{height:0;border:none;border-top:1px solid var(--ft-rule);margin:18px 0;opacity:1;}
 
     /* ===== Inline link rows ===== */
-    .ft-inline-links{
-      display:flex;
-      flex-wrap:wrap;
-      justify-content:center;
-      gap:10px var(--ft-link-gap);
-      padding:6px 0;
-    }
+    .ft-inline-links{display:flex;flex-wrap:wrap;justify-content:center;gap:10px var(--ft-link-gap);padding:6px 0;}
     .ft-inline-links.ft-left{ justify-content:flex-start; }
-
-    .ft-link{
-      color:var(--ft-ink);
-      text-decoration:none;
-      font-size:var(--ft-link-size);
-      line-height:1.25;
-      white-space:nowrap;
-      border-bottom:2px solid transparent;
-      padding-bottom:2px;
-      transition:opacity .12s ease, border-color .12s ease;
-    }
-    .ft-link:hover{
-      color:var(--ft-accent-2);
-      border-color:var(--ft-accent);
-      text-decoration:none;
-    }
-
-    /* =========================================================
-       ✅ Section 2 (Departments)
-       - 4 columns in a row (desktop)
-       - each department has vertical child list (column)
-       ========================================================= */
-    .ft-blocks{
-      display:grid;
-      grid-template-columns:repeat(4, minmax(0, 1fr));
-      gap: 18px 34px; /* tuned to match main.css spacing */
-      align-items:start;
-    }
-
-    .ft-block{
-      min-width:0;
-    }
-
-    .ft-block-title{
-      font-family: var(--font-head, var(--font-sans, inherit));
-      font-weight:700;
-      font-size:var(--ft-dept-title);
-      margin:0 0 12px 0;
-      letter-spacing:.15px;
-      position:relative;
-      display:inline-block;
-      line-height:1.2;
-    }
-    .ft-block-title::after{
-      content:"";
-      position:absolute;
-      left:0;
-      bottom:-6px;
-      width:56px;
-      height:3px;
-      background:var(--ft-accent);
-      border-radius:6px;
-    }
+    .ft-link{color:var(--ft-ink);text-decoration:none;font-size:var(--ft-link-size);line-height:1.25;white-space:nowrap;border-bottom:2px solid transparent;padding-bottom:2px;transition:opacity .12s ease, border-color .12s ease;}
+    .ft-link:hover{color:var(--ft-accent-2);border-color:var(--ft-accent);text-decoration:none;}
+    .ft-blocks{display:grid;grid-template-columns:repeat(4, minmax(0, 1fr));gap: 18px 34px;align-items:start;}
+    .ft-block{min-width:0;}
+    .ft-block-title{font-family: var(--font-head, var(--font-sans, inherit));font-weight:700;font-size:var(--ft-dept-title);margin:0 0 12px 0;letter-spacing:.15px;position:relative;display:inline-block;line-height:1.2;}
+    .ft-block-title::after{content:"";position:absolute;left:0;bottom:-6px;width:56px;height:3px;background:var(--ft-accent);border-radius:6px;}
 
     /* ✅ child menus in a column */
-    .ft-block-grid{
-      display:flex;
-      flex-direction:column;
-      gap: 10px; /* column gap between children */
-      margin-top: 10px;
-    }
-
-    .ft-block-item{
-      color:var(--ft-ink);
-      text-decoration:none;
-      font-size:var(--ft-dept-item);
-      line-height:1.25;
-      opacity:.98;
-      transition:opacity .12s ease, transform .12s ease;
-      white-space:normal;
-      word-break:break-word;
-    }
-    .ft-block-item:hover{
-      opacity:1;
-      transform:translateX(2px);
-      text-decoration:none;
-    }
+    .ft-block-grid{display:flex;flex-direction:column;gap: 10px;margin-top: 10px;}
+    .ft-block-item{color:var(--ft-ink);text-decoration:none;font-size:var(--ft-dept-item);line-height:1.25;opacity:.98;transition:opacity .12s ease, transform .12s ease;white-space:normal;word-break:break-word;}
+    .ft-block-item:hover{opacity:1;transform:translateX(2px);text-decoration:none;}
 
     /* ===== Brand row ===== */
-    .ft-brand-row{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:18px;
-      padding:6px 0;
-    }
-
-    .ft-brand-left{
-      display:flex;
-      align-items:center;
-      gap:14px;
-      min-width:0;
-    }
-
-    .ft-brand-logo{
-      width:92px;
-      height:92px;
-      object-fit:contain;
-      border-radius:999px;
-      background:rgba(255,255,255,.12);
-      padding:8px;
-    }
-
+    .ft-brand-row{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:6px 0;}
+    .ft-brand-left{display:flex;align-items:center;gap:14px;min-width:0;}
+    .ft-brand-logo{width:92px;height:92px;object-fit:contain;border-radius:999px;background:rgba(255,255,255,.12);padding:8px;}
     .ft-brand-text{ min-width:0; display:flex; flex-direction:column; gap:4px; }
-
-    .ft-brand-title{
-      font-family: var(--font-head, var(--font-sans, inherit));
-      font-weight:800;
-      font-size:1.35rem; /* slightly smaller than before, closer to system */
-      line-height:1.15;
-      margin:0;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
-
-    .ft-brand-rotate{
-      color:var(--ft-ink-soft);
-      font-size:.98rem;
-      line-height:1.25;
-      margin:0;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-      transition:opacity .18s ease, transform .18s ease;
-    }
+    .ft-brand-title{font-family: var(--font-head, var(--font-sans, inherit));font-weight:800;font-size:1.35rem;line-height:1.15;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .ft-brand-rotate{color:var(--ft-ink-soft);font-size:.98rem;line-height:1.25;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:opacity .18s ease, transform .18s ease;}
     .ft-brand-rotate.is-fading{ opacity:0; transform:translateY(-2px); }
 
     /* ===== Social buttons ===== */
-    .ft-social{
-      display:flex;
-      align-items:center;
-      gap:14px;
-      flex:0 0 auto;
-    }
-    .ft-social-btn{
-      width:var(--ft-social-size);
-      height:var(--ft-social-size);
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      border:2px solid var(--ft-accent-2);
-      color:var(--ft-accent-2);
-      text-decoration:none;
-      background:transparent;
-      transition:transform .12s ease, background .12s ease, filter .12s ease;
-    }
+    .ft-social{display:flex;align-items:center;gap:14px;flex:0 0 auto;}
+    .ft-social-btn{width:var(--ft-social-size);height:var(--ft-social-size);display:inline-flex;align-items:center;justify-content:center;border:2px solid var(--ft-accent-2);color:var(--ft-accent-2);text-decoration:none;background:transparent;transition:transform .12s ease, background .12s ease, filter .12s ease;}
     .ft-social-btn i{ font-size:var(--ft-social-icon); line-height:1; }
-    .ft-social-btn:hover{
-      background:var(--ft-accent-2);
-      filter:drop-shadow(0 8px 18px rgba(0,0,0,.12));
-      text-decoration:none;
-    }
+    .ft-social-btn:hover{background:var(--ft-accent-2);filter:drop-shadow(0 8px 18px rgba(0,0,0,.12));text-decoration:none;}
 
     /* ===== Bottom row ===== */
-    .ft-bottom-row{
-      display:flex;
-      align-items:flex-start;
-      justify-content:space-between;
-      gap:16px;
-    }
-
-    .ft-bottom-links{
-      display:flex;
-      flex-wrap:wrap;
-      gap:10px 18px;
-      align-items:center;
-    }
-
-    .ft-copy{
-      color:var(--ft-ink-soft);
-      font-size:.95rem;
-      line-height:1.25;
-      text-align:right;
-      white-space:nowrap;
-    }
-
-    .ft-address{
-      margin-top:10px;
-      color:var(--ft-ink);
-      font-size:.95rem;
-      line-height:1.35;
-      opacity:.98;
-    }
+    .ft-bottom-row{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;}
+    .ft-bottom-links{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;}
+    .ft-copy{color:var(--ft-ink-soft);font-size:.95rem;line-height:1.25;text-align:right;white-space:nowrap;}
+    .ft-address{margin-top:10px;color:var(--ft-ink);font-size:.95rem;line-height:1.35;opacity:.98;}
 
     /* ===== Skeleton ===== */
-    .ft-skel{
-      background:linear-gradient(90deg, rgba(255,255,255,.10), rgba(255,255,255,.18), rgba(255,255,255,.10));
-      background-size:200% 100%;
-      animation:ft-skel 1.1s ease-in-out infinite;
-      border-radius:10px;
-    }
+    .ft-skel{background:linear-gradient(90deg, rgba(255,255,255,.10), rgba(255,255,255,.18), rgba(255,255,255,.10));background-size:200% 100%;animation:ft-skel 1.1s ease-in-out infinite;border-radius:10px;}
     @keyframes ft-skel{ 0%{ background-position:200% 0; } 100%{ background-position:-200% 0; } }
     .ft-skel-title{ height:32px; width:220px; }
     .ft-skel-grid{ height:120px; width:100%; border-radius:14px; }
@@ -635,6 +449,26 @@
     return new Map();
   }
 
+  // ✅ MODIFIED: Special href function for footer block items only
+  function childHrefForFooterBlock(ch){
+    const u = (ch?.url_full ?? ch?.url ?? ch?.link ?? ch?.href ?? ch?.path ?? ch?.full_url ?? '').toString().trim();
+    if (u) return normalizeUrl(u);
+
+    const slug = (ch?.slug ?? ch?.page_slug ?? '').toString().trim();
+    if (slug) {
+      // ✅ FIX: Add /page/ prefix for slug-based URLs in footer blocks
+      const normalizedSlug = slug.startsWith('/') ? slug : '/' + slug;
+      // Check if it already starts with /page/
+      if (!normalizedSlug.startsWith('/page/')) {
+        return normalizeUrl('/page' + normalizedSlug);
+      }
+      return normalizeUrl(normalizedSlug);
+    }
+
+    return 'javascript:void(0)';
+  }
+
+  // ✅ Original childHref function (kept for other uses if needed)
   function childHref(ch){
     const u = (ch?.url_full ?? ch?.url ?? ch?.link ?? ch?.href ?? ch?.path ?? ch?.full_url ?? '').toString().trim();
     if (u) return normalizeUrl(u);
@@ -720,7 +554,8 @@
         const label = (ch?.title || ch?.name || ch?.label || 'Menu').toString().trim();
         if (!label) return;
 
-        const href = childHref(ch);
+        // ✅ FIX: Use special href function for footer block items
+        const href = childHrefForFooterBlock(ch);
 
         const a = document.createElement('a');
         a.className = 'ft-block-item';
@@ -959,7 +794,7 @@
       }
     }
 
-    // ✅ dev hints (won’t break anything)
+    // ✅ dev hints (won't break anything)
     if (!blockCount){
       console.warn('[Footer] Section2: No header menu blocks rendered. Check: (1) footer row section2_header_menu_json, (2) #ftBar data-header-menus-endpoint, (3) header menus API returns children.');
       console.warn('[Footer] Section2 raw:', s2blocks);

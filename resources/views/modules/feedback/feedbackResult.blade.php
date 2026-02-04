@@ -515,6 +515,26 @@ td .fw-semibold{color:var(--ink)}
           <div class="p-3" style="border:1px solid var(--line-strong);border-radius:14px;background:var(--surface);" id="detailDesc">—</div>
         </div>
 
+        {{-- ✅ NEW: Attendance % filter (in modal, top of faculty/overall tabs) --}}
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span class="pill"><i class="fa-solid fa-filter"></i>Attendance Filter</span>
+            <div class="input-group" style="max-width:260px;">
+              <span class="input-group-text"><i class="fa-solid fa-percent"></i></span>
+              <input id="attMin" type="number" class="form-control" min="0" max="100" step="1" placeholder="Min attendance (e.g. 75)">
+              <button id="btnAttApply" class="btn btn-outline-primary" type="button" title="Apply">
+                <i class="fa fa-check"></i>
+              </button>
+              <button id="btnAttClear" class="btn btn-light" type="button" title="Clear">
+                <i class="fa fa-rotate-left"></i>
+              </button>
+            </div>
+          </div>
+          <div class="small text-muted">
+            Only students with attendance <b>&ge;</b> this percentage will be included.
+          </div>
+        </div>
+
         {{-- Faculty Tabs (auto) --}}
         <div id="detailFacultyTabs" class="fac-tabsbar mb-2" style="display:none;"></div>
 
@@ -834,6 +854,11 @@ td .fw-semibold{color:var(--ink)}
     const detailQuestions = $('detailQuestions');
     const detailSearch = $('detailSearch');
 
+    // ✅ NEW: Attendance filter controls (detail modal)
+    const attMin = $('attMin');
+    const btnAttApply = $('btnAttApply');
+    const btnAttClear = $('btnAttClear');
+
     // Export modal fields
     const btnExport = $('btnExport');
     const exportModalEl = $('exportModal');
@@ -856,7 +881,8 @@ td .fw-semibold{color:var(--ink)}
         subject_id: '',
         section_id: '',
         academic_year: '',
-        year: ''
+        year: '',
+        min_attendance: '' // ✅ NEW
       },
       rawHierarchy: [],
       postIndex: new Map(),
@@ -875,6 +901,15 @@ td .fw-semibold{color:var(--ink)}
       lastDetailQuestions: [],
     };
 
+    function clampAttendance(v){
+      const s = (v ?? '').toString().trim();
+      if (s === '') return '';
+      const n = Number(s);
+      if (!Number.isFinite(n)) return '';
+      const c = Math.max(0, Math.min(100, Math.round(n)));
+      return String(c);
+    }
+
     function buildParams(){
       const p = new URLSearchParams();
       const f = state.filters;
@@ -886,6 +921,9 @@ td .fw-semibold{color:var(--ink)}
       if (f.section_id) p.set('section_id', f.section_id);
       if (f.academic_year) p.set('academic_year', f.academic_year);
       if (f.year) p.set('year', f.year);
+
+      // ✅ NEW: Attendance filter passed to API (>=)
+      if (f.min_attendance !== '') p.set('min_attendance', f.min_attendance);
 
       return p.toString();
     }
@@ -1307,6 +1345,9 @@ td .fw-semibold{color:var(--ink)}
       if (detailYear) detailYear.textContent = (post.year ?? '—') || '—';
 
       if (detailParticipated) detailParticipated.textContent = String(post.participated_students ?? 0);
+
+      // ✅ keep modal input in sync with current filter
+      if (attMin) attMin.value = (state.filters.min_attendance ?? '');
 
       const desc = (post.description ?? '').toString().trim();
       if (detailDescWrap && detailDesc){
@@ -1808,7 +1849,8 @@ td .fw-semibold{color:var(--ink)}
         subject_id: '',
         section_id: '',
         academic_year: '',
-        year: ''
+        year: '',
+        min_attendance: '' // ✅ NEW
       };
 
       if (fDept) fDept.value = '';
@@ -1819,10 +1861,50 @@ td .fw-semibold{color:var(--ink)}
       if (fAcad) fAcad.value = '';
       if (fYear) fYear.value = '';
 
+      // ✅ NEW
+      if (attMin) attMin.value = '';
+
       loadResults();
     });
 
     btnRefresh?.addEventListener('click', () => loadResults());
+
+    // ✅ NEW: Attendance filter apply/clear (modal)
+    async function applyAttendanceFromModal(){
+      const val = clampAttendance(attMin ? attMin.value : '');
+      state.filters.min_attendance = val;
+      if (attMin) attMin.value = val;
+
+      const keepPost = state.lastDetailPostKey ? String(state.lastDetailPostKey) : null;
+
+      await loadResults();
+
+      if (keepPost && state.postIndex.has(keepPost)){
+        renderDetail(keepPost);
+      } else if (keepPost) {
+        // if post disappears due to filter, keep modal open but show friendly message
+        state.lastDetailPostKey = null;
+        if (detailFacultyTabs) detailFacultyTabs.style.display = 'none';
+        if (detailMatrixTitle) detailMatrixTitle.innerHTML = `<i class="fa fa-table me-2"></i>Question-wise Grade Distribution`;
+        if (detailQuestions) detailQuestions.innerHTML =
+          `<div class="text-center text-muted" style="padding:22px;">No results for this post under current attendance filter.</div>`;
+      }
+    }
+
+    btnAttApply?.addEventListener('click', () => { applyAttendanceFromModal(); });
+
+    btnAttClear?.addEventListener('click', () => {
+      if (attMin) attMin.value = '';
+      state.filters.min_attendance = '';
+      applyAttendanceFromModal();
+    });
+
+    attMin?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter'){
+        e.preventDefault();
+        applyAttendanceFromModal();
+      }
+    });
 
     // Init
     (async () => {

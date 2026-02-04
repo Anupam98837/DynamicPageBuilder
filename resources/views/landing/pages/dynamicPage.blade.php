@@ -141,6 +141,11 @@
                         @include('partials.pageNotFound')
                     </div>
 
+                    {{-- ✅ SPECIFIC CHANGE: Coming Soon wrapper (shown when API returns type=coming_soon) --}}
+                    <div id="pageComingSoonWrap" class="d-none">
+                        @include('partials.comingSoon')
+                    </div>
+
                     <div id="pageWrap" class="d-none">
                         <div class="dp-muted d-none" id="pageMeta"></div>
 
@@ -161,7 +166,6 @@
 @php
   $apiBase = rtrim(url('/api'), '/');
 @endphp
-
 <script>
 (function(){
     const API_BASE  = @json($apiBase);
@@ -242,6 +246,7 @@
     const elLoading   = document.getElementById('pageLoading');
     const elError     = document.getElementById('pageError');
     const elNotFound  = document.getElementById('pageNotFoundWrap');
+    const elComingSoon= document.getElementById('pageComingSoonWrap'); // ✅ NEW
     const elWrap      = document.getElementById('pageWrap');
     const elTitle     = document.getElementById('pageTitle');
     const elMeta      = document.getElementById('pageMeta');
@@ -302,6 +307,7 @@
     function showLoading(msg){
         elLoadingText.textContent = msg || 'Loading…';
         elError.classList.add('d-none'); elError.textContent = '';
+        if (elComingSoon) elComingSoon.classList.add('d-none'); // ✅ NEW
         elWrap.classList.add('d-none');
         if (elNotFound) elNotFound.classList.add('d-none');
         elLoading.classList.remove('d-none');
@@ -310,6 +316,7 @@
     function showError(msg){
         elError.textContent = msg;
         elError.classList.remove('d-none');
+        if (elComingSoon) elComingSoon.classList.add('d-none'); // ✅ NEW
         elLoading.classList.add('d-none');
         elWrap.classList.add('d-none');
         if (elNotFound) elNotFound.classList.add('d-none');
@@ -322,9 +329,35 @@
         } catch(e){}
 
         elError.classList.add('d-none'); elError.textContent = '';
+        if (elComingSoon) elComingSoon.classList.add('d-none'); // ✅ NEW
         elLoading.classList.add('d-none');
         elWrap.classList.add('d-none');
         if (elNotFound) elNotFound.classList.remove('d-none');
+    }
+
+    // ✅ SPECIFIC CHANGE: coming-soon renderer (no red error)
+    function showComingSoon(submenuSlug, payload){
+        try{
+            const s = String(submenuSlug || '').trim();
+            const title = String(payload?.title || 'Coming Soon').trim();
+            const msg = String(payload?.message || '').trim();
+
+            // optional slots (only if your partial has them)
+            const s1 = document.querySelector('[data-dp-comingsoon-slug]');
+            if (s1) s1.textContent = s;
+
+            const t1 = document.querySelector('[data-dp-comingsoon-title]');
+            if (t1) t1.textContent = title;
+
+            const m1 = document.querySelector('[data-dp-comingsoon-message]');
+            if (m1 && msg) m1.textContent = msg;
+        }catch(e){}
+
+        elError.classList.add('d-none'); elError.textContent = '';
+        elLoading.classList.add('d-none');
+        elWrap.classList.add('d-none');
+        if (elNotFound) elNotFound.classList.add('d-none');
+        if (elComingSoon) elComingSoon.classList.remove('d-none');
     }
 
     function hideError(){
@@ -856,7 +889,16 @@
         elTitle.textContent = payload.title || 'Dynamic Page';
         setMeta('');
 
+        // ✅ SPECIFIC CHANGE: handle coming_soon type (no red error)
+        if (type === 'coming_soon') {
+            clearModuleAssets();
+            showComingSoon(sslug, payload);
+            scheduleStickyUpdate();
+            return;
+        }
+
         if (type === 'includable') {
+            if (elComingSoon) elComingSoon.classList.add('d-none'); // ✅ NEW
             injectModuleStyles(payload?.assets?.styles || '');
 
             const out = payload.html || '';
@@ -868,6 +910,7 @@
             injectModuleScripts(payload?.assets?.scripts || '');
         }
         else if (type === 'page') {
+            if (elComingSoon) elComingSoon.classList.add('d-none'); // ✅ NEW
             clearModuleAssets();
             const out = payload.html || '';
             setInnerHTMLWithScripts(
@@ -876,6 +919,7 @@
             );
         }
         else if (type === 'url') {
+            if (elComingSoon) elComingSoon.classList.add('d-none'); // ✅ NEW
             clearModuleAssets();
             const url = payload.url || '';
             const safeUrl = url ? url : 'about:blank';
@@ -893,6 +937,7 @@
             setInnerHTMLWithScripts(elHtml, iframe);
         }
         else {
+            if (elComingSoon) elComingSoon.classList.add('d-none'); // ✅ NEW
             clearModuleAssets();
             setInnerHTMLWithScripts(elHtml, '<p class="text-muted mb-0">Unknown content type.</p>');
         }
@@ -900,6 +945,7 @@
         elLoading.classList.add('d-none');
         elWrap.classList.remove('d-none');
         if (elNotFound) elNotFound.classList.add('d-none');
+        if (elComingSoon) elComingSoon.classList.add('d-none'); // ✅ NEW
         hideError();
 
         scheduleStickyUpdate();
@@ -949,8 +995,32 @@
                 e.preventDefault();
                 e.stopPropagation();
 
-                const sslug = (a.dataset.submenuSlug || '').trim();
-                if (!sslug) return;
+                // ✅ SPECIFIC FIX:
+                // If this menu node has NO destination slug, show Coming Soon (or just toggle children).
+                const raw = (a.dataset.submenuSlug || '').trim();
+                const bad = ['null','undefined','#','0'];
+                const sslug = (raw && !bad.includes(raw.toLowerCase())) ? raw : '';
+
+                if (!sslug) {
+                    // If it’s a parent node, behave like an accordion.
+                    if (hasChildren) {
+                        li.classList.toggle('open');
+                        scheduleStickyUpdate();
+                        return;
+                    }
+
+                    // Leaf with no destination ⇒ show coming soon partial.
+                    document.querySelectorAll('.hallienz-side__link.active').forEach(x => x.classList.remove('active'));
+                    a.classList.add('active');
+
+                    clearModuleAssets();
+                    showComingSoon('', {
+                        title: String(title || 'Coming Soon'),
+                        message: 'This section is coming soon.'
+                    });
+                    scheduleStickyUpdate();
+                    return;
+                }
 
                 document.querySelectorAll('.hallienz-side__link.active').forEach(x => x.classList.remove('active'));
                 a.classList.add('active');
@@ -1106,7 +1176,7 @@
 
         // ✅ store both in global scope:
         // - requested_header_menu_id stays as the user's selected menu (URL)
-        // - header_menu_id becomes the effective menu used for API calls (render/tree result)
+        // - header_menu_id becomes the effective menu used for API calls (render/tree)
         window.__DP_PAGE_SCOPE__ = window.__DP_PAGE_SCOPE__ || {};
         if (!window.__DP_PAGE_SCOPE__.page_id && pageId) window.__DP_PAGE_SCOPE__.page_id = pageId;
         if (!window.__DP_PAGE_SCOPE__.page_slug && pageSlug) window.__DP_PAGE_SCOPE__.page_slug = pageSlug;
@@ -1253,6 +1323,7 @@
         elLoading.classList.add('d-none');
         elWrap.classList.remove('d-none');
         if (elNotFound) elNotFound.classList.add('d-none');
+        if (elComingSoon) elComingSoon.classList.add('d-none'); // ✅ NEW
 
         await loadSidebarIfAny(page);
 
@@ -1306,6 +1377,7 @@
 
 })();
 </script>
+
 
 @stack('scripts')
 </body>

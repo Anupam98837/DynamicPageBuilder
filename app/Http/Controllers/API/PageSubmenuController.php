@@ -1733,9 +1733,18 @@ public function renderPublic(Request $r)
     }
 
     return response()->json([
-        'success' => false,
-        'error'   => 'No destination configured for this submenu',
-    ], 422);
+    'success' => true,
+    'type'    => 'coming_soon',
+    'title'   => $menu->title ?? 'Coming Soon',
+    'message' => trim((string)($menu->description ?? '')) ?: 'This section will be available soon.',
+    'meta'    => [
+        'submenu_slug'   => $menu->slug ?? null,
+        'submenu_id'     => $menu->id ?? null,
+        'header_menu_id' => $menu->header_menu_id ?? null,
+        'page_id'        => $menu->page_id ?? null,
+    ],
+], 200);
+
 }
 
 }
