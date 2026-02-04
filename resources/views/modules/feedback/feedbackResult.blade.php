@@ -22,6 +22,10 @@
  * ✅ NEW CHANGE (as requested now):
  *   - Make the lower (avg row) `.qtext` full 100% width
  *   - Remove all other td's from the lower portion (avg row has ONLY one td with colspan)
+ * ✅ NEW CHANGE (as requested now):
+ *   - After applying attendance filter, show "X out of Y" (Participated out of Eligible) in details + exports
+ * ✅ FIX (frontend issue):
+ *   - If filter finds nothing, dropdown options should NOT get wiped; next filtering must still work
  * Everything else unchanged
  * ========================= */
 
@@ -495,6 +499,7 @@ td .fw-semibold{color:var(--ink)}
           <div class="detail-meta">
             <span class="chip"><i class="fa fa-calendar"></i> Publish: <span id="detailPublish">—</span></span>
             {{-- ✅ Removed Expire chip --}}
+            {{-- ✅ UPDATED: show X out of Y (Participated out of Eligible) --}}
             <span class="chip"><i class="fa fa-users"></i> Participated: <b id="detailParticipated">0</b></span>
           </div>
         </div>
@@ -854,7 +859,7 @@ td .fw-semibold{color:var(--ink)}
     const detailQuestions = $('detailQuestions');
     const detailSearch = $('detailSearch');
 
-    // ✅ NEW: Attendance filter controls (detail modal)
+    // ✅ Attendance filter controls (detail modal)
     const attMin = $('attMin');
     const btnAttApply = $('btnAttApply');
     const btnAttClear = $('btnAttClear');
@@ -889,6 +894,16 @@ td .fw-semibold{color:var(--ink)}
       flatPosts: [],
       total: 0,
 
+      // ✅ cache last known dropdown options to prevent wipe on empty result
+      optionCache: {
+        deptMap: new Map(),
+        courseMap: new Map(),
+        semMap: new Map(),
+        subMap: new Map(),
+        subTitleMap: new Map(),
+        secMap: new Map()
+      },
+
       // detail tabs
       lastDetailPostKey: null,
       activeFacultyId: 0,          // "0" means Overall
@@ -922,7 +937,7 @@ td .fw-semibold{color:var(--ink)}
       if (f.academic_year) p.set('academic_year', f.academic_year);
       if (f.year) p.set('year', f.year);
 
-      // ✅ NEW: Attendance filter passed to API (>=)
+      // ✅ Attendance filter passed to API (>=)
       if (f.min_attendance !== '') p.set('min_attendance', f.min_attendance);
 
       return p.toString();
@@ -962,6 +977,14 @@ td .fw-semibold{color:var(--ink)}
       state.postIndex.clear();
       state.flatPosts = [];
 
+      const hierarchy = Array.isArray(state.rawHierarchy) ? state.rawHierarchy : [];
+
+      // ✅ FIX: if API returned empty, do NOT rebuild dropdowns to empty (keep optionCache)
+      if (!hierarchy.length){
+        state.total = 0;
+        return;
+      }
+
       const deptSet = new Map();
       const courseSet = new Map();
       const semSet = new Map();
@@ -969,7 +992,7 @@ td .fw-semibold{color:var(--ink)}
       const subTitleSet = new Map();
       const secSet = new Map();
 
-      (state.rawHierarchy || []).forEach(dept => {
+      hierarchy.forEach(dept => {
         const dId = dept?.department_id ?? '';
         const dName = dept?.department_name ?? '';
         if (dId !== null && dId !== undefined && dId !== '') deptSet.set(String(dId), String(dName || ('Dept #' + dId)));
@@ -1035,7 +1058,10 @@ td .fw-semibold{color:var(--ink)}
                     description: post?.description ?? '',
                     academic_year: post?.academic_year ?? '',
                     year: post?.year ?? '',
+
+                    // ✅ includes eligible_students from API if present
                     participated_students: post?.participated_students ?? 0,
+                    eligible_students: (post?.eligible_students === null || post?.eligible_students === undefined) ? null : Number(post.eligible_students),
                     ctx
                   });
                 });
@@ -1044,6 +1070,14 @@ td .fw-semibold{color:var(--ink)}
           });
         });
       });
+
+      // ✅ update cache only when we got non-empty hierarchy
+      state.optionCache.deptMap = deptSet;
+      state.optionCache.courseMap = courseSet;
+      state.optionCache.semMap = semSet;
+      state.optionCache.subMap = subSet;
+      state.optionCache.subTitleMap = subTitleSet;
+      state.optionCache.secMap = secSet;
 
       const fillSel = (sel, map, titleMap=null) => {
         if (!sel) return;
@@ -1344,7 +1378,16 @@ td .fw-semibold{color:var(--ink)}
       if (detailAcadYear) detailAcadYear.textContent = (post.academic_year ?? '—') || '—';
       if (detailYear) detailYear.textContent = (post.year ?? '—') || '—';
 
-      if (detailParticipated) detailParticipated.textContent = String(post.participated_students ?? 0);
+      // ✅ UPDATED: show "X out of Y" if eligible_students exists
+      const participated = Number(post.participated_students ?? 0) || 0;
+      const eligibleRaw = (post.eligible_students === null || post.eligible_students === undefined) ? null : Number(post.eligible_students);
+      const eligible = (eligibleRaw !== null && Number.isFinite(eligibleRaw)) ? eligibleRaw : null;
+
+      if (detailParticipated) {
+        detailParticipated.textContent = (eligible !== null)
+          ? `${participated} out of ${eligible}`
+          : String(participated);
+      }
 
       // ✅ keep modal input in sync with current filter
       if (attMin) attMin.value = (state.filters.min_attendance ?? '');
@@ -1424,6 +1467,11 @@ td .fw-semibold{color:var(--ink)}
      * =========================== */
 
     function buildBasicMetaRows(post, ctx){
+      const participated = Number(post?.participated_students ?? 0) || 0;
+      const eligibleRaw = (post?.eligible_students === null || post?.eligible_students === undefined) ? null : Number(post?.eligible_students);
+      const eligible = (eligibleRaw !== null && Number.isFinite(eligibleRaw)) ? eligibleRaw : null;
+      const participatedLabel = (eligible !== null) ? `${participated} out of ${eligible}` : String(participated);
+
       return [
         ['Feedback Post', safeText(post?.title)],
         ['Department', safeText(ctx?.department_name)],
@@ -1435,7 +1483,8 @@ td .fw-semibold{color:var(--ink)}
         ['Academic Year', safeText(post?.academic_year)],
         ['Year', safeText(post?.year)],
         ['Publish', safeText(post?.publish_at)],
-        ['Participated', String(post?.participated_students ?? 0)],
+        // ✅ UPDATED: show X out of Y in exports too
+        ['Participated', participatedLabel],
       ];
     }
 
@@ -1748,7 +1797,12 @@ td .fw-semibold{color:var(--ink)}
         if (!res.ok || js.success === false) throw new Error(js?.message || 'Failed to load');
 
         state.rawHierarchy = Array.isArray(js.data) ? js.data : [];
+
+        // ✅ FIX: if empty result, keep dropdowns (do not wipe), but still clear posts
         rebuildFromHierarchy();
+
+        // ✅ If this is the FIRST load and we somehow got empty, ensure selects still have something usable:
+        // (no endpoint to rebuild lists, so we simply leave current options as-is)
         renderTable();
 
       }catch(ex){
@@ -1869,7 +1923,7 @@ td .fw-semibold{color:var(--ink)}
 
     btnRefresh?.addEventListener('click', () => loadResults());
 
-    // ✅ NEW: Attendance filter apply/clear (modal)
+    // ✅ Attendance filter apply/clear (modal)
     async function applyAttendanceFromModal(){
       const val = clampAttendance(attMin ? attMin.value : '');
       state.filters.min_attendance = val;

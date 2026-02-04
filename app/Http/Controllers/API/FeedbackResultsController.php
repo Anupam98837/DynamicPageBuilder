@@ -74,11 +74,6 @@ class FeedbackResultsController extends Controller
         return is_numeric($s) ? (int)$s : null;
     }
 
-    /**
-     * ✅ UPDATED:
-     * - Removed percent conversion (no % fields)
-     * - Keeps grade buckets counts + total + avg (grade)
-     */
     private function initDist(): array
     {
         return [
@@ -88,11 +83,6 @@ class FeedbackResultsController extends Controller
         ];
     }
 
-    /**
-     * ✅ UPDATED:
-     * - No percentage calculation
-     * - Only avg grade calculation
-     */
     private function finalizeDist(array &$dist): void
     {
         $total = (int)($dist['total'] ?? 0);
@@ -105,21 +95,14 @@ class FeedbackResultsController extends Controller
         foreach ([5,4,3,2,1] as $s) {
             $sum += $s * (int)($dist['counts'][(string)$s] ?? 0);
         }
-        $avg = $sum / $total;
-        $dist['avg'] = round($avg, 2);
+        $dist['avg'] = round($sum / $total, 2);
     }
 
     /* =========================================================
      | GET /api/feedback-results
-     | dept -> course -> sem -> subject -> section -> posts -> questions
-     | - per question:
-     |   - distribution (Overall, 5..1)
-     |   - faculty list
-     |   - ✅ faculty distribution buckets added
-     |   - ✅ Always includes faculty_id=0 Overall row
-     |   - ✅ faculty_name_short_form + employee_id added
-     |   - ✅ Removed percent conversion from distribution
-     |   - ✅ NEW: Attendance filter (min_attendance)
+     | ✅ includes:
+     | - attendance filter (min_attendance / attendance)
+     | - responded X out of eligible Y
      |========================================================= */
     public function results(Request $r)
     {
@@ -134,7 +117,7 @@ class FeedbackResultsController extends Controller
         $year       = $this->toInt($r->query('year'));
         $acadYear   = trim((string)$r->query('academic_year', ''));
 
-        // ✅ NEW: Attendance filter input (frontend can send min_attendance or attendance)
+        // Attendance filter input
         $minAttendance = $r->query('min_attendance', $r->query('attendance', null));
         $minAttendance = ($minAttendance !== null && $minAttendance !== '')
             ? max(0, min(100, (float)$minAttendance))
@@ -145,15 +128,13 @@ class FeedbackResultsController extends Controller
         $hasCourses = $this->tableExists('courses');
         $hasSubsTbl = $this->tableExists('subjects');
 
-        // ✅ prefer your actual semester/section tables
         $hasCourseSems     = $this->tableExists('course_semesters');
         $hasCourseSections = $this->tableExists('course_semester_sections');
 
-        // Fallback tables
         $hasSemsTbl     = $this->tableExists('semesters');
         $hasSectionsTbl = $this->tableExists('sections');
 
-        // ✅ NEW: Attendance table exists?
+        // Attendance table exists?
         $hasStudentSubjectTbl = $this->tableExists('student_subject');
 
         // Name columns
@@ -161,13 +142,9 @@ class FeedbackResultsController extends Controller
         $courseNameCol = $hasCourses ? $this->pickNameColumn('courses', ['title','name','course_name'], 'id') : null;
         $subNameCol    = $hasSubsTbl ? $this->pickNameColumn('subjects', ['name','title','subject_name'], 'id') : null;
 
-        // For course_semesters
-        $csNameCol = $hasCourseSems ? $this->pickNameColumn('course_semesters', ['title','name'], 'id') : null;
-
-        // For course_semester_sections
+        $csNameCol  = $hasCourseSems ? $this->pickNameColumn('course_semesters', ['title','name'], 'id') : null;
         $cssNameCol = $hasCourseSections ? $this->pickNameColumn('course_semester_sections', ['title','name'], 'id') : null;
 
-        // Fallback semesters/sections
         $semNameCol = $hasSemsTbl ? $this->pickNameColumn('semesters', ['name','title','semester_name'], 'id') : null;
         $secNameCol = $hasSectionsTbl ? $this->pickNameColumn('sections', ['name','title','section_name'], 'id') : null;
 
@@ -181,9 +158,9 @@ class FeedbackResultsController extends Controller
         $fpHasYear   = $this->hasCol(self::POSTS, 'year');
 
         $fsHasStudent = $this->hasCol(self::SUBS, 'student_id');
+        $fsHasStatus  = $this->hasCol(self::SUBS, 'status');
 
-        // ✅ NEW: Can we apply attendance filter safely?
-        // Needs: min_attendance + student_subject table + submissions.student_id + posts.subject_id
+        // Can apply attendance filter?
         $canAttendanceFilter = ($minAttendance !== null)
             && $hasStudentSubjectTbl
             && $fsHasStudent
@@ -191,8 +168,7 @@ class FeedbackResultsController extends Controller
 
         /*
          |--------------------------------------------------------------------------
-         | Explode JSON answers (qid -> fid -> stars)
-         | Returns per (post, qid, fid, stars) aggregates.
+         | Main query: ratings data (already respects attendance filter if active)
          |--------------------------------------------------------------------------
          */
         $sql = "
@@ -267,7 +243,7 @@ class FeedbackResultsController extends Controller
         if ($fpHasAcad && $acadYear !== '')     { $sql .= " AND fp.academic_year = ? "; $bindings[] = $acadYear; }
         if ($fpHasYear && $year !== null)       { $sql .= " AND fp.year = ? ";          $bindings[] = $year; }
 
-        // ✅ NEW: Attendance filter (exclude submissions where student's attendance is below threshold)
+        // Attendance filter
         if ($canAttendanceFilter) {
             $sql .= "
                 AND EXISTS (
@@ -328,7 +304,11 @@ class FeedbackResultsController extends Controller
             return response()->json(['success' => true, 'data' => []]);
         }
 
-        // Lookups (dept/course/subject)
+        /*
+         |--------------------------------------------------------------------------
+         | Lookup maps
+         |--------------------------------------------------------------------------
+         */
         $deptMap = $hasDepts
             ? DB::table('departments')->whereNull('deleted_at')->pluck($deptNameCol, 'id')->toArray()
             : [];
@@ -337,11 +317,7 @@ class FeedbackResultsController extends Controller
             ? DB::table('courses')->whereNull('deleted_at')->pluck($courseNameCol, 'id')->toArray()
             : [];
 
-        /* =========================
-         | ✅ UPDATED: Subject maps
-         | - subject_name will become: "SUBJECT_CODE - SUBJECT_NAME"
-         | - also provides subject_code separately
-         ========================= */
+        // Subjects: code + name label
         $subLabelMap = [];
         $subCodeMap  = [];
 
@@ -368,15 +344,10 @@ class FeedbackResultsController extends Controller
 
                 $subCodeMap[$id] = ($code !== '') ? $code : null;
 
-                if ($code !== '' && $name !== '') {
-                    $subLabelMap[$id] = $code . ' - ' . $name;
-                } elseif ($name !== '') {
-                    $subLabelMap[$id] = $name;
-                } elseif ($code !== '') {
-                    $subLabelMap[$id] = $code;
-                } else {
-                    $subLabelMap[$id] = null;
-                }
+                if ($code !== '' && $name !== '') $subLabelMap[$id] = $code . ' - ' . $name;
+                elseif ($name !== '')             $subLabelMap[$id] = $name;
+                elseif ($code !== '')             $subLabelMap[$id] = $code;
+                else                              $subLabelMap[$id] = null;
             }
         }
 
@@ -396,7 +367,7 @@ class FeedbackResultsController extends Controller
             $secMap = DB::table('sections')->whereNull('deleted_at')->pluck($secNameCol, 'id')->toArray();
         }
 
-        // Faculty map (only real faculty > 0)
+        // Faculty IDs and info
         $facultyIds = $rows->pluck('faculty_id')
             ->filter(fn($x) => $x !== null && (int)$x > 0)
             ->map(fn($x) => (int)$x)
@@ -404,11 +375,6 @@ class FeedbackResultsController extends Controller
             ->values()
             ->all();
 
-        /**
-         * ✅ UPDATED: Faculty info map
-         * - Includes name_short_form + employee_id (if columns exist)
-         * - Keeps schema-safe behavior
-         */
         $facultyInfoMap = [];
         if (!empty($facultyIds) && $this->tableExists(self::USERS)) {
             $nameCol = $this->pickNameColumn(self::USERS, ['name','full_name'], 'id');
@@ -427,40 +393,173 @@ class FeedbackResultsController extends Controller
             if ($uHasShort) $q->addSelect('name_short_form');
             if ($uHasEmp)   $q->addSelect('employee_id');
 
-            $urows = $q->get();
-
-            foreach ($urows as $u) {
+            foreach ($q->get() as $u) {
                 $id = (int)($u->id ?? 0);
                 if ($id <= 0) continue;
 
                 $facultyInfoMap[$id] = [
                     'name'            => isset($u->faculty_name) ? (string)$u->faculty_name : ('Faculty #' . $id),
-                    'name_short_form' => $uHasShort ? (($u->name_short_form !== null && trim((string)$u->name_short_form) !== '') ? (string)$u->name_short_form : null) : null,
-                    'employee_id'     => $uHasEmp ? (($u->employee_id !== null && trim((string)$u->employee_id) !== '') ? (string)$u->employee_id : null) : null,
+                    'name_short_form' => $uHasShort ? ((trim((string)($u->name_short_form ?? '')) !== '') ? (string)$u->name_short_form : null) : null,
+                    'employee_id'     => $uHasEmp ? ((trim((string)($u->employee_id ?? '')) !== '') ? (string)$u->employee_id : null) : null,
                 ];
             }
         }
 
-        // participated_students per post (distinct students)
+        /*
+         |--------------------------------------------------------------------------
+         | ✅ NEW: responded/eligible per post AFTER filters
+         |--------------------------------------------------------------------------
+         */
         $postIds = $rows->pluck('feedback_post_id')->map(fn($x)=>(int)$x)->unique()->values()->all();
+
+        // Responded (submitted/null) students per post (respect attendance filter if active)
         $postParticipated = [];
-
         if ($fsHasStudent && !empty($postIds)) {
-            $postParticipated = DB::table(self::SUBS)
-                ->whereIn('feedback_post_id', $postIds)
-                ->whereNull('deleted_at')
-                ->where(function($w){
-                    $w->whereNull('status')->orWhere('status', 'submitted');
-                })
-                ->selectRaw('feedback_post_id, COUNT(DISTINCT student_id) as cnt')
-                ->groupBy('feedback_post_id')
-                ->pluck('cnt', 'feedback_post_id')
-                ->toArray();
+            $psql = "
+                SELECT
+                    fp.id as feedback_post_id,
+                    COUNT(DISTINCT fs.student_id) as cnt
+                FROM ".self::POSTS." fp
+                INNER JOIN ".self::SUBS." fs ON fs.feedback_post_id = fp.id
+                WHERE fp.deleted_at IS NULL
+                  AND fs.deleted_at IS NULL
+                  AND (fs.status IS NULL OR fs.status = 'submitted')
+                  AND fp.id IN (".implode(',', array_fill(0, count($postIds), '?')).")
+            ";
+            $pbind = $postIds;
 
-            foreach ($postParticipated as $k => $v) $postParticipated[(int)$k] = (int)$v;
+            // apply SAME fp filters
+            if ($fpHasDept && $deptId !== null)     { $psql .= " AND fp.department_id = ? "; $pbind[] = $deptId; }
+            if ($fpHasCourse && $courseId !== null) { $psql .= " AND fp.course_id = ? ";     $pbind[] = $courseId; }
+            if ($fpHasSem && $semesterId !== null)  { $psql .= " AND fp.semester_id = ? ";   $pbind[] = $semesterId; }
+            if ($fpHasSub && $subjectId !== null)   { $psql .= " AND fp.subject_id = ? ";    $pbind[] = $subjectId; }
+            if ($fpHasSec && $sectionId !== null)   { $psql .= " AND fp.section_id = ? ";    $pbind[] = $sectionId; }
+            if ($fpHasAcad && $acadYear !== '')     { $psql .= " AND fp.academic_year = ? "; $pbind[] = $acadYear; }
+            if ($fpHasYear && $year !== null)       { $psql .= " AND fp.year = ? ";          $pbind[] = $year; }
+
+            // apply attendance eligibility if needed
+            if ($canAttendanceFilter) {
+                $psql .= "
+                    AND EXISTS (
+                        SELECT 1
+                        FROM student_subject ss
+                        JOIN JSON_TABLE(
+                            ss.subject_json,
+                            '$[*]' COLUMNS (
+                                student_id INT PATH '$.student_id',
+                                subject_id INT PATH '$.subject_id',
+                                current_attendance DECIMAL(6,2) PATH '$.current_attendance'
+                            )
+                        ) sj
+                        WHERE ss.deleted_at IS NULL
+                          AND (ss.status IS NULL OR ss.status = 'active')
+                          ".($fpHasDept   ? " AND ss.department_id = fp.department_id " : "")."
+                          ".($fpHasCourse ? " AND ss.course_id     = fp.course_id "     : "")."
+                          ".($fpHasSem    ? " AND ss.semester_id  <=> fp.semester_id "  : "")."
+                          AND sj.student_id = fs.student_id
+                          AND sj.subject_id = fp.subject_id
+                          AND sj.current_attendance >= ?
+                    )
+                ";
+                $pbind[] = $minAttendance;
+            }
+
+            $psql .= " GROUP BY fp.id ";
+
+            $pRows = DB::select($psql, $pbind);
+            foreach ($pRows as $pr) {
+                $postParticipated[(int)$pr->feedback_post_id] = (int)$pr->cnt;
+            }
         }
 
-        // Build nested response
+        // Eligible students per post:
+        // - If minAttendance active: compute from attendance roster (student_subject JSON) per post.subject_id
+        // - Else: compute from any submission row distinct student_id
+        $postEligible = [];
+
+        if (!empty($postIds)) {
+            if ($canAttendanceFilter) {
+                // Eligible from attendance roster
+                $esql = "
+                    SELECT
+                        fp.id as feedback_post_id,
+                        COUNT(DISTINCT sj.student_id) as cnt
+                    FROM ".self::POSTS." fp
+                    JOIN student_subject ss
+                      ON ss.deleted_at IS NULL
+                     AND (ss.status IS NULL OR ss.status = 'active')
+                     ".($fpHasDept   ? " AND ss.department_id = fp.department_id " : "")."
+                     ".($fpHasCourse ? " AND ss.course_id     = fp.course_id "     : "")."
+                     ".($fpHasSem    ? " AND ss.semester_id  <=> fp.semester_id "  : "")."
+                    JOIN JSON_TABLE(
+                        ss.subject_json,
+                        '$[*]' COLUMNS (
+                            student_id INT PATH '$.student_id',
+                            subject_id INT PATH '$.subject_id',
+                            current_attendance DECIMAL(6,2) PATH '$.current_attendance'
+                        )
+                    ) sj
+                      ON sj.subject_id = fp.subject_id
+                     AND sj.current_attendance >= ?
+                    WHERE fp.deleted_at IS NULL
+                      AND fp.id IN (".implode(',', array_fill(0, count($postIds), '?')).")
+                ";
+                $ebind = array_merge([$minAttendance], $postIds);
+
+                // apply SAME fp filters
+                if ($fpHasDept && $deptId !== null)     { $esql .= " AND fp.department_id = ? "; $ebind[] = $deptId; }
+                if ($fpHasCourse && $courseId !== null) { $esql .= " AND fp.course_id = ? ";     $ebind[] = $courseId; }
+                if ($fpHasSem && $semesterId !== null)  { $esql .= " AND fp.semester_id = ? ";   $ebind[] = $semesterId; }
+                if ($fpHasSub && $subjectId !== null)   { $esql .= " AND fp.subject_id = ? ";    $ebind[] = $subjectId; }
+                if ($fpHasSec && $sectionId !== null)   { $esql .= " AND fp.section_id = ? ";    $ebind[] = $sectionId; }
+                if ($fpHasAcad && $acadYear !== '')     { $esql .= " AND fp.academic_year = ? "; $ebind[] = $acadYear; }
+                if ($fpHasYear && $year !== null)       { $esql .= " AND fp.year = ? ";          $ebind[] = $year; }
+
+                $esql .= " GROUP BY fp.id ";
+
+                $eRows = DB::select($esql, $ebind);
+                foreach ($eRows as $er) {
+                    $postEligible[(int)$er->feedback_post_id] = (int)$er->cnt;
+                }
+            } else {
+                // Eligible from "any submission row" (best possible without roster)
+                if ($fsHasStudent) {
+                    $esql = "
+                        SELECT
+                            fp.id as feedback_post_id,
+                            COUNT(DISTINCT fs.student_id) as cnt
+                        FROM ".self::POSTS." fp
+                        INNER JOIN ".self::SUBS." fs ON fs.feedback_post_id = fp.id
+                        WHERE fp.deleted_at IS NULL
+                          AND fs.deleted_at IS NULL
+                          AND fp.id IN (".implode(',', array_fill(0, count($postIds), '?')).")
+                    ";
+                    $ebind = $postIds;
+
+                    // apply SAME fp filters
+                    if ($fpHasDept && $deptId !== null)     { $esql .= " AND fp.department_id = ? "; $ebind[] = $deptId; }
+                    if ($fpHasCourse && $courseId !== null) { $esql .= " AND fp.course_id = ? ";     $ebind[] = $courseId; }
+                    if ($fpHasSem && $semesterId !== null)  { $esql .= " AND fp.semester_id = ? ";   $ebind[] = $semesterId; }
+                    if ($fpHasSub && $subjectId !== null)   { $esql .= " AND fp.subject_id = ? ";    $ebind[] = $subjectId; }
+                    if ($fpHasSec && $sectionId !== null)   { $esql .= " AND fp.section_id = ? ";    $ebind[] = $sectionId; }
+                    if ($fpHasAcad && $acadYear !== '')     { $esql .= " AND fp.academic_year = ? "; $ebind[] = $acadYear; }
+                    if ($fpHasYear && $year !== null)       { $esql .= " AND fp.year = ? ";          $ebind[] = $year; }
+
+                    $esql .= " GROUP BY fp.id ";
+
+                    $eRows = DB::select($esql, $ebind);
+                    foreach ($eRows as $er) {
+                        $postEligible[(int)$er->feedback_post_id] = (int)$er->cnt;
+                    }
+                }
+            }
+        }
+
+        /*
+         |--------------------------------------------------------------------------
+         | Build nested response
+         |--------------------------------------------------------------------------
+         */
         $out = [];
 
         foreach ($rows as $rr) {
@@ -510,13 +609,8 @@ class FeedbackResultsController extends Controller
             if (!isset($out[$deptKey]['courses'][$courseKey]['semesters'][$semKey]['subjects'][$subKey])) {
                 $out[$deptKey]['courses'][$courseKey]['semesters'][$semKey]['subjects'][$subKey] = [
                     'subject_id'   => $sbId ?: null,
-
-                    // ✅ subject_code separate
                     'subject_code' => ($sbId && array_key_exists($sbId, $subCodeMap)) ? $subCodeMap[$sbId] : null,
-
-                    // ✅ subject_name now includes code + name label
                     'subject_name' => ($sbId && array_key_exists($sbId, $subLabelMap)) ? $subLabelMap[$sbId] : null,
-
                     'sections' => [],
                 ];
             }
@@ -532,6 +626,14 @@ class FeedbackResultsController extends Controller
             $secRef =& $out[$deptKey]['courses'][$courseKey]['semesters'][$semKey]['subjects'][$subKey]['sections'][$secKey];
 
             if (!isset($secRef['feedback_posts'][$postKey])) {
+                $responded = $postParticipated[$postId] ?? 0;
+                $eligible  = array_key_exists($postId, $postEligible) ? $postEligible[$postId] : null;
+
+                $rate = null;
+                if (is_int($eligible) && $eligible > 0) {
+                    $rate = round(($responded / $eligible) * 100, 2);
+                }
+
                 $secRef['feedback_posts'][$postKey] = [
                     'feedback_post_id' => $postId,
                     'feedback_post_uuid' => (string)($rr->feedback_post_uuid ?? ''),
@@ -542,8 +644,12 @@ class FeedbackResultsController extends Controller
                     'expire_at'  => $rr->expire_at,
                     'academic_year' => $rr->academic_year ?? null,
                     'year' => $rr->year ?? null,
-                    'participated_students' => $postParticipated[$postId] ?? 0,
-                    'eligible_students' => null,
+
+                    // ✅ X out of Y
+                    'participated_students' => $responded,
+                    'eligible_students'     => $eligible,
+                    'response_rate'         => $rate, // optional, can ignore
+
                     'questions' => [],
                 ];
             }
@@ -555,26 +661,18 @@ class FeedbackResultsController extends Controller
                     'question_id' => $qId,
                     'question_title' => (string)($rr->question_title ?? ''),
                     'group_title' => $rr->question_group_title !== null ? (string)$rr->question_group_title : null,
-
-                    // overall question distribution (across all faculty answers)
                     'distribution' => $this->initDist(),
-
-                    // faculty-wise breakdown (we will compute distribution per faculty)
                     'faculty' => [],
                 ];
             }
 
-            // ----------------------------
-            // Overall distribution (per question)
-            // ----------------------------
+            // overall distribution
             if ($stars >= 1 && $stars <= 5) {
                 $postRef['questions'][(string)$qId]['distribution']['counts'][(string)$stars] += $cnt;
                 $postRef['questions'][(string)$qId]['distribution']['total'] += $cnt;
             }
 
-            // ----------------------------
-            // Faculty distribution (per question, per faculty)
-            // ----------------------------
+            // faculty distribution
             $fname = 'Overall';
             $shortForm = null;
             $empId = null;
@@ -591,20 +689,14 @@ class FeedbackResultsController extends Controller
 
             if (!isset($postRef['questions'][(string)$qId]['faculty'][(string)$fId])) {
                 $postRef['questions'][(string)$qId]['faculty'][(string)$fId] = [
-                    'faculty_id'        => $fId <= 0 ? 0 : $fId,
-                    'faculty_name'      => $fname,
-
-                    // ✅ NEW: add these 2 fields under faculty
-                    'name_short_form'   => $fId <= 0 ? null : $shortForm,
-                    'employee_id'       => $fId <= 0 ? null : $empId,
-
-                    // will be computed from distribution
-                    'avg_rating'        => null,
-                    'count'             => 0,
-                    'out_of'            => 5,
-
-                    // rating buckets
-                    'distribution'      => $this->initDist(),
+                    'faculty_id'      => $fId <= 0 ? 0 : $fId,
+                    'faculty_name'    => $fname,
+                    'name_short_form' => $fId <= 0 ? null : $shortForm,
+                    'employee_id'     => $fId <= 0 ? null : $empId,
+                    'avg_rating'      => null,
+                    'count'           => 0,
+                    'out_of'          => 5,
+                    'distribution'    => $this->initDist(),
                 ];
             }
 
@@ -614,7 +706,7 @@ class FeedbackResultsController extends Controller
             }
         }
 
-        // finalize avg + ensure Overall exists ALWAYS
+        // finalize avgs + force overall row
         foreach ($out as &$dept) {
             foreach ($dept['courses'] as &$course) {
                 foreach ($course['semesters'] as &$sem) {
@@ -623,11 +715,9 @@ class FeedbackResultsController extends Controller
                             foreach ($sec['feedback_posts'] as &$post) {
                                 foreach ($post['questions'] as &$q) {
 
-                                    // finalize overall question distribution
                                     $this->finalizeDist($q['distribution']);
                                     $overallTotal = (int)($q['distribution']['total'] ?? 0);
 
-                                    // finalize each faculty distribution + compute avg_rating/count
                                     foreach ($q['faculty'] as $fidKey => &$frow) {
                                         $this->finalizeDist($frow['distribution']);
                                         $frow['count'] = (int)($frow['distribution']['total'] ?? 0);
@@ -635,22 +725,17 @@ class FeedbackResultsController extends Controller
                                     }
                                     unset($frow);
 
-                                    // ✅ Force Overall row (id=0) to match overall distribution always
                                     $q['faculty']['0'] = [
-                                        'faculty_id'        => 0,
-                                        'faculty_name'      => 'Overall',
-
-                                        // ✅ keys for overall (null)
-                                        'name_short_form'   => null,
-                                        'employee_id'       => null,
-
-                                        'avg_rating'        => $q['distribution']['avg'],
-                                        'count'             => $overallTotal,
-                                        'out_of'            => 5,
-                                        'distribution'      => $q['distribution'],
+                                        'faculty_id'      => 0,
+                                        'faculty_name'    => 'Overall',
+                                        'name_short_form' => null,
+                                        'employee_id'     => null,
+                                        'avg_rating'      => $q['distribution']['avg'],
+                                        'count'           => $overallTotal,
+                                        'out_of'          => 5,
+                                        'distribution'    => $q['distribution'],
                                     ];
 
-                                    // sort: overall first then by id
                                     ksort($q['faculty'], SORT_NATURAL);
                                 }
                             }
@@ -661,7 +746,7 @@ class FeedbackResultsController extends Controller
         }
         unset($dept,$course,$sem,$sub,$sec,$post,$q);
 
-        // convert associative maps to arrays (stable output)
+        // convert maps to arrays
         $final = array_values(array_map(function ($dept) {
             $dept['courses'] = array_values(array_map(function ($course) {
                 $course['semesters'] = array_values(array_map(function ($sem) {
