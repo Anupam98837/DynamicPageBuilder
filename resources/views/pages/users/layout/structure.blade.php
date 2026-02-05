@@ -400,15 +400,23 @@
           <i class="fa-solid fa-scroll"></i><span>Notice Marquee</span>
         </a>
 
-        <!-- Faculty Preview Order -->
-<a href="/faculty-preview-order" class="w3-link">
-  <i class="fa-solid fa-users-gear"></i><span>Faculty Preview Order</span>
-</a>
-
 <!-- Sticky Buttons -->
 <a href="/sticky-buttons/manage" class="w3-link">
   <i class="fa-solid fa-thumbtack"></i><span>Sticky Buttons</span>
 </a>
+
+          <!-- Staff Preview Order -->
+<div class="w3-group">
+  <a href="#" class="w3-link w3-toggle" data-target="sm-staff-preview-order" aria-expanded="false">
+    <i class="fa-solid fa-users-gear"></i><span>Staff Preview Order</span>
+    <i class="fa fa-chevron-down w3-chev"></i>
+  </a>
+  <div id="sm-staff-preview-order" class="w3-submenu" role="group" aria-label="Staff Preview Order submenu">
+    <a href="/faculty-preview-order" class="w3-link">Faculty Preview Order</a>
+    <a href="/technical-assistant-preview-order" class="w3-link">Technical Assistant Preview Order</a>
+    <a href="/placement-officer-preview-order" class="w3-link">Placement Officer Preview Order</a>
+  </div>
+</div>
 
         {{-- =======================
            PLACEMENT & OUTCOMES
