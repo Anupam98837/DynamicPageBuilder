@@ -47,7 +47,7 @@ class UserController extends Controller
         'student'             => 'STD',
     ];
 
-    // ✅ Added: name_short_form + employee_id (nullable, not required/unique)
+    // ✅ Added: name_short_form + employee_id + department_id
     private const SELECT_COLUMNS = [
         'id',
         'uuid',
@@ -64,6 +64,7 @@ class UserController extends Controller
         'role',
         'role_short_form',
         'employee_id', // ✅ NEW
+        'department_id', // ✅ NEW (for edit prefill + API)
         'status',
         'last_login_at',
         'last_login_ip',
@@ -204,6 +205,42 @@ class UserController extends Controller
 
             $slug = $base . '-' . $i;
             $i++;
+        }
+    }
+
+    /**
+     * ✅ helper: sync department_id into user_personal_information if table/cols exist
+     */
+    private function syncUpiDepartment(int $userId, $departmentId, $now): void
+    {
+        if (!Schema::hasTable('user_personal_information')) return;
+        if (!Schema::hasColumn('user_personal_information', 'user_id')) return;
+        if (!Schema::hasColumn('user_personal_information', 'department_id')) return;
+
+        $hasDeletedAt = Schema::hasColumn('user_personal_information', 'deleted_at');
+        $hasUuid      = Schema::hasColumn('user_personal_information', 'uuid');
+        $hasCreatedAt = Schema::hasColumn('user_personal_information', 'created_at');
+        $hasUpdatedAt = Schema::hasColumn('user_personal_information', 'updated_at');
+
+        $q = DB::table('user_personal_information')->where('user_id', $userId);
+        if ($hasDeletedAt) $q->whereNull('deleted_at');
+
+        $upi = $q->first();
+
+        if ($upi) {
+            $payload = ['department_id' => $departmentId];
+            if ($hasUpdatedAt) $payload['updated_at'] = $now;
+            DB::table('user_personal_information')->where('id', $upi->id)->update($payload);
+        } else {
+            $payload = [
+                'user_id'        => $userId,
+                'department_id'  => $departmentId,
+            ];
+            if ($hasUuid)      $payload['uuid'] = (string) Str::uuid();
+            if ($hasCreatedAt) $payload['created_at'] = $now;
+            if ($hasUpdatedAt) $payload['updated_at'] = $now;
+
+            DB::table('user_personal_information')->insert($payload);
         }
     }
 
@@ -468,6 +505,11 @@ class UserController extends Controller
      */
     public function store(Request $request)
     {
+        $deptRule = Rule::exists('departments', 'id');
+        if (Schema::hasColumn('departments', 'deleted_at')) {
+            $deptRule = $deptRule->whereNull('deleted_at');
+        }
+
         // ✅ new cols are optional
         $v = Validator::make($request->all(), [
             'name'                      => ['required', 'string', 'max:190'],
@@ -485,6 +527,9 @@ class UserController extends Controller
             'role'                      => ['nullable', 'string'],
             'status'                    => ['nullable', 'string', 'max:20'],
             'metadata'                  => ['nullable', 'array'],
+
+            // ✅ ADD THIS: accept + validate department_id
+            'department_id'             => ['nullable', 'integer', $deptRule],
         ]);
 
         if ($v->fails()) {
@@ -502,6 +547,7 @@ class UserController extends Controller
 
         $hasNameShort = Schema::hasColumn('users', 'name_short_form');
         $hasEmpId     = Schema::hasColumn('users', 'employee_id');
+        $hasDept      = Schema::hasColumn('users', 'department_id');
 
         DB::beginTransaction();
 
@@ -537,7 +583,15 @@ class UserController extends Controller
             if ($hasNameShort) $insert['name_short_form'] = $data['name_short_form'] ?? null;
             if ($hasEmpId)     $insert['employee_id']     = $data['employee_id'] ?? null;
 
+            // ✅ department_id save (only if column exists)
+            if ($hasDept)      $insert['department_id']   = $data['department_id'] ?? null;
+
             $id = DB::table('users')->insertGetId($insert);
+
+            // ✅ optional: keep UPI dept in sync if UPI is used as primary in facultyindex()
+            if ($hasDept && array_key_exists('department_id', $data)) {
+                $this->syncUpiDepartment((int)$id, $data['department_id'] ?? null, $now);
+            }
 
             DB::commit();
 
@@ -609,8 +663,14 @@ class UserController extends Controller
             ], 404);
         }
 
+        $deptRule = Rule::exists('departments', 'id');
+        if (Schema::hasColumn('departments', 'deleted_at')) {
+            $deptRule = $deptRule->whereNull('deleted_at');
+        }
+
         $hasNameShort = Schema::hasColumn('users', 'name_short_form');
         $hasEmpId     = Schema::hasColumn('users', 'employee_id');
+        $hasDept      = Schema::hasColumn('users', 'department_id');
 
         $rules = [
             'name'                     => ['sometimes', 'required', 'string', 'max:190'],
@@ -636,6 +696,9 @@ class UserController extends Controller
             'role'                     => ['sometimes', 'nullable', 'string'],
             'status'                   => ['sometimes', 'nullable', 'string', 'max:20'],
             'metadata'                 => ['sometimes', 'nullable', 'array'],
+
+            // ✅ ADD THIS: accept + validate department_id
+            'department_id'            => ['sometimes', 'nullable', 'integer', $deptRule],
         ];
 
         $v = Validator::make($request->all(), $rules);
@@ -662,6 +725,11 @@ class UserController extends Controller
         }
         if ($hasEmpId && array_key_exists('employee_id', $data)) {
             $update['employee_id'] = $data['employee_id'] ?? null;
+        }
+
+        // ✅ department_id update (only if column exists)
+        if ($hasDept && array_key_exists('department_id', $data)) {
+            $update['department_id'] = $data['department_id'] ?? null;
         }
 
         if (array_key_exists('email', $data)) {
@@ -716,9 +784,31 @@ class UserController extends Controller
 
         $update['updated_at'] = $now;
 
-        DB::table('users')
-            ->where('id', $user->id)
-            ->update($update);
+        DB::beginTransaction();
+        try {
+            DB::table('users')
+                ->where('id', $user->id)
+                ->update($update);
+
+            // ✅ optional: keep UPI dept in sync if UPI is used as primary in facultyindex()
+            if ($hasDept && array_key_exists('department_id', $data)) {
+                $this->syncUpiDepartment((int)$user->id, $data['department_id'] ?? null, $now);
+            }
+
+            DB::commit();
+
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            $this->logWithActor('msit.users.update.failed', $request, [
+                'user_id' => $user->id,
+                'error'   => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error'   => 'Failed to update user',
+            ], 500);
+        }
 
         $this->logWithActor('msit.users.update', $request, [
             'user_id' => $user->id,
@@ -1241,8 +1331,8 @@ class UserController extends Controller
             $term = '%' . $qText . '%';
             $base->where(function ($w) use ($term) {
                 $w->where('u.name', 'like', $term)
-                  ->orWhere('u.name_short_form', 'like', $term)   // ✅ NEW (safe if col exists? if not, DB will error)
-                  ->orWhere('u.employee_id', 'like', $term)       // ✅ NEW (same note)
+                  ->orWhere('u.name_short_form', 'like', $term)   // ✅ NEW
+                  ->orWhere('u.employee_id', 'like', $term)       // ✅ NEW
                   ->orWhere('u.email', 'like', $term)
                   ->orWhere('upi.affiliation', 'like', $term)
                   ->orWhere('upi.specification', 'like', $term)
@@ -1681,6 +1771,7 @@ class UserController extends Controller
 
         $hasNameShort = Schema::hasColumn('users', 'name_short_form');
         $hasEmpId     = Schema::hasColumn('users', 'employee_id');
+        $hasDept      = Schema::hasColumn('users', 'department_id'); // ✅ NEW
 
         // ✅ keep original first columns, append new ones at end (won't break simple consumers)
         $selectCols = array_filter([
@@ -1690,6 +1781,7 @@ class UserController extends Controller
             'role',
             $hasNameShort ? 'name_short_form' : null,
             $hasEmpId ? 'employee_id' : null,
+            $hasDept ? 'department_id' : null, // ✅ NEW
         ]);
 
         $query = DB::table('users')
@@ -1709,13 +1801,14 @@ class UserController extends Controller
             'Pragma'              => 'no-cache',
         ];
 
-        return response()->stream(function () use ($query, $hasNameShort, $hasEmpId) {
+        return response()->stream(function () use ($query, $hasNameShort, $hasEmpId, $hasDept) {
             $out = fopen('php://output', 'w');
 
             // header (original + optional new)
             $header = ['name', 'email', 'phno', 'role'];
             if ($hasNameShort) $header[] = 'name_short_form';
             if ($hasEmpId)     $header[] = 'employee_id';
+            if ($hasDept)      $header[] = 'department_id';
             fputcsv($out, $header);
 
             $seenEmail = [];
@@ -1742,7 +1835,7 @@ class UserController extends Controller
                 $row = [$name, $email, $phno, $role];
                 if ($hasNameShort) $row[] = trim((string)($u->name_short_form ?? ''));
                 if ($hasEmpId)     $row[] = trim((string)($u->employee_id ?? ''));
-
+                if ($hasDept)      $row[] = (string)($u->department_id ?? '');
                 fputcsv($out, $row);
             }
 
@@ -1807,6 +1900,7 @@ class UserController extends Controller
 
         $hasNameShort = Schema::hasColumn('users', 'name_short_form');
         $hasEmpId     = Schema::hasColumn('users', 'employee_id');
+        $hasDept      = Schema::hasColumn('users', 'department_id'); // ✅ NEW safety
 
         // ✅ tiny helpers
         $get = function(array $row, string $key) use ($idx) {
@@ -1897,7 +1991,7 @@ class UserController extends Controller
                 $stRaw  = strtolower((string)($getAny($row, ['status']) ?? 'active'));
                 $status = ($stRaw === 'inactive') ? 'inactive' : 'active';
 
-                // department_id (optional, but needed if you want academic insert)
+                // department_id (optional)
                 $dep = $getAny($row, ['department_id', 'dept_id', 'department']);
                 $departmentId = null;
                 if ($dep !== null) {
@@ -1972,12 +2066,15 @@ class UserController extends Controller
                             'role'            => $role,
                             'role_short_form' => $short,
                             'status'          => $status,
-                            'department_id'   => $departmentId ?? $existing->department_id ?? null,
                             'slug'            => $newSlug ?: $existing->slug,
                             'uuid'            => $existing->uuid ?: $uuid,
                             'updated_at'      => $now,
                             'deleted_at'      => null, // ✅ restore if soft deleted
                         ];
+
+                        if ($hasDept) {
+                            $updateData['department_id'] = $departmentId ?? ($existing->department_id ?? null);
+                        }
 
                         // ✅ NEW optional fields
                         if ($hasNameShort && $nameShort !== null) $updateData['name_short_form'] = $nameShort;
@@ -2014,10 +2111,13 @@ class UserController extends Controller
                             'role'            => $role,
                             'role_short_form' => $short,
                             'status'          => $status,
-                            'department_id'   => $departmentId,
                             'created_at'      => $now,
                             'updated_at'      => $now,
                         ];
+
+                        if ($hasDept) {
+                            $insertData['department_id'] = $departmentId;
+                        }
 
                         // ✅ NEW optional fields
                         if ($hasNameShort && $nameShort !== null) $insertData['name_short_form'] = $nameShort;
@@ -2063,8 +2163,8 @@ class UserController extends Controller
                     }
 
                     try {
-                        // ✅ department id: from CSV OR users.department_id
-                        $finalDeptId = $departmentId ?: (int) (DB::table('users')->where('id', $userId)->value('department_id') ?? 0);
+                        // ✅ department id: from CSV OR users.department_id (if exists)
+                        $finalDeptId = $departmentId ?: ($hasDept ? (int) (DB::table('users')->where('id', $userId)->value('department_id') ?? 0) : 0);
                         if ($finalDeptId <= 0) {
                             $academicSkipped++;
                             $errors[] = ['row' => $rowNum, 'error' => 'Academic skipped: department_id missing'];
@@ -2137,8 +2237,8 @@ class UserController extends Controller
                             'updated_at'    => $now,
                         ];
 
-                        // ✅ keep user department synced
-                        if (Schema::hasColumn('users', 'department_id')) {
+                        // ✅ keep user department synced (only if users.department_id exists)
+                        if ($hasDept) {
                             DB::table('users')->where('id', $userId)->update([
                                 'department_id' => $finalDeptId,
                                 'updated_at'    => $now,

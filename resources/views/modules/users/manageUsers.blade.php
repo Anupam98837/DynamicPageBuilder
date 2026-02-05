@@ -6,80 +6,31 @@
 <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}">
 
 <style>
-/* =========================
- * Manage Users – UI polish + fixes
- * - Better toolbar + tabs + counts
- * - Inactive tab gets same filtering (toolbar is global)
- * - Fix: setSpin undefined
- * - Fix: results info (was always —)
- * - Keep your table/dropdown behavior intact
- * ========================= */
-
 .musers-wrap{padding:14px 4px}
 
 /* Toolbar panel */
-.musers-toolbar.panel{
-  background:var(--surface);
-  border:1px solid var(--line-strong);
-  border-radius:16px;
-  box-shadow:var(--shadow-2);
-  padding:12px;
-}
+.musers-toolbar.panel{background:var(--surface);border:1px solid var(--line-strong);border-radius:16px;box-shadow:var(--shadow-2);padding:12px;}
 
 /* Dropdowns inside table */
 .table-wrap .dropdown{position:relative}
 .dropdown [data-bs-toggle="dropdown"]{border-radius:10px}
-.dropdown-menu{
-  border-radius:12px;
-  border:1px solid var(--line-strong);
-  box-shadow:var(--shadow-2);
-  min-width:220px;
-  z-index:1085
-}
+.dropdown-menu{border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:220px;z-index:1085}
 .dropdown-item{display:flex;align-items:center;gap:.6rem}
 .dropdown-item i{width:16px;text-align:center}
 .dropdown-item.text-danger{color:var(--danger-color) !important}
 
 /* Tabs */
 .nav.nav-tabs{border-color:var(--line-strong)}
-.nav-tabs .nav-link{
-  color:var(--ink);
-  border-top-left-radius:12px;
-  border-top-right-radius:12px;
-}
-.nav-tabs .nav-link.active{
-  background:var(--surface);
-  border-color:var(--line-strong) var(--line-strong) var(--surface)
-}
+.nav-tabs .nav-link{color:var(--ink);border-top-left-radius:12px;border-top-right-radius:12px;}
+.nav-tabs .nav-link.active{background:var(--surface);border-color:var(--line-strong) var(--line-strong) var(--surface)}
 .tab-content,.tab-pane{overflow:visible}
-.tab-badge{
-  margin-left:.45rem;
-  font-size:12px;
-  padding:.25rem .5rem;
-  border-radius:999px;
-  border:1px solid var(--line-strong);
-  background:color-mix(in oklab, var(--surface) 70%, transparent);
-  color:var(--muted-color);
-}
+.tab-badge{margin-left:.45rem;font-size:12px;padding:.25rem .5rem;border-radius:999px;border:1px solid var(--line-strong);background:color-mix(in oklab, var(--surface) 70%, transparent);color:var(--muted-color);}
 
 /* Table Card */
-.table-wrap.card{
-  position:relative;
-  border:1px solid var(--line-strong);
-  border-radius:16px;
-  background:var(--surface);
-  box-shadow:var(--shadow-2);
-  overflow:visible;
-}
+.table-wrap.card{position:relative;border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);overflow:visible;}
 .table-wrap .card-body{overflow:visible}
 .table{--bs-table-bg:transparent}
-.table thead th{
-  font-weight:600;
-  color:var(--muted-color);
-  font-size:13px;
-  border-bottom:1px solid var(--line-strong);
-  background:var(--surface)
-}
+.table thead th{font-weight:600;color:var(--muted-color);font-size:13px;border-bottom:1px solid var(--line-strong);background:var(--surface)}
 .table thead.sticky-top{z-index:3}
 .table tbody tr{border-top:1px solid var(--line-soft)}
 .table tbody tr:hover{background:var(--page-hover)}
@@ -87,80 +38,32 @@ td .fw-semibold{color:var(--ink)}
 .small{font-size:12.5px}
 
 /* Badges */
-.badge-soft-primary{
-  background:color-mix(in oklab, var(--primary-color) 12%, transparent);
-  color:var(--primary-color)
-}
-.badge-soft-success{
-  background:color-mix(in oklab, var(--success-color) 12%, transparent);
-  color:var(--success-color)
-}
-.badge-soft-danger{
-  background:color-mix(in oklab, var(--danger-color) 12%, transparent);
-  color:var(--danger-color)
-}
+.badge-soft-primary{background:color-mix(in oklab, var(--primary-color) 12%, transparent);color:var(--primary-color)}
+.badge-soft-success{background:color-mix(in oklab, var(--success-color) 12%, transparent);color:var(--success-color)}
+.badge-soft-danger{background:color-mix(in oklab, var(--danger-color) 12%, transparent);color:var(--danger-color)}
 
 /* Empty */
-.empty{
-  border-top:1px solid var(--line-soft);
-  color:var(--muted-color);
-}
+.empty{border-top:1px solid var(--line-soft);color:var(--muted-color);}
 
 /* Loading overlay */
-.loading-overlay{
-  position:fixed;
-  top:0;left:0;width:100%;height:100%;
-  background:rgba(0,0,0,0.45);
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  z-index:9999;
-  backdrop-filter:blur(2px)
-}
+.loading-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.45);display:flex;justify-content:center;align-items:center;z-index:9999;backdrop-filter:blur(2px)}
 
 /* Button loading state */
 .btn-loading{position:relative;color:transparent !important}
-.btn-loading::after{
-  content:'';
-  position:absolute;
-  width:16px;height:16px;
-  top:50%;left:50%;
-  margin:-8px 0 0 -8px;
-  border:2px solid transparent;
-  border-top:2px solid currentColor;
-  border-radius:50%;
-  animation:spin 1s linear infinite
-}
+.btn-loading::after{content:'';position:absolute;width:16px;height:16px;top:50%;left:50%;margin:-8px 0 0 -8px;border:2px solid transparent;border-top:2px solid currentColor;border-radius:50%;animation:spin 1s linear infinite}
 @keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
 
 /* Responsive toolbar */
 @media (max-width: 768px){
   .musers-toolbar .d-flex{flex-direction:column;gap:12px !important}
   .musers-toolbar .position-relative{min-width:100% !important}
-  .toolbar-buttons{
-    display:flex;
-    gap:8px;
-    flex-wrap:wrap
-  }
-  .toolbar-buttons .btn{
-    flex:1;
-    min-width:120px
-  }
+  .toolbar-buttons{display:flex;gap:8px;flex-wrap:wrap}
+  .toolbar-buttons .btn{flex:1;min-width:120px}
 }
 
 /* ✅ Horizontal scroll (X) on small screens */
-.table-responsive{
-  display:block;
-  width:100%;
-  max-width:100%;
-  overflow-x:auto !important;
-  overflow-y:visible !important;
-  -webkit-overflow-scrolling:touch;
-}
-.table-responsive > .table{
-  width:max-content;
-  min-width:980px;
-}
+.table-responsive{display:block;width:100%;max-width:100%;overflow-x:auto !important;overflow-y:visible !important;-webkit-overflow-scrolling:touch;}
+.table-responsive > .table{width:max-content;min-width:980px;}
 .table-responsive th,
 .table-responsive td{white-space:nowrap}
 @media (max-width: 576px){

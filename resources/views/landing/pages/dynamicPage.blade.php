@@ -725,20 +725,28 @@
     }
 
     function setInnerHTMLWithScripts(el, html){
-        el.innerHTML = '';
-        const tpl = document.createElement('template');
-        tpl.innerHTML = String(html || '');
+  el.innerHTML = '';
 
-        const scripts = tpl.content.querySelectorAll('script');
-        scripts.forEach((oldScript) => {
-            const s = document.createElement('script');
-            for (const attr of oldScript.attributes) s.setAttribute(attr.name, attr.value);
-            s.textContent = oldScript.textContent || '';
-            oldScript.replaceWith(s);
-        });
+  const tpl = document.createElement('template');
+  tpl.innerHTML = String(html || '');
 
-        el.appendChild(tpl.content);
-    }
+  // pull scripts out first
+  const scripts = Array.from(tpl.content.querySelectorAll('script'));
+  scripts.forEach(s => s.remove());
+
+  // insert DOM first
+  el.appendChild(tpl.content);
+
+  // now execute scripts with DOM-ready shim
+  runWithDomReadyShim(() => {
+    scripts.forEach((oldScript) => {
+      const s = document.createElement('script');
+      for (const attr of oldScript.attributes) s.setAttribute(attr.name, attr.value);
+      s.textContent = oldScript.textContent || '';
+      document.body.appendChild(s);
+    });
+  });
+}
 
     function clearModuleAssets(){
         document.querySelectorAll('[data-dp-asset="style"]').forEach(n => n.remove());

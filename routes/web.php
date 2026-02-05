@@ -389,6 +389,18 @@ Route::get('/faculty-members', function () {
 
 });
 
+Route::get('/technical-assistants', function () {
+
+    return view('landing.pages.technicalAssistant.viewAllTechnicalAssistant');
+
+});
+
+Route::get('/placement-officers', function () {
+
+    return view('landing.pages.placementOfficer.viewAllPlacementOfficer');
+
+});
+
 Route::get('/placed-students', function () {
 
     return view('landing.pages.placedStudents.viewAllPlacedStudents');
@@ -453,6 +465,10 @@ Route::get('/faculty-preview-order', function () {
  
 Route::get('/technical-assistant-preview-order', function () {
     return view('pages.users.pages.technicalAssistant.technicalAssistantPreviewOrder');
+});
+ 
+Route::get('/placement-officer-preview-order', function () {
+    return view('pages.users.pages.placementOfficer.placementOfficerPreviewOrder');
 });
  
 Route::get('/sticky-buttons/manage', function () {
