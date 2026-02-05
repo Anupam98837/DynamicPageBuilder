@@ -17,30 +17,14 @@
 /* Tabs */
 .nav.nav-tabs{border-color:var(--line-strong)}
 .nav-tabs .nav-link{color:var(--ink)}
-.nav-tabs .nav-link.active{
-  background:var(--surface);
-  border-color:var(--line-strong) var(--line-strong) var(--surface)
-}
+.nav-tabs .nav-link.active{background:var(--surface);border-color:var(--line-strong) var(--line-strong) var(--surface)}
 .tab-content,.tab-pane{overflow:visible}
 
 /* Table Card */
-.table-wrap.card{
-  position:relative;
-  border:1px solid var(--line-strong);
-  border-radius:16px;
-  background:var(--surface);
-  box-shadow:var(--shadow-2);
-  overflow:visible;
-}
+.table-wrap.card{position:relative;border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);overflow:visible;}
 .table-wrap .card-body{overflow:visible}
 .table{--bs-table-bg:transparent}
-.table thead th{
-  font-weight:600;
-  color:var(--muted-color);
-  font-size:13px;
-  border-bottom:1px solid var(--line-strong);
-  background:var(--surface)
-}
+.table thead th{font-weight:600;color:var(--muted-color);font-size:13px;border-bottom:1px solid var(--line-strong);background:var(--surface)}
 .table thead.sticky-top{z-index:3}
 .table tbody tr{border-top:1px solid var(--line-soft)}
 .table tbody tr:hover{background:var(--page-hover)}
@@ -48,97 +32,35 @@ td .fw-semibold{color:var(--ink)}
 .small{font-size:12.5px}
 
 /* Badges */
-.badge-soft-primary{
-  background:color-mix(in oklab, var(--primary-color) 12%, transparent);
-  color:var(--primary-color)
-}
-.badge-soft-success{
-  background:color-mix(in oklab, var(--success-color) 12%, transparent);
-  color:var(--success-color)
-}
-.badge-soft-danger{
-  background:color-mix(in oklab, var(--danger-color) 12%, transparent);
-  color:var(--danger-color)
-}
+.badge-soft-primary{background:color-mix(in oklab, var(--primary-color) 12%, transparent);color:var(--primary-color)}
+.badge-soft-success{background:color-mix(in oklab, var(--success-color) 12%, transparent);color:var(--success-color)}
+.badge-soft-danger{background:color-mix(in oklab, var(--danger-color) 12%, transparent);color:var(--danger-color)}
 
 /* Loading overlay */
-.loading-overlay{
-  position:fixed;
-  top:0;left:0;width:100%;height:100%;
-  background:rgba(0,0,0,0.45);
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  z-index:9999;
-  backdrop-filter:blur(2px)
-}
-.loading-spinner{
-  background:var(--surface);
-  padding:20px 22px;
-  border-radius:14px;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  gap:10px;
-  box-shadow:0 10px 26px rgba(0,0,0,0.3)
-}
-.spinner{
-  width:40px;height:40px;
-  border-radius:50%;
-  border:4px solid rgba(148,163,184,0.3);
-  border-top:4px solid var(--primary-color);
-  animation:spin 1s linear infinite
-}
+.loading-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.45);display:flex;justify-content:center;align-items:center;z-index:9999;backdrop-filter:blur(2px)}
+.loading-spinner{background:var(--surface);padding:20px 22px;border-radius:14px;display:flex;flex-direction:column;align-items:center;gap:10px;box-shadow:0 10px 26px rgba(0,0,0,0.3)}
+.spinner{width:40px;height:40px;border-radius:50%;border:4px solid rgba(148,163,184,0.3);border-top:4px solid var(--primary-color);animation:spin 1s linear infinite}
 @keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
 
 /* Button loading state */
 .btn-loading{position:relative;color:transparent !important}
-.btn-loading::after{
-  content:'';
-  position:absolute;
-  width:16px;height:16px;
-  top:50%;left:50%;
-  margin:-8px 0 0 -8px;
-  border:2px solid transparent;
-  border-top:2px solid currentColor;
-  border-radius:50%;
-  animation:spin 1s linear infinite
-}
+.btn-loading::after{content:'';position:absolute;width:16px;height:16px;top:50%;left:50%;margin:-8px 0 0 -8px;border:2px solid transparent;border-top:2px solid currentColor;border-radius:50%;animation:spin 1s linear infinite}
 
 /* Responsive toolbar */
 @media (max-width: 768px){
   .musers-toolbar .d-flex{flex-direction:column;gap:12px !important}
   .musers-toolbar .position-relative{min-width:100% !important}
-  .toolbar-buttons{
-    display:flex;
-    gap:8px;
-    flex-wrap:wrap
-  }
-  .toolbar-buttons .btn{
-    flex:1;
-    min-width:120px
-  }
+  .toolbar-buttons{display:flex;gap:8px;flex-wrap:wrap}
+  .toolbar-buttons .btn{flex:1;min-width:120px}
 }
 
 /* ✅ Horizontal scroll on small screens */
-.table-responsive{
-  display:block;
-  width:100%;
-  max-width:100%;
-  overflow-x:auto !important;
-  overflow-y:visible !important;
-  -webkit-overflow-scrolling:touch;
-}
-.table-responsive > .table{
-  width:max-content;
-  min-width:980px;
-}
+.table-responsive{display:block;width:100%;max-width:100%;overflow-x:auto !important;overflow-y:visible !important;-webkit-overflow-scrolling:touch;}
+.table-responsive > .table{width:max-content;min-width:1120px;}
 .table-responsive th,
-.table-responsive td{
-  white-space:nowrap;
-}
+.table-responsive td{white-space:nowrap;}
 @media (max-width: 576px){
-  .table-responsive > .table{ min-width:920px; }
+  .table-responsive > .table{ min-width:1040px; }
 }
 </style>
 @endpush
@@ -229,13 +151,14 @@ td .fw-semibold{color:var(--ink)}
                   <th>Name</th>
                   <th>Email</th>
                   <th>Phone</th>
+                  <th style="width:220px;">Department</th>
                   <th style="width:200px;">Role</th>
                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
               </thead>
               <tbody id="usersTbody-active">
                 <tr>
-                  <td colspan="7" class="text-center text-muted" style="padding:38px;">Loading…</td>
+                  <td colspan="8" class="text-center text-muted" style="padding:38px;">Loading…</td>
                 </tr>
               </tbody>
             </table>
@@ -269,13 +192,14 @@ td .fw-semibold{color:var(--ink)}
                   <th>Name</th>
                   <th>Email</th>
                   <th>Phone</th>
+                  <th style="width:220px;">Department</th>
                   <th style="width:200px;">Role</th>
                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
               </thead>
               <tbody id="usersTbody-inactive">
                 <tr>
-                  <td colspan="7" class="text-center text-muted" style="padding:38px;">Loading…</td>
+                  <td colspan="8" class="text-center text-muted" style="padding:38px;">Loading…</td>
                 </tr>
               </tbody>
             </table>
@@ -317,6 +241,16 @@ td .fw-semibold{color:var(--ink)}
               <option value="tpo">Placement Officer (TPO)</option>
             </select>
           </div>
+
+          {{-- ✅ NEW: Department filter --}}
+          <div class="col-12">
+            <label class="form-label">Department</label>
+            <select id="modal_department" class="form-select">
+              <option value="">All Departments</option>
+            </select>
+            <div class="form-text">Loaded from <code>/api/departments</code></div>
+          </div>
+
           <div class="col-12">
             <label class="form-label">Sort By</label>
             <select id="modal_sort" class="form-select">
@@ -608,6 +542,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const btnReset = document.getElementById('btnReset');
   const modalRole = document.getElementById('modal_role');
   const modalSort = document.getElementById('modal_sort');
+  const modalDept = document.getElementById('modal_department'); // ✅ NEW
   const filterModalEl = document.getElementById('filterModal');
   const filterModal = new bootstrap.Modal(filterModalEl);
 
@@ -659,7 +594,8 @@ document.addEventListener('DOMContentLoaded', function () {
   const state = {
     items: [],
     q: '',
-    roleFilter: '', // '' => All
+    roleFilter: '',        // '' => All
+    departmentFilter: '',  // ✅ NEW: '' => All
     sort: '-created_at',
     perPage: 10,
     page: { active: 1, inactive: 1 },
@@ -668,6 +604,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     departments: [],
     departmentsLoaded: false,
+    deptMap: {}, // ✅ NEW: id -> name map for fast lookup
   };
 
   function computePermissions() {
@@ -716,6 +653,16 @@ document.addEventListener('DOMContentLoaded', function () {
     return d?.name || d?.title || d?.department_name || d?.dept_name || d?.slug || (d?.id ? `Department #${d.id}` : 'Department');
   }
 
+  function buildDeptMap() {
+    const map = {};
+    (state.departments || []).forEach(d => {
+      const id = d?.id ?? d?.value ?? d?.department_id;
+      if (id === undefined || id === null || id === '') return;
+      map[String(id)] = deptName(d);
+    });
+    state.deptMap = map;
+  }
+
   function renderDepartmentsOptions() {
     if (!deptInput) return;
     const current = (deptInput.value || '').toString();
@@ -727,6 +674,39 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     deptInput.innerHTML = html;
     if (current) deptInput.value = current;
+  }
+
+  // ✅ NEW: filter modal department options
+  function renderDepartmentFilterOptions() {
+    if (!modalDept) return;
+    const current = (state.departmentFilter || modalDept.value || '').toString();
+
+    let html = `<option value="">All Departments</option>`;
+    (state.departments || []).forEach(d => {
+      const id = d?.id ?? d?.value ?? d?.department_id;
+      if (id === undefined || id === null || id === '') return;
+      html += `<option value="${escapeHtml(String(id))}">${escapeHtml(deptName(d))}</option>`;
+    });
+
+    modalDept.innerHTML = html;
+    modalDept.value = current || '';
+  }
+
+  function deptLabelForRow(row) {
+    const direct =
+      row?.department_name ||
+      row?.department?.name ||
+      row?.department?.title ||
+      row?.department?.department_name ||
+      row?.dept_name ||
+      row?.departmentTitle;
+
+    if (direct) return (direct || '').toString();
+
+    const id = row?.department_id ?? row?.departmentId ?? row?.dept_id ?? row?.department;
+    if (id === undefined || id === null || id === '') return '';
+
+    return state.deptMap[String(id)] || `Department #${id}`;
   }
 
   async function loadDepartments(showOverlay = false) {
@@ -747,12 +727,18 @@ document.addEventListener('DOMContentLoaded', function () {
 
       state.departments = arr;
       state.departmentsLoaded = true;
+
+      buildDeptMap();
       renderDepartmentsOptions();
+      renderDepartmentFilterOptions();
     } catch (e) {
       console.error('Failed to load departments', e);
       state.departments = [];
       state.departmentsLoaded = false;
+      state.deptMap = {};
+
       renderDepartmentsOptions();
+      renderDepartmentFilterOptions();
     } finally {
       if (showOverlay) showGlobalLoading(false);
     }
@@ -803,6 +789,15 @@ document.addEventListener('DOMContentLoaded', function () {
         filtered = filtered.filter(u => TA_GROUP.has((u?.role || '').toLowerCase()));
       } else if (state.roleFilter === 'tpo') {
         filtered = filtered.filter(u => TPO_GROUP.has((u?.role || '').toLowerCase()));
+      }
+
+      // ✅ NEW: department filter (client-side; does NOT require backend support)
+      if (state.departmentFilter) {
+        const want = String(state.departmentFilter);
+        filtered = filtered.filter(u => {
+          const id = u?.department_id ?? u?.departmentId ?? u?.dept_id ?? '';
+          return String(id || '') === want;
+        });
       }
 
       state.items = filtered;
@@ -886,6 +881,11 @@ document.addEventListener('DOMContentLoaded', function () {
       const active = (row.status || 'active').toLowerCase() === 'active';
       const imgUrl = fixImageUrl(row.image);
 
+      const deptText = deptLabelForRow(row);
+      const deptCell = deptText
+        ? escapeHtml(deptText)
+        : '<span class="text-muted">—</span>';
+
       const avatarImg = imgUrl
         ? `<img src="${escapeHtml(imgUrl)}" alt="avatar"
                  style="width:40px;height:40px;border-radius:10px;object-fit:cover;border:1px solid var(--line-strong);"
@@ -946,6 +946,7 @@ document.addEventListener('DOMContentLoaded', function () {
           <td class="fw-semibold">${escapeHtml(row.name || '')}</td>
           <td>${row.email ? `<a href="mailto:${escapeHtml(row.email)}">${escapeHtml(row.email)}</a>` : '<span class="text-muted">—</span>'}</td>
           <td>${row.phone_number ? escapeHtml(row.phone_number) : '<span class="text-muted">—</span>'}</td>
+          <td>${deptCell}</td>
           <td>
             <span class="badge badge-soft-primary">
               <i class="fa fa-user-shield me-1"></i>${escapeHtml(roleLabel(role))}
@@ -1012,12 +1013,17 @@ document.addEventListener('DOMContentLoaded', function () {
   // Filter modal show
   filterModalEl.addEventListener('show.bs.modal', () => {
     modalRole.value = state.roleFilter || '';
+    if (modalDept) modalDept.value = state.departmentFilter || ''; // ✅ NEW
     modalSort.value = state.sort || '-created_at';
+
+    // ✅ ensure options exist even if modal opened early
+    renderDepartmentFilterOptions();
   });
 
   // Apply filters
   btnApplyFilters.addEventListener('click', () => {
     state.roleFilter = modalRole.value || '';
+    state.departmentFilter = modalDept ? (modalDept.value || '') : ''; // ✅ NEW
     state.sort = modalSort.value || '-created_at';
     state.page.active = 1;
     state.page.inactive = 1;
@@ -1029,6 +1035,7 @@ document.addEventListener('DOMContentLoaded', function () {
   btnReset.addEventListener('click', () => {
     state.q = '';
     state.roleFilter = '';
+    state.departmentFilter = ''; // ✅ NEW
     state.sort = '-created_at';
     state.perPage = 10;
     state.page.active = 1;
@@ -1037,6 +1044,7 @@ document.addEventListener('DOMContentLoaded', function () {
     searchInput.value = '';
     perPageSel.value = '10';
     modalRole.value = '';
+    if (modalDept) modalDept.value = ''; // ✅ NEW
     modalSort.value = '-created_at';
 
     loadUsers();

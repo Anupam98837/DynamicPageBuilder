@@ -63,11 +63,12 @@ td .fw-semibold{color:var(--ink)}
 
 /* ✅ Horizontal scroll (X) on small screens */
 .table-responsive{display:block;width:100%;max-width:100%;overflow-x:auto !important;overflow-y:visible !important;-webkit-overflow-scrolling:touch;}
-.table-responsive > .table{width:max-content;min-width:980px;}
+/* updated min-width due to added Department column */
+.table-responsive > .table{width:max-content;min-width:1120px;}
 .table-responsive th,
 .table-responsive td{white-space:nowrap}
 @media (max-width: 576px){
-  .table-responsive > .table{ min-width:920px; }
+  .table-responsive > .table{ min-width:1040px; }
 }
 </style>
 @endpush
@@ -159,11 +160,13 @@ td .fw-semibold{color:var(--ink)}
                   <th>Email</th>
                   <th>Phone</th>
                   <th style="width:200px;">Role</th>
+                  {{-- ✅ NEW: Department column --}}
+                  <th style="width:220px;">Department</th>
                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
               </thead>
               <tbody id="usersTbody-active">
-                <tr><td colspan="7" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+                <tr><td colspan="8" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -195,11 +198,13 @@ td .fw-semibold{color:var(--ink)}
                   <th>Email</th>
                   <th>Phone</th>
                   <th style="width:200px;">Role</th>
+                  {{-- ✅ NEW: Department column --}}
+                  <th style="width:220px;">Department</th>
                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
               </thead>
               <tbody id="usersTbody-inactive">
-                <tr><td colspan="7" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+                <tr><td colspan="8" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -244,6 +249,16 @@ td .fw-semibold{color:var(--ink)}
               <option value="student">Student</option>
             </select>
           </div>
+
+          {{-- ✅ NEW: Department filter --}}
+          <div class="col-12">
+            <label class="form-label">Department</label>
+            <select id="modal_department" class="form-select">
+              <option value="">All Departments</option>
+            </select>
+            <div class="form-text">Loaded from <code>/api/departments</code></div>
+          </div>
+
           <div class="col-12">
             <label class="form-label">Sort By</label>
             <select id="modal_sort" class="form-select">
@@ -501,6 +516,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const btnReset = document.getElementById('btnReset');
   const modalRole = document.getElementById('modal_role');
   const modalSort = document.getElementById('modal_sort');
+  const modalDepartment = document.getElementById('modal_department'); // ✅ NEW
   const filterModalEl = document.getElementById('filterModal');
   const filterModal = new bootstrap.Modal(filterModalEl);
   const writeControls = document.getElementById('writeControls');
@@ -551,6 +567,7 @@ document.addEventListener('DOMContentLoaded', function () {
     inactiveItems: [],
     q: '',
     roleFilter: '',
+    departmentFilter: '', // ✅ NEW
     sort: '-created_at',
     perPage: 10,
     page: { active: 1, inactive: 1 },
@@ -613,6 +630,7 @@ document.addEventListener('DOMContentLoaded', function () {
   function deptName(d) {
     return d?.name || d?.title || d?.department_name || d?.dept_name || d?.slug || (d?.id ? `Department #${d.id}` : 'Department');
   }
+
   function renderDepartmentsOptions() {
     if (!deptInput) return;
     const current = (deptInput.value || '').toString();
@@ -625,6 +643,21 @@ document.addEventListener('DOMContentLoaded', function () {
     deptInput.innerHTML = html;
     if (current) deptInput.value = current;
   }
+
+  // ✅ NEW: render filter modal department options
+  function renderDepartmentsFilterOptions() {
+    if (!modalDepartment) return;
+    const current = (modalDepartment.value || '').toString();
+    let html = `<option value="">All Departments</option>`;
+    (state.departments || []).forEach(d => {
+      const id = d?.id ?? d?.value ?? d?.department_id;
+      if (id === undefined || id === null || id === '') return;
+      html += `<option value="${escapeHtml(String(id))}">${escapeHtml(deptName(d))}</option>`;
+    });
+    modalDepartment.innerHTML = html;
+    if (current) modalDepartment.value = current;
+  }
+
   async function loadDepartments(showOverlay = false) {
     try {
       if (showOverlay) showGlobalLoading(true);
@@ -642,12 +675,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
       state.departments = arr;
       state.departmentsLoaded = true;
+
       renderDepartmentsOptions();
+      renderDepartmentsFilterOptions(); // ✅ NEW
     } catch (e) {
       console.error('Failed to load departments', e);
       state.departments = [];
       state.departmentsLoaded = false;
+
       renderDepartmentsOptions();
+      renderDepartmentsFilterOptions(); // ✅ NEW
     } finally {
       if (showOverlay) showGlobalLoading(false);
     }
@@ -680,6 +717,50 @@ document.addEventListener('DOMContentLoaded', function () {
   }
   function isActive(u) { return !isInactive(u); }
 
+  // ✅ NEW: Department helpers for list/table/filtering
+  function getDeptId(u) {
+    if (!u) return null;
+    let v =
+      u.department_id ??
+      u.dept_id ??
+      u.departmentId ??
+      u.departmentID ??
+      u.department;
+
+    // if department is object
+    if (v && typeof v === 'object') {
+      v = v.id ?? v.value ?? v.department_id ?? null;
+    }
+    if (v === undefined || v === null || v === '') return null;
+    return v;
+  }
+
+  function getDeptLabel(u) {
+    if (!u) return '';
+    const direct =
+      u.department_name ??
+      u.department_title ??
+      u.dept_name ??
+      u.departmentLabel ??
+      u.department_text;
+
+    if (typeof direct === 'string' && direct.trim()) return direct.trim();
+
+    // if department is object
+    if (u.department && typeof u.department === 'object') {
+      const nm = u.department.name || u.department.title || u.department.department_name || u.department.dept_name || u.department.slug;
+      if (nm) return String(nm);
+    }
+
+    const id = getDeptId(u);
+    if (id !== null) {
+      const found = (state.departments || []).find(d => String(d?.id ?? d?.value ?? d?.department_id ?? '') === String(id));
+      if (found) return deptName(found);
+      return `Department #${id}`;
+    }
+    return '';
+  }
+
   function sortUsers(arr) {
     const sortKey = state.sort.startsWith('-') ? state.sort.slice(1) : state.sort;
     const dir = state.sort.startsWith('-') ? -1 : 1;
@@ -707,6 +788,9 @@ document.addEventListener('DOMContentLoaded', function () {
       const base = new URLSearchParams();
       if (state.q) base.set('q', state.q);
       if (state.roleFilter) base.set('role', state.roleFilter);
+
+      // ✅ NEW: pass department filter to backend (safe even if backend ignores)
+      if (state.departmentFilter) base.set('department_id', state.departmentFilter);
 
       const activeParams = new URLSearchParams(base);
       activeParams.set('status', 'active');
@@ -824,6 +908,7 @@ document.addEventListener('DOMContentLoaded', function () {
       actionHtml += `</ul></div>`;
 
       const phoneVal = row.phone_number || row.phone || row.mobile || '';
+      const deptLabel = getDeptLabel(row);
 
       return `
         <tr data-uuid="${escapeHtml(row.uuid)}" data-id="${escapeHtml(row.id)}">
@@ -841,6 +926,8 @@ document.addEventListener('DOMContentLoaded', function () {
               <i class="fa fa-user-shield me-1"></i>${escapeHtml(roleLabel(role))}
             </span>
           </td>
+          {{-- ✅ NEW: Department cell --}}
+          <td>${deptLabel ? escapeHtml(deptLabel) : '<span class="text-muted">—</span>'}</td>
           <td class="text-end">${actionHtml}</td>
         </tr>`;
     }).join('');
@@ -874,6 +961,13 @@ document.addEventListener('DOMContentLoaded', function () {
       active: Array.isArray(state.activeItems) ? state.activeItems.slice() : [],
       inactive: Array.isArray(state.inactiveItems) ? state.inactiveItems.slice() : []
     };
+
+    // ✅ NEW: client-side dept filtering (works even if backend ignores department_id)
+    const dep = (state.departmentFilter || '').toString();
+    if (dep) {
+      lists.active = lists.active.filter(u => String(getDeptId(u) ?? '') === dep);
+      lists.inactive = lists.inactive.filter(u => String(getDeptId(u) ?? '') === dep);
+    }
 
     const activeSorted = sortUsers(lists.active);
     const inactiveSorted = sortUsers(lists.inactive);
@@ -939,11 +1033,13 @@ document.addEventListener('DOMContentLoaded', function () {
   filterModalEl.addEventListener('show.bs.modal', () => {
     modalRole.value = state.roleFilter || '';
     modalSort.value = state.sort || '-created_at';
+    if (modalDepartment) modalDepartment.value = state.departmentFilter || ''; // ✅ NEW
   });
 
   // Apply filters
   btnApplyFilters.addEventListener('click', () => {
     state.roleFilter = modalRole.value || '';
+    state.departmentFilter = modalDepartment ? (modalDepartment.value || '') : ''; // ✅ NEW
     state.sort = modalSort.value || '-created_at';
     state.page.active = 1;
     state.page.inactive = 1;
@@ -955,6 +1051,7 @@ document.addEventListener('DOMContentLoaded', function () {
   btnReset.addEventListener('click', () => {
     state.q = '';
     state.roleFilter = '';
+    state.departmentFilter = ''; // ✅ NEW
     state.sort = '-created_at';
     state.perPage = 10;
     state.page.active = 1;
@@ -963,6 +1060,7 @@ document.addEventListener('DOMContentLoaded', function () {
     searchInput.value = '';
     perPageSel.value = '10';
     modalRole.value = '';
+    if (modalDepartment) modalDepartment.value = ''; // ✅ NEW
     modalSort.value = '-created_at';
 
     loadUsers();
@@ -1193,6 +1291,8 @@ document.addEventListener('DOMContentLoaded', function () {
       const q = (searchInput?.value || '').trim();
       if (q) params.set('q', q);
       if (state.roleFilter) params.set('role', state.roleFilter);
+      // ✅ NEW: include department filter in export too (safe if backend ignores)
+      if (state.departmentFilter) params.set('department_id', state.departmentFilter);
 
       const url = '/api/users/export-csv' + (params.toString() ? ('?' + params.toString()) : '');
       const res = await fetch(url, { headers: authHeaders() });

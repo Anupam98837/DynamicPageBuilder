@@ -47,14 +47,15 @@ td .fw-semibold{color:var(--ink)}
 }
 
 .table-responsive{display:block;width:100%;overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;}
-.table-responsive > .table{width:100%;min-width:980px;table-layout:auto;}
+/* ✅ updated min-width a bit for new Department column */
+.table-responsive > .table{width:100%;min-width:1080px;table-layout:auto;}
 .table-responsive th,
 .table-responsive td{white-space:nowrap;padding:12px 16px;}
 @media (max-width: 992px){
-  .table-responsive > .table{min-width:920px}
+  .table-responsive > .table{min-width:1020px}
 }
 @media (max-width: 576px){
-  .table-responsive > .table{min-width:860px}
+  .table-responsive > .table{min-width:940px}
   .table-responsive th,
   .table-responsive td{padding:10px 12px}
 }
@@ -146,7 +147,6 @@ td .fw-semibold{color:var(--ink)}
         </div>
 
         <div class="col-12 col-lg-auto ms-lg-auto d-flex justify-content-lg-end">
-          
           <div id="writeControls" style="display:none;" class="toolbar-buttons">
             <button type="button" class="btn btn-primary" id="btnAddStudent">
               <i class="fa fa-plus me-1"></i> Add Student
@@ -167,13 +167,16 @@ td .fw-semibold{color:var(--ink)}
                   <th>Name</th>
                   <th>Email</th>
                   <th>Phone</th>
+                  {{-- ✅ NEW --}}
+                  <th>Department</th>
                   <th style="width:200px;">Role</th>
                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
               </thead>
               <tbody id="usersTbody-active">
                 <tr>
-                  <td colspan="7" class="text-center text-muted" style="padding:38px;">Loading…</td>
+                  {{-- ✅ colspan updated --}}
+                  <td colspan="8" class="text-center text-muted" style="padding:38px;">Loading…</td>
                 </tr>
               </tbody>
             </table>
@@ -205,13 +208,16 @@ td .fw-semibold{color:var(--ink)}
                   <th>Name</th>
                   <th>Email</th>
                   <th>Phone</th>
+                  {{-- ✅ NEW --}}
+                  <th>Department</th>
                   <th style="width:200px;">Role</th>
                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
               </thead>
               <tbody id="usersTbody-inactive">
                 <tr>
-                  <td colspan="7" class="text-center text-muted" style="padding:38px;">Loading…</td>
+                  {{-- ✅ colspan updated --}}
+                  <td colspan="8" class="text-center text-muted" style="padding:38px;">Loading…</td>
                 </tr>
               </tbody>
             </table>
@@ -249,6 +255,16 @@ td .fw-semibold{color:var(--ink)}
             </select>
             <div class="form-text">This page shows only students.</div>
           </div>
+
+          {{-- ✅ NEW: Department filter --}}
+          <div class="col-12">
+            <label class="form-label">Department</label>
+            <select id="modal_department" class="form-select">
+              <option value="">All Departments</option>
+            </select>
+            <div class="form-text">Loaded from <code>/api/departments</code></div>
+          </div>
+
           <div class="col-12">
             <label class="form-label">Sort By</label>
             <select id="modal_sort" class="form-select">
@@ -331,7 +347,7 @@ td .fw-semibold{color:var(--ink)}
                     <div class="small text-muted mt-1">Includes academic fields (course, semester, etc.)</div>
                   </div>
                 </div>
-                
+
                 {{-- CSV Field Guide --}}
                 <div class="mt-3">
                   <h6 class="small fw-bold mb-2">CSV Field Guide:</h6>
@@ -778,6 +794,9 @@ document.addEventListener('DOMContentLoaded', function () {
   const btnReset = document.getElementById('btnReset');
   const modalRole = document.getElementById('modal_role');
   const modalSort = document.getElementById('modal_sort');
+  // ✅ NEW
+  const modalDept = document.getElementById('modal_department');
+
   const filterModalEl = document.getElementById('filterModal');
   const filterModal = new bootstrap.Modal(filterModalEl);
 
@@ -884,6 +903,8 @@ document.addEventListener('DOMContentLoaded', function () {
     page: { active: 1, inactive: 1 },
     total: { active: 0, inactive: 0 },
     totalPages: { active: 1, inactive: 1 },
+    // ✅ NEW: department filter (string id)
+    deptFilter: '',
     departments: [],
     departmentsLoaded: false,
     courses: [],
@@ -1025,9 +1046,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // ==========================
   // ✅ Import helpers (FIX: template re-upload not inserting)
-  // - Adds column validation + tries multiple endpoints + sends multiple field names
-  // - Also removes "metadata" column from templates
-  // - ✅ CHANGE: academic import template uses UUID fields for course/semester/section
   // ==========================
 
   function downloadCsv(filename, csvText) {
@@ -1223,21 +1241,22 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         if (res.status === 404) {
-  lastErr = new Error(`Import route not found: ${api}`);
-  continue;
-}
+          lastErr = new Error(`Import route not found: ${api}`);
+          continue;
+        }
 
-if (res.status === 405) {
-  const allow = res.headers.get('Allow') || res.headers.get('allow') || '';
-  lastErr = new Error(`Import route exists (${api}) but POST not allowed. Allowed: ${allow || 'unknown'}`);
-  continue;
-}
+        if (res.status === 405) {
+          const allow = res.headers.get('Allow') || res.headers.get('allow') || '';
+          lastErr = new Error(`Import route exists (${api}) but POST not allowed. Allowed: ${allow || 'unknown'}`);
+          continue;
+        }
 
-if (res.status >= 500) {
-  // ✅ IMPORTANT: show backend crash message instead of trying other routes
-  const txt = await res.text().catch(() => '');
-  throw new Error(txt || `Server error (500) on ${api}`);
-}
+        if (res.status >= 500) {
+          // ✅ IMPORTANT: show backend crash message instead of trying other routes
+          const txt = await res.text().catch(() => '');
+          throw new Error(txt || `Server error (500) on ${api}`);
+        }
+
         if (handleAuthStatus(res, 'You are not allowed to import students.')) return null;
 
         const ct = (res.headers.get('content-type') || '').toLowerCase();
@@ -1338,6 +1357,43 @@ if (res.status >= 500) {
     return d?.name || d?.title || d?.department_name || d?.dept_name || d?.slug || (d?.id ? `Department #${d.id}` : 'Department');
   }
 
+  // ✅ NEW: normalize department id from user row
+  function rowDeptId(u) {
+    const v =
+      u?.department_id ??
+      u?.departmentId ??
+      u?.dept_id ??
+      u?.department?.id ??
+      u?.department?.department_id ??
+      u?.department?.dept_id ??
+      null;
+
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+
+  // ✅ NEW: department label for table
+  function rowDeptLabel(u) {
+    const direct =
+      (typeof u?.department_name === 'string' && u.department_name.trim()) ? u.department_name.trim() :
+      (typeof u?.department?.name === 'string' && u.department.name.trim()) ? u.department.name.trim() :
+      (typeof u?.department?.title === 'string' && u.department.title.trim()) ? u.department.title.trim() :
+      '';
+
+    if (direct) return direct;
+
+    const id = rowDeptId(u);
+    if (id && state.departmentsLoaded && Array.isArray(state.departments)) {
+      const d = state.departments.find(x => {
+        const did = parseInt((x?.id ?? x?.value ?? x?.department_id ?? x?.dept_id ?? ''), 10);
+        return Number.isFinite(did) && did === id;
+      });
+      if (d) return deptName(d);
+    }
+
+    return id ? `Department #${id}` : '—';
+  }
+
   function renderDepartmentsOptions() {
     // Basic dept
     if (deptInput) {
@@ -1363,6 +1419,20 @@ if (res.status >= 500) {
       });
       acadDept.innerHTML = aHtml;
       if (curA && curA !== 'null') acadDept.value = curA;
+    }
+
+    // ✅ NEW: Filter modal dept
+    if (modalDept) {
+      const curF = (modalDept.value || '').toString();
+      let fHtml = `<option value="">All Departments</option>`;
+      (state.departments || []).forEach(d => {
+        const id = d?.id ?? d?.value ?? d?.department_id;
+        if (id === undefined || id === null || id === '') return;
+        fHtml += `<option value="${escapeHtml(String(id))}">${escapeHtml(deptName(d))}</option>`;
+      });
+      modalDept.innerHTML = fHtml;
+      // keep selection if any
+      if (curF && curF !== 'null') modalDept.value = curF;
     }
   }
 
@@ -1574,10 +1644,17 @@ if (res.status >= 500) {
 
   function recomputeAndRender() {
     const lists = { active: [], inactive: [] };
+    const depFilter = (state.deptFilter || '').toString().trim();
 
     state.items.forEach(u => {
       const rr = (u.role || '').toLowerCase();
       if (!(rr === 'student' || rr === 'students')) return;
+
+      // ✅ Department filter apply (both tabs)
+      if (depFilter) {
+        const did = rowDeptId(u);
+        if (!did || String(did) !== depFilter) return;
+      }
 
       const st = (u.status || 'active').toLowerCase();
       if (st === 'inactive') lists.inactive.push(u);
@@ -1691,6 +1768,11 @@ if (res.status >= 500) {
       actionHtml += `</ul></div>`;
 
       // ✅ Security change: DO NOT expose numeric IDs in dataset
+      const deptLabel = rowDeptLabel(row);
+      const deptCell = (deptLabel === '—')
+        ? `<span class="text-muted">—</span>`
+        : escapeHtml(deptLabel);
+
       return `
         <tr data-uuid="${escapeHtml(row.uuid)}"
             data-email="${escapeHtml(row.email || '')}">
@@ -1699,6 +1781,8 @@ if (res.status >= 500) {
           <td class="fw-semibold">${escapeHtml(row.name || '')}</td>
           <td>${row.email ? `<a href="mailto:${escapeHtml(row.email)}">${escapeHtml(row.email)}</a>` : '<span class="text-muted">—</span>'}</td>
           <td>${row.phone_number ? escapeHtml(row.phone_number) : '<span class="text-muted">—</span>'}</td>
+          {{-- ✅ NEW: Department column --}}
+          <td>${deptCell}</td>
           <td>
             <span class="badge badge-soft-primary">
               <i class="fa fa-user-shield me-1"></i>${escapeHtml(roleLabel(role || 'student'))}
@@ -1766,10 +1850,15 @@ if (res.status >= 500) {
   filterModalEl.addEventListener('show.bs.modal', () => {
     modalRole.value = 'student';
     modalSort.value = state.sort || '-created_at';
+    // ✅ NEW
+    if (modalDept) modalDept.value = state.deptFilter || '';
   });
 
   btnApplyFilters.addEventListener('click', () => {
     state.sort = modalSort.value || '-created_at';
+    // ✅ NEW
+    state.deptFilter = (modalDept?.value || '').toString();
+
     state.page.active = 1;
     state.page.inactive = 1;
     filterModal.hide();
@@ -1782,11 +1871,14 @@ if (res.status >= 500) {
     state.perPage = 10;
     state.page.active = 1;
     state.page.inactive = 1;
+    // ✅ NEW
+    state.deptFilter = '';
 
     searchInput.value = '';
     perPageSel.value = '10';
     modalRole.value = 'student';
     modalSort.value = '-created_at';
+    if (modalDept) modalDept.value = '';
 
     loadUsers();
   });
@@ -2722,5 +2814,4 @@ if (res.status >= 500) {
   })();
 });
 </script>
-
 @endpush
