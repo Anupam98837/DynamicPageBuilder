@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 
@@ -13,6 +14,69 @@ class StudentActivityController extends Controller
     /* ============================================
      | Helpers
      |============================================ */
+
+    /**
+     * accessControl (ONLY users table)
+     *
+     * Returns ONLY:
+     *  - ['mode' => 'all',         'department_id' => null]
+     *  - ['mode' => 'department',  'department_id' => <int>]
+     *  - ['mode' => 'none',        'department_id' => null]
+     *  - ['mode' => 'not_allowed', 'department_id' => null]
+     */
+    private function accessControl(int $userId): array
+    {
+        if ($userId <= 0) {
+            return ['mode' => 'none', 'department_id' => null];
+        }
+
+        // Safety (if some env doesn't have dept column yet)
+        if (!Schema::hasColumn('users', 'department_id')) {
+            return ['mode' => 'not_allowed', 'department_id' => null];
+        }
+
+        $q = DB::table('users')->select(['id', 'role', 'department_id', 'status']);
+
+        // your schema has deleted_at; keep it safe
+        if (Schema::hasColumn('users', 'deleted_at')) {
+            $q->whereNull('deleted_at');
+        }
+
+        $u = $q->where('id', $userId)->first();
+
+        if (!$u) {
+            return ['mode' => 'none', 'department_id' => null];
+        }
+
+        // optional: inactive users => none
+        if (isset($u->status) && (string)$u->status !== 'active') {
+            return ['mode' => 'none', 'department_id' => null];
+        }
+
+        // normalize role from users table
+        $role = strtolower(trim((string)($u->role ?? '')));
+        $role = str_replace([' ', '-'], '_', $role);
+        $role = preg_replace('/_+/', '_', $role) ?? $role;
+
+        $deptId = $u->department_id !== null ? (int)$u->department_id : null;
+        if ($deptId !== null && $deptId <= 0) $deptId = null;
+
+        // ✅ CONFIG: decide access by role + department_id
+        $allRoles  = ['admin', 'director', 'principal']; // gets ALL even if dept null
+        $deptRoles = ['hod', 'faculty', 'technical_assistant', 'it_person', 'placement_officer', 'student']; // needs dept
+
+        if (in_array($role, $allRoles, true)) {
+            return ['mode' => 'all', 'department_id' => null];
+        }
+
+        if (in_array($role, $deptRoles, true)) {
+            // none is based on role + dept id (your rule)
+            if (!$deptId) return ['mode' => 'none', 'department_id' => null];
+            return ['mode' => 'department', 'department_id' => $deptId];
+        }
+
+        return ['mode' => 'not_allowed', 'department_id' => null];
+    }
 
     private function actor(Request $r): array
     {
@@ -292,6 +356,23 @@ class StudentActivityController extends Controller
     {
         $perPage = max(1, min(200, (int) $request->query('per_page', 20)));
 
+        // ✅ ACCESS CONTROL
+        $actorId = (int) ($request->attributes->get('auth_tokenable_id') ?? 0);
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none') {
+            return response()->json([
+                'data' => [],
+                'pagination' => [
+                    'page'      => 1,
+                    'per_page'  => $perPage,
+                    'total'     => 0,
+                    'last_page' => 1,
+                ],
+            ], 200);
+        }
+
         $includeDeleted = filter_var($request->query('with_trashed', false), FILTER_VALIDATE_BOOLEAN);
         $onlyDeleted    = filter_var($request->query('only_trashed', false), FILTER_VALIDATE_BOOLEAN);
 
@@ -299,6 +380,12 @@ class StudentActivityController extends Controller
 
         if ($onlyDeleted) {
             $query->whereNotNull('a.deleted_at');
+        }
+
+        // ✅ DEPARTMENT SCOPE (if needed)
+        if ($ac['mode'] === 'department') {
+            $deptId = (int) $ac['department_id'];
+            $query->where('a.department_id', $deptId);
         }
 
         $paginator = $query->paginate($perPage);
@@ -317,24 +404,51 @@ class StudentActivityController extends Controller
 
     public function indexByDepartment(Request $request, $department)
     {
+        // ✅ ACCESS CONTROL
+        $actorId = (int) ($request->attributes->get('auth_tokenable_id') ?? 0);
+        $ac = $this->accessControl($actorId);
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none') {
+            $perPage = max(1, min(200, (int) $request->query('per_page', 20)));
+            return response()->json([
+                'data' => [],
+                'pagination' => [
+                    'page'      => 1,
+                    'per_page'  => $perPage,
+                    'total'     => 0,
+                    'last_page' => 1,
+                ],
+            ], 200);
+        }
+
         $dept = $this->resolveDepartment($department, false);
         if (! $dept) return response()->json(['message' => 'Department not found'], 404);
 
+        // If department-scoped user, allow only own department (otherwise will return empty due to enforced filter in index)
         $request->query->set('department', $dept->id);
         return $this->index($request);
     }
 
     public function trash(Request $request)
     {
+        // ✅ ACCESS CONTROL handled by index()
         $request->query->set('only_trashed', '1');
         return $this->index($request);
     }
 
     public function show(Request $request, $identifier)
     {
+        // ✅ ACCESS CONTROL
+        $actorId = (int) ($request->attributes->get('auth_tokenable_id') ?? 0);
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none') return response()->json(['message' => 'Student activity not found'], 404);
+
         $includeDeleted = filter_var($request->query('with_trashed', false), FILTER_VALIDATE_BOOLEAN);
 
-        $row = $this->resolveActivity($request, $identifier, $includeDeleted);
+        $deptId = ($ac['mode'] === 'department') ? (int) $ac['department_id'] : null;
+        $row = $this->resolveActivity($request, $identifier, $includeDeleted, $deptId);
         if (! $row) return response()->json(['message' => 'Student activity not found'], 404);
 
         // optional: ?inc_view=1
@@ -351,12 +465,24 @@ class StudentActivityController extends Controller
 
     public function showByDepartment(Request $request, $department, $identifier)
     {
+        // ✅ ACCESS CONTROL
+        $actorId = (int) ($request->attributes->get('auth_tokenable_id') ?? 0);
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none') return response()->json(['message' => 'Student activity not found'], 404);
+
         $dept = $this->resolveDepartment($department, true);
         if (! $dept) return response()->json(['message' => 'Department not found'], 404);
 
+        // If department-scoped user, lock to own department
+        if ($ac['mode'] === 'department' && (int)$ac['department_id'] !== (int)$dept->id) {
+            return response()->json(['message' => 'Student activity not found'], 404);
+        }
+
         $includeDeleted = filter_var($request->query('with_trashed', false), FILTER_VALIDATE_BOOLEAN);
 
-        $row = $this->resolveActivity($request, $identifier, $includeDeleted, $dept->id);
+        $row = $this->resolveActivity($request, $identifier, $includeDeleted, (int) $dept->id);
         if (! $row) return response()->json(['message' => 'Student activity not found'], 404);
 
         return response()->json([
@@ -367,6 +493,13 @@ class StudentActivityController extends Controller
 
     public function store(Request $request)
     {
+        // ✅ ACCESS CONTROL
+        $actorId = (int) ($request->attributes->get('auth_tokenable_id') ?? 0);
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return response()->json(['error' => 'Not allowed'], 403);
+
         $actor = $this->actor($request);
 
         $validated = $request->validate([
@@ -385,6 +518,11 @@ class StudentActivityController extends Controller
             'attachments.*'     => ['file', 'max:20480'],
             'attachments_json'  => ['nullable'],
         ]);
+
+        // ✅ DEPARTMENT SCOPE (force dept for dept-roles)
+        if ($ac['mode'] === 'department') {
+            $validated['department_id'] = (int) $ac['department_id'];
+        }
 
         $slug = $this->normSlug($validated['slug'] ?? '');
         if ($slug === '') $slug = Str::slug($validated['title'], '-');
@@ -481,8 +619,20 @@ class StudentActivityController extends Controller
 
     public function storeForDepartment(Request $request, $department)
     {
+        // ✅ ACCESS CONTROL
+        $actorId = (int) ($request->attributes->get('auth_tokenable_id') ?? 0);
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return response()->json(['error' => 'Not allowed'], 403);
+
         $dept = $this->resolveDepartment($department, false);
         if (! $dept) return response()->json(['message' => 'Department not found'], 404);
+
+        // If department-scoped user, lock to own department
+        if ($ac['mode'] === 'department' && (int)$ac['department_id'] !== (int)$dept->id) {
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
 
         $request->merge(['department_id' => (int) $dept->id]);
         return $this->store($request);
@@ -490,7 +640,16 @@ class StudentActivityController extends Controller
 
     public function update(Request $request, $identifier)
     {
-        $row = $this->resolveActivity($request, $identifier, true);
+        // ✅ ACCESS CONTROL
+        $actorId = (int) ($request->attributes->get('auth_tokenable_id') ?? 0);
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return response()->json(['error' => 'Not allowed'], 403);
+
+        $deptId = ($ac['mode'] === 'department') ? (int) $ac['department_id'] : null;
+
+        $row = $this->resolveActivity($request, $identifier, true, $deptId);
         if (! $row) return response()->json(['message' => 'Student activity not found'], 404);
 
         $validated = $request->validate([
@@ -512,6 +671,11 @@ class StudentActivityController extends Controller
             'attachments_mode'   => ['nullable', 'in:append,replace'],
             'attachments_remove' => ['nullable', 'array'],
         ]);
+
+        // ✅ DEPARTMENT SCOPE: prevent dept change, force own dept
+        if ($ac['mode'] === 'department') {
+            $validated['department_id'] = (int) $ac['department_id'];
+        }
 
         $update = [
             'updated_at'    => now(),
@@ -651,7 +815,16 @@ class StudentActivityController extends Controller
 
     public function toggleFeatured(Request $request, $identifier)
     {
-        $row = $this->resolveActivity($request, $identifier, true);
+        // ✅ ACCESS CONTROL
+        $actorId = (int) ($request->attributes->get('auth_tokenable_id') ?? 0);
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return response()->json(['error' => 'Not allowed'], 403);
+
+        $deptId = ($ac['mode'] === 'department') ? (int) $ac['department_id'] : null;
+
+        $row = $this->resolveActivity($request, $identifier, true, $deptId);
         if (! $row) return response()->json(['message' => 'Student activity not found'], 404);
 
         $new = ((int) ($row->is_featured_home ?? 0)) ? 0 : 1;
@@ -676,7 +849,16 @@ class StudentActivityController extends Controller
 
     public function destroy(Request $request, $identifier)
     {
-        $row = $this->resolveActivity($request, $identifier, false);
+        // ✅ ACCESS CONTROL
+        $actorId = (int) ($request->attributes->get('auth_tokenable_id') ?? 0);
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return response()->json(['error' => 'Not allowed'], 403);
+
+        $deptId = ($ac['mode'] === 'department') ? (int) $ac['department_id'] : null;
+
+        $row = $this->resolveActivity($request, $identifier, false, $deptId);
         if (! $row) return response()->json(['message' => 'Not found or already deleted'], 404);
 
         DB::table('student_activities')->where('id', (int) $row->id)->update([
@@ -690,7 +872,16 @@ class StudentActivityController extends Controller
 
     public function restore(Request $request, $identifier)
     {
-        $row = $this->resolveActivity($request, $identifier, true);
+        // ✅ ACCESS CONTROL
+        $actorId = (int) ($request->attributes->get('auth_tokenable_id') ?? 0);
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return response()->json(['error' => 'Not allowed'], 403);
+
+        $deptId = ($ac['mode'] === 'department') ? (int) $ac['department_id'] : null;
+
+        $row = $this->resolveActivity($request, $identifier, true, $deptId);
         if (! $row || $row->deleted_at === null) {
             return response()->json(['message' => 'Not found in bin'], 404);
         }
@@ -711,7 +902,16 @@ class StudentActivityController extends Controller
 
     public function forceDelete(Request $request, $identifier)
     {
-        $row = $this->resolveActivity($request, $identifier, true);
+        // ✅ ACCESS CONTROL
+        $actorId = (int) ($request->attributes->get('auth_tokenable_id') ?? 0);
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return response()->json(['error' => 'Not allowed'], 403);
+
+        $deptId = ($ac['mode'] === 'department') ? (int) $ac['department_id'] : null;
+
+        $row = $this->resolveActivity($request, $identifier, true, $deptId);
         if (! $row) return response()->json(['message' => 'Student activity not found'], 404);
 
         // delete cover

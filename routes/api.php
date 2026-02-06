@@ -554,7 +554,7 @@ Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assi
         Route::post('/departments/{identifier}/restore',           [DepartmentController::class, 'restore']);
         Route::delete('/departments/{identifier}/force',           [DepartmentController::class, 'forceDelete']);
     });
-Route::get('/public/departments',              [DepartmentController::class, 'index']);
+Route::get('/public/departments',              [DepartmentController::class, 'publicIndex']);
 
 /*
 |--------------------------------------------------------------------------

@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Carbon\Carbon;
@@ -22,6 +23,73 @@ class StudentSubjectController extends Controller
 
     private const COL_UUID         = 'uuid';
     private const COL_DELETED_AT   = 'deleted_at';
+
+    /* ============================================
+     | Access Control (ONLY users table)
+     |============================================ */
+
+    /**
+     * accessControl (ONLY users table)
+     *
+     * Returns ONLY:
+     *  - ['mode' => 'all',         'department_id' => null]
+     *  - ['mode' => 'department',  'department_id' => <int>]
+     *  - ['mode' => 'none',        'department_id' => null]
+     *  - ['mode' => 'not_allowed', 'department_id' => null]
+     */
+    private function accessControl(int $userId): array
+    {
+        if ($userId <= 0) {
+            return ['mode' => 'none', 'department_id' => null];
+        }
+
+        // Safety (if some env doesn't have dept column yet)
+        if (!Schema::hasColumn('users', 'department_id')) {
+            return ['mode' => 'not_allowed', 'department_id' => null];
+        }
+
+        $q = DB::table('users')->select(['id', 'role', 'department_id', 'status']);
+
+        // your schema has deleted_at; keep it safe
+        if (Schema::hasColumn('users', 'deleted_at')) {
+            $q->whereNull('deleted_at');
+        }
+
+        $u = $q->where('id', $userId)->first();
+
+        if (!$u) {
+            return ['mode' => 'none', 'department_id' => null];
+        }
+
+        // optional: inactive users => none
+        if (isset($u->status) && (string)$u->status !== 'active') {
+            return ['mode' => 'none', 'department_id' => null];
+        }
+
+        // normalize role from users table
+        $role = strtolower(trim((string)($u->role ?? '')));
+        $role = str_replace([' ', '-'], '_', $role);
+        $role = preg_replace('/_+/', '_', $role) ?? $role;
+
+        $deptId = $u->department_id !== null ? (int)$u->department_id : null;
+        if ($deptId !== null && $deptId <= 0) $deptId = null;
+
+        // ✅ CONFIG: decide access by role + department_id
+        $allRoles  = ['admin', 'director', 'principal']; // gets ALL even if dept null
+        $deptRoles = ['hod', 'faculty', 'technical_assistant', 'it_person', 'placement_officer', 'student']; // needs dept
+
+        if (in_array($role, $allRoles, true)) {
+            return ['mode' => 'all', 'department_id' => null];
+        }
+
+        if (in_array($role, $deptRoles, true)) {
+            // none is based on role + dept id (your rule)
+            if (!$deptId) return ['mode' => 'none', 'department_id' => null];
+            return ['mode' => 'department', 'department_id' => $deptId];
+        }
+
+        return ['mode' => 'not_allowed', 'department_id' => null];
+    }
 
     /* ============================================
      | Helpers
@@ -248,6 +316,14 @@ class StudentSubjectController extends Controller
         $actor = $this->actor($r);
         $meta  = $this->reqMeta($r, $actor);
 
+        // ✅ Access control
+        $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? $actor['id'] ?? 0);
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') {
+            return response()->json(['success' => false, 'error' => 'Not allowed'], 403);
+        }
+
         $qText  = trim((string)$r->query('q', ''));
         $status = trim((string)$r->query('status', ''));
 
@@ -264,15 +340,40 @@ class StudentSubjectController extends Controller
         $allowedSort = ['created_at','updated_at','status','id'];
         if (!in_array($sort, $allowedSort, true)) $sort = 'created_at';
 
+        // ✅ If "none" => return empty (as per rule)
+        if ($ac['mode'] === 'none') {
+            return response()->json([
+                'success' => true,
+                'data' => [],
+                'pagination' => [
+                    'page' => $page,
+                    'per_page' => $per,
+                    'total' => 0,
+                    'last_page' => 1,
+                ],
+            ], 200);
+        }
+
+        // ✅ If "department" => force department scope
+        if ($ac['mode'] === 'department') {
+            $departmentId = (int) $ac['department_id'];
+        }
+
         $this->logInfo('INDEX: request received', $meta + [
             'q' => $qText,
             'status' => $status,
             'page' => $page,
             'per_page' => $per,
+            'ac' => $ac,
         ]);
 
         try {
             $q = $this->baseQuery(false);
+
+            // ✅ apply scope
+            if ($ac['mode'] === 'department') {
+                $q->where('ss.department_id', (int) $ac['department_id']);
+            }
 
             if ($qText !== '') {
                 $q->where(function ($w) use ($qText) {
@@ -284,7 +385,12 @@ class StudentSubjectController extends Controller
             }
 
             if ($status !== '') $q->where('ss.status', $status);
-            if ($departmentId !== null && $departmentId !== '') $q->where('ss.department_id', (int)$departmentId);
+
+            // ✅ apply filters (department filter only if mode=all)
+            if ($ac['mode'] === 'all') {
+                if ($departmentId !== null && $departmentId !== '') $q->where('ss.department_id', (int)$departmentId);
+            }
+
             if ($courseId !== null && $courseId !== '')         $q->where('ss.course_id', (int)$courseId);
             if ($semesterId !== null && $semesterId !== '')     $q->where('ss.semester_id', (int)$semesterId);
 
@@ -306,7 +412,7 @@ class StudentSubjectController extends Controller
                 ],
             ]);
         } catch (\Throwable $e) {
-            $this->logErr('INDEX: failed', $meta + ['error' => $e->getMessage()]);
+            $this->logErr('INDEX: failed', $meta + ['error' => $e->getMessage(), 'ac' => $ac]);
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to load student subjects',
@@ -324,16 +430,41 @@ class StudentSubjectController extends Controller
         $actor = $this->actor($r);
         $meta  = $this->reqMeta($r, $actor);
 
+        // ✅ Access control
+        $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? $actor['id'] ?? 0);
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') {
+            return response()->json(['success' => false, 'error' => 'Not allowed'], 403);
+        }
+        if ($ac['mode'] === 'none') {
+            return response()->json(['success' => true, 'data' => []], 200);
+        }
+
         $departmentId = $r->query('department_id', null);
         $courseId     = $r->query('course_id', null);
         $semesterId   = $r->query('semester_id', null);
 
-        $this->logInfo('CURRENT: request received', $meta);
+        // ✅ force dept scope if needed
+        if ($ac['mode'] === 'department') {
+            $departmentId = (int) $ac['department_id'];
+        }
+
+        $this->logInfo('CURRENT: request received', $meta + ['ac' => $ac]);
 
         try {
             $q = $this->baseQuery(false)->where('ss.status', 'active');
 
-            if ($departmentId !== null && $departmentId !== '') $q->where('ss.department_id', (int)$departmentId);
+            // ✅ apply scope
+            if ($ac['mode'] === 'department') {
+                $q->where('ss.department_id', (int) $ac['department_id']);
+            }
+
+            // ✅ apply filters (department filter only if mode=all)
+            if ($ac['mode'] === 'all') {
+                if ($departmentId !== null && $departmentId !== '') $q->where('ss.department_id', (int)$departmentId);
+            }
+
             if ($courseId !== null && $courseId !== '')         $q->where('ss.course_id', (int)$courseId);
             if ($semesterId !== null && $semesterId !== '')     $q->where('ss.semester_id', (int)$semesterId);
 
@@ -345,7 +476,7 @@ class StudentSubjectController extends Controller
                 'data' => $data,
             ]);
         } catch (\Throwable $e) {
-            $this->logErr('CURRENT: failed', $meta + ['error' => $e->getMessage()]);
+            $this->logErr('CURRENT: failed', $meta + ['error' => $e->getMessage(), 'ac' => $ac]);
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to load current student subjects',
@@ -363,14 +494,29 @@ class StudentSubjectController extends Controller
         $actor = $this->actor($r);
         $meta  = $this->reqMeta($r, $actor);
 
-        $this->logInfo('TRASH: request received', $meta);
+        // ✅ Access control
+        $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? $actor['id'] ?? 0);
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') {
+            return response()->json(['success' => false, 'error' => 'Not allowed'], 403);
+        }
+        if ($ac['mode'] === 'none') {
+            return response()->json(['success' => true, 'data' => []], 200);
+        }
+
+        $this->logInfo('TRASH: request received', $meta + ['ac' => $ac]);
 
         try {
-            $rows = $this->baseQuery(true)
-                ->whereNotNull('ss.deleted_at')
-                ->orderBy('ss.deleted_at', 'desc')
-                ->get();
+            $q = $this->baseQuery(true)
+                ->whereNotNull('ss.deleted_at');
 
+            // ✅ apply scope
+            if ($ac['mode'] === 'department') {
+                $q->where('ss.department_id', (int) $ac['department_id']);
+            }
+
+            $rows = $q->orderBy('ss.deleted_at', 'desc')->get();
             $data = $rows->map(fn($row) => $this->presentRow($row))->values();
 
             return response()->json([
@@ -378,7 +524,7 @@ class StudentSubjectController extends Controller
                 'data' => $data,
             ]);
         } catch (\Throwable $e) {
-            $this->logErr('TRASH: failed', $meta + ['error' => $e->getMessage()]);
+            $this->logErr('TRASH: failed', $meta + ['error' => $e->getMessage(), 'ac' => $ac]);
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to load trash',
@@ -396,12 +542,31 @@ class StudentSubjectController extends Controller
         $actor = $this->actor($r);
         $meta  = $this->reqMeta($r, $actor);
 
-        $this->logInfo('SHOW: request received', $meta + ['id_or_uuid' => $idOrUuid]);
+        // ✅ Access control
+        $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? $actor['id'] ?? 0);
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') {
+            return response()->json(['success' => false, 'error' => 'Not allowed'], 403);
+        }
+        if ($ac['mode'] === 'none') {
+            // don't leak existence
+            return response()->json(['success' => false, 'message' => 'Not found'], 404);
+        }
+
+        $this->logInfo('SHOW: request received', $meta + ['id_or_uuid' => $idOrUuid, 'ac' => $ac]);
 
         try {
             $w = $this->normalizeIdentifier($idOrUuid, 'ss');
 
-            $row = $this->baseQuery(false)->where($w['col'], $w['val'])->first();
+            $q = $this->baseQuery(false)->where($w['col'], $w['val']);
+
+            // ✅ apply scope
+            if ($ac['mode'] === 'department') {
+                $q->where('ss.department_id', (int) $ac['department_id']);
+            }
+
+            $row = $q->first();
 
             if (!$row) {
                 return response()->json(['success' => false, 'message' => 'Not found'], 404);
@@ -412,7 +577,7 @@ class StudentSubjectController extends Controller
                 'data' => $this->presentRow($row),
             ]);
         } catch (\Throwable $e) {
-            $this->logErr('SHOW: failed', $meta + ['error' => $e->getMessage()]);
+            $this->logErr('SHOW: failed', $meta + ['error' => $e->getMessage(), 'ac' => $ac]);
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to load record',
@@ -462,6 +627,23 @@ class StudentSubjectController extends Controller
                 return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
             }
 
+            // ✅ Access control
+            $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? $actor['id'] ?? 0);
+            $ac = $this->accessControl($actorId);
+
+            if ($ac['mode'] === 'not_allowed') {
+                return response()->json(['success' => false, 'error' => 'Not allowed'], 403);
+            }
+            if ($ac['mode'] === 'none') {
+                return response()->json(['success' => false, 'error' => 'Not allowed'], 403);
+            }
+            if ($ac['mode'] === 'department') {
+                $reqDept = (int) $r->input('department_id');
+                if ($reqDept !== (int)$ac['department_id']) {
+                    return response()->json(['success' => false, 'error' => 'Not allowed'], 403);
+                }
+            }
+
             $now = $this->now();
 
             $subjectJsonString = $this->normalizeJsonToString($r->input('subject_json'));
@@ -492,7 +674,14 @@ class StudentSubjectController extends Controller
                 'updated_at' => $now,
             ]);
 
-            $row = $this->baseQuery(false)->where('ss.id', (int)$id)->first();
+            $rowQ = $this->baseQuery(false)->where('ss.id', (int)$id);
+
+            // ✅ apply scope (extra safety)
+            if ($ac['mode'] === 'department') {
+                $rowQ->where('ss.department_id', (int) $ac['department_id']);
+            }
+
+            $row = $rowQ->first();
 
             return response()->json([
                 'success' => true,
@@ -525,12 +714,37 @@ class StudentSubjectController extends Controller
                 return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
             }
 
+            // ✅ Access control
+            $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? $actor['id'] ?? 0);
+            $ac = $this->accessControl($actorId);
+
+            if ($ac['mode'] === 'not_allowed') {
+                return response()->json(['success' => false, 'error' => 'Not allowed'], 403);
+            }
+            if ($ac['mode'] === 'none') {
+                return response()->json(['success' => false, 'error' => 'Not allowed'], 403);
+            }
+
+            // if dept-scoped, do not allow cross-dept update
+            if ($ac['mode'] === 'department' && $r->has('department_id')) {
+                $reqDept = $r->filled('department_id') ? (int) $r->input('department_id') : 0;
+                if ($reqDept !== (int)$ac['department_id']) {
+                    return response()->json(['success' => false, 'error' => 'Not allowed'], 403);
+                }
+            }
+
             $w = $this->normalizeIdentifier($idOrUuid, null);
 
-            $existing = DB::table(self::TABLE)
+            $existingQ = DB::table(self::TABLE)
                 ->where($w['raw_col'], $w['val'])
-                ->whereNull(self::COL_DELETED_AT)
-                ->first();
+                ->whereNull(self::COL_DELETED_AT);
+
+            // ✅ apply scope
+            if ($ac['mode'] === 'department') {
+                $existingQ->where('department_id', (int) $ac['department_id']);
+            }
+
+            $existing = $existingQ->first();
 
             if (!$existing) {
                 return response()->json(['success' => false, 'message' => 'Not found'], 404);
@@ -591,9 +805,23 @@ class StudentSubjectController extends Controller
                 $upd['metadata'] = $this->normalizeJsonToString($r->input('metadata', null));
             }
 
-            DB::table(self::TABLE)->where($w['raw_col'], $w['val'])->update($upd);
+            $updateQ = DB::table(self::TABLE)->where($w['raw_col'], $w['val']);
 
-            $row = $this->baseQuery(false)->where('ss.id', (int)$existing->id)->first();
+            // ✅ apply scope for update
+            if ($ac['mode'] === 'department') {
+                $updateQ->where('department_id', (int) $ac['department_id']);
+            }
+
+            $updateQ->update($upd);
+
+            $rowQ = $this->baseQuery(false)->where('ss.id', (int)$existing->id);
+
+            // ✅ apply scope
+            if ($ac['mode'] === 'department') {
+                $rowQ->where('ss.department_id', (int) $ac['department_id']);
+            }
+
+            $row = $rowQ->first();
 
             return response()->json([
                 'success' => true,
@@ -626,12 +854,29 @@ class StudentSubjectController extends Controller
                 return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
             }
 
+            // ✅ Access control
+            $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? $actor['id'] ?? 0);
+            $ac = $this->accessControl($actorId);
+
+            if ($ac['mode'] === 'not_allowed') {
+                return response()->json(['success' => false, 'error' => 'Not allowed'], 403);
+            }
+            if ($ac['mode'] === 'none') {
+                return response()->json(['success' => false, 'error' => 'Not allowed'], 403);
+            }
+
             $w = $this->normalizeIdentifier($idOrUuid, null);
 
-            $existing = DB::table(self::TABLE)
+            $existingQ = DB::table(self::TABLE)
                 ->where($w['raw_col'], $w['val'])
-                ->whereNull(self::COL_DELETED_AT)
-                ->first();
+                ->whereNull(self::COL_DELETED_AT);
+
+            // ✅ apply scope
+            if ($ac['mode'] === 'department') {
+                $existingQ->where('department_id', (int) $ac['department_id']);
+            }
+
+            $existing = $existingQ->first();
 
             if (!$existing) return response()->json(['success' => false, 'message' => 'Not found'], 404);
 
@@ -675,12 +920,29 @@ class StudentSubjectController extends Controller
                 return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
             }
 
+            // ✅ Access control
+            $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? $actor['id'] ?? 0);
+            $ac = $this->accessControl($actorId);
+
+            if ($ac['mode'] === 'not_allowed') {
+                return response()->json(['success' => false, 'error' => 'Not allowed'], 403);
+            }
+            if ($ac['mode'] === 'none') {
+                return response()->json(['success' => false, 'error' => 'Not allowed'], 403);
+            }
+
             $w = $this->normalizeIdentifier($idOrUuid, null);
 
-            $existing = DB::table(self::TABLE)
+            $existingQ = DB::table(self::TABLE)
                 ->where($w['raw_col'], $w['val'])
-                ->whereNotNull(self::COL_DELETED_AT)
-                ->first();
+                ->whereNotNull(self::COL_DELETED_AT);
+
+            // ✅ apply scope
+            if ($ac['mode'] === 'department') {
+                $existingQ->where('department_id', (int) $ac['department_id']);
+            }
+
+            $existing = $existingQ->first();
 
             if (!$existing) return response()->json(['success' => false, 'message' => 'Not found in trash'], 404);
 
@@ -724,11 +986,28 @@ class StudentSubjectController extends Controller
                 return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
             }
 
+            // ✅ Access control
+            $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? $actor['id'] ?? 0);
+            $ac = $this->accessControl($actorId);
+
+            if ($ac['mode'] === 'not_allowed') {
+                return response()->json(['success' => false, 'error' => 'Not allowed'], 403);
+            }
+            if ($ac['mode'] === 'none') {
+                return response()->json(['success' => false, 'error' => 'Not allowed'], 403);
+            }
+
             $w = $this->normalizeIdentifier($idOrUuid, null);
 
-            $existing = DB::table(self::TABLE)
-                ->where($w['raw_col'], $w['val'])
-                ->first();
+            $existingQ = DB::table(self::TABLE)
+                ->where($w['raw_col'], $w['val']);
+
+            // ✅ apply scope
+            if ($ac['mode'] === 'department') {
+                $existingQ->where('department_id', (int) $ac['department_id']);
+            }
+
+            $existing = $existingQ->first();
 
             if (!$existing) return response()->json(['success' => false, 'message' => 'Not found'], 404);
 

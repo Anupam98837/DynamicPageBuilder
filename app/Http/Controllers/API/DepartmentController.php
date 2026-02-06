@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Schema;
 
 class DepartmentController extends Controller
 {
@@ -22,6 +23,69 @@ class DepartmentController extends Controller
             'type' => (string) ($r->attributes->get('auth_tokenable_type') ?? ($r->user() ? get_class($r->user()) : '')),
             'uuid' => (string) ($r->attributes->get('auth_user_uuid') ?? ($r->user()->uuid ?? '')),
         ];
+    }
+
+    /**
+     * accessControl (ONLY users table)
+     *
+     * Returns ONLY:
+     *  - ['mode' => 'all',         'department_id' => null]
+     *  - ['mode' => 'department',  'department_id' => <int>]
+     *  - ['mode' => 'none',        'department_id' => null]
+     *  - ['mode' => 'not_allowed', 'department_id' => null]
+     */
+    private function accessControl(int $userId): array
+    {
+        if ($userId <= 0) {
+            return ['mode' => 'none', 'department_id' => null];
+        }
+
+        // Safety (if some env doesn't have dept column yet)
+        if (!Schema::hasColumn('users', 'department_id')) {
+            return ['mode' => 'not_allowed', 'department_id' => null];
+        }
+
+        $q = DB::table('users')->select(['id', 'role', 'department_id', 'status']);
+
+        // your schema has deleted_at; keep it safe
+        if (Schema::hasColumn('users', 'deleted_at')) {
+            $q->whereNull('deleted_at');
+        }
+
+        $u = $q->where('id', $userId)->first();
+
+        if (!$u) {
+            return ['mode' => 'none', 'department_id' => null];
+        }
+
+        // optional: inactive users => none
+        if (isset($u->status) && (string)$u->status !== 'active') {
+            return ['mode' => 'none', 'department_id' => null];
+        }
+
+        // normalize role from users table
+        $role = strtolower(trim((string)($u->role ?? '')));
+        $role = str_replace([' ', '-'], '_', $role);
+        $role = preg_replace('/_+/', '_', $role) ?? $role;
+
+        $deptId = $u->department_id !== null ? (int)$u->department_id : null;
+        if ($deptId !== null && $deptId <= 0) $deptId = null;
+
+        // ✅ CONFIG: decide access by role + department_id
+        $allRoles  = ['admin', 'director', 'principal']; // gets ALL even if dept null
+        $deptRoles = ['hod', 'faculty', 'technical_assistant', 'it_person', 'placement_officer', 'student']; // needs dept
+
+        if (in_array($role, $allRoles, true)) {
+            return ['mode' => 'all', 'department_id' => null];
+        }
+
+        if (in_array($role, $deptRoles, true)) {
+            // none is based on role + dept id (your rule)
+            if (!$deptId) return ['mode' => 'none', 'department_id' => null];
+            return ['mode' => 'department', 'department_id' => $deptId];
+        }
+
+        return ['mode' => 'not_allowed', 'department_id' => null];
     }
 
     /**
@@ -101,7 +165,25 @@ class DepartmentController extends Controller
      */
     public function index(Request $request)
     {
+        $actorId = (int) $request->attributes->get('auth_tokenable_id');
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+
         $perPage = max(1, min(200, (int) $request->query('per_page', 20)));
+
+        // mode none => empty but keep same response shape
+        if ($ac['mode'] === 'none') {
+            return response()->json([
+                'data' => [],
+                'pagination' => [
+                    'page'      => 1,
+                    'per_page'  => $perPage,
+                    'total'     => 0,
+                    'last_page' => 1,
+                ],
+            ]);
+        }
 
         $includeDeleted = filter_var($request->query('with_trashed', false), FILTER_VALIDATE_BOOLEAN);
         $onlyDeleted    = filter_var($request->query('only_trashed', false), FILTER_VALIDATE_BOOLEAN);
@@ -110,6 +192,12 @@ class DepartmentController extends Controller
 
         if ($onlyDeleted) {
             $query->whereNotNull('deleted_at');
+        }
+
+        // department mode => only their department row
+        if ($ac['mode'] === 'department') {
+            $deptId = (int) $ac['department_id'];
+            $query->where('id', $deptId);
         }
 
         $paginator = $query->paginate($perPage);
@@ -130,9 +218,32 @@ class DepartmentController extends Controller
      */
     public function trash(Request $request)
     {
+        $actorId = (int) $request->attributes->get('auth_tokenable_id');
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+
         $perPage = max(1, min(200, (int) $request->query('per_page', 20)));
 
+        if ($ac['mode'] === 'none') {
+            return response()->json([
+                'data' => [],
+                'pagination' => [
+                    'page'      => 1,
+                    'per_page'  => $perPage,
+                    'total'     => 0,
+                    'last_page' => 1,
+                ],
+            ]);
+        }
+
         $query = DB::table('departments')->whereNotNull('deleted_at');
+
+        // department mode => only their department row (even if deleted)
+        if ($ac['mode'] === 'department') {
+            $deptId = (int) $ac['department_id'];
+            $query->where('id', $deptId);
+        }
 
         if ($request->filled('q')) {
             $term = '%' . trim($request->query('q')) . '%';
@@ -164,6 +275,12 @@ class DepartmentController extends Controller
      */
     public function store(Request $request)
     {
+        $actorId = (int) $request->attributes->get('auth_tokenable_id');
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] !== 'all')        return response()->json(['error' => 'Not allowed'], 403);
+
         $v = Validator::make($request->all(), [
             'title'           => 'required|string|max:150',
             'slug'            => 'nullable|string|max:160|unique:departments,slug,NULL,id,deleted_at,NULL',
@@ -238,11 +355,25 @@ class DepartmentController extends Controller
      */
     public function show(Request $request, $identifier)
     {
+        $actorId = (int) $request->attributes->get('auth_tokenable_id');
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return response()->json(['department' => null], 200);
+
         $includeDeleted = filter_var($request->query('with_trashed', false), FILTER_VALIDATE_BOOLEAN);
 
         $dept = $this->resolveDepartment($identifier, $includeDeleted);
         if (! $dept) {
             return response()->json(['message' => 'Department not found'], 404);
+        }
+
+        // department mode => only allow own department
+        if ($ac['mode'] === 'department') {
+            $deptId = (int) $ac['department_id'];
+            if ((int) $dept->id !== $deptId) {
+                return response()->json(['message' => 'Department not found'], 404);
+            }
         }
 
         return response()->json(['department' => $dept]);
@@ -253,6 +384,12 @@ class DepartmentController extends Controller
      */
     public function update(Request $request, $identifier)
     {
+        $actorId = (int) $request->attributes->get('auth_tokenable_id');
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] !== 'all')        return response()->json(['error' => 'Not allowed'], 403);
+
         $dept = $this->resolveDepartment($identifier, true);
         if (! $dept) {
             return response()->json(['message' => 'Department not found'], 404);
@@ -354,6 +491,12 @@ class DepartmentController extends Controller
      */
     public function toggleActive(Request $request, $identifier)
     {
+        $actorId = (int) $request->attributes->get('auth_tokenable_id');
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] !== 'all')        return response()->json(['error' => 'Not allowed'], 403);
+
         $dept = $this->resolveDepartment($identifier, true);
         if (! $dept) {
             return response()->json(['message' => 'Department not found'], 404);
@@ -381,6 +524,12 @@ class DepartmentController extends Controller
      */
     public function destroy(Request $request, $identifier)
     {
+        $actorId = (int) $request->attributes->get('auth_tokenable_id');
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] !== 'all')        return response()->json(['error' => 'Not allowed'], 403);
+
         $dept = $this->resolveDepartment($identifier, false);
         if (! $dept) {
             return response()->json(['message' => 'Department not found or already deleted'], 404);
@@ -401,6 +550,12 @@ class DepartmentController extends Controller
      */
     public function restore(Request $request, $identifier)
     {
+        $actorId = (int) $request->attributes->get('auth_tokenable_id');
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] !== 'all')        return response()->json(['error' => 'Not allowed'], 403);
+
         $dept = $this->resolveDepartment($identifier, true);
         if (! $dept || $dept->deleted_at === null) {
             return response()->json(['message' => 'Department not found in bin'], 404);
@@ -426,6 +581,12 @@ class DepartmentController extends Controller
      */
     public function forceDelete(Request $request, $identifier)
     {
+        $actorId = (int) $request->attributes->get('auth_tokenable_id');
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] !== 'all')        return response()->json(['error' => 'Not allowed'], 403);
+
         $dept = $this->resolveDepartment($identifier, true);
         if (! $dept) {
             return response()->json(['message' => 'Department not found'], 404);
@@ -435,4 +596,35 @@ class DepartmentController extends Controller
 
         return response()->json(['success' => true]);
     }
+
+    /**
+ * Public list departments (NO accessControl, open endpoint)
+ * Same as index() behavior: per_page, page, q, active, with_trashed, only_trashed, sort, direction
+ */
+public function publicIndex(Request $request)
+{
+    $perPage = max(1, min(200, (int) $request->query('per_page', 20)));
+
+    $includeDeleted = filter_var($request->query('with_trashed', false), FILTER_VALIDATE_BOOLEAN);
+    $onlyDeleted    = filter_var($request->query('only_trashed', false), FILTER_VALIDATE_BOOLEAN);
+
+    $query = $this->baseQuery($request, $includeDeleted || $onlyDeleted);
+
+    if ($onlyDeleted) {
+        $query->whereNotNull('deleted_at');
+    }
+
+    $paginator = $query->paginate($perPage);
+
+    return response()->json([
+        'data' => $paginator->items(),
+        'pagination' => [
+            'page'      => $paginator->currentPage(),
+            'per_page'  => $paginator->perPage(),
+            'total'     => $paginator->total(),
+            'last_page' => $paginator->lastPage(),
+        ],
+    ]);
+}
+
 }

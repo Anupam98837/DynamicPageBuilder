@@ -5,11 +5,79 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 
 class AchievementController extends Controller
 {
+    /* ============================================
+     | Access Control (ONLY users table)
+     |============================================ */
+
+    /**
+     * accessControl (ONLY users table)
+     *
+     * Returns ONLY:
+     *  - ['mode' => 'all',         'department_id' => null]
+     *  - ['mode' => 'department',  'department_id' => <int>]
+     *  - ['mode' => 'none',        'department_id' => null]
+     *  - ['mode' => 'not_allowed', 'department_id' => null]
+     */
+    private function accessControl(int $userId): array
+    {
+        if ($userId <= 0) {
+            return ['mode' => 'none', 'department_id' => null];
+        }
+
+        // Safety (if some env doesn't have dept column yet)
+        if (!Schema::hasColumn('users', 'department_id')) {
+            return ['mode' => 'not_allowed', 'department_id' => null];
+        }
+
+        $q = DB::table('users')->select(['id', 'role', 'department_id', 'status']);
+
+        // your schema has deleted_at; keep it safe
+        if (Schema::hasColumn('users', 'deleted_at')) {
+            $q->whereNull('deleted_at');
+        }
+
+        $u = $q->where('id', $userId)->first();
+
+        if (!$u) {
+            return ['mode' => 'none', 'department_id' => null];
+        }
+
+        // optional: inactive users => none
+        if (isset($u->status) && (string)$u->status !== 'active') {
+            return ['mode' => 'none', 'department_id' => null];
+        }
+
+        // normalize role from users table
+        $role = strtolower(trim((string)($u->role ?? '')));
+        $role = str_replace([' ', '-'], '_', $role);
+        $role = preg_replace('/_+/', '_', $role) ?? $role;
+
+        $deptId = $u->department_id !== null ? (int)$u->department_id : null;
+        if ($deptId !== null && $deptId <= 0) $deptId = null;
+
+        // ✅ CONFIG: decide access by role + department_id
+        $allRoles  = ['admin', 'director', 'principal']; // gets ALL even if dept null
+        $deptRoles = ['hod', 'faculty', 'technical_assistant', 'it_person', 'placement_officer', 'student']; // needs dept
+
+        if (in_array($role, $allRoles, true)) {
+            return ['mode' => 'all', 'department_id' => null];
+        }
+
+        if (in_array($role, $deptRoles, true)) {
+            // none is based on role + dept id (your rule)
+            if (!$deptId) return ['mode' => 'none', 'department_id' => null];
+            return ['mode' => 'department', 'department_id' => $deptId];
+        }
+
+        return ['mode' => 'not_allowed', 'department_id' => null];
+    }
+
     /* ============================================
      | Helpers
      |============================================ */
@@ -298,12 +366,35 @@ class AchievementController extends Controller
 
     public function index(Request $request)
     {
+        $actorId = (int) $request->attributes->get('auth_tokenable_id');
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+
         $perPage = max(1, min(200, (int) $request->query('per_page', 20)));
+
+        // if dept missing (or invalid) => return empty
+        if ($ac['mode'] === 'none') {
+            return response()->json([
+                'data' => [],
+                'pagination' => [
+                    'page'      => 1,
+                    'per_page'  => $perPage,
+                    'total'     => 0,
+                    'last_page' => 1,
+                ],
+            ], 200);
+        }
 
         $includeDeleted = filter_var($request->query('with_trashed', false), FILTER_VALIDATE_BOOLEAN);
         $onlyDeleted    = filter_var($request->query('only_trashed', false), FILTER_VALIDATE_BOOLEAN);
 
         $query = $this->baseQuery($request, $includeDeleted || $onlyDeleted);
+
+        // ✅ enforce department filter if needed
+        if ($ac['mode'] === 'department') {
+            $query->where('a.department_id', (int) $ac['department_id']);
+        }
 
         if ($onlyDeleted) {
             $query->whereNotNull('a.deleted_at');
@@ -325,6 +416,24 @@ class AchievementController extends Controller
 
     public function indexByDepartment(Request $request, $department)
     {
+        $actorId = (int) $request->attributes->get('auth_tokenable_id');
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+
+        $perPage = max(1, min(200, (int) $request->query('per_page', 20)));
+        if ($ac['mode'] === 'none') {
+            return response()->json([
+                'data' => [],
+                'pagination' => [
+                    'page'      => 1,
+                    'per_page'  => $perPage,
+                    'total'     => 0,
+                    'last_page' => 1,
+                ],
+            ], 200);
+        }
+
         $dept = $this->resolveDepartment($department, false);
         if (! $dept) return response()->json(['message' => 'Department not found'], 404);
 
@@ -340,9 +449,17 @@ class AchievementController extends Controller
 
     public function show(Request $request, $identifier)
     {
+        $actorId = (int) $request->attributes->get('auth_tokenable_id');
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none') return response()->json(['message' => 'Achievement not found'], 404);
+
         $includeDeleted = filter_var($request->query('with_trashed', false), FILTER_VALIDATE_BOOLEAN);
 
-        $row = $this->resolveAchievement($request, $identifier, $includeDeleted);
+        $deptId = ($ac['mode'] === 'department') ? (int) $ac['department_id'] : null;
+
+        $row = $this->resolveAchievement($request, $identifier, $includeDeleted, $deptId);
         if (! $row) return response()->json(['message' => 'Achievement not found'], 404);
 
         // optional: ?inc_view=1
@@ -359,12 +476,23 @@ class AchievementController extends Controller
 
     public function showByDepartment(Request $request, $department, $identifier)
     {
+        $actorId = (int) $request->attributes->get('auth_tokenable_id');
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none') return response()->json(['message' => 'Achievement not found'], 404);
+
         $dept = $this->resolveDepartment($department, true);
         if (! $dept) return response()->json(['message' => 'Department not found'], 404);
 
+        // if restricted, allow only own department
+        if ($ac['mode'] === 'department' && (int) $dept->id !== (int) $ac['department_id']) {
+            return response()->json(['message' => 'Achievement not found'], 404);
+        }
+
         $includeDeleted = filter_var($request->query('with_trashed', false), FILTER_VALIDATE_BOOLEAN);
 
-        $row = $this->resolveAchievement($request, $identifier, $includeDeleted, $dept->id);
+        $row = $this->resolveAchievement($request, $identifier, $includeDeleted, (int) $dept->id);
         if (! $row) return response()->json(['message' => 'Achievement not found'], 404);
 
         return response()->json([
@@ -375,6 +503,17 @@ class AchievementController extends Controller
 
     public function store(Request $request)
     {
+        $actorId = (int) $request->attributes->get('auth_tokenable_id');
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none') return response()->json(['error' => 'Not allowed'], 403);
+
+        // ✅ force department for dept-scoped roles
+        if ($ac['mode'] === 'department') {
+            $request->merge(['department_id' => (int) $ac['department_id']]);
+        }
+
         $actor = $this->actor($request);
 
         $validated = $request->validate([
@@ -487,8 +626,19 @@ class AchievementController extends Controller
 
     public function storeForDepartment(Request $request, $department)
     {
+        $actorId = (int) $request->attributes->get('auth_tokenable_id');
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none') return response()->json(['error' => 'Not allowed'], 403);
+
         $dept = $this->resolveDepartment($department, false);
         if (! $dept) return response()->json(['message' => 'Department not found'], 404);
+
+        // if restricted, allow only own department
+        if ($ac['mode'] === 'department' && (int) $dept->id !== (int) $ac['department_id']) {
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
 
         $request->merge(['department_id' => (int) $dept->id]);
         return $this->store($request);
@@ -496,8 +646,21 @@ class AchievementController extends Controller
 
     public function update(Request $request, $identifier)
     {
-        $row = $this->resolveAchievement($request, $identifier, true);
+        $actorId = (int) $request->attributes->get('auth_tokenable_id');
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none') return response()->json(['error' => 'Not allowed'], 403);
+
+        $deptId = ($ac['mode'] === 'department') ? (int) $ac['department_id'] : null;
+
+        $row = $this->resolveAchievement($request, $identifier, true, $deptId);
         if (! $row) return response()->json(['message' => 'Achievement not found'], 404);
+
+        // ✅ if dept-scoped, don't allow moving to another department (force back)
+        if ($ac['mode'] === 'department') {
+            $request->merge(['department_id' => (int) $ac['department_id']]);
+        }
 
         $validated = $request->validate([
             'department_id'      => ['nullable', 'integer', 'exists:departments,id'],
@@ -656,7 +819,15 @@ class AchievementController extends Controller
 
     public function toggleFeatured(Request $request, $identifier)
     {
-        $row = $this->resolveAchievement($request, $identifier, true);
+        $actorId = (int) $request->attributes->get('auth_tokenable_id');
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none') return response()->json(['error' => 'Not allowed'], 403);
+
+        $deptId = ($ac['mode'] === 'department') ? (int) $ac['department_id'] : null;
+
+        $row = $this->resolveAchievement($request, $identifier, true, $deptId);
         if (! $row) return response()->json(['message' => 'Achievement not found'], 404);
 
         $new = ((int) ($row->is_featured_home ?? 0)) ? 0 : 1;
@@ -681,7 +852,15 @@ class AchievementController extends Controller
 
     public function destroy(Request $request, $identifier)
     {
-        $row = $this->resolveAchievement($request, $identifier, false);
+        $actorId = (int) $request->attributes->get('auth_tokenable_id');
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none') return response()->json(['error' => 'Not allowed'], 403);
+
+        $deptId = ($ac['mode'] === 'department') ? (int) $ac['department_id'] : null;
+
+        $row = $this->resolveAchievement($request, $identifier, false, $deptId);
         if (! $row) return response()->json(['message' => 'Not found or already deleted'], 404);
 
         DB::table('achievements')->where('id', (int) $row->id)->update([
@@ -695,7 +874,15 @@ class AchievementController extends Controller
 
     public function restore(Request $request, $identifier)
     {
-        $row = $this->resolveAchievement($request, $identifier, true);
+        $actorId = (int) $request->attributes->get('auth_tokenable_id');
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none') return response()->json(['error' => 'Not allowed'], 403);
+
+        $deptId = ($ac['mode'] === 'department') ? (int) $ac['department_id'] : null;
+
+        $row = $this->resolveAchievement($request, $identifier, true, $deptId);
         if (! $row || $row->deleted_at === null) {
             return response()->json(['message' => 'Not found in bin'], 404);
         }
@@ -716,7 +903,15 @@ class AchievementController extends Controller
 
     public function forceDelete(Request $request, $identifier)
     {
-        $row = $this->resolveAchievement($request, $identifier, true);
+        $actorId = (int) $request->attributes->get('auth_tokenable_id');
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none') return response()->json(['error' => 'Not allowed'], 403);
+
+        $deptId = ($ac['mode'] === 'department') ? (int) $ac['department_id'] : null;
+
+        $row = $this->resolveAchievement($request, $identifier, true, $deptId);
         if (! $row) return response()->json(['message' => 'Achievement not found'], 404);
 
         // delete cover

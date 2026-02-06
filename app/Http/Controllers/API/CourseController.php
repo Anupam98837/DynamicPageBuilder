@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Schema;
 
 class CourseController extends Controller
 {
@@ -23,6 +24,70 @@ class CourseController extends Controller
             'uuid' => (string) ($r->attributes->get('auth_user_uuid') ?? ($r->user()->uuid ?? '')),
         ];
     }
+
+    /**
+ * accessControl (ONLY users table)
+ *
+ * Returns ONLY:
+ *  - ['mode' => 'all',         'department_id' => null]
+ *  - ['mode' => 'department',  'department_id' => <int>]
+ *  - ['mode' => 'none',        'department_id' => null]
+ *  - ['mode' => 'not_allowed', 'department_id' => null]
+ */
+private function accessControl(int $userId): array
+{
+    if ($userId <= 0) {
+        return ['mode' => 'none', 'department_id' => null];
+    }
+
+    // Safety (if some env doesn't have dept column yet)
+    if (!Schema::hasColumn('users', 'department_id')) {
+        return ['mode' => 'not_allowed', 'department_id' => null];
+    }
+
+    $q = DB::table('users')->select(['id', 'role', 'department_id', 'status']);
+
+    // your schema has deleted_at; keep it safe
+    if (Schema::hasColumn('users', 'deleted_at')) {
+        $q->whereNull('deleted_at');
+    }
+
+    $u = $q->where('id', $userId)->first();
+
+    if (!$u) {
+        return ['mode' => 'none', 'department_id' => null];
+    }
+
+    // optional: inactive users => none
+    if (isset($u->status) && (string)$u->status !== 'active') {
+        return ['mode' => 'none', 'department_id' => null];
+    }
+
+    // normalize role from users table
+    $role = strtolower(trim((string)($u->role ?? '')));
+    $role = str_replace([' ', '-'], '_', $role);
+    $role = preg_replace('/_+/', '_', $role) ?? $role;
+
+    $deptId = $u->department_id !== null ? (int)$u->department_id : null;
+    if ($deptId !== null && $deptId <= 0) $deptId = null;
+
+    // ✅ CONFIG: decide access by role + department_id
+    $allRoles  = ['admin', 'director', 'principal']; // gets ALL even if dept null
+    $deptRoles = ['hod', 'faculty', 'technical_assistant', 'it_person', 'placement_officer', 'student']; // needs dept
+
+    if (in_array($role, $allRoles, true)) {
+        return ['mode' => 'all', 'department_id' => null];
+    }
+
+    if (in_array($role, $deptRoles, true)) {
+        // none is based on role + dept id (your rule)
+        if (!$deptId) return ['mode' => 'none', 'department_id' => null];
+        return ['mode' => 'department', 'department_id' => $deptId];
+    }
+
+    return ['mode' => 'not_allowed', 'department_id' => null];
+}
+
 
     private function normSlug(?string $s): string
     {
@@ -314,6 +379,25 @@ private function applyVisibleWindow($q): void
 
     public function index(Request $request)
     {
+        $actor = $this->actor($request);
+$ac = $this->accessControl($actor['id']);
+
+if ($ac['mode'] === 'not_allowed') {
+    return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+}
+
+if ($ac['mode'] === 'none') {
+    return response()->json([
+        'data' => [],
+        'pagination' => ['page' => 1, 'per_page' => (int)$request->query('per_page', 20), 'total' => 0, 'last_page' => 1],
+    ]);
+}
+
+if ($ac['mode'] === 'department') {
+    // force only their department (ignore client query department)
+    $request->query->set('department', (int)$ac['department_id']);
+}
+
         $perPage = max(1, min(200, (int) $request->query('per_page', 20)));
 
         $includeDeleted = filter_var($request->query('with_trashed', false), FILTER_VALIDATE_BOOLEAN);
@@ -391,6 +475,18 @@ private function applyVisibleWindow($q): void
 
     public function store(Request $request)
     {
+        $actor = $this->actor($request);
+$ac = $this->accessControl($actor['id']);
+
+if ($ac['mode'] === 'not_allowed' || $ac['mode'] === 'none') {
+    return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+}
+
+if ($ac['mode'] === 'department') {
+    // force department_id (ignore any department_id from client)
+    $request->merge(['department_id' => (int)$ac['department_id']]);
+}
+
         $actor = $this->actor($request);
 
         $validated = $request->validate([
@@ -548,6 +644,19 @@ private function applyVisibleWindow($q): void
 
     public function update(Request $request, $identifier)
     {
+        $actor = $this->actor($request);
+$ac = $this->accessControl($actor['id']);
+
+if ($ac['mode'] === 'not_allowed' || $ac['mode'] === 'none') {
+    return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+}
+
+$deptId = ($ac['mode'] === 'department') ? (int)$ac['department_id'] : null;
+
+// ✅ this ensures they can't even load a course outside their dept
+$row = $this->resolveCourse($request, $identifier, true, $deptId);
+if (! $row) return response()->json(['message' => 'Course not found'], 404);
+
         $row = $this->resolveCourse($request, $identifier, true);
         if (! $row) return response()->json(['message' => 'Course not found'], 404);
 
@@ -588,6 +697,11 @@ private function applyVisibleWindow($q): void
             'attachments_mode'   => ['nullable', 'in:append,replace'],
             'attachments_remove' => ['nullable', 'array'],
         ]);
+
+        if ($ac['mode'] === 'department' && array_key_exists('department_id', $validated)) {
+    // do not allow changing department
+    $validated['department_id'] = (int)$deptId;
+}
 
         $update = [
             'updated_at'    => now(),
@@ -845,6 +959,22 @@ public function publicIndex(Request $request)
 
     public function publicShow(Request $request, $identifier)
     {
+        $actor = $this->actor($request);
+$ac = $this->accessControl($actor['id']);
+
+if ($ac['mode'] === 'not_allowed') {
+    return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+}
+if ($ac['mode'] === 'none') {
+    return response()->json(['message' => 'Course not found'], 404);
+}
+
+$includeDeleted = filter_var($request->query('with_trashed', false), FILTER_VALIDATE_BOOLEAN);
+$deptId = ($ac['mode'] === 'department') ? (int)$ac['department_id'] : null;
+
+$row = $this->resolveCourse($request, $identifier, $includeDeleted, $deptId);
+if (!$row) return response()->json(['message' => 'Course not found'], 404);
+
         $row = $this->resolveCourse($request, $identifier, false);
         if (! $row) return response()->json(['message' => 'Course not found'], 404);
 

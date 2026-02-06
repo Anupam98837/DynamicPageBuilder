@@ -51,6 +51,94 @@ class SubjectController extends Controller
     }
 
     /**
+     * accessControl (ONLY users table)
+     *
+     * Returns ONLY:
+     *  - ['mode' => 'all',         'department_id' => null]
+     *  - ['mode' => 'department',  'department_id' => <int>]
+     *  - ['mode' => 'none',        'department_id' => null]
+     *  - ['mode' => 'not_allowed', 'department_id' => null]
+     */
+    private function accessControl(int $userId): array
+    {
+        if ($userId <= 0) {
+            return ['mode' => 'none', 'department_id' => null];
+        }
+
+        // Safety (if some env doesn't have dept column yet)
+        if (!Schema::hasColumn('users', 'department_id')) {
+            return ['mode' => 'not_allowed', 'department_id' => null];
+        }
+
+        $q = DB::table('users')->select(['id', 'role', 'department_id', 'status']);
+
+        // your schema has deleted_at; keep it safe
+        if (Schema::hasColumn('users', 'deleted_at')) {
+            $q->whereNull('deleted_at');
+        }
+
+        $u = $q->where('id', $userId)->first();
+
+        if (!$u) {
+            return ['mode' => 'none', 'department_id' => null];
+        }
+
+        // optional: inactive users => none
+        if (isset($u->status) && (string)$u->status !== 'active') {
+            return ['mode' => 'none', 'department_id' => null];
+        }
+
+        // normalize role from users table
+        $role = strtolower(trim((string)($u->role ?? '')));
+        $role = str_replace([' ', '-'], '_', $role);
+        $role = preg_replace('/_+/', '_', $role) ?? $role;
+
+        $deptId = $u->department_id !== null ? (int)$u->department_id : null;
+        if ($deptId !== null && $deptId <= 0) $deptId = null;
+
+        // ✅ CONFIG: decide access by role + department_id
+        $allRoles  = ['admin', 'director', 'principal']; // gets ALL even if dept null
+        $deptRoles = ['hod', 'faculty', 'technical_assistant', 'it_person', 'placement_officer', 'student']; // needs dept
+
+        if (in_array($role, $allRoles, true)) {
+            return ['mode' => 'all', 'department_id' => null];
+        }
+
+        if (in_array($role, $deptRoles, true)) {
+            // none is based on role + dept id (your rule)
+            if (!$deptId) return ['mode' => 'none', 'department_id' => null];
+            return ['mode' => 'department', 'department_id' => $deptId];
+        }
+
+        return ['mode' => 'not_allowed', 'department_id' => null];
+    }
+
+    private function respondEmptyList(Request $r)
+    {
+        $page = max(1, (int)$r->query('page', 1));
+        $per  = min(200, max(5, (int)$r->query('per_page', 20)));
+
+        return response()->json([
+            'success'    => true,
+            'data'       => [],
+            'pagination' => [
+                'page'      => $page,
+                'per_page'  => $per,
+                'total'     => 0,
+                'last_page' => 1,
+            ],
+        ]);
+    }
+
+    private function denyWriteForNoneOrNotAllowed(array $ac)
+    {
+        if ($ac['mode'] === 'not_allowed' || $ac['mode'] === 'none') {
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
+        return null;
+    }
+
+    /**
      * Normalize identifier for WHERE clauses.
      * - When you query using baseQuery() you MUST use alias 's'
      * - When you query using DB::table('subjects') you MUST NOT use alias
@@ -185,9 +273,9 @@ class SubjectController extends Controller
                 'description'   => $x->description,          // HTML allowed
                 'subject_type'  => $x->subject_type,         // dynamic string (no restriction)
 
-                'credits'        => $x->credits !== null ? (int)$x->credits : null,
-                'lecture_hours'  => $x->lecture_hours !== null ? (int)$x->lecture_hours : null,
-                'practical_hours'=> $x->practical_hours !== null ? (int)$x->practical_hours : null,
+                'credits'         => $x->credits !== null ? (int)$x->credits : null,
+                'lecture_hours'   => $x->lecture_hours !== null ? (int)$x->lecture_hours : null,
+                'practical_hours' => $x->practical_hours !== null ? (int)$x->practical_hours : null,
 
                 'sort_order'    => (int)($x->sort_order ?? 0),
                 'status'        => $status,
@@ -243,6 +331,13 @@ class SubjectController extends Controller
      |========================================================= */
     public function index(Request $r)
     {
+        // ✅ access control
+        $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? $this->actor($r)['id'] ?? 0);
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return $this->respondEmptyList($r);
+
         $qText  = trim((string)$r->query('q', ''));
         $status = trim((string)$r->query('status', '')); // active|inactive
         $deptId = $r->query('department_id', null);
@@ -260,6 +355,11 @@ class SubjectController extends Controller
 
         $q = $this->baseQuery(false);
 
+        // ✅ department mode forces department filter (ignore request deptId)
+        if ($ac['mode'] === 'department') {
+            $q->where('s.department_id', (int)$ac['department_id']);
+        }
+
         if ($qText !== '') {
             $q->where(function ($w) use ($qText) {
                 $w->where('s.title', 'like', "%{$qText}%")
@@ -272,7 +372,10 @@ class SubjectController extends Controller
 
         if ($status !== '') $q->where('s.status', $status);
 
-        if ($deptId !== null && $deptId !== '') $q->where('s.department_id', (int)$deptId);
+        // only allow dept filter for ALL mode
+        if ($ac['mode'] === 'all' && $deptId !== null && $deptId !== '') {
+            $q->where('s.department_id', (int)$deptId);
+        }
 
         // dynamic filter (still no restriction)
         if ($type !== '') $q->where('s.subject_type', $type);
@@ -304,6 +407,13 @@ class SubjectController extends Controller
      |========================================================= */
     public function trash(Request $r)
     {
+        // ✅ access control
+        $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? $this->actor($r)['id'] ?? 0);
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return $this->respondEmptyList($r);
+
         $qText = trim((string)$r->query('q', ''));
         $sort  = (string)$r->query('sort', 'deleted_at');
         $dir   = strtolower((string)$r->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
@@ -312,6 +422,11 @@ class SubjectController extends Controller
         if (!in_array($sort, $allowedSort, true)) $sort = 'deleted_at';
 
         $q = $this->baseQuery(true)->whereNotNull('s.deleted_at');
+
+        // ✅ department mode forces department filter
+        if ($ac['mode'] === 'department') {
+            $q->where('s.department_id', (int)$ac['department_id']);
+        }
 
         if ($qText !== '') {
             $q->where(function ($w) use ($qText) {
@@ -334,8 +449,22 @@ class SubjectController extends Controller
      |========================================================= */
     public function current(Request $request)
     {
+        // ✅ access control
+        $actorId = (int) ($request->attributes->get('auth_tokenable_id') ?? $this->actor($request)['id'] ?? 0);
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return response()->json(['success' => true, 'data' => []]);
+
         // ✅ Keep DB direct + optional joins for convenience
         $query = DB::table('subjects');
+
+        // ✅ department mode forces department filter
+        if ($ac['mode'] === 'department') {
+            if (Schema::hasColumn('subjects', 'department_id')) {
+                $query->where('department_id', (int)$ac['department_id']);
+            }
+        }
 
         // ✅ Only active (if column exists)
         if (Schema::hasColumn('subjects', 'status')) {
@@ -368,13 +497,36 @@ class SubjectController extends Controller
      |========================================================= */
     public function show(string $idOrUuid)
     {
+        $req = request();
+
+        // ✅ access control
+        $actorId = (int) ($req->attributes->get('auth_tokenable_id') ?? (int)($req->attributes->get('auth_tokenable_id') ?? 0));
+        if ($actorId <= 0) {
+            // fallback to actor() if available
+            try {
+                $actorId = (int) ($this->actor($req)['id'] ?? 0);
+            } catch (\Throwable $e) {
+                $actorId = 0;
+            }
+        }
+        $ac = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return response()->json(['success' => true, 'data' => []], 200);
+
         $w = $this->normalizeIdentifier($idOrUuid, 's');
-        $row = $this->baseQuery(true)->where($w['col'], $w['val'])->first();
+
+        $q = $this->baseQuery(true)->where($w['col'], $w['val']);
+
+        // ✅ department mode forces department filter
+        if ($ac['mode'] === 'department') {
+            $q->where('s.department_id', (int)$ac['department_id']);
+        }
+
+        $row = (clone $q)->first();
         if (!$row) return response()->json(['success' => false, 'message' => 'Not found'], 404);
 
-        $fakeReq = request();
-        $q = $this->baseQuery(true)->where($w['col'], $w['val']);
-        return $this->respondList($fakeReq, $q);
+        return $this->respondList($req, $q);
     }
 
     /* =========================================================
@@ -384,6 +536,12 @@ class SubjectController extends Controller
     public function store(Request $r)
     {
         $actor = $this->actor($r);
+
+        // ✅ access control
+        $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? $actor['id'] ?? 0);
+        $ac = $this->accessControl($actorId);
+
+        if ($deny = $this->denyWriteForNoneOrNotAllowed($ac)) return $deny;
 
         $r->validate([
             'department_id'   => ['nullable','integer','exists:departments,id'],
@@ -427,8 +585,17 @@ class SubjectController extends Controller
             if (json_last_error() !== JSON_ERROR_NONE) $meta = null;
         }
 
-        // Unique guard (code unique per dept)
+        // ✅ department_id handling based on access control
         $deptId = $r->filled('department_id') ? (int)$r->input('department_id') : null;
+        if ($ac['mode'] === 'department') {
+            $forced = (int)$ac['department_id'];
+            if ($deptId !== null && $deptId !== $forced) {
+                return response()->json(['error' => 'Not allowed'], 403);
+            }
+            $deptId = $forced; // default/force to actor dept
+        }
+
+        // Unique guard (code unique per dept)
         $code   = trim((string)$r->input('subject_code'));
 
         $exists = DB::table('subjects')
@@ -502,10 +669,26 @@ class SubjectController extends Controller
      |========================================================= */
     public function update(Request $r, string $idOrUuid)
     {
+        $actor = $this->actor($r);
+
+        // ✅ access control
+        $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? $actor['id'] ?? 0);
+        $ac = $this->accessControl($actorId);
+
+        if ($deny = $this->denyWriteForNoneOrNotAllowed($ac)) return $deny;
+
         $w = $this->normalizeIdentifier($idOrUuid, null);
 
         $exists = DB::table('subjects')->where($w['raw_col'], $w['val'])->first();
         if (!$exists) return response()->json(['success'=>false,'message'=>'Not found'], 404);
+
+        // ✅ department mode: can only touch rows in their department
+        if ($ac['mode'] === 'department') {
+            $rowDept = $exists->department_id !== null ? (int)$exists->department_id : null;
+            if ($rowDept !== (int)$ac['department_id']) {
+                return response()->json(['error' => 'Not allowed'], 403);
+            }
+        }
 
         $r->validate([
             'department_id'   => ['nullable','integer','exists:departments,id'],
@@ -584,6 +767,20 @@ class SubjectController extends Controller
             $payload['course_semester_id'] = ($val !== null && $val !== '') ? (int)$val : null;
         }
 
+        // ✅ department mode: department_id cannot be changed to a different department
+        if ($ac['mode'] === 'department') {
+            $forced = (int)$ac['department_id'];
+            if (array_key_exists('department_id', $payload)) {
+                $newDept = $payload['department_id'] !== null ? (int)$payload['department_id'] : null;
+                if ($newDept !== $forced) {
+                    return response()->json(['error' => 'Not allowed'], 403);
+                }
+            } else {
+                // keep it safe anyway
+                $payload['department_id'] = $forced;
+            }
+        }
+
         // Unique guard on update (subject_code per dept)
         if ($r->has('subject_code') || $r->has('department_id')) {
             $deptId = array_key_exists('department_id', $payload)
@@ -623,10 +820,26 @@ class SubjectController extends Controller
      |========================================================= */
     public function destroy(Request $r, string $idOrUuid)
     {
+        $actor = $this->actor($r);
+
+        // ✅ access control
+        $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? $actor['id'] ?? 0);
+        $ac = $this->accessControl($actorId);
+
+        if ($deny = $this->denyWriteForNoneOrNotAllowed($ac)) return $deny;
+
         $w = $this->normalizeIdentifier($idOrUuid, null);
 
         $row = DB::table('subjects')->where($w['raw_col'], $w['val'])->first();
         if (!$row) return response()->json(['success'=>false,'message'=>'Not found'], 404);
+
+        // ✅ department mode: can only touch rows in their department
+        if ($ac['mode'] === 'department') {
+            $rowDept = $row->department_id !== null ? (int)$row->department_id : null;
+            if ($rowDept !== (int)$ac['department_id']) {
+                return response()->json(['error' => 'Not allowed'], 403);
+            }
+        }
 
         if ($row->deleted_at) {
             return response()->json(['success'=>true,'message'=>'Already in trash']);
@@ -647,10 +860,26 @@ class SubjectController extends Controller
      |========================================================= */
     public function restore(Request $r, string $idOrUuid)
     {
+        $actor = $this->actor($r);
+
+        // ✅ access control
+        $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? $actor['id'] ?? 0);
+        $ac = $this->accessControl($actorId);
+
+        if ($deny = $this->denyWriteForNoneOrNotAllowed($ac)) return $deny;
+
         $w = $this->normalizeIdentifier($idOrUuid, null);
 
         $row = DB::table('subjects')->where($w['raw_col'], $w['val'])->first();
         if (!$row) return response()->json(['success'=>false,'message'=>'Not found'], 404);
+
+        // ✅ department mode: can only touch rows in their department
+        if ($ac['mode'] === 'department') {
+            $rowDept = $row->department_id !== null ? (int)$row->department_id : null;
+            if ($rowDept !== (int)$ac['department_id']) {
+                return response()->json(['error' => 'Not allowed'], 403);
+            }
+        }
 
         DB::table('subjects')->where('id', $row->id)->update([
             'deleted_at'    => null,
@@ -667,10 +896,26 @@ class SubjectController extends Controller
      |========================================================= */
     public function forceDelete(Request $r, string $idOrUuid)
     {
+        $actor = $this->actor($r);
+
+        // ✅ access control
+        $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? $actor['id'] ?? 0);
+        $ac = $this->accessControl($actorId);
+
+        if ($deny = $this->denyWriteForNoneOrNotAllowed($ac)) return $deny;
+
         $w = $this->normalizeIdentifier($idOrUuid, null);
 
         $row = DB::table('subjects')->where($w['raw_col'], $w['val'])->first();
         if (!$row) return response()->json(['success'=>false,'message'=>'Not found'], 404);
+
+        // ✅ department mode: can only touch rows in their department
+        if ($ac['mode'] === 'department') {
+            $rowDept = $row->department_id !== null ? (int)$row->department_id : null;
+            if ($rowDept !== (int)$ac['department_id']) {
+                return response()->json(['error' => 'Not allowed'], 403);
+            }
+        }
 
         DB::table('subjects')->where('id', $row->id)->delete();
 

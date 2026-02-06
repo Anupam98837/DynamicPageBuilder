@@ -137,6 +137,69 @@ class UserController extends Controller
     }
 
     /**
+     * accessControl (ONLY users table)
+     *
+     * Returns ONLY:
+     *  - ['mode' => 'all',         'department_id' => null]
+     *  - ['mode' => 'department',  'department_id' => <int>]
+     *  - ['mode' => 'none',        'department_id' => null]
+     *  - ['mode' => 'not_allowed', 'department_id' => null]
+     */
+    private function accessControl(int $userId): array
+    {
+        if ($userId <= 0) {
+            return ['mode' => 'none', 'department_id' => null];
+        }
+
+        // Safety (if some env doesn't have dept column yet)
+        if (!Schema::hasColumn('users', 'department_id')) {
+            return ['mode' => 'not_allowed', 'department_id' => null];
+        }
+
+        $q = DB::table('users')->select(['id', 'role', 'department_id', 'status']);
+
+        // your schema has deleted_at; keep it safe
+        if (Schema::hasColumn('users', 'deleted_at')) {
+            $q->whereNull('deleted_at');
+        }
+
+        $u = $q->where('id', $userId)->first();
+
+        if (!$u) {
+            return ['mode' => 'none', 'department_id' => null];
+        }
+
+        // optional: inactive users => none
+        if (isset($u->status) && (string)$u->status !== 'active') {
+            return ['mode' => 'none', 'department_id' => null];
+        }
+
+        // normalize role from users table
+        $role = strtolower(trim((string)($u->role ?? '')));
+        $role = str_replace([' ', '-'], '_', $role);
+        $role = preg_replace('/_+/', '_', $role) ?? $role;
+
+        $deptId = $u->department_id !== null ? (int)$u->department_id : null;
+        if ($deptId !== null && $deptId <= 0) $deptId = null;
+
+        // ✅ CONFIG: decide access by role + department_id
+        $allRoles  = ['admin', 'director', 'principal']; // gets ALL even if dept null
+        $deptRoles = ['hod', 'faculty', 'technical_assistant', 'it_person', 'placement_officer', 'student']; // needs dept
+
+        if (in_array($role, $allRoles, true)) {
+            return ['mode' => 'all', 'department_id' => null];
+        }
+
+        if (in_array($role, $deptRoles, true)) {
+            // none is based on role + dept id (your rule)
+            if (!$deptId) return ['mode' => 'none', 'department_id' => null];
+            return ['mode' => 'department', 'department_id' => $deptId];
+        }
+
+        return ['mode' => 'not_allowed', 'department_id' => null];
+    }
+
+    /**
      * Normalize a role + derive short form.
      * If invalid/missing, default to "faculty" + "FAC".
      */
@@ -458,6 +521,18 @@ class UserController extends Controller
      */
     public function index(Request $request)
     {
+        // ✅ APPLY accessControl here (listing)
+        $actorId = (int) $request->attributes->get('auth_tokenable_id');
+        $ac      = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none') {
+            return response()->json([
+                'success' => true,
+                'data'    => [],
+            ], 200);
+        }
+
         $search = trim((string) $request->query('q', ''));
         $role   = $request->query('role');
         $status = $request->query('status');
@@ -468,6 +543,11 @@ class UserController extends Controller
         $query = DB::table('users')
             ->select($this->userSelectColumns())
             ->whereNull('deleted_at');
+
+        // ✅ department scoping
+        if ($ac['mode'] === 'department') {
+            $query->where('department_id', (int) $ac['department_id']);
+        }
 
         if ($role) {
             $query->where('role', $role);
@@ -505,6 +585,13 @@ class UserController extends Controller
      */
     public function store(Request $request)
     {
+        // ✅ APPLY accessControl here (create)
+        $actorId = (int) $request->attributes->get('auth_tokenable_id');
+        $ac      = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return response()->json(['error' => 'Not allowed'], 403);
+
         $deptRule = Rule::exists('departments', 'id');
         if (Schema::hasColumn('departments', 'deleted_at')) {
             $deptRule = $deptRule->whereNull('deleted_at');
@@ -541,6 +628,24 @@ class UserController extends Controller
 
         $data  = $v->validated();
         [$role, $roleShort] = $this->normalizeRole($data['role'] ?? null);
+
+        // ✅ department scoping: dept actors can only create inside their dept
+        if ($ac['mode'] === 'department') {
+            $forcedDept = (int) $ac['department_id'];
+
+            if (array_key_exists('department_id', $data)) {
+                $incoming = $data['department_id'];
+                $incoming = ($incoming !== null) ? (int)$incoming : null;
+
+                // if explicitly provided and mismatched => block
+                if ($incoming !== null && $incoming !== $forcedDept) {
+                    return response()->json(['error' => 'Not allowed'], 403);
+                }
+            }
+
+            // if not provided, force it
+            $data['department_id'] = $forcedDept;
+        }
 
         $now   = Carbon::now();
         $actor = $this->actor($request);
@@ -626,11 +731,28 @@ class UserController extends Controller
      */
     public function show(Request $request, string $uuid)
     {
-        $user = DB::table('users')
+        // ✅ APPLY accessControl here (single view)
+        $actorId = (int) $request->attributes->get('auth_tokenable_id');
+        $ac      = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none') {
+            return response()->json([
+                'success' => false,
+                'error'   => 'User not found',
+            ], 404);
+        }
+
+        $q = DB::table('users')
             ->select($this->userSelectColumns())
             ->where('uuid', $uuid)
-            ->whereNull('deleted_at')
-            ->first();
+            ->whereNull('deleted_at');
+
+        if ($ac['mode'] === 'department') {
+            $q->where('department_id', (int)$ac['department_id']);
+        }
+
+        $user = $q->first();
 
         if (!$user) {
             return response()->json([
@@ -651,10 +773,22 @@ class UserController extends Controller
      */
     public function update(Request $request, string $uuid)
     {
-        $user = DB::table('users')
+        // ✅ APPLY accessControl here (update)
+        $actorId = (int) $request->attributes->get('auth_tokenable_id');
+        $ac      = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return response()->json(['error' => 'Not allowed'], 403);
+
+        $qUser = DB::table('users')
             ->where('uuid', $uuid)
-            ->whereNull('deleted_at')
-            ->first();
+            ->whereNull('deleted_at');
+
+        if ($ac['mode'] === 'department') {
+            $qUser->where('department_id', (int)$ac['department_id']);
+        }
+
+        $user = $qUser->first();
 
         if (!$user) {
             return response()->json([
@@ -711,6 +845,18 @@ class UserController extends Controller
         }
 
         $data   = $v->validated();
+
+        // ✅ dept actors: can NOT change to another department or clear it
+        if ($ac['mode'] === 'department' && $hasDept && array_key_exists('department_id', $data)) {
+            $forcedDept = (int)$ac['department_id'];
+            $incoming   = $data['department_id'];
+            $incoming   = ($incoming !== null) ? (int)$incoming : null;
+
+            if ($incoming === null || $incoming !== $forcedDept) {
+                return response()->json(['error' => 'Not allowed'], 403);
+            }
+        }
+
         $update = [];
         $now    = Carbon::now();
 
@@ -983,10 +1129,22 @@ class UserController extends Controller
      */
     public function destroy(Request $request, string $uuid)
     {
-        $user = DB::table('users')
+        // ✅ APPLY accessControl here (delete)
+        $actorId = (int) $request->attributes->get('auth_tokenable_id');
+        $ac      = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return response()->json(['error' => 'Not allowed'], 403);
+
+        $qUser = DB::table('users')
             ->where('uuid', $uuid)
-            ->whereNull('deleted_at')
-            ->first();
+            ->whereNull('deleted_at');
+
+        if ($ac['mode'] === 'department') {
+            $qUser->where('department_id', (int)$ac['department_id']);
+        }
+
+        $user = $qUser->first();
 
         if (!$user) {
             return response()->json([
@@ -1767,6 +1925,12 @@ class UserController extends Controller
 
     public function exportUsersCsv(Request $request)
     {
+        // ✅ APPLY accessControl here (export)
+        $actorId = (int) $request->attributes->get('auth_tokenable_id');
+        $ac      = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+
         $filename = 'users_export_' . now()->format('Y-m-d_His') . '.csv';
 
         $hasNameShort = Schema::hasColumn('users', 'name_short_form');
@@ -1788,6 +1952,13 @@ class UserController extends Controller
             ->select($selectCols)
             ->whereNull('deleted_at')
             ->orderBy('id', 'asc');
+
+        // ✅ department scoping
+        if ($ac['mode'] === 'none') {
+            $query->whereRaw('1=0'); // empty export
+        } elseif ($ac['mode'] === 'department' && $hasDept) {
+            $query->where('department_id', (int)$ac['department_id']);
+        }
 
         // ✅ optional filter: /api/users/export-csv?role=student
         if ($request->filled('role')) {
@@ -1845,6 +2016,15 @@ class UserController extends Controller
 
     public function importUsersCsv(Request $request)
     {
+        // ✅ APPLY accessControl here (import)
+        $actorId = (int) $request->attributes->get('auth_tokenable_id');
+        $ac      = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return response()->json(['error' => 'Not allowed'], 403);
+
+        $forcedDeptId = ($ac['mode'] === 'department') ? (int)$ac['department_id'] : null;
+
         $request->validate([
             'file' => 'required|file|mimes:csv,txt',
             'update_existing' => 'nullable|boolean',
@@ -1901,6 +2081,12 @@ class UserController extends Controller
         $hasNameShort = Schema::hasColumn('users', 'name_short_form');
         $hasEmpId     = Schema::hasColumn('users', 'employee_id');
         $hasDept      = Schema::hasColumn('users', 'department_id'); // ✅ NEW safety
+
+        // ✅ if dept scoping is required, but users.dept is missing => block (matches accessControl safety)
+        if ($forcedDeptId !== null && !$hasDept) {
+            fclose($handle);
+            return response()->json(['success' => false, 'error' => 'Not allowed'], 403);
+        }
 
         // ✅ tiny helpers
         $get = function(array $row, string $key) use ($idx) {
@@ -1999,6 +2185,11 @@ class UserController extends Controller
                     $departmentId = $depInt > 0 ? $depInt : null;
                 }
 
+                // ✅ FORCE department_id if actor is department-scoped
+                if ($forcedDeptId !== null) {
+                    $departmentId = $forcedDeptId;
+                }
+
                 // uuid/slug from csv if present, else generate
                 $uuid = $getAny($row, ['uuid']);
                 if (!$uuid || strlen((string)$uuid) < 10) $uuid = (string) Str::uuid();
@@ -2029,6 +2220,16 @@ class UserController extends Controller
 
                 // find existing even if soft deleted
                 $existing = DB::table('users')->where('email', $email)->first();
+
+                // ✅ dept scoping: do not update users from other departments
+                if ($forcedDeptId !== null && $existing && $hasDept) {
+                    $exDept = (int)($existing->department_id ?? 0);
+                    if ($exDept > 0 && $exDept !== (int)$forcedDeptId) {
+                        $skipped++;
+                        $errors[] = ['row' => $rowNum, 'error' => 'Not allowed: user belongs to another department'];
+                        continue;
+                    }
+                }
 
                 // ✅ phone duplicate check
                 if ($phone !== null) {

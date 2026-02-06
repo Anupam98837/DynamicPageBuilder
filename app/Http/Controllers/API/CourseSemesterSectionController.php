@@ -52,6 +52,86 @@ class CourseSemesterSectionController extends Controller
     }
 
     /**
+     * accessControl (ONLY users table)
+     *
+     * Returns ONLY:
+     *  - ['mode' => 'all',         'department_id' => null]
+     *  - ['mode' => 'department',  'department_id' => <int>]
+     *  - ['mode' => 'none',        'department_id' => null]
+     *  - ['mode' => 'not_allowed', 'department_id' => null]
+     */
+    private function accessControl(int $userId): array
+    {
+        if ($userId <= 0) {
+            return ['mode' => 'none', 'department_id' => null];
+        }
+
+        // Safety (if some env doesn't have dept column yet)
+        if (!Schema::hasColumn('users', 'department_id')) {
+            return ['mode' => 'not_allowed', 'department_id' => null];
+        }
+
+        $q = DB::table('users')->select(['id', 'role', 'department_id', 'status']);
+
+        // your schema has deleted_at; keep it safe
+        if (Schema::hasColumn('users', 'deleted_at')) {
+            $q->whereNull('deleted_at');
+        }
+
+        $u = $q->where('id', $userId)->first();
+
+        if (!$u) {
+            return ['mode' => 'none', 'department_id' => null];
+        }
+
+        // optional: inactive users => none
+        if (isset($u->status) && (string)$u->status !== 'active') {
+            return ['mode' => 'none', 'department_id' => null];
+        }
+
+        // normalize role from users table
+        $role = strtolower(trim((string)($u->role ?? '')));
+        $role = str_replace([' ', '-'], '_', $role);
+        $role = preg_replace('/_+/', '_', $role) ?? $role;
+
+        $deptId = $u->department_id !== null ? (int)$u->department_id : null;
+        if ($deptId !== null && $deptId <= 0) $deptId = null;
+
+        // ✅ CONFIG: decide access by role + department_id
+        $allRoles  = ['admin', 'director', 'principal']; // gets ALL even if dept null
+        $deptRoles = ['hod', 'faculty', 'technical_assistant', 'it_person', 'placement_officer', 'student']; // needs dept
+
+        if (in_array($role, $allRoles, true)) {
+            return ['mode' => 'all', 'department_id' => null];
+        }
+
+        if (in_array($role, $deptRoles, true)) {
+            // none is based on role + dept id (your rule)
+            if (!$deptId) return ['mode' => 'none', 'department_id' => null];
+            return ['mode' => 'department', 'department_id' => $deptId];
+        }
+
+        return ['mode' => 'not_allowed', 'department_id' => null];
+    }
+
+    private function respondEmptyList(Request $r)
+    {
+        $page = max(1, (int)$r->query('page', 1));
+        $per  = min(100, max(5, (int)$r->query('per_page', 20)));
+
+        return response()->json([
+            'success'    => true,
+            'data'       => [],
+            'pagination' => [
+                'page'      => $page,
+                'per_page'  => $per,
+                'total'     => 0,
+                'last_page' => 1,
+            ],
+        ]);
+    }
+
+    /**
      * Normalize identifier for WHERE clauses.
      * - When you query using baseQuery() you MUST use alias 'css'
      * - When you query using DB::table('course_semester_sections') you MUST NOT use alias
@@ -255,6 +335,12 @@ class CourseSemesterSectionController extends Controller
      |========================================================= */
     public function index(Request $r)
     {
+        $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? 0);
+        $ac      = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return $this->respondEmptyList($r);
+
         $qText      = trim((string)$r->query('q', ''));
         $status     = trim((string)$r->query('status', '')); // active|inactive
         $semesterId = $r->query('semester_id', null);
@@ -268,6 +354,11 @@ class CourseSemesterSectionController extends Controller
         if (!in_array($sort, $allowedSort, true)) $sort = 'updated_at';
 
         $q = $this->baseQuery(false);
+
+        // ✅ Department access
+        if ($ac['mode'] === 'department') {
+            $q->where('css.department_id', (int)$ac['department_id']);
+        }
 
         if ($qText !== '') {
             $q->where(function ($w) use ($qText) {
@@ -283,6 +374,8 @@ class CourseSemesterSectionController extends Controller
 
         if ($semesterId !== null && $semesterId !== '') $q->where('css.semester_id', (int)$semesterId);
         if ($courseId !== null && $courseId !== '')     $q->where('css.course_id', (int)$courseId);
+
+        // optional filter (still limited by accessControl when dept-mode)
         if ($deptId !== null && $deptId !== '')         $q->where('css.department_id', (int)$deptId);
 
         // tab compatibility: ?active=1 / ?active=0
@@ -304,6 +397,12 @@ class CourseSemesterSectionController extends Controller
      |========================================================= */
     public function trash(Request $r)
     {
+        $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? 0);
+        $ac      = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return $this->respondEmptyList($r);
+
         $qText = trim((string)$r->query('q', ''));
         $sort  = (string)$r->query('sort', 'deleted_at');
         $dir   = strtolower((string)$r->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
@@ -312,6 +411,11 @@ class CourseSemesterSectionController extends Controller
         if (!in_array($sort, $allowedSort, true)) $sort = 'deleted_at';
 
         $q = $this->baseQuery(true)->whereNotNull('css.deleted_at');
+
+        // ✅ Department access
+        if ($ac['mode'] === 'department') {
+            $q->where('css.department_id', (int)$ac['department_id']);
+        }
 
         if ($qText !== '') {
             $q->where(function ($w) use ($qText) {
@@ -334,6 +438,12 @@ class CourseSemesterSectionController extends Controller
      |========================================================= */
     public function current(Request $r)
     {
+        $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? 0);
+        $ac      = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return $this->respondEmptyList($r);
+
         $semesterId = $r->query('semester_id', null);
         $courseId   = $r->query('course_id', null);
 
@@ -344,6 +454,11 @@ class CourseSemesterSectionController extends Controller
             })
             ->orderBy('css.sort_order', 'asc')
             ->orderBy('css.id', 'asc');
+
+        // ✅ Department access
+        if ($ac['mode'] === 'department') {
+            $q->where('css.department_id', (int)$ac['department_id']);
+        }
 
         if ($semesterId !== null && $semesterId !== '') $q->where('css.semester_id', (int)$semesterId);
         if ($courseId !== null && $courseId !== '')     $q->where('css.course_id', (int)$courseId);
@@ -357,16 +472,29 @@ class CourseSemesterSectionController extends Controller
      |========================================================= */
     public function show(string $idOrUuid)
     {
+        $r = request();
+
+        $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? 0);
+        $ac      = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return $this->respondEmptyList($r);
+
         // baseQuery uses alias "css"
         $w = $this->normalizeIdentifier($idOrUuid, 'css');
 
-        $row = $this->baseQuery(true)->where($w['col'], $w['val'])->first();
+        $q = $this->baseQuery(true)->where($w['col'], $w['val']);
+
+        // ✅ Department access
+        if ($ac['mode'] === 'department') {
+            $q->where('css.department_id', (int)$ac['department_id']);
+        }
+
+        $row = (clone $q)->first();
         if (!$row) return response()->json(['success' => false, 'message' => 'Not found'], 404);
 
         // keep your existing behavior (returns list-style response)
-        $fakeReq = request();
-        $q = $this->baseQuery(true)->where($w['col'], $w['val']);
-        return $this->respondList($fakeReq, $q);
+        return $this->respondList($r, $q);
     }
 
     /* =========================================================
@@ -375,6 +503,12 @@ class CourseSemesterSectionController extends Controller
      |========================================================= */
     public function store(Request $r)
     {
+        $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? 0);
+        $ac      = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return response()->json(['error' => 'Not allowed'], 403);
+
         $actor = $this->actor($r);
 
         $r->validate([
@@ -394,6 +528,16 @@ class CourseSemesterSectionController extends Controller
             'isActive'      => ['nullable'],
         ]);
 
+        // ✅ Department enforcement on writes
+        $deptToStore = $r->filled('department_id') ? (int)$r->input('department_id') : null;
+        if ($ac['mode'] === 'department') {
+            $forcedDept = (int)$ac['department_id'];
+            if ($r->filled('department_id') && (int)$r->input('department_id') !== $forcedDept) {
+                return response()->json(['error' => 'Not allowed'], 403);
+            }
+            $deptToStore = $forcedDept; // force
+        }
+
         $activeFlag = $r->input('active', $r->input('is_active', $r->input('isActive')));
         $status = $this->normalizeStatusFromActiveFlag($activeFlag, $r->input('status'));
 
@@ -408,7 +552,7 @@ class CourseSemesterSectionController extends Controller
             'uuid'          => (string) Str::uuid(),
             'semester_id'   => (int) $r->input('semester_id'),
             'course_id'     => $r->filled('course_id') ? (int)$r->input('course_id') : null,
-            'department_id' => $r->filled('department_id') ? (int)$r->input('department_id') : null,
+            'department_id' => $deptToStore,
 
             'title'       => (string)$r->input('title'),
             'description' => $r->input('description'),
@@ -438,10 +582,23 @@ class CourseSemesterSectionController extends Controller
      |========================================================= */
     public function update(Request $r, string $idOrUuid)
     {
+        $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? 0);
+        $ac      = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return response()->json(['error' => 'Not allowed'], 403);
+
         // IMPORTANT: no alias for direct table queries
         $w = $this->normalizeIdentifier($idOrUuid, null);
 
-        $exists = DB::table('course_semester_sections')->where($w['raw_col'], $w['val'])->first();
+        $existsQ = DB::table('course_semester_sections')->where($w['raw_col'], $w['val']);
+
+        // ✅ Department access
+        if ($ac['mode'] === 'department') {
+            $existsQ->where('department_id', (int)$ac['department_id']);
+        }
+
+        $exists = $existsQ->first();
         if (!$exists) return response()->json(['success'=>false,'message'=>'Not found'], 404);
 
         $r->validate([
@@ -460,6 +617,12 @@ class CourseSemesterSectionController extends Controller
             'is_active'     => ['nullable'],
             'isActive'      => ['nullable'],
         ]);
+
+        // ✅ Department enforcement on writes
+        if ($ac['mode'] === 'department' && $r->has('department_id')) {
+            if (!$r->filled('department_id')) return response()->json(['error' => 'Not allowed'], 403);
+            if ((int)$r->input('department_id') !== (int)$ac['department_id']) return response()->json(['error' => 'Not allowed'], 403);
+        }
 
         $activeFlag = $r->input('active', $r->input('is_active', $r->input('isActive')));
         $status = $this->normalizeStatusFromActiveFlag($activeFlag, $r->input('status', $exists->status ?? 'active'));
@@ -488,10 +651,17 @@ class CourseSemesterSectionController extends Controller
             }
         }
 
+        // If department-mode: never allow changing department_id away from forced dept
+        if ($ac['mode'] === 'department') {
+            $payload['department_id'] = (int)$ac['department_id'];
+        }
+
         if ($r->has('sort_order')) $payload['sort_order'] = (int)($r->input('sort_order', 0) ?? 0);
         if ($r->has('metadata'))   $payload['metadata']   = $metaToStore;
 
-        DB::table('course_semester_sections')->where($w['raw_col'], $w['val'])->update($payload);
+        $updQ = DB::table('course_semester_sections')->where($w['raw_col'], $w['val']);
+        if ($ac['mode'] === 'department') $updQ->where('department_id', (int)$ac['department_id']);
+        $updQ->update($payload);
 
         return response()->json([
             'success' => true,
@@ -505,17 +675,33 @@ class CourseSemesterSectionController extends Controller
      |========================================================= */
     public function destroy(Request $r, string $idOrUuid)
     {
+        $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? 0);
+        $ac      = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return response()->json(['error' => 'Not allowed'], 403);
+
         // IMPORTANT: no alias for direct table queries
         $w = $this->normalizeIdentifier($idOrUuid, null);
 
-        $row = DB::table('course_semester_sections')->where($w['raw_col'], $w['val'])->first();
+        $rowQ = DB::table('course_semester_sections')->where($w['raw_col'], $w['val']);
+
+        // ✅ Department access
+        if ($ac['mode'] === 'department') {
+            $rowQ->where('department_id', (int)$ac['department_id']);
+        }
+
+        $row = $rowQ->first();
         if (!$row) return response()->json(['success'=>false,'message'=>'Not found'], 404);
 
         if ($row->deleted_at) {
             return response()->json(['success'=>true,'message'=>'Already in trash']);
         }
 
-        DB::table('course_semester_sections')->where('id', $row->id)->update([
+        $updQ = DB::table('course_semester_sections')->where('id', $row->id);
+        if ($ac['mode'] === 'department') $updQ->where('department_id', (int)$ac['department_id']);
+
+        $updQ->update([
             'deleted_at'    => now(),
             'updated_at'    => now(),
             'updated_at_ip' => $this->ip($r),
@@ -530,13 +716,29 @@ class CourseSemesterSectionController extends Controller
      |========================================================= */
     public function restore(Request $r, string $idOrUuid)
     {
+        $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? 0);
+        $ac      = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return response()->json(['error' => 'Not allowed'], 403);
+
         // IMPORTANT: no alias for direct table queries
         $w = $this->normalizeIdentifier($idOrUuid, null);
 
-        $row = DB::table('course_semester_sections')->where($w['raw_col'], $w['val'])->first();
+        $rowQ = DB::table('course_semester_sections')->where($w['raw_col'], $w['val']);
+
+        // ✅ Department access
+        if ($ac['mode'] === 'department') {
+            $rowQ->where('department_id', (int)$ac['department_id']);
+        }
+
+        $row = $rowQ->first();
         if (!$row) return response()->json(['success'=>false,'message'=>'Not found'], 404);
 
-        DB::table('course_semester_sections')->where('id', $row->id)->update([
+        $updQ = DB::table('course_semester_sections')->where('id', $row->id);
+        if ($ac['mode'] === 'department') $updQ->where('department_id', (int)$ac['department_id']);
+
+        $updQ->update([
             'deleted_at'    => null,
             'updated_at'    => now(),
             'updated_at_ip' => $this->ip($r),
@@ -551,13 +753,28 @@ class CourseSemesterSectionController extends Controller
      |========================================================= */
     public function forceDelete(Request $r, string $idOrUuid)
     {
+        $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? 0);
+        $ac      = $this->accessControl($actorId);
+
+        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return response()->json(['error' => 'Not allowed'], 403);
+
         // IMPORTANT: no alias for direct table queries
         $w = $this->normalizeIdentifier($idOrUuid, null);
 
-        $row = DB::table('course_semester_sections')->where($w['raw_col'], $w['val'])->first();
+        $rowQ = DB::table('course_semester_sections')->where($w['raw_col'], $w['val']);
+
+        // ✅ Department access
+        if ($ac['mode'] === 'department') {
+            $rowQ->where('department_id', (int)$ac['department_id']);
+        }
+
+        $row = $rowQ->first();
         if (!$row) return response()->json(['success'=>false,'message'=>'Not found'], 404);
 
-        DB::table('course_semester_sections')->where('id', $row->id)->delete();
+        $delQ = DB::table('course_semester_sections')->where('id', $row->id);
+        if ($ac['mode'] === 'department') $delQ->where('department_id', (int)$ac['department_id']);
+        $delQ->delete();
 
         return response()->json(['success'=>true,'message'=>'Deleted permanently']);
     }

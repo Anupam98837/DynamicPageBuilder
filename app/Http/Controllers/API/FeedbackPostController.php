@@ -130,6 +130,114 @@ class FeedbackPostController extends Controller
     }
 
     /**
+     * accessControl (ONLY users table)
+     *
+     * Returns ONLY:
+     *  - ['mode' => 'all',         'department_id' => null]
+     *  - ['mode' => 'department',  'department_id' => <int>]
+     *  - ['mode' => 'none',        'department_id' => null]
+     *  - ['mode' => 'not_allowed', 'department_id' => null]
+     */
+    private function accessControl(int $userId): array
+    {
+        if ($userId <= 0) {
+            return ['mode' => 'none', 'department_id' => null];
+        }
+
+        // Safety (if some env doesn't have dept column yet)
+        if (!Schema::hasColumn('users', 'department_id')) {
+            return ['mode' => 'not_allowed', 'department_id' => null];
+        }
+
+        $select = ['id', 'role', 'department_id'];
+        if (Schema::hasColumn('users', 'status')) {
+            $select[] = 'status';
+        }
+
+        $q = DB::table('users')->select($select);
+
+        // your schema has deleted_at; keep it safe
+        if (Schema::hasColumn('users', 'deleted_at')) {
+            $q->whereNull('deleted_at');
+        }
+
+        $u = $q->where('id', $userId)->first();
+
+        if (!$u) {
+            return ['mode' => 'none', 'department_id' => null];
+        }
+
+        // optional: inactive users => none
+        if (property_exists($u, 'status') && isset($u->status) && (string)$u->status !== 'active') {
+            return ['mode' => 'none', 'department_id' => null];
+        }
+
+        // normalize role from users table
+        $role = strtolower(trim((string)($u->role ?? '')));
+        $role = str_replace([' ', '-'], '_', $role);
+        $role = preg_replace('/_+/', '_', $role) ?? $role;
+
+        $deptId = $u->department_id !== null ? (int)$u->department_id : null;
+        if ($deptId !== null && $deptId <= 0) $deptId = null;
+
+        // ✅ CONFIG: decide access by role + department_id
+        $allRoles  = ['admin', 'director', 'principal']; // gets ALL even if dept null
+        $deptRoles = ['hod', 'faculty', 'technical_assistant', 'it_person', 'placement_officer', 'student']; // needs dept
+
+        if (in_array($role, $allRoles, true)) {
+            return ['mode' => 'all', 'department_id' => null];
+        }
+
+        if (in_array($role, $deptRoles, true)) {
+            // none is based on role + dept id (your rule)
+            if (!$deptId) return ['mode' => 'none', 'department_id' => null];
+            return ['mode' => 'department', 'department_id' => $deptId];
+        }
+
+        return ['mode' => 'not_allowed', 'department_id' => null];
+    }
+
+    private function emptyListResponse(Request $r)
+    {
+        $page = max(1, (int)$r->query('page', 1));
+        $per  = min(100, max(5, (int)$r->query('per_page', 20)));
+
+        return response()->json([
+            'success'    => true,
+            'data'       => [],
+            'pagination' => [
+                'page'      => $page,
+                'per_page'  => $per,
+                'total'     => 0,
+                'last_page' => 1,
+            ],
+        ]);
+    }
+
+    /**
+     * Apply department scope to fp query (uses fp.department_id if exists, otherwise falls back to courses.department_id join)
+     */
+    private function applyDepartmentScope($q, int $deptId)
+    {
+        if ($deptId <= 0) {
+            $q->whereRaw('1=0');
+            return $q;
+        }
+
+        if ($this->hasCol(self::TABLE, 'department_id')) {
+            $q->where('fp.department_id', $deptId);
+            return $q;
+        }
+
+        // fallback (backward compat): filter via courses.department_id
+        $q->join('courses as c', 'c.id', '=', 'fp.course_id')
+          ->whereNull('c.deleted_at')
+          ->where('c.department_id', $deptId);
+
+        return $q;
+    }
+
+    /**
      * Resolve department_id from courses table based on course_id.
      * - If department_id column missing in feedback_posts, returns null (keeps backward compatibility).
      * - If course_id empty -> returns null.
@@ -384,6 +492,12 @@ class FeedbackPostController extends Controller
      |========================================================= */
     public function index(Request $r)
     {
+        // ✅ ACCESS CONTROL
+        $actorId = (int)($r->attributes->get('auth_tokenable_id') ?? 0);
+        $ac = $this->accessControl($actorId);
+        if ($ac['mode'] === 'not_allowed') return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return $this->emptyListResponse($r);
+
         $qText  = trim((string)$r->query('q', ''));
         $status = trim((string)$r->query('status', '')); // active|inactive
         $sort   = (string)$r->query('sort', 'updated_at');
@@ -397,13 +511,19 @@ class FeedbackPostController extends Controller
         $year       = $r->query('year');
         $acadYear   = trim((string)$r->query('academic_year', ''));
 
-        // NEW: dept filter (optional) – does NOT require FE changes, but supports ?department_id=
+        // existing optional dept filter
         $deptId = $r->query('department_id');
 
         $allowedSort = ['created_at','updated_at','title','sort_order','publish_at','expire_at','status'];
         if (!in_array($sort, $allowedSort, true)) $sort = 'updated_at';
 
         $q = $this->baseQuery(false);
+
+        // ✅ apply dept scope from accessControl (HOD/faculty/student/etc)
+        if ($ac['mode'] === 'department') {
+            $this->applyDepartmentScope($q, (int)$ac['department_id']);
+        }
+
         $this->applyStudentScope($r, $q);
 
         if ($qText !== '') {
@@ -424,9 +544,16 @@ class FeedbackPostController extends Controller
         if ($acadYear !== '') $q->where('fp.academic_year', $acadYear);
         if ($year !== null && $year !== '') $q->where('fp.year', (int)$year);
 
-        // dept filter if column exists
-        if ($this->hasCol(self::TABLE, 'department_id') && $deptId !== null && $deptId !== '') {
-            $q->where('fp.department_id', (int)$deptId);
+        // optional dept filter from query (?department_id=)
+        if ($deptId !== null && $deptId !== '') {
+            if ($this->hasCol(self::TABLE, 'department_id')) {
+                $q->where('fp.department_id', (int)$deptId);
+            } else {
+                // fallback via courses join (if not already joined)
+                $q->join('courses as c2', 'c2.id', '=', 'fp.course_id')
+                  ->whereNull('c2.deleted_at')
+                  ->where('c2.department_id', (int)$deptId);
+            }
         }
 
         // compatibility: ?active=1 / ?active=0
@@ -447,6 +574,12 @@ class FeedbackPostController extends Controller
      |========================================================= */
     public function trash(Request $r)
     {
+        // ✅ ACCESS CONTROL
+        $actorId = (int)($r->attributes->get('auth_tokenable_id') ?? 0);
+        $ac = $this->accessControl($actorId);
+        if ($ac['mode'] === 'not_allowed') return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return $this->emptyListResponse($r);
+
         if ($this->isStudent($r)) {
             return response()->json(['success' => false, 'message' => 'Unauthorized Access'], 403);
         }
@@ -459,6 +592,11 @@ class FeedbackPostController extends Controller
         if (!in_array($sort, $allowedSort, true)) $sort = 'deleted_at';
 
         $q = $this->baseQuery(true)->whereNotNull('fp.deleted_at');
+
+        // ✅ apply dept scope from accessControl
+        if ($ac['mode'] === 'department') {
+            $this->applyDepartmentScope($q, (int)$ac['department_id']);
+        }
 
         if ($qText !== '') {
             $q->where(function ($w) use ($qText) {
@@ -478,6 +616,12 @@ class FeedbackPostController extends Controller
      |========================================================= */
     public function current(Request $r)
     {
+        // ✅ ACCESS CONTROL
+        $actorId = (int)($r->attributes->get('auth_tokenable_id') ?? 0);
+        $ac = $this->accessControl($actorId);
+        if ($ac['mode'] === 'not_allowed') return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return $this->emptyListResponse($r);
+
         $q = $this->baseQuery(false)
             ->where('fp.status', 'active')
             ->where(function ($w) {
@@ -489,6 +633,11 @@ class FeedbackPostController extends Controller
             ->orderBy('fp.sort_order', 'asc')
             ->orderBy('fp.id', 'asc');
 
+        // ✅ apply dept scope from accessControl
+        if ($ac['mode'] === 'department') {
+            $this->applyDepartmentScope($q, (int)$ac['department_id']);
+        }
+
         $this->applyStudentScope($r, $q);
 
         if ($r->filled('course_id'))   $q->where('fp.course_id', (int)$r->query('course_id'));
@@ -499,8 +648,14 @@ class FeedbackPostController extends Controller
         if ($r->filled('academic_year')) $q->where('fp.academic_year', (string)$r->query('academic_year'));
 
         // optional dept filter
-        if ($this->hasCol(self::TABLE, 'department_id') && $r->filled('department_id')) {
-            $q->where('fp.department_id', (int)$r->query('department_id'));
+        if ($r->filled('department_id')) {
+            if ($this->hasCol(self::TABLE, 'department_id')) {
+                $q->where('fp.department_id', (int)$r->query('department_id'));
+            } else {
+                $q->join('courses as c2', 'c2.id', '=', 'fp.course_id')
+                  ->whereNull('c2.deleted_at')
+                  ->where('c2.department_id', (int)$r->query('department_id'));
+            }
         }
 
         return $this->respondList($r, $q);
@@ -512,9 +667,21 @@ class FeedbackPostController extends Controller
      |========================================================= */
     public function show(Request $r, string $idOrUuid)
     {
+        // ✅ ACCESS CONTROL
+        $actorId = (int)($r->attributes->get('auth_tokenable_id') ?? 0);
+        $ac = $this->accessControl($actorId);
+        if ($ac['mode'] === 'not_allowed') return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return $this->emptyListResponse($r);
+
         $w = $this->normalizeIdentifier($idOrUuid, 'fp');
 
         $q = $this->baseQuery(true)->where($w['col'], $w['val']);
+
+        // ✅ apply dept scope from accessControl
+        if ($ac['mode'] === 'department') {
+            $this->applyDepartmentScope($q, (int)$ac['department_id']);
+        }
+
         $this->applyStudentScope($r, $q);
 
         $row = (clone $q)->first();
@@ -529,6 +696,12 @@ class FeedbackPostController extends Controller
      |========================================================= */
     public function store(Request $r)
     {
+        // ✅ ACCESS CONTROL
+        $actorId = (int)($r->attributes->get('auth_tokenable_id') ?? 0);
+        $ac = $this->accessControl($actorId);
+        if ($ac['mode'] === 'not_allowed') return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+
         if ($resp = $this->requireStaff($r)) return $resp;
 
         $actor = $this->actor($r);
@@ -573,6 +746,19 @@ class FeedbackPostController extends Controller
                     'success' => false,
                     'message' => 'Invalid course_id: department not found for this course'
                 ], 422);
+            }
+        }
+
+        // ✅ enforce dept write access (HOD/faculty/etc must match course dept)
+        if ($ac['mode'] === 'department') {
+            // If feedback_posts.department_id exists, $deptId is known; else we still can enforce by courses table:
+            $courseDept = $deptId;
+            if ($courseDept === null) {
+                $courseDept = DB::table('courses')->where('id', $courseId)->whereNull('deleted_at')->value('department_id');
+                $courseDept = $courseDept !== null ? (int)$courseDept : null;
+            }
+            if (!$courseDept || (int)$courseDept !== (int)$ac['department_id']) {
+                return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
             }
         }
 
@@ -657,12 +843,32 @@ class FeedbackPostController extends Controller
      |========================================================= */
     public function update(Request $r, string $idOrUuid)
     {
+        // ✅ ACCESS CONTROL
+        $actorId = (int)($r->attributes->get('auth_tokenable_id') ?? 0);
+        $ac = $this->accessControl($actorId);
+        if ($ac['mode'] === 'not_allowed') return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+
         if ($resp = $this->requireStaff($r)) return $resp;
 
         $w = $this->normalizeIdentifier($idOrUuid, null);
 
         $exists = DB::table(self::TABLE)->where($w['raw_col'], $w['val'])->first();
         if (!$exists) return response()->json(['success'=>false,'message'=>'Not found'], 404);
+
+        // ✅ enforce dept access on existing record (even before applying updates)
+        if ($ac['mode'] === 'department') {
+            $rowDept = null;
+            if ($this->hasCol(self::TABLE, 'department_id') && isset($exists->department_id) && $exists->department_id !== null) {
+                $rowDept = (int)$exists->department_id;
+            } else {
+                $rowDeptVal = DB::table('courses')->where('id', (int)($exists->course_id ?? 0))->whereNull('deleted_at')->value('department_id');
+                $rowDept = $rowDeptVal !== null ? (int)$rowDeptVal : null;
+            }
+            if (!$rowDept || $rowDept !== (int)$ac['department_id']) {
+                return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+            }
+        }
 
         $r->validate([
             'title'       => ['sometimes','required','string','max:255'],
@@ -755,6 +961,7 @@ class FeedbackPostController extends Controller
         if ($r->has('metadata')) $payload['metadata'] = $metaToStore;
 
         // If course_id is being changed OR department_id is empty, re-derive department_id
+        // + ✅ enforce dept access if actor is department-scoped
         if ($this->hasCol(self::TABLE, 'department_id')) {
             $newCourseId = $r->has('course_id')
                 ? ($r->filled('course_id') ? (int)$r->input('course_id') : 0)
@@ -767,7 +974,22 @@ class FeedbackPostController extends Controller
                     'message' => 'Invalid course_id: department not found for this course'
                 ], 422);
             }
+
+            if ($ac['mode'] === 'department' && (int)$deptId !== (int)$ac['department_id']) {
+                return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+            }
+
             $payload['department_id'] = $deptId;
+        } else {
+            // even if fp.department_id column doesn't exist, still enforce dept access when course_id is being changed
+            if ($ac['mode'] === 'department' && $r->has('course_id') && $r->filled('course_id')) {
+                $newCourseId = (int)$r->input('course_id');
+                $courseDeptVal = DB::table('courses')->where('id', $newCourseId)->whereNull('deleted_at')->value('department_id');
+                $courseDept = $courseDeptVal !== null ? (int)$courseDeptVal : null;
+                if (!$courseDept || $courseDept !== (int)$ac['department_id']) {
+                    return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+                }
+            }
         }
 
         DB::table(self::TABLE)->where($w['raw_col'], $w['val'])->update($payload);
@@ -781,12 +1003,32 @@ class FeedbackPostController extends Controller
      |========================================================= */
     public function destroy(Request $r, string $idOrUuid)
     {
+        // ✅ ACCESS CONTROL
+        $actorId = (int)($r->attributes->get('auth_tokenable_id') ?? 0);
+        $ac = $this->accessControl($actorId);
+        if ($ac['mode'] === 'not_allowed') return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+
         if ($resp = $this->requireStaff($r)) return $resp;
 
         $w = $this->normalizeIdentifier($idOrUuid, null);
 
         $row = DB::table(self::TABLE)->where($w['raw_col'], $w['val'])->first();
         if (!$row) return response()->json(['success'=>false,'message'=>'Not found'], 404);
+
+        // ✅ enforce dept access
+        if ($ac['mode'] === 'department') {
+            $rowDept = null;
+            if ($this->hasCol(self::TABLE, 'department_id') && isset($row->department_id) && $row->department_id !== null) {
+                $rowDept = (int)$row->department_id;
+            } else {
+                $rowDeptVal = DB::table('courses')->where('id', (int)($row->course_id ?? 0))->whereNull('deleted_at')->value('department_id');
+                $rowDept = $rowDeptVal !== null ? (int)$rowDeptVal : null;
+            }
+            if (!$rowDept || $rowDept !== (int)$ac['department_id']) {
+                return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+            }
+        }
 
         if ($row->deleted_at) return response()->json(['success'=>true,'message'=>'Already in trash']);
 
@@ -805,6 +1047,12 @@ class FeedbackPostController extends Controller
      |========================================================= */
     public function restore(Request $r, string $idOrUuid)
     {
+        // ✅ ACCESS CONTROL
+        $actorId = (int)($r->attributes->get('auth_tokenable_id') ?? 0);
+        $ac = $this->accessControl($actorId);
+        if ($ac['mode'] === 'not_allowed') return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+
         if ($resp = $this->requireStaff($r)) return $resp;
 
         $w = $this->normalizeIdentifier($idOrUuid, null);
@@ -812,11 +1060,29 @@ class FeedbackPostController extends Controller
         $row = DB::table(self::TABLE)->where($w['raw_col'], $w['val'])->first();
         if (!$row) return response()->json(['success'=>false,'message'=>'Not found'], 404);
 
+        // ✅ enforce dept access
+        if ($ac['mode'] === 'department') {
+            $rowDept = null;
+            if ($this->hasCol(self::TABLE, 'department_id') && isset($row->department_id) && $row->department_id !== null) {
+                $rowDept = (int)$row->department_id;
+            } else {
+                $rowDeptVal = DB::table('courses')->where('id', (int)($row->course_id ?? 0))->whereNull('deleted_at')->value('department_id');
+                $rowDept = $rowDeptVal !== null ? (int)$rowDeptVal : null;
+            }
+            if (!$rowDept || $rowDept !== (int)$ac['department_id']) {
+                return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+            }
+        }
+
         // Optional: ensure department_id exists on restore as well
         if ($this->hasCol(self::TABLE, 'department_id')) {
             $courseId = (int)($row->course_id ?? 0);
             $deptId = $this->departmentIdFromCourse($courseId);
             if ($deptId) {
+                // ✅ enforce dept access again (safe)
+                if ($ac['mode'] === 'department' && (int)$deptId !== (int)$ac['department_id']) {
+                    return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+                }
                 DB::table(self::TABLE)->where('id', $row->id)->update([
                     'department_id' => $deptId,
                 ]);
@@ -838,12 +1104,32 @@ class FeedbackPostController extends Controller
      |========================================================= */
     public function forceDelete(Request $r, string $idOrUuid)
     {
+        // ✅ ACCESS CONTROL
+        $actorId = (int)($r->attributes->get('auth_tokenable_id') ?? 0);
+        $ac = $this->accessControl($actorId);
+        if ($ac['mode'] === 'not_allowed') return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'none')        return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+
         if ($resp = $this->requireStaff($r)) return $resp;
 
         $w = $this->normalizeIdentifier($idOrUuid, null);
 
         $row = DB::table(self::TABLE)->where($w['raw_col'], $w['val'])->first();
         if (!$row) return response()->json(['success'=>false,'message'=>'Not found'], 404);
+
+        // ✅ enforce dept access
+        if ($ac['mode'] === 'department') {
+            $rowDept = null;
+            if ($this->hasCol(self::TABLE, 'department_id') && isset($row->department_id) && $row->department_id !== null) {
+                $rowDept = (int)$row->department_id;
+            } else {
+                $rowDeptVal = DB::table('courses')->where('id', (int)($row->course_id ?? 0))->whereNull('deleted_at')->value('department_id');
+                $rowDept = $rowDeptVal !== null ? (int)$rowDeptVal : null;
+            }
+            if (!$rowDept || $rowDept !== (int)$ac['department_id']) {
+                return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+            }
+        }
 
         DB::table(self::TABLE)->where('id', $row->id)->delete();
 
