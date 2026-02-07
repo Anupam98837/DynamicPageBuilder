@@ -5,10 +5,14 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class ContactInfoController extends Controller
 {
+    private const LOG_MODULE = 'contact_info';
+    private const LOG_TABLE  = 'user_data_activity_log';
+
     /* ============================================
      | Helpers
      |============================================ */
@@ -21,6 +25,106 @@ class ContactInfoController extends Controller
             'type' => (string) ($r->attributes->get('auth_tokenable_type') ?? ($r->user() ? get_class($r->user()) : '')),
             'uuid' => (string) ($r->attributes->get('auth_user_uuid') ?? ($r->user()->uuid ?? '')),
         ];
+    }
+
+    /**
+     * Safe activity logger (never breaks the main flow).
+     */
+    private function logActivity(
+        Request $request,
+        string $activity,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        ?array $oldValues = null,
+        ?array $newValues = null,
+        ?string $note = null,
+        ?string $module = null
+    ): void {
+        try {
+            $actor = $this->actor($request);
+            $now   = now();
+
+            DB::table(self::LOG_TABLE)->insert([
+                'performed_by'       => (int) ($actor['id'] ?? 0),
+                'performed_by_role'  => ($actor['role'] ?? null) ?: null,
+                'ip'                 => $request->ip(),
+                'user_agent'         => substr((string) $request->userAgent(), 0, 512) ?: null,
+
+                'activity'           => $activity,
+                'module'             => $module ?: self::LOG_MODULE,
+
+                'table_name'         => $tableName,
+                'record_id'          => $recordId,
+
+                'changed_fields'     => $changedFields ? json_encode(array_values($changedFields)) : null,
+                'old_values'         => $oldValues !== null ? json_encode($oldValues) : null,
+                'new_values'         => $newValues !== null ? json_encode($newValues) : null,
+
+                'log_note'           => $note,
+
+                'created_at'         => $now,
+                'updated_at'         => $now,
+            ]);
+        } catch (\Throwable $e) {
+            // Do NOT impact API behavior if logging fails.
+            Log::warning('Activity log insert failed (ContactInfoController): ' . $e->getMessage(), [
+                'activity'  => $activity,
+                'table'     => $tableName,
+                'record_id' => $recordId,
+            ]);
+        }
+    }
+
+    /**
+     * Snapshot a contact_info DB row into an array (metadata decoded).
+     */
+    private function snapshotRow($row): array
+    {
+        $arr = (array) $row;
+
+        if (array_key_exists('metadata', $arr) && is_string($arr['metadata'])) {
+            $decoded = json_decode($arr['metadata'], true);
+            $arr['metadata'] = (json_last_error() === JSON_ERROR_NONE) ? $decoded : $arr['metadata'];
+        }
+
+        return $arr;
+    }
+
+    /**
+     * Diff two snapshots (strict enough for logs).
+     */
+    private function diffSnapshots(array $old, array $new, array $keysToCheck): array
+    {
+        $changed = [];
+        $oldVals = [];
+        $newVals = [];
+
+        foreach ($keysToCheck as $k) {
+            $ov = $old[$k] ?? null;
+            $nv = $new[$k] ?? null;
+
+            // normalize metadata comparison
+            if ($k === 'metadata') {
+                $ovNorm = is_string($ov) ? json_decode($ov, true) : $ov;
+                $nvNorm = is_string($nv) ? json_decode($nv, true) : $nv;
+                if (json_encode($ovNorm) !== json_encode($nvNorm)) {
+                    $changed[]    = $k;
+                    $oldVals[$k]  = $ov;
+                    $newVals[$k]  = $nv;
+                }
+                continue;
+            }
+
+            // generic compare
+            if ($ov !== $nv) {
+                $changed[]    = $k;
+                $oldVals[$k]  = $ov;
+                $newVals[$k]  = $nv;
+            }
+        }
+
+        return [$changed, $oldVals, $newVals];
     }
 
     protected function toUrl(?string $path): ?string
@@ -246,7 +350,7 @@ class ContactInfoController extends Controller
         $uuid = (string) Str::uuid();
         $now  = now();
 
-        $id = DB::table('contact_info')->insertGetId([
+        $insert = [
             'uuid'             => $uuid,
             'type'             => (string) ($validated['type'] ?? 'contact'),
             'key'              => $validated['key'],
@@ -262,9 +366,23 @@ class ContactInfoController extends Controller
             'created_at_ip'    => $request->ip(),
             'updated_at_ip'    => $request->ip(),
             'metadata'         => $metadata !== null ? json_encode($metadata) : null,
-        ]);
+        ];
 
+        $id = DB::table('contact_info')->insertGetId($insert);
         $row = DB::table('contact_info')->where('id', (int) $id)->first();
+
+        // LOG: create
+        $newSnap = $row ? $this->snapshotRow($row) : array_merge(['id' => (int) $id], $insert);
+        $this->logActivity(
+            $request,
+            'create',
+            'contact_info',
+            (int) $id,
+            array_keys($insert),
+            null,
+            $newSnap,
+            'Created contact info'
+        );
 
         return response()->json([
             'success' => true,
@@ -276,6 +394,8 @@ class ContactInfoController extends Controller
     {
         $row = $this->resolveContactInfo($identifier, true);
         if (! $row) return response()->json(['message' => 'Contact info not found'], 404);
+
+        $oldSnap = $this->snapshotRow($row);
 
         $validated = $request->validate([
             'type'             => ['nullable', 'in:contact,social'],
@@ -318,6 +438,22 @@ class ContactInfoController extends Controller
         DB::table('contact_info')->where('id', (int) $row->id)->update($update);
 
         $fresh = DB::table('contact_info')->where('id', (int) $row->id)->first();
+        $freshSnap = $fresh ? $this->snapshotRow($fresh) : [];
+
+        // LOG: update (only diff relevant keys)
+        $keysToCheck = array_values(array_diff(array_keys($update), ['updated_at', 'updated_at_ip']));
+        [$changed, $oldVals, $newVals] = $this->diffSnapshots($oldSnap, $freshSnap, $keysToCheck);
+
+        $this->logActivity(
+            $request,
+            'update',
+            'contact_info',
+            (int) $row->id,
+            $changed ?: $keysToCheck,
+            $changed ? $oldVals : null,
+            $changed ? $newVals : null,
+            $changed ? 'Updated contact info' : 'Update called (no field changes detected)'
+        );
 
         return response()->json([
             'success' => true,
@@ -330,6 +466,8 @@ class ContactInfoController extends Controller
         $row = $this->resolveContactInfo($identifier, true);
         if (! $row) return response()->json(['message' => 'Contact info not found'], 404);
 
+        $oldSnap = $this->snapshotRow($row);
+
         $new = ((int) ($row->is_featured_home ?? 0)) ? 0 : 1;
 
         DB::table('contact_info')->where('id', (int) $row->id)->update([
@@ -339,6 +477,19 @@ class ContactInfoController extends Controller
         ]);
 
         $fresh = DB::table('contact_info')->where('id', (int) $row->id)->first();
+        $freshSnap = $fresh ? $this->snapshotRow($fresh) : [];
+
+        // LOG: toggle featured
+        $this->logActivity(
+            $request,
+            'update',
+            'contact_info',
+            (int) $row->id,
+            ['is_featured_home'],
+            ['is_featured_home' => $oldSnap['is_featured_home'] ?? null],
+            ['is_featured_home' => $freshSnap['is_featured_home'] ?? $new],
+            'Toggled featured on home'
+        );
 
         return response()->json([
             'success' => true,
@@ -351,11 +502,27 @@ class ContactInfoController extends Controller
         $row = $this->resolveContactInfo($identifier, false);
         if (! $row) return response()->json(['message' => 'Not found or already deleted'], 404);
 
+        $oldSnap = $this->snapshotRow($row);
+
+        $now = now();
+
         DB::table('contact_info')->where('id', (int) $row->id)->update([
-            'deleted_at'    => now(),
-            'updated_at'    => now(),
+            'deleted_at'    => $now,
+            'updated_at'    => $now,
             'updated_at_ip' => $request->ip(),
         ]);
+
+        // LOG: soft delete
+        $this->logActivity(
+            $request,
+            'delete',
+            'contact_info',
+            (int) $row->id,
+            ['deleted_at'],
+            ['deleted_at' => $oldSnap['deleted_at'] ?? null],
+            ['deleted_at' => (string) $now],
+            'Soft deleted contact info'
+        );
 
         return response()->json(['success' => true]);
     }
@@ -367,6 +534,8 @@ class ContactInfoController extends Controller
             return response()->json(['message' => 'Not found in bin'], 404);
         }
 
+        $oldSnap = $this->snapshotRow($row);
+
         DB::table('contact_info')->where('id', (int) $row->id)->update([
             'deleted_at'    => null,
             'updated_at'    => now(),
@@ -374,6 +543,19 @@ class ContactInfoController extends Controller
         ]);
 
         $fresh = DB::table('contact_info')->where('id', (int) $row->id)->first();
+        $freshSnap = $fresh ? $this->snapshotRow($fresh) : [];
+
+        // LOG: restore
+        $this->logActivity(
+            $request,
+            'restore',
+            'contact_info',
+            (int) $row->id,
+            ['deleted_at'],
+            ['deleted_at' => $oldSnap['deleted_at'] ?? null],
+            ['deleted_at' => $freshSnap['deleted_at'] ?? null],
+            'Restored contact info'
+        );
 
         return response()->json([
             'success' => true,
@@ -386,7 +568,21 @@ class ContactInfoController extends Controller
         $row = $this->resolveContactInfo($identifier, true);
         if (! $row) return response()->json(['message' => 'Contact info not found'], 404);
 
+        $oldSnap = $this->snapshotRow($row);
+
         DB::table('contact_info')->where('id', (int) $row->id)->delete();
+
+        // LOG: hard delete
+        $this->logActivity(
+            $request,
+            'delete',
+            'contact_info',
+            (int) $row->id,
+            null,
+            $oldSnap,
+            null,
+            'Force deleted contact info (hard delete)'
+        );
 
         return response()->json(['success' => true]);
     }

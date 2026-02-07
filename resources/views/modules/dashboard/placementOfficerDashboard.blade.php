@@ -1,5 +1,5 @@
-{{-- resources/views/modules/hod/hodDashboard.blade.php --}}
-@section('title','HOD Dashboard')
+{{-- resources/views/modules/dashboard/placementOfficerDashboard.blade.php --}}
+@section('title','Placement Officer Dashboard')
 
 @push('styles')
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
@@ -7,16 +7,16 @@
 
 <style>
 /* =========================
- * HOD Dashboard (MSIT theme)
- * - Fully dynamic from GET /api/hod/dashboard (default)
- * - No static numbers
- * - Same UI language as Admin Dashboard for theme consistency
+ * Placement Officer Dashboard (MSIT theme)
+ * - Fully dynamic from GET /api/placement-officer/dashboard (default)
+ * - If user has NO department selected -> show ONLY basic details (hide dept sections)
+ * - Same UI language as Admin/HOD/TA dashboards for theme consistency
  * ========================= */
 
-.hd-wrap{max-width:1200px;margin:18px auto 48px;padding:0 12px;overflow:visible}
+.po-wrap{max-width:1200px;margin:18px auto 48px;padding:0 12px;overflow:visible}
 
 /* Hero */
-.hd-hero{
+.po-hero{
   position:relative;
   border-radius:22px;
   padding:20px 20px;
@@ -25,57 +25,60 @@
   box-shadow:var(--shadow-3);
   background:linear-gradient(135deg,
     var(--primary-color) 0%,
-    color-mix(in oklab, var(--primary-color) 70%, #7c3aed) 100%);
+    color-mix(in oklab, var(--primary-color) 70%, #f59e0b) 100%);
   border:1px solid color-mix(in oklab, #fff 15%, transparent);
 }
-.hd-hero::before{
+.po-hero::before{
   content:'';
   position:absolute;right:-80px;top:-80px;
   width:260px;height:260px;border-radius:50%;
   background:radial-gradient(circle, rgba(255,255,255,.14) 0%, rgba(255,255,255,0) 70%);
 }
-.hd-hero-inner{position:relative;z-index:1;display:flex;gap:14px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
-.hd-hero-left{min-width:260px;flex:1}
-.hd-hero-title{font-size:26px;font-weight:800;letter-spacing:-.2px;margin:0;font-family:var(--font-head)}
-.hd-hero-sub{margin:8px 0 0;font-size:14px;opacity:.92}
-.hd-hero-meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
-.hd-chip{
+.po-hero-inner{position:relative;z-index:1;display:flex;gap:14px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.po-hero-left{min-width:260px;flex:1}
+.po-hero-title{font-size:26px;font-weight:800;letter-spacing:-.2px;margin:0;font-family:var(--font-head)}
+.po-hero-sub{margin:8px 0 0;font-size:14px;opacity:.92}
+.po-hero-meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.po-chip{
   display:inline-flex;align-items:center;gap:8px;
   padding:8px 12px;border-radius:999px;
   background:rgba(255,255,255,.12);
   border:1px solid rgba(255,255,255,.16);
   font-size:13px;
 }
-.hd-chip i{opacity:.95}
+.po-chip i{opacity:.95}
 
 /* Grid */
-.hd-grid{margin-top:14px;display:grid;grid-template-columns:repeat(12, minmax(0,1fr));gap:14px}
-.hd-col-4{grid-column:span 4}
-.hd-col-8{grid-column:span 8}
-.hd-col-6{grid-column:span 6}
-.hd-col-12{grid-column:span 12}
+.po-grid{margin-top:14px;display:grid;grid-template-columns:repeat(12, minmax(0,1fr));gap:14px;align-items:stretch}
+.po-grid > div{display:flex}
+.po-grid > div > .po-card{width:100%;height:100%}
+
+.po-col-4{grid-column:span 4}
+.po-col-8{grid-column:span 8}
+.po-col-6{grid-column:span 6}
+.po-col-12{grid-column:span 12}
 
 /* Cards */
-.hd-card{
+.po-card{
   border:1px solid var(--line-strong);
   border-radius:16px;
   background:var(--surface);
   box-shadow:var(--shadow-2);
   overflow:hidden;
 }
-.hd-card-head{
+.po-card-head{
   padding:14px 16px;
   border-bottom:1px solid var(--line-soft);
   display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;
 }
-.hd-card-title{
+.po-card-title{
   display:flex;align-items:center;gap:10px;
   font-weight:800;color:var(--ink);
   font-family:var(--font-head);
 }
-.hd-card-sub{font-size:12.5px;color:var(--muted-color);margin-top:3px}
-.hd-card-body{padding:14px 16px}
-.hd-card-foot{
+.po-card-sub{font-size:12.5px;color:var(--muted-color);margin-top:3px}
+.po-card-body{padding:14px 16px}
+.po-card-foot{
   padding:12px 16px;
   border-top:1px solid var(--line-soft);
   background:color-mix(in oklab, var(--surface) 96%, transparent);
@@ -109,7 +112,28 @@
   color:var(--secondary-color);
 }
 
-/* Chart shell */
+/* Profile list */
+.po-kv{
+  border:1px solid var(--line-soft);
+  border-radius:14px;
+  padding:12px;
+  background:color-mix(in oklab, var(--surface) 96%, transparent);
+  display:grid;
+  grid-template-columns:1fr;
+  gap:10px;
+}
+.po-kv .item{
+  padding:10px 12px;
+  border:1px dashed var(--line-soft);
+  border-radius:12px;
+}
+.po-kv .k{font-size:12px;color:var(--muted-color)}
+.po-kv .v{font-weight:800;color:var(--ink);word-break:break-word}
+@media (min-width: 768px){
+  .po-kv{grid-template-columns:repeat(2, minmax(0,1fr))}
+}
+
+/* Chart */
 .chart-wrap{
   width:100%;
   border:1px solid var(--line-soft);
@@ -119,13 +143,22 @@
 }
 .chart-canvas{width:100%;height:280px}
 
-/* Table wrap */
+/* Table */
 .table-wrap{
   border:1px solid var(--line-strong);
   border-radius:14px;
   overflow:auto;
 }
 .table{margin:0}
+
+/* Empty */
+.po-empty{
+  border:1px dashed var(--line-strong);
+  border-radius:14px;
+  padding:12px;
+  color:var(--muted-color);
+  background:color-mix(in oklab, var(--surface) 96%, transparent);
+}
 
 /* Skeleton */
 .skel{
@@ -137,7 +170,6 @@
 }
 @keyframes sh{0%{background-position:0 0}100%{background-position:-200% 0}}
 .skel.h28{height:28px}
-.skel.h40{height:40px}
 .skel.w60{width:60%}
 .skel.w40{width:40%}
 .skel.w80{width:80%}
@@ -159,7 +191,7 @@
 .toast-container{z-index:99999}
 
 @media (max-width: 992px){
-  .hd-col-8,.hd-col-6,.hd-col-4{grid-column:span 12}
+  .po-col-8,.po-col-6,.po-col-4{grid-column:span 12}
   .chart-canvas{height:240px}
 }
 </style>
@@ -167,7 +199,7 @@
 
 @section('content')
 {{-- data-endpoint can be overridden from controller if needed --}}
-<div class="hd-wrap" id="hodDashWrap" data-endpoint="{{ $endpoint ?? '/api/hod/dashboard' }}">
+<div class="po-wrap" id="placeOfficerDashWrap" data-endpoint="{{ $endpoint ?? '/api/placement-officer/dashboard' }}">
 
   {{-- hidden debug hook (kept for JS compatibility; not shown in UI) --}}
   <code id="endpointHint" class="d-none"></code>
@@ -178,16 +210,16 @@
   </div>
 
   {{-- HERO --}}
-  <div class="hd-hero">
-    <div class="hd-hero-inner">
-      <div class="hd-hero-left">
-        <h1 class="hd-hero-title" id="heroTitle">Welcome 👋</h1>
-        <div class="hd-hero-sub" id="heroSub">Loading your dashboard…</div>
+  <div class="po-hero">
+    <div class="po-hero-inner">
+      <div class="po-hero-left">
+        <h1 class="po-hero-title" id="heroTitle">Welcome 👋</h1>
+        <div class="po-hero-sub" id="heroSub">Loading your dashboard…</div>
 
-        <div class="hd-hero-meta">
-          <span class="hd-chip"><i class="fa-solid fa-user-tie"></i> <span id="chipRole">—</span></span>
-          <span class="hd-chip"><i class="fa-solid fa-building-user"></i> <span id="chipDept">—</span></span>
-          <span class="hd-chip"><i class="fa-regular fa-clock"></i> <span id="chipUpdated">—</span></span>
+        <div class="po-hero-meta">
+          <span class="po-chip"><i class="fa-solid fa-briefcase"></i> <span id="chipRole">—</span></span>
+          <span class="po-chip"><i class="fa-solid fa-building-user"></i> <span id="chipDept">—</span></span>
+          <span class="po-chip"><i class="fa-regular fa-clock"></i> <span id="chipUpdated">—</span></span>
         </div>
       </div>
 
@@ -199,22 +231,50 @@
     </div>
   </div>
 
-  <div class="hd-grid">
+  <div class="po-grid">
 
-    {{-- KPIs --}}
-    <div class="hd-col-12">
-      <div class="hd-card">
-        <div class="hd-card-head">
+    {{-- BASIC DETAILS (always visible) --}}
+    <div class="po-col-12" id="basicDetailsCard">
+      <div class="po-card">
+        <div class="po-card-head">
           <div>
-            <div class="hd-card-title"><i class="fa-solid fa-chart-line"></i> Department Overview</div>
-            <div class="hd-card-sub">Your department’s key numbers (dynamic)</div>
+            <div class="po-card-title"><i class="fa-solid fa-id-card"></i> Basic Details</div>
+            <div class="po-card-sub" id="basicSub">Your profile summary</div>
           </div>
-          {{-- removed API calling text from header (kept hidden code hook above) --}}
         </div>
+        <div class="po-card-body">
+          <div id="basicBox" class="po-kv">
+            <div class="skel w80"></div>
+            <div class="skel w60"></div>
+            <div class="skel w40"></div>
+            <div class="skel w80"></div>
+          </div>
 
-        <div class="hd-card-body">
+          <div class="po-empty mt-3 d-none" id="deptMissingNote">
+            <i class="fa-regular fa-circle-info me-1"></i>
+            Department is not selected. Set your department to unlock department-wise dashboard.
+          </div>
+        </div>
+        <div class="po-card-foot">
+          <div class="small text-muted" id="basicHint">—</div>
+          <a class="btn btn-sm btn-outline-primary" id="btnProfile" href="#" style="border-radius:10px">
+            <i class="fa-solid fa-user-pen"></i> Update Profile
+          </a>
+        </div>
+      </div>
+    </div>
+
+    {{-- DEPARTMENT KPIs (hidden if no dept) --}}
+    <div class="po-col-12 d-none" id="deptKpiCard">
+      <div class="po-card">
+        <div class="po-card-head">
+          <div>
+            <div class="po-card-title"><i class="fa-solid fa-chart-line"></i> Department Overview</div>
+            <div class="po-card-sub">Placement KPIs (dynamic)</div>
+          </div>
+        </div>
+        <div class="po-card-body">
           <div class="row g-3" id="kpiRow">
-            {{-- skeletons (replaced by JS) --}}
             @for($i=0;$i<4;$i++)
               <div class="col-12 col-md-6 col-xl-3">
                 <div class="kpi">
@@ -228,8 +288,7 @@
             @endfor
           </div>
         </div>
-
-        <div class="hd-card-foot">
+        <div class="po-card-foot">
           <div class="small text-muted">
             <i class="fa-regular fa-circle-info me-1"></i>
             KPI order & labels come from API response.
@@ -239,16 +298,50 @@
       </div>
     </div>
 
-    {{-- CHART: Activity --}}
-    <div class="hd-col-8">
-      <div class="hd-card">
-        <div class="hd-card-head">
+    {{-- Quick Actions --}}
+    <div class="po-col-6" id="quickCard">
+      <div class="po-card">
+        <div class="po-card-head">
           <div>
-            <div class="hd-card-title"><i class="fa-solid fa-wave-square"></i> Department Activity</div>
-            <div class="hd-card-sub" id="activitySub">Last 7 days</div>
+            <div class="po-card-title"><i class="fa-solid fa-bolt"></i> Quick Actions</div>
+            <div class="po-card-sub">Shortcuts for placement work</div>
           </div>
         </div>
-        <div class="hd-card-body">
+        <div class="po-card-body" id="quickActions">
+          <div class="skel w80"></div>
+          <div class="skel w60" style="margin-top:10px"></div>
+          <div class="skel w40" style="margin-top:10px"></div>
+        </div>
+      </div>
+    </div>
+
+    {{-- Alerts --}}
+    <div class="po-col-6" id="alertsCard">
+      <div class="po-card">
+        <div class="po-card-head">
+          <div>
+            <div class="po-card-title"><i class="fa-solid fa-circle-exclamation"></i> Alerts</div>
+            <div class="po-card-sub">Needs your attention</div>
+          </div>
+        </div>
+        <div class="po-card-body" id="alertsBox">
+          <div class="skel w80"></div>
+          <div class="skel w60" style="margin-top:10px"></div>
+          <div class="skel w40" style="margin-top:10px"></div>
+        </div>
+      </div>
+    </div>
+
+    {{-- Department Activity (hidden if no dept) --}}
+    <div class="po-col-12 d-none" id="deptActivityCard">
+      <div class="po-card">
+        <div class="po-card-head">
+          <div>
+            <div class="po-card-title"><i class="fa-solid fa-wave-square"></i> Department Activity</div>
+            <div class="po-card-sub" id="activitySub">Last 7 days</div>
+          </div>
+        </div>
+        <div class="po-card-body">
           <div class="chart-wrap">
             <canvas id="activityChart" class="chart-canvas"></canvas>
           </div>
@@ -257,47 +350,16 @@
       </div>
     </div>
 
-    {{-- RIGHT: Quick cards --}}
-    <div class="hd-col-4">
-      <div class="hd-card">
-        <div class="hd-card-head">
+    {{-- Recent Department Updates (hidden if no dept) --}}
+    <div class="po-col-12 d-none" id="deptRecentCard">
+      <div class="po-card">
+        <div class="po-card-head">
           <div>
-            <div class="hd-card-title"><i class="fa-solid fa-bolt"></i> Quick Actions</div>
-            <div class="hd-card-sub">Shortcuts for department tasks</div>
+            <div class="po-card-title"><i class="fa-solid fa-list"></i> Recent Updates</div>
+            <div class="po-card-sub" id="recentSub">Latest items</div>
           </div>
         </div>
-        <div class="hd-card-body" id="quickActions">
-          <div class="skel w80"></div>
-          <div class="skel w60" style="margin-top:10px"></div>
-          <div class="skel w40" style="margin-top:10px"></div>
-        </div>
-      </div>
-
-      <div class="hd-card mt-3">
-        <div class="hd-card-head">
-          <div>
-            <div class="hd-card-title"><i class="fa-solid fa-circle-exclamation"></i> Alerts</div>
-            <div class="hd-card-sub">Needs your attention</div>
-          </div>
-        </div>
-        <div class="hd-card-body" id="alertsBox">
-          <div class="skel w80"></div>
-          <div class="skel w60" style="margin-top:10px"></div>
-          <div class="skel w40" style="margin-top:10px"></div>
-        </div>
-      </div>
-    </div>
-
-    {{-- TABLE: Recent items --}}
-    <div class="hd-col-12">
-      <div class="hd-card">
-        <div class="hd-card-head">
-          <div>
-            <div class="hd-card-title"><i class="fa-solid fa-list"></i> Recent Department Updates</div>
-            <div class="hd-card-sub" id="recentSub">Latest updates</div>
-          </div>
-        </div>
-        <div class="hd-card-body">
+        <div class="po-card-body">
           <div class="table-wrap">
             <table class="table table-hover align-middle">
               <thead>
@@ -348,19 +410,18 @@
 
 <script>
 (function(){
-  if (window.__HOD_DASH_INIT__) return;
-  window.__HOD_DASH_INIT__ = true;
+  if (window.__PO_DASH_INIT__) return;
+  window.__PO_DASH_INIT__ = true;
 
   const token = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
   if (!token) { window.location.href = '/'; return; }
 
-  const wrap = document.getElementById('hodDashWrap');
-  const preferredEndpoint = wrap?.dataset?.endpoint || '/api/hod/dashboard';
+  const wrap = document.getElementById('placeOfficerDashWrap');
+  const preferredEndpoint = wrap?.dataset?.endpoint || '/api/placement-officer/dashboard';
 
-  // Fallbacks (only tried if the preferred endpoint fails)
   const endpointCandidates = [
     preferredEndpoint,
-    '/api/hod/dashboard'
+    '/api/placement-officer/dashboard'
   ].filter((v, i, a) => v && a.indexOf(v) === i);
 
   const inlineLoader = document.getElementById('inlineLoader');
@@ -383,21 +444,30 @@
   const chipDept    = document.getElementById('chipDept');
   const chipUpdated = document.getElementById('chipUpdated');
   const btnRefresh  = document.getElementById('btnRefresh');
-  const endpointHint= document.getElementById('endpointHint'); // hidden
+  const endpointHint= document.getElementById('endpointHint');
 
-  const kpiRow   = document.getElementById('kpiRow');
-  const kpiNote  = document.getElementById('kpiNote');
+  const basicSub    = document.getElementById('basicSub');
+  const basicHint   = document.getElementById('basicHint');
+  const basicBox    = document.getElementById('basicBox');
+  const btnProfile  = document.getElementById('btnProfile');
+  const deptMissingNote = document.getElementById('deptMissingNote');
 
-  const activitySub  = document.getElementById('activitySub');
-  const activityHint = document.getElementById('activityHint');
+  const deptKpiCard = document.getElementById('deptKpiCard');
+  const kpiRow      = document.getElementById('kpiRow');
+  const kpiNote     = document.getElementById('kpiNote');
 
   const quickActions = document.getElementById('quickActions');
   const alertsBox    = document.getElementById('alertsBox');
 
-  const recentSub  = document.getElementById('recentSub');
-  const recentHint = document.getElementById('recentHint');
-  const recentBody = document.getElementById('recentBody');
-  const recentHead = document.getElementById('recentHead');
+  const deptActivityCard = document.getElementById('deptActivityCard');
+  const activitySub  = document.getElementById('activitySub');
+  const activityHint = document.getElementById('activityHint');
+
+  const deptRecentCard = document.getElementById('deptRecentCard');
+  const recentSub   = document.getElementById('recentSub');
+  const recentHint  = document.getElementById('recentHint');
+  const recentBody  = document.getElementById('recentBody');
+  const recentHead  = document.getElementById('recentHead');
 
   // Chart
   let activityChart = null;
@@ -420,56 +490,93 @@
   function isObj(x){ return x && typeof x === 'object' && !Array.isArray(x); }
 
   function normalizeDashboardPayload(raw){
-    /**
-     * Supported shapes (so backend can evolve without breaking UI):
-     *
-     * Best:
-     * {
-     *   success:true,
-     *   data:{
-     *     hero:{ title, sub, role, updated_at, department, user_name },
-     *     user:{ name },
-     *     department:{ id, name, code },
-     *     kpis:[{ icon,label,value,sub,badge }],
-     *     activity:{ labels, values, sub, hint, label } or { points:[{label,value}] },
-     *     quick_actions:[{ title,url,icon,hint }],
-     *     alerts:[{ type, icon, title, sub }],
-     *     recent:{ sub, hint, columns:[{key,label,align}], rows:[{...}] }
-     *   }
-     * }
-     *
-     * Minimal:
-     * { ...data... } or { data:{...} }
-     */
     const root = isObj(raw) ? raw : {};
     const data = isObj(root.data) ? root.data : (isObj(root) && !('success' in root) ? root : {});
     return data;
   }
 
-  // Make technical subtext user-friendly
-  function friendlyHeroSub(rawSub, deptName){
+  function friendlyHeroSub(rawSub, hasDept, deptName){
     const s = (rawSub ?? '').toString().trim();
-    const dn = (deptName ?? '').toString().trim();
-
-    if (!s) {
-      return dn ? `Here’s what’s happening in ${dn} today.` : `Here’s what’s happening in your department today.`;
+    if (!hasDept) {
+      return `You haven’t selected a department yet. Update your profile to unlock department-wise dashboard.`;
     }
-
-    // Replace known technical wording
+    if (!s) {
+      return deptName ? `Here’s what’s happening in ${deptName} today.` : `Here’s what’s happening in your department today.`;
+    }
     const lower = s.toLowerCase();
     if (lower.includes('department scoped access') || lower.includes('dept id') || lower.includes('department_id')) {
-      return dn ? `You’re viewing updates for ${dn}.` : `You’re viewing updates for your department.`;
+      return deptName ? `You’re viewing updates for ${deptName}.` : `You’re viewing updates for your department.`;
     }
-
-    // Generic cleanup (optional)
     return s;
+  }
+
+  function toggle(el, show){
+    if (!el) return;
+    el.classList.toggle('d-none', !show);
+  }
+
+  function renderBasicDetails(data, hero, deptObj, hasDept){
+    const user = isObj(data.user) ? data.user : (isObj(hero.user) ? hero.user : {});
+    const name  = safeStr(hero.user_name || hero.name || user.name || data.profile?.name || data.name || '');
+    const email = safeStr(user.email || data.email || hero.email || '');
+    const phone = safeStr(user.phone || user.mobile || data.phone || data.mobile || '');
+    const role  = safeStr(hero.role || data.role || 'placement_officer');
+    const deptName = hasDept ? safeStr(deptObj?.name || deptObj?.title || data.department_name || hero.department_name || '') : 'Not selected';
+
+    const joined = fmtDateTime(user.created_at || data.created_at || '');
+    const updated = fmtDateTime(user.updated_at || data.updated_at || hero.updated_at || '');
+
+    basicSub.textContent = hasDept ? 'Profile + department context' : 'Profile (department not selected)';
+
+    basicBox.innerHTML = `
+      <div class="item">
+        <div class="k">Name</div>
+        <div class="v">${safeStr(name,'—')}</div>
+      </div>
+      <div class="item">
+        <div class="k">Email</div>
+        <div class="v">${safeStr(email,'—')}</div>
+      </div>
+      <div class="item">
+        <div class="k">Phone</div>
+        <div class="v">${safeStr(phone,'—')}</div>
+      </div>
+      <div class="item">
+        <div class="k">Role</div>
+        <div class="v">${safeStr(role,'—')}</div>
+      </div>
+      <div class="item">
+        <div class="k">Department</div>
+        <div class="v">${safeStr(deptName,'—')}</div>
+      </div>
+      <div class="item">
+        <div class="k">Joined</div>
+        <div class="v">${safeStr(joined,'—')}</div>
+      </div>
+      <div class="item">
+        <div class="k">Last Updated</div>
+        <div class="v">${safeStr(updated,'—')}</div>
+      </div>
+    `;
+
+    basicHint.textContent = safeStr(
+      data.basic_hint || data.profile_hint || hero.hint || '',
+      hasDept ? 'You can manage placement operations based on permissions.' : 'Select department to see department-wise placement data.'
+    );
+
+    const profileUrl =
+      data.profile_url ||
+      data.quick_profile_url ||
+      hero.profile_url ||
+      '/placement-officer/profile';
+    btnProfile.setAttribute('href', profileUrl);
   }
 
   function renderKPIs(kpis){
     if(!isArr(kpis) || !kpis.length){
       kpiRow.innerHTML = `
         <div class="col-12">
-          <div class="empty">
+          <div class="po-empty">
             <i class="fa-regular fa-circle-info me-1"></i>
             No KPI data returned from API.
           </div>
@@ -499,11 +606,17 @@
     }).join('');
   }
 
-  function renderQuickActions(actions){
+  function renderQuickActions(actions, hasDept){
     if(!isArr(actions) || !actions.length){
-      quickActions.innerHTML = `<div class="empty">No quick actions provided.</div>`;
-      return;
+      // ✅ fallback only if API doesn’t provide quick_actions
+      actions = hasDept ? [
+        { title:'Update Profile', url:'/placement-officer/profile', icon:'fa-user-pen', hint:'Manage your account details' },
+        { title:'Open Placement Work', url:'#', icon:'fa-briefcase', hint:'Go to placement-related modules' },
+      ] : [
+        { title:'Update Profile', url:'/placement-officer/profile', icon:'fa-user-pen', hint:'Select your department to unlock dashboard' },
+      ];
     }
+
     quickActions.innerHTML = `
       <div class="d-flex flex-column gap-2">
         ${actions.map(a => {
@@ -532,11 +645,21 @@
     `;
   }
 
-  function renderAlerts(alerts){
+  function renderAlerts(alerts, hasDept){
     if(!isArr(alerts) || !alerts.length){
-      alertsBox.innerHTML = `<div class="empty">No alerts 🎉</div>`;
-      return;
+      if (!hasDept) {
+        alerts = [{
+          type: 'info',
+          icon: 'fa-circle-info',
+          title: 'Department not selected',
+          sub: 'Update your profile and select a department to view department-wise alerts.'
+        }];
+      } else {
+        alertsBox.innerHTML = `<div class="po-empty">No alerts 🎉</div>`;
+        return;
+      }
     }
+
     alertsBox.innerHTML = `
       <div class="d-flex flex-column gap-2">
         ${alerts.map(x => {
@@ -570,7 +693,6 @@
   }
 
   function renderRecent(recent){
-    // recent: { columns:[{key,label,align}], rows:[{...}], hint, sub }
     if(!isObj(recent) || (!isArr(recent.rows) || !recent.rows.length)){
       recentBody.innerHTML = `
         <tr><td colspan="3" class="text-muted">
@@ -587,7 +709,6 @@
           { key:'time',   label:'Time', align:'end' }
         ];
 
-    // Head
     recentHead.innerHTML = columns.map(c => {
       const label = safeStr(c.label, c.key || '—');
       const align = (c.align || '').toString().toLowerCase();
@@ -595,7 +716,6 @@
       return `<th class="${cls}">${label}</th>`;
     }).join('');
 
-    // Body
     recentBody.innerHTML = recent.rows.map(r => {
       return `<tr>${
         columns.map(c => {
@@ -609,37 +729,28 @@
   }
 
   function renderActivity(activity){
-    // activity: { labels:[], values:[], sub, hint } OR { points:[{label,value}] }
     const labels = isArr(activity?.labels) ? activity.labels : [];
     const values = isArr(activity?.values) ? activity.values : [];
 
     let L = labels, V = values;
-
     if ((!L.length || !V.length) && isArr(activity?.points)) {
       L = activity.points.map(p => p.label);
       V = activity.points.map(p => p.value);
     }
 
-    activitySub.textContent = safeStr(activity?.sub, 'Activity');
+    activitySub.textContent  = safeStr(activity?.sub, 'Activity');
     activityHint.textContent = safeStr(activity?.hint, '');
 
     const ctx = document.getElementById('activityChart');
     if (!ctx) return;
 
-    if (activityChart) {
-      try { activityChart.destroy(); } catch(_) {}
-      activityChart = null;
-    }
+    if (activityChart) { try { activityChart.destroy(); } catch(_) {} activityChart = null; }
 
     if (!L.length || !V.length) {
       activityChart = new Chart(ctx, {
         type: 'line',
         data: { labels: ['—'], datasets: [{ label: 'No data', data: [0], tension: .35, fill: true }] },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: { y: { beginAtZero: true } }
-        }
+        options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}} }
       });
       return;
     }
@@ -677,14 +788,11 @@
           const msg = js.error || js.message || `Failed (${res.status})`;
           throw new Error(msg);
         }
-
         return { url, json: js };
       }catch(ex){
         lastErr = ex;
-        // try next
       }
     }
-
     throw lastErr || new Error('Failed to load dashboard');
   }
 
@@ -696,13 +804,27 @@
 
       const data = normalizeDashboardPayload(json);
 
-      // HERO / DEPT
       const hero = isObj(data.hero) ? data.hero : {};
       const deptFromHero = hero.department;
-      const deptObj = isObj(data.department) ? data.department : (isObj(deptFromHero) ? deptFromHero : {});
-      const deptName = safeStr(deptObj?.name || deptObj?.title || hero.department_name || data.department_name, '—');
 
-      // USER NAME (dynamic)
+      const deptObj =
+        isObj(data.department) ? data.department :
+        isObj(deptFromHero) ? deptFromHero : {};
+
+      const deptIdRaw =
+        deptObj?.id ??
+        deptObj?.department_id ??
+        hero.department_id ??
+        data.department_id ??
+        data.dept_id ??
+        null;
+
+      const deptId = parseInt(deptIdRaw, 10);
+      const deptNameRaw = (deptObj?.name || deptObj?.title || hero.department_name || data.department_name || '').toString().trim();
+      const hasDept = (!!deptNameRaw) || (!!deptId && deptId > 0);
+
+      const deptName = hasDept ? safeStr(deptNameRaw, '—') : 'Not selected';
+
       const userNameRaw =
         hero.user_name ||
         hero.name ||
@@ -714,31 +836,37 @@
 
       const userName = safeStr(userNameRaw, '');
 
-      // Title: Welcome, {name} 👋
       heroTitle.textContent = userName ? `Welcome, ${userName} 👋` : `Welcome 👋`;
+      heroSub.textContent   = friendlyHeroSub(hero.sub, hasDept, deptName);
 
-      // Sub: user-friendly (also replaces “department scoped access (Dept ID: xx)” type text)
-      heroSub.textContent = friendlyHeroSub(hero.sub, deptName);
-
-      chipRole.textContent  = safeStr(hero.role, (data.role || 'HOD'));
-      chipDept.textContent  = deptName;
+      chipRole.textContent    = safeStr(hero.role, (data.role || 'placement_officer'));
+      chipDept.textContent    = deptName;
       chipUpdated.textContent = fmtDateTime(hero.updated_at || data.updated_at || new Date().toISOString());
 
-      // KPIs / note
-      renderKPIs(data.kpis);
-      kpiNote.textContent = safeStr(data.kpi_note, '');
+      // Basic details always
+      renderBasicDetails(data, hero, deptObj, hasDept);
+      toggle(deptMissingNote, !hasDept);
 
-      // Quick actions / alerts
-      renderQuickActions(data.quick_actions);
-      renderAlerts(data.alerts);
+      // If NO department selected -> hide dept sections
+      toggle(deptKpiCard, hasDept);
+      toggle(deptActivityCard, hasDept);
+      toggle(deptRecentCard, hasDept);
 
-      // Activity chart
-      renderActivity(data.activity || {});
+      if (hasDept) {
+        renderKPIs(data.kpis);
+        kpiNote.textContent = safeStr(data.kpi_note, '');
 
-      // Recent
-      recentSub.textContent = safeStr(data.recent?.sub, 'Latest updates');
-      recentHint.textContent = safeStr(data.recent?.hint, '');
-      renderRecent(data.recent || {});
+        renderActivity(data.activity || {});
+        recentSub.textContent  = safeStr(data.recent?.sub, 'Latest items');
+        recentHint.textContent = safeStr(data.recent?.hint, '');
+        renderRecent(data.recent || {});
+      } else {
+        if (activityChart) { try { activityChart.destroy(); } catch(_) {} activityChart = null; }
+      }
+
+      // Quick actions / alerts always
+      renderQuickActions(data.quick_actions, hasDept);
+      renderAlerts(data.alerts, hasDept);
 
       ok('Dashboard loaded');
     }catch(ex){
@@ -748,21 +876,15 @@
       heroSub.textContent = 'Could not load your dashboard right now.';
       chipDept.textContent = '—';
 
-      kpiRow.innerHTML = `<div class="col-12"><div class="empty">No data (API error).</div></div>`;
-      quickActions.innerHTML = `<div class="empty">No data (API error).</div>`;
-      alertsBox.innerHTML = `<div class="empty">No data (API error).</div>`;
-      recentBody.innerHTML = `<tr><td colspan="3" class="text-muted">No data (API error).</td></tr>`;
+      basicBox.innerHTML = `<div class="po-empty">No data (API error).</div>`;
+      quickActions.innerHTML = `<div class="po-empty">No data (API error).</div>`;
+      alertsBox.innerHTML = `<div class="po-empty">No data (API error).</div>`;
 
-      // empty chart
-      const ctx = document.getElementById('activityChart');
-      if (ctx) {
-        if (activityChart) { try { activityChart.destroy(); } catch(_) {} }
-        activityChart = new Chart(ctx, {
-          type: 'line',
-          data: { labels: ['—'], datasets: [{ label: 'No data', data: [0], tension: .35, fill: true }] },
-          options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}} }
-        });
-      }
+      toggle(deptKpiCard, false);
+      toggle(deptActivityCard, false);
+      toggle(deptRecentCard, false);
+
+      if (activityChart) { try { activityChart.destroy(); } catch(_) {} activityChart = null; }
     }finally{
       showInlineLoading(false);
     }

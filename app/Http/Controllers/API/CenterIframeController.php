@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class CenterIframeController extends Controller
@@ -22,6 +23,78 @@ class CenterIframeController extends Controller
             'type' => (string) ($r->attributes->get('auth_tokenable_type') ?? ($r->user() ? get_class($r->user()) : '')),
             'uuid' => (string) ($r->attributes->get('auth_user_uuid') ?? ($r->user()->uuid ?? '')),
         ];
+    }
+
+    private function normalizeForLog($v)
+    {
+        if ($v instanceof \DateTimeInterface) {
+            return $v->format('Y-m-d H:i:s');
+        }
+
+        if (is_array($v)) {
+            $out = [];
+            foreach ($v as $k => $val) $out[$k] = $this->normalizeForLog($val);
+            return $out;
+        }
+
+        if (is_object($v)) {
+            return $this->normalizeForLog((array) $v);
+        }
+
+        return $v;
+    }
+
+    private function safeJson($v): ?string
+    {
+        if ($v === null) return null;
+        return json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    /**
+     * Write a row into user_data_activity_log
+     * (wrapped in try/catch so it never breaks existing functionality)
+     */
+    private function logActivity(
+        Request $request,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        $oldValues = null,
+        $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            $a = $this->actor($request);
+
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'       => (int) ($a['id'] ?: 0),
+                'performed_by_role'  => $a['role'] !== '' ? $a['role'] : null,
+                'ip'                 => $request->ip(),
+                'user_agent'         => substr((string) $request->userAgent(), 0, 512),
+
+                'activity'           => $activity,
+                'module'             => $module,
+
+                'table_name'         => $tableName,
+                'record_id'          => $recordId,
+
+                'changed_fields'     => $this->safeJson($this->normalizeForLog($changedFields)),
+                'old_values'         => $this->safeJson($this->normalizeForLog($oldValues)),
+                'new_values'         => $this->safeJson($this->normalizeForLog($newValues)),
+
+                'log_note'           => $note,
+
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ]);
+        } catch (\Throwable $e) {
+            // Never break the API flow because of log failure
+            Log::warning('Activity log insert failed (center_iframes)', [
+                'err' => $e->getMessage(),
+            ]);
+        }
     }
 
     protected function normalizeJsonInput($value)
@@ -241,7 +314,7 @@ class CenterIframeController extends Controller
         $expireAt = array_key_exists('expire_at', $validated) && $validated['expire_at']
             ? Carbon::parse($validated['expire_at']) : null;
 
-        $id = DB::table('center_iframes')->insertGetId([
+        $payload = [
             'uuid'          => $uuid,
             'slug'          => $slug,
             'title'         => $title,
@@ -260,7 +333,22 @@ class CenterIframeController extends Controller
             'updated_at_ip' => $request->ip(),
 
             'metadata'      => $metadata !== null ? json_encode($metadata) : null,
-        ]);
+        ];
+
+        $id = DB::table('center_iframes')->insertGetId($payload);
+
+        // Activity log (POST)
+        $this->logActivity(
+            $request,
+            'create',
+            'center_iframes',
+            'center_iframes',
+            (int) $id,
+            array_keys($payload),
+            null,
+            array_merge(['id' => (int) $id], $this->normalizeRow((object) $payload)),
+            'Center iframe created'
+        );
 
         $row = $this->baseQuery(new Request(), true)->where('c.id', (int) $id)->first();
 
@@ -275,6 +363,9 @@ class CenterIframeController extends Controller
     {
         $row = $this->resolveIframe($identifier, true);
         if (! $row) return response()->json(['message' => 'Center iframe not found'], 404);
+
+        $beforeRow = DB::table('center_iframes')->where('id', (int) $row->id)->first();
+        $before    = $beforeRow ? $this->normalizeRow($beforeRow) : null;
 
         $validated = $request->validate([
             'title'       => ['nullable', 'string', 'max:255'],
@@ -329,6 +420,37 @@ class CenterIframeController extends Controller
 
         DB::table('center_iframes')->where('id', (int) $row->id)->update($update);
 
+        $afterRow = DB::table('center_iframes')->where('id', (int) $row->id)->first();
+        $after    = $afterRow ? $this->normalizeRow($afterRow) : null;
+
+        // Activity log (PUT/PATCH)
+        $candidates = array_values(array_diff(array_keys($update), ['updated_at', 'updated_at_ip']));
+        $changed = [];
+        if (is_array($before) && is_array($after)) {
+            foreach ($candidates as $k) {
+                $ov = $before[$k] ?? null;
+                $nv = $after[$k] ?? null;
+                if (json_encode($ov) !== json_encode($nv)) $changed[] = $k;
+            }
+        } else {
+            $changed = $candidates;
+        }
+
+        $oldSnap = is_array($before) ? array_intersect_key($before, array_flip($changed)) : $before;
+        $newSnap = is_array($after)  ? array_intersect_key($after,  array_flip($changed)) : $after;
+
+        $this->logActivity(
+            $request,
+            'update',
+            'center_iframes',
+            'center_iframes',
+            (int) $row->id,
+            $changed,
+            $oldSnap,
+            $newSnap,
+            'Center iframe updated'
+        );
+
         $fresh = $this->baseQuery(new Request(), true)->where('c.id', (int) $row->id)->first();
 
         return response()->json([
@@ -343,11 +465,29 @@ class CenterIframeController extends Controller
         $row = $this->resolveIframe($identifier, false);
         if (! $row) return response()->json(['message' => 'Not found or already deleted'], 404);
 
+        $beforeRow = DB::table('center_iframes')->where('id', (int) $row->id)->first();
+        $before    = $beforeRow ? $this->normalizeRow($beforeRow) : null;
+
         DB::table('center_iframes')->where('id', (int) $row->id)->update([
             'deleted_at'    => now(),
             'updated_at'    => now(),
             'updated_at_ip' => $request->ip(),
         ]);
+
+        $afterRow = DB::table('center_iframes')->where('id', (int) $row->id)->first();
+        $after    = $afterRow ? $this->normalizeRow($afterRow) : null;
+
+        $this->logActivity(
+            $request,
+            'delete',
+            'center_iframes',
+            'center_iframes',
+            (int) $row->id,
+            ['deleted_at'],
+            ['deleted_at' => $before['deleted_at'] ?? null],
+            ['deleted_at' => $after['deleted_at'] ?? null],
+            'Center iframe soft deleted'
+        );
 
         return response()->json(['success' => true]);
     }
@@ -360,11 +500,29 @@ class CenterIframeController extends Controller
             return response()->json(['message' => 'Not found in bin'], 404);
         }
 
+        $beforeRow = DB::table('center_iframes')->where('id', (int) $row->id)->first();
+        $before    = $beforeRow ? $this->normalizeRow($beforeRow) : null;
+
         DB::table('center_iframes')->where('id', (int) $row->id)->update([
             'deleted_at'    => null,
             'updated_at'    => now(),
             'updated_at_ip' => $request->ip(),
         ]);
+
+        $afterRow = DB::table('center_iframes')->where('id', (int) $row->id)->first();
+        $after    = $afterRow ? $this->normalizeRow($afterRow) : null;
+
+        $this->logActivity(
+            $request,
+            'restore',
+            'center_iframes',
+            'center_iframes',
+            (int) $row->id,
+            ['deleted_at'],
+            ['deleted_at' => $before['deleted_at'] ?? null],
+            ['deleted_at' => $after['deleted_at'] ?? null],
+            'Center iframe restored'
+        );
 
         $fresh = $this->baseQuery(new Request(), true)->where('c.id', (int) $row->id)->first();
 
@@ -380,7 +538,22 @@ class CenterIframeController extends Controller
         $row = $this->resolveIframe($identifier, true);
         if (! $row) return response()->json(['message' => 'Center iframe not found'], 404);
 
+        $beforeRow = DB::table('center_iframes')->where('id', (int) $row->id)->first();
+        $before    = $beforeRow ? $this->normalizeRow($beforeRow) : null;
+
         DB::table('center_iframes')->where('id', (int) $row->id)->delete();
+
+        $this->logActivity(
+            $request,
+            'force_delete',
+            'center_iframes',
+            'center_iframes',
+            (int) $row->id,
+            null,
+            $before,
+            null,
+            'Center iframe permanently deleted'
+        );
 
         return response()->json(['success' => true]);
     }

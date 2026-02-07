@@ -25,6 +25,90 @@ class DepartmentController extends Controller
         ];
     }
 
+    /* =========================
+     * Activity Log helpers (user_data_activity_log)
+     * - Safe: never breaks main flow if logging fails
+     * - Logs all non-GET controller actions (POST/PUT/PATCH/DELETE)
+     * ========================= */
+
+    private function normalizeForJson($value)
+    {
+        if ($value === null) return null;
+
+        // Convert stdClass / objects to array safely
+        if (is_object($value) || is_array($value)) {
+            $arr = json_decode(json_encode($value), true);
+            return $arr === null ? (array) $value : $arr;
+        }
+
+        // scalar
+        return $value;
+    }
+
+    private function jsonOrNull($value): ?string
+    {
+        if ($value === null) return null;
+
+        $norm = $this->normalizeForJson($value);
+
+        // If it is already a JSON string, we still keep it as-is only if it looks like JSON
+        if (is_string($norm)) {
+            $t = trim($norm);
+            if ($t !== '' && (($t[0] === '{' && substr($t, -1) === '}') || ($t[0] === '[' && substr($t, -1) === ']'))) {
+                return $norm;
+            }
+        }
+
+        return json_encode($norm, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    private function logActivity(
+        Request $r,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        $changedFields = null,
+        $oldValues = null,
+        $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            // If migration not run yet, do nothing
+            if (!Schema::hasTable('user_data_activity_log')) return;
+
+            $actor = $this->actor($r);
+            if (($actor['id'] ?? 0) <= 0) return; // performed_by is required
+
+            $ua = (string) ($r->userAgent() ?? '');
+            if (strlen($ua) > 512) $ua = substr($ua, 0, 512);
+
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'      => (int) $actor['id'],
+                'performed_by_role' => $actor['role'] !== '' ? (string) $actor['role'] : null,
+                'ip'                => $r->ip(),
+                'user_agent'        => $ua !== '' ? $ua : null,
+
+                'activity'          => substr((string) $activity, 0, 50),
+                'module'            => substr((string) $module, 0, 100),
+
+                'table_name'        => substr((string) $tableName, 0, 128),
+                'record_id'         => $recordId,
+
+                'changed_fields'    => $this->jsonOrNull($changedFields),
+                'old_values'        => $this->jsonOrNull($oldValues),
+                'new_values'        => $this->jsonOrNull($newValues),
+
+                'log_note'          => $note,
+
+                'created_at'        => now(),
+                'updated_at'        => now(),
+            ]);
+        } catch (\Throwable $e) {
+            // Never break main functionality because of logging
+        }
+    }
+
     /**
      * accessControl (ONLY users table)
      *
@@ -271,15 +355,21 @@ class DepartmentController extends Controller
     }
 
     /**
-     * Create department
+     * Create department (POST)
      */
     public function store(Request $request)
     {
         $actorId = (int) $request->attributes->get('auth_tokenable_id');
         $ac = $this->accessControl($actorId);
 
-        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
-        if ($ac['mode'] !== 'all')        return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'not_allowed') {
+            $this->logActivity($request, 'forbidden', 'departments', 'departments', null, null, null, null, 'Create department: not allowed (mode=not_allowed)');
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
+        if ($ac['mode'] !== 'all') {
+            $this->logActivity($request, 'forbidden', 'departments', 'departments', null, null, null, null, 'Create department: not allowed (mode!=' . ($ac['mode'] ?? '') . ')');
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
 
         $v = Validator::make($request->all(), [
             'title'           => 'required|string|max:150',
@@ -295,6 +385,17 @@ class DepartmentController extends Controller
         ]);
 
         if ($v->fails()) {
+            $this->logActivity(
+                $request,
+                'validation_failed',
+                'departments',
+                'departments',
+                null,
+                array_keys((array) $request->all()),
+                null,
+                ['errors' => $v->errors()->toArray()],
+                'Create department: validation failed'
+            );
             return response()->json(['errors' => $v->errors()], 422);
         }
 
@@ -340,9 +441,22 @@ class DepartmentController extends Controller
                 : null;
         }
 
-        $id = DB::table('departments')->insertGetId($payload);
-
+        $id  = DB::table('departments')->insertGetId($payload);
         $row = DB::table('departments')->where('id', $id)->first();
+
+        // ✅ LOG (success)
+        $changed = array_keys($payload);
+        $this->logActivity(
+            $request,
+            'create',
+            'departments',
+            'departments',
+            (int) $id,
+            $changed,
+            null,
+            $row,
+            'Department created'
+        );
 
         return response()->json([
             'success'    => true,
@@ -380,20 +494,29 @@ class DepartmentController extends Controller
     }
 
     /**
-     * Update department (partial)
+     * Update department (partial) (PUT/PATCH)
      */
     public function update(Request $request, $identifier)
     {
         $actorId = (int) $request->attributes->get('auth_tokenable_id');
         $ac = $this->accessControl($actorId);
 
-        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
-        if ($ac['mode'] !== 'all')        return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'not_allowed') {
+            $this->logActivity($request, 'forbidden', 'departments', 'departments', null, null, null, null, 'Update department: not allowed (mode=not_allowed)');
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
+        if ($ac['mode'] !== 'all') {
+            $this->logActivity($request, 'forbidden', 'departments', 'departments', null, null, null, null, 'Update department: not allowed (mode!=' . ($ac['mode'] ?? '') . ')');
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
 
         $dept = $this->resolveDepartment($identifier, true);
         if (! $dept) {
+            $this->logActivity($request, 'not_found', 'departments', 'departments', null, null, null, null, 'Update department: not found (identifier=' . (string)$identifier . ')');
             return response()->json(['message' => 'Department not found'], 404);
         }
+
+        $oldSnapshot = $dept;
 
         $v = Validator::make($request->all(), [
             'title' => 'sometimes|required|string|max:150',
@@ -417,6 +540,17 @@ class DepartmentController extends Controller
         ]);
 
         if ($v->fails()) {
+            $this->logActivity(
+                $request,
+                'validation_failed',
+                'departments',
+                'departments',
+                (int) $dept->id,
+                array_keys((array) $request->all()),
+                $oldSnapshot,
+                ['errors' => $v->errors()->toArray()],
+                'Update department: validation failed'
+            );
             return response()->json(['errors' => $v->errors()], 422);
         }
 
@@ -480,6 +614,22 @@ class DepartmentController extends Controller
 
         $row = DB::table('departments')->where('id', $dept->id)->first();
 
+        // ✅ LOG (success / noop)
+        $changedFields = array_keys($payload);
+        $changedFields = array_values(array_filter($changedFields, fn($f) => $f !== 'updated_at'));
+
+        $this->logActivity(
+            $request,
+            empty($changedFields) ? 'update_noop' : 'update',
+            'departments',
+            'departments',
+            (int) $dept->id,
+            $changedFields,
+            $oldSnapshot,
+            $row,
+            empty($changedFields) ? 'Update department: no changes applied' : 'Department updated'
+        );
+
         return response()->json([
             'success'    => true,
             'department' => $row,
@@ -487,21 +637,29 @@ class DepartmentController extends Controller
     }
 
     /**
-     * Toggle active flag (can be used as archive/unarchive)
+     * Toggle active flag (can be used as archive/unarchive) (PATCH/PUT)
      */
     public function toggleActive(Request $request, $identifier)
     {
         $actorId = (int) $request->attributes->get('auth_tokenable_id');
         $ac = $this->accessControl($actorId);
 
-        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
-        if ($ac['mode'] !== 'all')        return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'not_allowed') {
+            $this->logActivity($request, 'forbidden', 'departments', 'departments', null, null, null, null, 'Toggle active: not allowed (mode=not_allowed)');
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
+        if ($ac['mode'] !== 'all') {
+            $this->logActivity($request, 'forbidden', 'departments', 'departments', null, null, null, null, 'Toggle active: not allowed (mode!=' . ($ac['mode'] ?? '') . ')');
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
 
         $dept = $this->resolveDepartment($identifier, true);
         if (! $dept) {
+            $this->logActivity($request, 'not_found', 'departments', 'departments', null, null, null, null, 'Toggle active: department not found (identifier=' . (string)$identifier . ')');
             return response()->json(['message' => 'Department not found'], 404);
         }
 
+        $old = $dept;
         $newActive = ! (bool) $dept->active;
 
         DB::table('departments')
@@ -513,6 +671,19 @@ class DepartmentController extends Controller
 
         $row = DB::table('departments')->where('id', $dept->id)->first();
 
+        // ✅ LOG
+        $this->logActivity(
+            $request,
+            'toggle_active',
+            'departments',
+            'departments',
+            (int) $dept->id,
+            ['active'],
+            $old,
+            $row,
+            'Department active toggled'
+        );
+
         return response()->json([
             'success'    => true,
             'department' => $row,
@@ -520,20 +691,29 @@ class DepartmentController extends Controller
     }
 
     /**
-     * Soft-delete (move to bin)
+     * Soft-delete (move to bin) (DELETE)
      */
     public function destroy(Request $request, $identifier)
     {
         $actorId = (int) $request->attributes->get('auth_tokenable_id');
         $ac = $this->accessControl($actorId);
 
-        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
-        if ($ac['mode'] !== 'all')        return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'not_allowed') {
+            $this->logActivity($request, 'forbidden', 'departments', 'departments', null, null, null, null, 'Soft delete: not allowed (mode=not_allowed)');
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
+        if ($ac['mode'] !== 'all') {
+            $this->logActivity($request, 'forbidden', 'departments', 'departments', null, null, null, null, 'Soft delete: not allowed (mode!=' . ($ac['mode'] ?? '') . ')');
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
 
         $dept = $this->resolveDepartment($identifier, false);
         if (! $dept) {
+            $this->logActivity($request, 'not_found', 'departments', 'departments', null, null, null, null, 'Soft delete: not found or already deleted (identifier=' . (string)$identifier . ')');
             return response()->json(['message' => 'Department not found or already deleted'], 404);
         }
+
+        $old = $dept;
 
         DB::table('departments')
             ->where('id', $dept->id)
@@ -542,24 +722,48 @@ class DepartmentController extends Controller
                 'updated_at' => now(),
             ]);
 
+        $row = DB::table('departments')->where('id', $dept->id)->first();
+
+        // ✅ LOG
+        $this->logActivity(
+            $request,
+            'delete',
+            'departments',
+            'departments',
+            (int) $dept->id,
+            ['deleted_at'],
+            $old,
+            $row,
+            'Department moved to bin (soft delete)'
+        );
+
         return response()->json(['success' => true]);
     }
 
     /**
-     * Restore from bin
+     * Restore from bin (POST/PATCH)
      */
     public function restore(Request $request, $identifier)
     {
         $actorId = (int) $request->attributes->get('auth_tokenable_id');
         $ac = $this->accessControl($actorId);
 
-        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
-        if ($ac['mode'] !== 'all')        return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'not_allowed') {
+            $this->logActivity($request, 'forbidden', 'departments', 'departments', null, null, null, null, 'Restore: not allowed (mode=not_allowed)');
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
+        if ($ac['mode'] !== 'all') {
+            $this->logActivity($request, 'forbidden', 'departments', 'departments', null, null, null, null, 'Restore: not allowed (mode!=' . ($ac['mode'] ?? '') . ')');
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
 
         $dept = $this->resolveDepartment($identifier, true);
         if (! $dept || $dept->deleted_at === null) {
+            $this->logActivity($request, 'not_found', 'departments', 'departments', null, null, null, null, 'Restore: department not found in bin (identifier=' . (string)$identifier . ')');
             return response()->json(['message' => 'Department not found in bin'], 404);
         }
+
+        $old = $dept;
 
         DB::table('departments')
             ->where('id', $dept->id)
@@ -570,6 +774,19 @@ class DepartmentController extends Controller
 
         $row = DB::table('departments')->where('id', $dept->id)->first();
 
+        // ✅ LOG
+        $this->logActivity(
+            $request,
+            'restore',
+            'departments',
+            'departments',
+            (int) $dept->id,
+            ['deleted_at'],
+            $old,
+            $row,
+            'Department restored from bin'
+        );
+
         return response()->json([
             'success'    => true,
             'department' => $row,
@@ -577,54 +794,75 @@ class DepartmentController extends Controller
     }
 
     /**
-     * Permanent delete
+     * Permanent delete (DELETE)
      */
     public function forceDelete(Request $request, $identifier)
     {
         $actorId = (int) $request->attributes->get('auth_tokenable_id');
         $ac = $this->accessControl($actorId);
 
-        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
-        if ($ac['mode'] !== 'all')        return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'not_allowed') {
+            $this->logActivity($request, 'forbidden', 'departments', 'departments', null, null, null, null, 'Force delete: not allowed (mode=not_allowed)');
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
+        if ($ac['mode'] !== 'all') {
+            $this->logActivity($request, 'forbidden', 'departments', 'departments', null, null, null, null, 'Force delete: not allowed (mode!=' . ($ac['mode'] ?? '') . ')');
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
 
         $dept = $this->resolveDepartment($identifier, true);
         if (! $dept) {
+            $this->logActivity($request, 'not_found', 'departments', 'departments', null, null, null, null, 'Force delete: department not found (identifier=' . (string)$identifier . ')');
             return response()->json(['message' => 'Department not found'], 404);
         }
 
+        $old = $dept;
+
         DB::table('departments')->where('id', $dept->id)->delete();
+
+        // ✅ LOG
+        $this->logActivity(
+            $request,
+            'force_delete',
+            'departments',
+            'departments',
+            (int) $dept->id,
+            null,
+            $old,
+            null,
+            'Department permanently deleted'
+        );
 
         return response()->json(['success' => true]);
     }
 
     /**
- * Public list departments (NO accessControl, open endpoint)
- * Same as index() behavior: per_page, page, q, active, with_trashed, only_trashed, sort, direction
- */
-public function publicIndex(Request $request)
-{
-    $perPage = max(1, min(200, (int) $request->query('per_page', 20)));
+     * Public list departments (NO accessControl, open endpoint)
+     * Same as index() behavior: per_page, page, q, active, with_trashed, only_trashed, sort, direction
+     */
+    public function publicIndex(Request $request)
+    {
+        $perPage = max(1, min(200, (int) $request->query('per_page', 20)));
 
-    $includeDeleted = filter_var($request->query('with_trashed', false), FILTER_VALIDATE_BOOLEAN);
-    $onlyDeleted    = filter_var($request->query('only_trashed', false), FILTER_VALIDATE_BOOLEAN);
+        $includeDeleted = filter_var($request->query('with_trashed', false), FILTER_VALIDATE_BOOLEAN);
+        $onlyDeleted    = filter_var($request->query('only_trashed', false), FILTER_VALIDATE_BOOLEAN);
 
-    $query = $this->baseQuery($request, $includeDeleted || $onlyDeleted);
+        $query = $this->baseQuery($request, $includeDeleted || $onlyDeleted);
 
-    if ($onlyDeleted) {
-        $query->whereNotNull('deleted_at');
+        if ($onlyDeleted) {
+            $query->whereNotNull('deleted_at');
+        }
+
+        $paginator = $query->paginate($perPage);
+
+        return response()->json([
+            'data' => $paginator->items(),
+            'pagination' => [
+                'page'      => $paginator->currentPage(),
+                'per_page'  => $paginator->perPage(),
+                'total'     => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+            ],
+        ]);
     }
-
-    $paginator = $query->paginate($perPage);
-
-    return response()->json([
-        'data' => $paginator->items(),
-        'pagination' => [
-            'page'      => $paginator->currentPage(),
-            'per_page'  => $paginator->perPage(),
-            'total'     => $paginator->total(),
-            'last_page' => $paginator->lastPage(),
-        ],
-    ]);
-}
-
 }

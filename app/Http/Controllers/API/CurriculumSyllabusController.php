@@ -10,9 +10,13 @@ use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Log;
 
 class CurriculumSyllabusController extends Controller
 {
+    /** Activity log table name */
+    private const ACTIVITY_LOG_TABLE = 'user_data_activity_log';
+
     /**
      * accessControl (ONLY users table)
      *
@@ -87,6 +91,109 @@ class CurriculumSyllabusController extends Controller
             'type' => (string) ($r->attributes->get('auth_tokenable_type') ?? ($r->user() ? get_class($r->user()) : '')),
             'uuid' => (string) ($r->attributes->get('auth_user_uuid') ?? ($r->user()->uuid ?? '')),
         ];
+    }
+
+    /* =========================================================
+     * Activity Log Helpers (safe: never breaks main functionality)
+     * ========================================================= */
+
+    private function jsonOrNull($value): ?string
+    {
+        if ($value === null) return null;
+
+        // already JSON string?
+        if (is_string($value)) {
+            $t = trim($value);
+            if ($t === '') return null;
+            json_decode($t, true);
+            if (json_last_error() === JSON_ERROR_NONE) return $t;
+            return json_encode($value, JSON_UNESCAPED_UNICODE);
+        }
+
+        return json_encode($value, JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * Compute changed_fields, old_values, new_values for given keys
+     */
+    private function diffForLog(array $old, array $new, array $keys): array
+    {
+        $changed = [];
+        $oldOut  = [];
+        $newOut  = [];
+
+        foreach ($keys as $k) {
+            $ov = $old[$k] ?? null;
+            $nv = $new[$k] ?? null;
+
+            // normalize booleans/ints as strings? keep raw, but compare strictly-ish
+            if ($ov !== $nv) {
+                $changed[] = $k;
+                $oldOut[$k] = $ov;
+                $newOut[$k] = $nv;
+            }
+        }
+
+        return [$changed, $oldOut, $newOut];
+    }
+
+    /**
+     * Insert into user_data_activity_log (ignore failures)
+     */
+    private function logActivity(
+        Request $r,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        $changedFields = null,
+        $oldValues = null,
+        $newValues = null,
+        ?string $note = null
+    ): void {
+        static $hasTable = null;
+
+        try {
+            if ($hasTable === null) {
+                $hasTable = Schema::hasTable(self::ACTIVITY_LOG_TABLE);
+            }
+            if (!$hasTable) return;
+
+            $a = $this->actor($r);
+
+            // build payload
+            DB::table(self::ACTIVITY_LOG_TABLE)->insert([
+                'performed_by'      => max(0, (int)($a['id'] ?? 0)),
+                'performed_by_role' => ($a['role'] ?? null) !== '' ? (string)$a['role'] : null,
+                'ip'                => $r->ip(),
+                'user_agent'        => substr((string) $r->userAgent(), 0, 512),
+
+                'activity'          => $activity,
+                'module'            => $module,
+
+                'table_name'        => $tableName,
+                'record_id'         => $recordId,
+
+                'changed_fields'    => $this->jsonOrNull($changedFields),
+                'old_values'        => $this->jsonOrNull($oldValues),
+                'new_values'        => $this->jsonOrNull($newValues),
+
+                'log_note'          => $note,
+
+                'created_at'        => now(),
+                'updated_at'        => now(),
+            ]);
+        } catch (\Throwable $e) {
+            // Never break real flow
+            try {
+                Log::warning('ActivityLog insert failed: ' . $e->getMessage(), [
+                    'module' => $module,
+                    'activity' => $activity,
+                    'table' => $tableName,
+                    'record_id' => $recordId,
+                ]);
+            } catch (\Throwable $ignore) {}
+        }
     }
 
     /**
@@ -522,6 +629,32 @@ class CurriculumSyllabusController extends Controller
 
         $row = DB::table('curriculum_syllabuses')->where('id', $id)->first();
 
+        // ✅ LOG (CREATE) - only after successful insert
+        $newVals = [
+            'id'            => (int)$id,
+            'uuid'          => $uuid,
+            'department_id' => (int)$validated['department_id'],
+            'title'         => $validated['title'],
+            'slug'          => $slug,
+            'active'        => (int)($validated['active'] ?? 1),
+            'sort_order'    => (int)($validated['sort_order'] ?? 0),
+            'pdf_path'      => $pdfPathRel,
+            'original_name' => $originalName,
+            'mime_type'     => $mimeType,
+            'file_size'     => $fileSize,
+        ];
+        $this->logActivity(
+            $request,
+            'create',
+            'curriculum_syllabuses',
+            'curriculum_syllabuses',
+            (int)$id,
+            array_keys($newVals),
+            null,
+            $newVals,
+            'Curriculum & Syllabus created'
+        );
+
         return response()->json([
             'success' => true,
             'data'    => $row ? $this->normalizeRow($row) : null,
@@ -551,6 +684,7 @@ class CurriculumSyllabusController extends Controller
         // force department_id in request
         $request->merge(['department_id' => (int) $dept->id]);
 
+        // NOTE: log happens inside store() after successful insert (avoids double logs)
         return $this->store($request);
     }
 
@@ -569,6 +703,8 @@ class CurriculumSyllabusController extends Controller
         if (!$row) {
             return response()->json(['success' => false, 'message' => 'Not found'], 404);
         }
+
+        $oldRowArr = (array) $row;
 
         // ✅ Enforce current row department for dept-scoped roles
         if ($ac['mode'] === 'department' && (int)$ac['department_id'] !== (int)$row->department_id) {
@@ -675,6 +811,42 @@ class CurriculumSyllabusController extends Controller
 
         $fresh = DB::table('curriculum_syllabuses')->where('uuid', $uuid)->first();
 
+        // ✅ LOG (UPDATE) - only after successful update
+        if ($fresh) {
+            $newRowArr = (array) $fresh;
+
+            $keys = array_values(array_unique(array_merge(
+                array_keys($update),
+                ['uuid','id','department_id','title','slug','active','sort_order','pdf_path','original_name','mime_type','file_size','deleted_at']
+            )));
+
+            [$changed, $oldVals, $newVals] = $this->diffForLog($oldRowArr, $newRowArr, $keys);
+
+            // log only if something actually changed (besides updated_at)
+            $meaningfulChanged = array_values(array_filter($changed, fn($f) => $f !== 'updated_at'));
+            if (count($meaningfulChanged) > 0) {
+                // keep only meaningful ones
+                $oldKeep = [];
+                $newKeep = [];
+                foreach ($meaningfulChanged as $f) {
+                    $oldKeep[$f] = $oldVals[$f] ?? null;
+                    $newKeep[$f] = $newVals[$f] ?? null;
+                }
+
+                $this->logActivity(
+                    $request,
+                    'update',
+                    'curriculum_syllabuses',
+                    'curriculum_syllabuses',
+                    (int)($fresh->id ?? $row->id),
+                    $meaningfulChanged,
+                    $oldKeep,
+                    $newKeep,
+                    'Curriculum & Syllabus updated'
+                );
+            }
+        }
+
         return response()->json([
             'success' => true,
             'data'    => $fresh ? $this->normalizeRow($fresh) : null,
@@ -697,7 +869,8 @@ class CurriculumSyllabusController extends Controller
         $row = $this->resolveSyllabus($request, $identifier, true, $deptScope);
         if (! $row) return response()->json(['message' => 'Curriculum & Syllabus not found'], 404);
 
-        $newActive = ! (bool) $row->active;
+        $oldActive = (bool) $row->active;
+        $newActive = ! $oldActive;
 
         DB::table('curriculum_syllabuses')
             ->where('id', (int) $row->id)
@@ -707,6 +880,19 @@ class CurriculumSyllabusController extends Controller
             ]);
 
         $fresh = $this->resolveSyllabus($request, (string) $row->id, true, $deptScope);
+
+        // ✅ LOG (TOGGLE ACTIVE)
+        $this->logActivity(
+            $request,
+            'update',
+            'curriculum_syllabuses',
+            'curriculum_syllabuses',
+            (int) $row->id,
+            ['active'],
+            ['active' => $oldActive],
+            ['active' => $newActive],
+            'Toggled active status'
+        );
 
         return response()->json([
             'success' => true,
@@ -730,12 +916,29 @@ class CurriculumSyllabusController extends Controller
         $row = $this->resolveSyllabus($request, $identifier, false, $deptScope);
         if (! $row) return response()->json(['message' => 'Not found or already deleted'], 404);
 
+        $oldDeletedAt = $row->deleted_at;
+
+        $now = now();
+
         DB::table('curriculum_syllabuses')
             ->where('id', (int) $row->id)
             ->update([
-                'deleted_at' => now(),
-                'updated_at' => now(),
+                'deleted_at' => $now,
+                'updated_at' => $now,
             ]);
+
+        // ✅ LOG (SOFT DELETE)
+        $this->logActivity(
+            $request,
+            'delete',
+            'curriculum_syllabuses',
+            'curriculum_syllabuses',
+            (int) $row->id,
+            ['deleted_at'],
+            ['deleted_at' => $oldDeletedAt],
+            ['deleted_at' => (string)$now],
+            'Moved to bin (soft delete)'
+        );
 
         return response()->json(['success' => true]);
     }
@@ -758,6 +961,8 @@ class CurriculumSyllabusController extends Controller
             return response()->json(['message' => 'Not found in bin'], 404);
         }
 
+        $oldDeletedAt = $row->deleted_at;
+
         DB::table('curriculum_syllabuses')
             ->where('id', (int) $row->id)
             ->update([
@@ -766,6 +971,19 @@ class CurriculumSyllabusController extends Controller
             ]);
 
         $fresh = $this->resolveSyllabus($request, (string) $row->id, true, $deptScope);
+
+        // ✅ LOG (RESTORE)
+        $this->logActivity(
+            $request,
+            'restore',
+            'curriculum_syllabuses',
+            'curriculum_syllabuses',
+            (int) $row->id,
+            ['deleted_at'],
+            ['deleted_at' => $oldDeletedAt],
+            ['deleted_at' => null],
+            'Restored from bin'
+        );
 
         return response()->json([
             'success' => true,
@@ -789,6 +1007,8 @@ class CurriculumSyllabusController extends Controller
         $row = $this->resolveSyllabus($request, $identifier, true, $deptScope);
         if (! $row) return response()->json(['message' => 'Not found'], 404);
 
+        $oldRow = (array) $row;
+
         // delete file from public if exists
         $path = (string) ($row->pdf_path ?? '');
         if ($path !== '') {
@@ -799,6 +1019,19 @@ class CurriculumSyllabusController extends Controller
         }
 
         DB::table('curriculum_syllabuses')->where('id', (int) $row->id)->delete();
+
+        // ✅ LOG (FORCE DELETE)
+        $this->logActivity(
+            $request,
+            'force_delete',
+            'curriculum_syllabuses',
+            'curriculum_syllabuses',
+            (int) $row->id,
+            ['__deleted__'],
+            $oldRow,
+            null,
+            'Permanently deleted record (and file if existed)'
+        );
 
         return response()->json(['success' => true]);
     }

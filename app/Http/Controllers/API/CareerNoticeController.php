@@ -5,8 +5,10 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
+use Throwable;
 
 class CareerNoticeController extends Controller
 {
@@ -37,6 +39,113 @@ class CareerNoticeController extends Controller
         if (preg_match('~^https?://~i', $path)) return $path;
         return url('/' . ltrim($path, '/'));
     }
+
+    /* -------------------------
+     | Activity Log Helpers
+     * ------------------------- */
+
+    protected function jsonOrNull($v): ?string
+    {
+        if ($v === null) return null;
+        $json = json_encode($v, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        return (json_last_error() === JSON_ERROR_NONE) ? $json : null;
+    }
+
+    protected function logSafeRow($row): array
+    {
+        $a = (array) $row;
+
+        // Keep logs useful but not huge (exclude body/content)
+        return [
+            'id'                  => $a['id'] ?? null,
+            'uuid'                => $a['uuid'] ?? null,
+            'title'               => $a['title'] ?? null,
+            'slug'                => $a['slug'] ?? null,
+            'status'              => $a['status'] ?? null,
+            'is_featured_home'    => $a['is_featured_home'] ?? null,
+            'request_for_approval'=> $a['request_for_approval'] ?? null,
+            'is_approved'         => $a['is_approved'] ?? null,
+            'publish_at'          => $a['publish_at'] ?? null,
+            'expire_at'           => $a['expire_at'] ?? null,
+            'cover_image'         => $a['cover_image'] ?? null,
+            'attachments_json'    => $a['attachments_json'] ?? null,
+            'metadata'            => $a['metadata'] ?? null,
+            'views_count'         => $a['views_count'] ?? null,
+            'deleted_at'          => $a['deleted_at'] ?? null,
+            'created_by'          => $a['created_by'] ?? null,
+            'created_at'          => $a['created_at'] ?? null,
+            'updated_at'          => $a['updated_at'] ?? null,
+            'created_at_ip'       => $a['created_at_ip'] ?? null,
+            'updated_at_ip'       => $a['updated_at_ip'] ?? null,
+        ];
+    }
+
+    protected function diffKeys(array $old, array $new, array $preferredKeys = []): array
+    {
+        $keys = !empty($preferredKeys)
+            ? array_values(array_unique($preferredKeys))
+            : array_values(array_unique(array_merge(array_keys($old), array_keys($new))));
+
+        $changed = [];
+        foreach ($keys as $k) {
+            $ov = $old[$k] ?? null;
+            $nv = $new[$k] ?? null;
+            // loose compare is fine for DB scalars; if you want strict, replace with !==
+            if ($ov != $nv) $changed[] = $k;
+        }
+        return $changed;
+    }
+
+    protected function activityLog(
+        Request $r,
+        string $activity,
+        string $module,
+        string $table,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        $oldValues = null,
+        $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            $actor = $this->actor($r);
+
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'       => (int) ($actor['id'] ?: 0),
+                'performed_by_role'  => ($actor['role'] !== '' ? $actor['role'] : null),
+                'ip'                 => $r->ip(),
+                'user_agent'         => substr((string) $r->userAgent(), 0, 512),
+
+                'activity'           => substr($activity, 0, 50),
+                'module'             => substr($module, 0, 100),
+
+                'table_name'         => substr($table, 0, 128),
+                'record_id'          => $recordId,
+
+                'changed_fields'     => $this->jsonOrNull($changedFields),
+                'old_values'         => $this->jsonOrNull($oldValues),
+                'new_values'         => $this->jsonOrNull($newValues),
+
+                'log_note'           => $note,
+
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ]);
+        } catch (Throwable $e) {
+            // Never break the main API flow if logging fails
+            Log::warning('Activity log insert failed', [
+                'module' => $module,
+                'activity' => $activity,
+                'table' => $table,
+                'record_id' => $recordId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /* -------------------------
+     | Existing helpers
+     * ------------------------- */
 
     protected function normalizeRow($row): array
     {
@@ -324,6 +433,8 @@ class CareerNoticeController extends Controller
         if ($request->hasFile('cover_image')) {
             $f = $request->file('cover_image');
             if (!$f || !$f->isValid()) {
+                // log failed create attempt (non-blocking)
+                $this->activityLog($request, 'create_failed', 'career_notices', 'career_notices', null, null, null, null, 'Cover image upload failed');
                 return response()->json(['success' => false, 'message' => 'Cover image upload failed'], 422);
             }
             $meta = $this->uploadFileToPublic($f, $dirRel, $slug . '-cover');
@@ -337,6 +448,8 @@ class CareerNoticeController extends Controller
             foreach ((array) $request->file('attachments') as $file) {
                 if (!$file) continue;
                 if (!$file->isValid()) {
+                    // log failed create attempt (non-blocking)
+                    $this->activityLog($request, 'create_failed', 'career_notices', 'career_notices', null, null, null, null, 'One of the attachments failed to upload');
                     return response()->json(['success' => false, 'message' => 'One of the attachments failed to upload'], 422);
                 }
                 $attachments[] = $this->uploadFileToPublic($file, $dirRel, $slug . '-att');
@@ -396,6 +509,19 @@ class CareerNoticeController extends Controller
 
         $row = DB::table('career_notices')->where('id', $id)->first();
 
+        // ✅ activity log (CREATE)
+        $this->activityLog(
+            $request,
+            'create',
+            'career_notices',
+            'career_notices',
+            (int) $id,
+            null,
+            null,
+            $row ? $this->logSafeRow($row) : null,
+            'Career notice created'
+        );
+
         return response()->json([
             'success' => true,
             'data'    => $row ? $this->normalizeRow($row) : null,
@@ -405,7 +531,12 @@ class CareerNoticeController extends Controller
     public function update(Request $request, $identifier)
     {
         $row = $this->resolveCareerNotice($identifier, true);
-        if (! $row) return response()->json(['message' => 'Career notice not found'], 404);
+        if (! $row) {
+            $this->activityLog($request, 'update_not_found', 'career_notices', 'career_notices', null, null, null, null, 'Identifier: ' . (string) $identifier);
+            return response()->json(['message' => 'Career notice not found'], 404);
+        }
+
+        $oldForLog = $this->logSafeRow($row);
 
         $validated = $request->validate([
             'title'             => ['nullable', 'string', 'max:255'],
@@ -484,6 +615,7 @@ class CareerNoticeController extends Controller
         if ($request->hasFile('cover_image')) {
             $f = $request->file('cover_image');
             if (!$f || !$f->isValid()) {
+                $this->activityLog($request, 'update_failed', 'career_notices', 'career_notices', (int) $row->id, null, $oldForLog, null, 'Cover image upload failed');
                 return response()->json(['success' => false, 'message' => 'Cover image upload failed'], 422);
             }
             $this->deletePublicPath($row->cover_image ?? null);
@@ -524,6 +656,7 @@ class CareerNoticeController extends Controller
             foreach ((array) $request->file('attachments') as $file) {
                 if (!$file) continue;
                 if (!$file->isValid()) {
+                    $this->activityLog($request, 'update_failed', 'career_notices', 'career_notices', (int) $row->id, null, $oldForLog, null, 'One of the attachments failed to upload');
                     return response()->json(['success' => false, 'message' => 'One of the attachments failed to upload'], 422);
                 }
                 $useSlug = (string) ($update['slug'] ?? $row->slug ?? 'career-notice');
@@ -548,6 +681,22 @@ class CareerNoticeController extends Controller
 
         $fresh = DB::table('career_notices')->where('id', (int) $row->id)->first();
 
+        // ✅ activity log (UPDATE)
+        $newForLog = $fresh ? $this->logSafeRow($fresh) : null;
+        $changed = $newForLog ? $this->diffKeys($oldForLog, $newForLog) : null;
+
+        $this->activityLog(
+            $request,
+            'update',
+            'career_notices',
+            'career_notices',
+            (int) $row->id,
+            $changed,
+            $oldForLog,
+            $newForLog,
+            'Career notice updated'
+        );
+
         return response()->json([
             'success' => true,
             'data'    => $fresh ? $this->normalizeRow($fresh) : null,
@@ -557,7 +706,12 @@ class CareerNoticeController extends Controller
     public function toggleFeatured(Request $request, $identifier)
     {
         $row = $this->resolveCareerNotice($identifier, true);
-        if (! $row) return response()->json(['message' => 'Career notice not found'], 404);
+        if (! $row) {
+            $this->activityLog($request, 'toggle_featured_not_found', 'career_notices', 'career_notices', null, null, null, null, 'Identifier: ' . (string) $identifier);
+            return response()->json(['message' => 'Career notice not found'], 404);
+        }
+
+        $oldForLog = $this->logSafeRow($row);
 
         $new = ((int) ($row->is_featured_home ?? 0)) ? 0 : 1;
 
@@ -573,6 +727,22 @@ class CareerNoticeController extends Controller
 
         $fresh = DB::table('career_notices')->where('id', (int) $row->id)->first();
 
+        // ✅ activity log (TOGGLE)
+        $newForLog = $fresh ? $this->logSafeRow($fresh) : null;
+        $changed = $newForLog ? $this->diffKeys($oldForLog, $newForLog, ['is_featured_home','request_for_approval','updated_at','updated_at_ip']) : null;
+
+        $this->activityLog(
+            $request,
+            'toggle_featured',
+            'career_notices',
+            'career_notices',
+            (int) $row->id,
+            $changed,
+            $oldForLog,
+            $newForLog,
+            'Featured toggled'
+        );
+
         return response()->json([
             'success' => true,
             'data'    => $fresh ? $this->normalizeRow($fresh) : null,
@@ -582,13 +752,33 @@ class CareerNoticeController extends Controller
     public function destroy(Request $request, $identifier)
     {
         $row = $this->resolveCareerNotice($identifier, false);
-        if (! $row) return response()->json(['message' => 'Not found or already deleted'], 404);
+        if (! $row) {
+            $this->activityLog($request, 'soft_delete_not_found', 'career_notices', 'career_notices', null, null, null, null, 'Identifier: ' . (string) $identifier);
+            return response()->json(['message' => 'Not found or already deleted'], 404);
+        }
+
+        $oldForLog = $this->logSafeRow($row);
 
         DB::table('career_notices')->where('id', (int) $row->id)->update([
             'deleted_at'    => now(),
             'updated_at'    => now(),
             'updated_at_ip' => $request->ip(),
         ]);
+
+        $fresh = DB::table('career_notices')->where('id', (int) $row->id)->first();
+        $newForLog = $fresh ? $this->logSafeRow($fresh) : null;
+
+        $this->activityLog(
+            $request,
+            'soft_delete',
+            'career_notices',
+            'career_notices',
+            (int) $row->id,
+            $newForLog ? $this->diffKeys($oldForLog, $newForLog, ['deleted_at','updated_at','updated_at_ip']) : null,
+            $oldForLog,
+            $newForLog,
+            'Moved to bin (soft delete)'
+        );
 
         return response()->json(['success' => true]);
     }
@@ -597,8 +787,11 @@ class CareerNoticeController extends Controller
     {
         $row = $this->resolveCareerNotice($identifier, true);
         if (! $row || $row->deleted_at === null) {
+            $this->activityLog($request, 'restore_not_found', 'career_notices', 'career_notices', $row ? (int) $row->id : null, null, $row ? $this->logSafeRow($row) : null, null, 'Not found in bin');
             return response()->json(['message' => 'Not found in bin'], 404);
         }
+
+        $oldForLog = $this->logSafeRow($row);
 
         DB::table('career_notices')->where('id', (int) $row->id)->update([
             'deleted_at'    => null,
@@ -607,6 +800,20 @@ class CareerNoticeController extends Controller
         ]);
 
         $fresh = DB::table('career_notices')->where('id', (int) $row->id)->first();
+
+        $newForLog = $fresh ? $this->logSafeRow($fresh) : null;
+
+        $this->activityLog(
+            $request,
+            'restore',
+            'career_notices',
+            'career_notices',
+            (int) $row->id,
+            $newForLog ? $this->diffKeys($oldForLog, $newForLog, ['deleted_at','updated_at','updated_at_ip']) : null,
+            $oldForLog,
+            $newForLog,
+            'Restored from bin'
+        );
 
         return response()->json([
             'success' => true,
@@ -617,7 +824,12 @@ class CareerNoticeController extends Controller
     public function forceDelete(Request $request, $identifier)
     {
         $row = $this->resolveCareerNotice($identifier, true);
-        if (! $row) return response()->json(['message' => 'Career notice not found'], 404);
+        if (! $row) {
+            $this->activityLog($request, 'force_delete_not_found', 'career_notices', 'career_notices', null, null, null, null, 'Identifier: ' . (string) $identifier);
+            return response()->json(['message' => 'Career notice not found'], 404);
+        }
+
+        $oldForLog = $this->logSafeRow($row);
 
         // delete cover
         $this->deletePublicPath($row->cover_image ?? null);
@@ -634,6 +846,19 @@ class CareerNoticeController extends Controller
         }
 
         DB::table('career_notices')->where('id', (int) $row->id)->delete();
+
+        // ✅ activity log (FORCE DELETE)
+        $this->activityLog(
+            $request,
+            'force_delete',
+            'career_notices',
+            'career_notices',
+            (int) $row->id,
+            ['__deleted__'],
+            $oldForLog,
+            null,
+            'Permanently deleted'
+        );
 
         return response()->json(['success' => true]);
     }

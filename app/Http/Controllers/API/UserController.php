@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
 use App\Models\User;
 use Carbon\Carbon;
@@ -123,6 +124,131 @@ class UserController extends Controller
             'actor_role' => $a['role'],
             'actor_id'   => $a['id'],
         ], $extra));
+    }
+
+    /**
+     * ✅ NEW: sanitize snapshots for activity log (avoid secrets + huge payloads)
+     */
+    private function sanitizeForActivityLog($data, int $depth = 0)
+    {
+        if ($data === null) return null;
+
+        // prevent deep recursion
+        if ($depth > 3) {
+            if (is_array($data)) return '[array]';
+            if (is_object($data)) return '[object]';
+            return is_string($data) ? mb_substr($data, 0, 200) : $data;
+        }
+
+        // scalars
+        if (is_bool($data) || is_int($data) || is_float($data)) return $data;
+
+        if (is_string($data)) {
+            $s = trim($data);
+            if (mb_strlen($s) > 800) $s = mb_substr($s, 0, 800) . '…';
+            return $s;
+        }
+
+        // objects -> array
+        if (is_object($data)) {
+            $data = (array) $data;
+        }
+
+        if (is_array($data)) {
+            $blockedKeys = [
+                'password', 'current_password', 'token', 'plainToken', 'authorization',
+                'abilities', 'remember_token'
+            ];
+
+            $out = [];
+            $count = 0;
+
+            foreach ($data as $k => $v) {
+                $count++;
+                if ($count > 60) { $out['__truncated__'] = true; break; }
+
+                $key = is_string($k) ? strtolower($k) : $k;
+
+                if (is_string($key) && in_array($key, $blockedKeys, true)) {
+                    $out[$k] = '[redacted]';
+                    continue;
+                }
+
+                $out[$k] = $this->sanitizeForActivityLog($v, $depth + 1);
+            }
+
+            return $out;
+        }
+
+        return (string) $data;
+    }
+
+    /**
+     * ✅ NEW: write to user_data_activity_log (safe: won't break if table missing)
+     * Logs every POST/PUT/PATCH/DELETE activity (except GET endpoints).
+     */
+    private function activityLog(
+        Request $r,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        $oldValues = null,
+        $newValues = null,
+        ?string $note = null,
+        ?array $actorOverride = null
+    ): void {
+        try {
+            if (!Schema::hasTable('user_data_activity_log')) return;
+
+            $a = $actorOverride ?: $this->actor($r);
+
+            $performedBy = (int)($a['id'] ?? 0);
+            if ($performedBy < 0) $performedBy = 0;
+
+            $performedRole = $a['role'] ?? null;
+            $performedRole = is_string($performedRole) ? trim($performedRole) : null;
+            if ($performedRole === '') $performedRole = null;
+
+            $ua = (string)($r->userAgent() ?? '');
+            if (strlen($ua) > 512) $ua = substr($ua, 0, 512);
+
+            $now = Carbon::now();
+
+            $payload = [
+                'performed_by'       => $performedBy,
+                'performed_by_role'  => $performedRole,
+                'ip'                 => $r->ip(),
+                'user_agent'         => $ua,
+
+                'activity'           => substr($activity, 0, 50),
+                'module'             => substr($module, 0, 100),
+
+                'table_name'         => substr($tableName, 0, 128),
+                'record_id'          => $recordId,
+
+                'changed_fields'     => $changedFields !== null ? json_encode($this->sanitizeForActivityLog($changedFields), JSON_UNESCAPED_UNICODE) : null,
+                'old_values'         => $oldValues !== null ? json_encode($this->sanitizeForActivityLog($oldValues), JSON_UNESCAPED_UNICODE) : null,
+                'new_values'         => $newValues !== null ? json_encode($this->sanitizeForActivityLog($newValues), JSON_UNESCAPED_UNICODE) : null,
+
+                'log_note'           => $note,
+
+                'created_at'         => $now,
+                'updated_at'         => $now,
+            ];
+
+            DB::table('user_data_activity_log')->insert($payload);
+        } catch (\Throwable $e) {
+            // never break API because of logging
+            Log::warning('user_data_activity_log.write_failed', [
+                'error' => $e->getMessage(),
+                'activity' => $activity,
+                'module' => $module,
+                'table_name' => $tableName,
+                'record_id' => $recordId,
+            ]);
+        }
     }
 
     private function extractToken(Request $request): ?string
@@ -323,6 +449,18 @@ class UserController extends Controller
         ]);
 
         if ($v->fails()) {
+            $this->activityLog(
+                $request,
+                'login_failed_validation',
+                'auth',
+                'users',
+                null,
+                ['email','password'],
+                null,
+                ['email' => (string)$request->input('email')],
+                'Validation failed'
+            );
+
             return response()->json([
                 'success' => false,
                 'errors'  => $v->errors(),
@@ -337,6 +475,19 @@ class UserController extends Controller
             ->first();
 
         if (!$user || !Hash::check($data['password'], $user->password)) {
+            $this->activityLog(
+                $request,
+                'login_failed',
+                'auth',
+                'users',
+                null,
+                ['email'],
+                null,
+                ['email' => (string)$data['email']],
+                'Invalid credentials',
+                ['id' => 0, 'role' => null]
+            );
+
             return response()->json([
                 'success' => false,
                 'error'   => 'Invalid credentials',
@@ -344,6 +495,19 @@ class UserController extends Controller
         }
 
         if (isset($user->status) && $user->status !== 'active') {
+            $this->activityLog(
+                $request,
+                'login_blocked',
+                'auth',
+                'users',
+                (int)$user->id,
+                ['status'],
+                ['status' => (string)($user->status ?? '')],
+                ['status' => (string)($user->status ?? '')],
+                'Account is not active',
+                ['id' => (int)$user->id, 'role' => (string)($user->role ?? null)]
+            );
+
             return response()->json([
                 'success' => false,
                 'error'   => 'Account is not active',
@@ -364,7 +528,6 @@ class UserController extends Controller
             'last_used_at'   => null,
             'created_at'     => $now,
             'updated_at'     => $now,
-            // 'expires_at'   => $now->copy()->addDays(7), // optional expiry if you want
         ]);
 
         // Track last login
@@ -386,6 +549,20 @@ class UserController extends Controller
             'ip'      => $request->ip(),
         ]);
 
+        // ✅ ACTIVITY LOG (success)
+        $this->activityLog(
+            $request,
+            'login',
+            'auth',
+            'users',
+            (int)$user->id,
+            ['last_login_at','last_login_ip'],
+            null,
+            ['ip' => $request->ip()],
+            'Login successful',
+            ['id' => (int)$user->id, 'role' => (string)($user->role ?? null)]
+        );
+
         return response()->json([
             'success'    => true,
             'token'      => $plainToken,
@@ -402,6 +579,18 @@ class UserController extends Controller
     {
         $token = $this->extractToken($request);
         if (!$token) {
+            $this->activityLog(
+                $request,
+                'logout_failed',
+                'auth',
+                'personal_access_tokens',
+                null,
+                null,
+                null,
+                null,
+                'No token provided'
+            );
+
             return response()->json([
                 'success' => false,
                 'error'   => 'No token provided',
@@ -424,6 +613,19 @@ class UserController extends Controller
         $this->logWithActor('msit.auth.logout', $request, [
             'token_id' => $pat->id ?? null,
         ]);
+
+        // ✅ ACTIVITY LOG
+        $this->activityLog(
+            $request,
+            'logout',
+            'auth',
+            'personal_access_tokens',
+            $pat ? (int)$pat->id : null,
+            null,
+            null,
+            null,
+            'Logged out'
+        );
 
         return response()->json([
             'success' => true,
@@ -589,8 +791,10 @@ class UserController extends Controller
         $actorId = (int) $request->attributes->get('auth_tokenable_id');
         $ac      = $this->accessControl($actorId);
 
-        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
-        if ($ac['mode'] === 'none')        return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'not_allowed' || $ac['mode'] === 'none') {
+            $this->activityLog($request, 'create_denied', 'users', 'users', null, null, null, null, 'Not allowed');
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
 
         $deptRule = Rule::exists('departments', 'id');
         if (Schema::hasColumn('departments', 'deleted_at')) {
@@ -614,12 +818,22 @@ class UserController extends Controller
             'role'                      => ['nullable', 'string'],
             'status'                    => ['nullable', 'string', 'max:20'],
             'metadata'                  => ['nullable', 'array'],
-
-            // ✅ ADD THIS: accept + validate department_id
             'department_id'             => ['nullable', 'integer', $deptRule],
         ]);
 
         if ($v->fails()) {
+            $this->activityLog(
+                $request,
+                'create_failed_validation',
+                'users',
+                'users',
+                null,
+                array_keys($request->all() ?: []),
+                null,
+                ['email' => (string)$request->input('email')],
+                'Validation failed'
+            );
+
             return response()->json([
                 'success' => false,
                 'errors'  => $v->errors(),
@@ -639,6 +853,7 @@ class UserController extends Controller
 
                 // if explicitly provided and mismatched => block
                 if ($incoming !== null && $incoming !== $forcedDept) {
+                    $this->activityLog($request, 'create_denied', 'users', 'users', null, ['department_id'], null, ['department_id' => $incoming], 'Dept mismatch');
                     return response()->json(['error' => 'Not allowed'], 403);
                 }
             }
@@ -702,6 +917,24 @@ class UserController extends Controller
 
             $this->logWithActor('msit.users.store.success', $request, ['user_id' => $id]);
 
+            // ✅ ACTIVITY LOG (create)
+            $changed = array_keys($insert);
+            $changed = array_values(array_filter($changed, fn($k) => $k !== 'password')); // never log password
+            $newVals = $insert;
+            unset($newVals['password']);
+
+            $this->activityLog(
+                $request,
+                'create',
+                'users',
+                'users',
+                (int)$id,
+                $changed,
+                null,
+                $newVals,
+                'User created'
+            );
+
             $user = DB::table('users')
                 ->select($this->userSelectColumns())
                 ->where('id', $id)
@@ -717,6 +950,18 @@ class UserController extends Controller
             $this->logWithActor('msit.users.store.failed', $request, [
                 'error' => $e->getMessage(),
             ]);
+
+            $this->activityLog(
+                $request,
+                'create_failed',
+                'users',
+                'users',
+                null,
+                null,
+                null,
+                null,
+                'Failed to create user: ' . $e->getMessage()
+            );
 
             return response()->json([
                 'success' => false,
@@ -777,8 +1022,10 @@ class UserController extends Controller
         $actorId = (int) $request->attributes->get('auth_tokenable_id');
         $ac      = $this->accessControl($actorId);
 
-        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
-        if ($ac['mode'] === 'none')        return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'not_allowed' || $ac['mode'] === 'none') {
+            $this->activityLog($request, 'update_denied', 'users', 'users', null, null, null, null, 'Not allowed');
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
 
         $qUser = DB::table('users')
             ->where('uuid', $uuid)
@@ -791,6 +1038,7 @@ class UserController extends Controller
         $user = $qUser->first();
 
         if (!$user) {
+            $this->activityLog($request, 'update_not_found', 'users', 'users', null, null, null, ['uuid' => $uuid], 'User not found');
             return response()->json([
                 'success' => false,
                 'error'   => 'User not found',
@@ -830,14 +1078,24 @@ class UserController extends Controller
             'role'                     => ['sometimes', 'nullable', 'string'],
             'status'                   => ['sometimes', 'nullable', 'string', 'max:20'],
             'metadata'                 => ['sometimes', 'nullable', 'array'],
-
-            // ✅ ADD THIS: accept + validate department_id
             'department_id'            => ['sometimes', 'nullable', 'integer', $deptRule],
         ];
 
         $v = Validator::make($request->all(), $rules);
 
         if ($v->fails()) {
+            $this->activityLog(
+                $request,
+                'update_failed_validation',
+                'users',
+                'users',
+                (int)$user->id,
+                array_keys($request->all() ?: []),
+                null,
+                null,
+                'Validation failed'
+            );
+
             return response()->json([
                 'success' => false,
                 'errors'  => $v->errors(),
@@ -853,6 +1111,17 @@ class UserController extends Controller
             $incoming   = ($incoming !== null) ? (int)$incoming : null;
 
             if ($incoming === null || $incoming !== $forcedDept) {
+                $this->activityLog(
+                    $request,
+                    'update_denied',
+                    'users',
+                    'users',
+                    (int)$user->id,
+                    ['department_id'],
+                    ['department_id' => (int)($user->department_id ?? 0)],
+                    ['department_id' => $incoming],
+                    'Dept mismatch'
+                );
                 return response()->json(['error' => 'Not allowed'], 403);
             }
         }
@@ -930,6 +1199,17 @@ class UserController extends Controller
 
         $update['updated_at'] = $now;
 
+        // ✅ prepare old/new snapshots (exclude password)
+        $changedFields = array_keys($update);
+        $changedFields = array_values(array_filter($changedFields, fn($k) => $k !== 'password'));
+
+        $oldVals = [];
+        $newVals = [];
+        foreach ($changedFields as $f) {
+            $oldVals[$f] = $user->{$f} ?? null;
+            $newVals[$f] = $update[$f] ?? null;
+        }
+
         DB::beginTransaction();
         try {
             DB::table('users')
@@ -950,6 +1230,18 @@ class UserController extends Controller
                 'error'   => $e->getMessage(),
             ]);
 
+            $this->activityLog(
+                $request,
+                'update_failed',
+                'users',
+                'users',
+                (int)$user->id,
+                $changedFields,
+                $oldVals,
+                $newVals,
+                'Failed to update user: ' . $e->getMessage()
+            );
+
             return response()->json([
                 'success' => false,
                 'error'   => 'Failed to update user',
@@ -959,6 +1251,19 @@ class UserController extends Controller
         $this->logWithActor('msit.users.update', $request, [
             'user_id' => $user->id,
         ]);
+
+        // ✅ ACTIVITY LOG (update)
+        $this->activityLog(
+            $request,
+            'update',
+            'users',
+            'users',
+            (int)$user->id,
+            $changedFields,
+            $oldVals,
+            $newVals,
+            'User updated'
+        );
 
         $fresh = DB::table('users')
             ->select($this->userSelectColumns())
@@ -978,6 +1283,7 @@ class UserController extends Controller
     public function updatePassword(Request $request, string $uuid)
     {
         if ($resp = $this->requireRole($request, self::ALLOWED_ROLES)) {
+            $this->activityLog($request, 'password_update_denied', 'users', 'users', null, null, null, null, 'Unauthorized Access');
             return $resp;
         }
 
@@ -987,6 +1293,7 @@ class UserController extends Controller
             ->first();
 
         if (!$user) {
+            $this->activityLog($request, 'password_update_not_found', 'users', 'users', null, null, null, ['uuid' => $uuid], 'User not found');
             return response()->json([
                 'success' => false,
                 'error'   => 'User not found',
@@ -1000,6 +1307,18 @@ class UserController extends Controller
         $isHigh = in_array($actor['role'], $highRoles, true);
 
         if (!$isHigh && !$isSelf) {
+            $this->activityLog(
+                $request,
+                'password_update_denied',
+                'users',
+                'users',
+                (int)$user->id,
+                ['password'],
+                null,
+                null,
+                'Unauthorized Access'
+            );
+
             return response()->json([
                 'success' => false,
                 'error'   => 'Unauthorized Access',
@@ -1017,6 +1336,18 @@ class UserController extends Controller
         $v = Validator::make($request->all(), $rules);
 
         if ($v->fails()) {
+            $this->activityLog(
+                $request,
+                'password_update_failed_validation',
+                'users',
+                'users',
+                (int)$user->id,
+                ['password','current_password'],
+                null,
+                null,
+                'Validation failed'
+            );
+
             return response()->json([
                 'success' => false,
                 'errors'  => $v->errors(),
@@ -1027,6 +1358,18 @@ class UserController extends Controller
 
         if (array_key_exists('current_password', $rules)) {
             if (!Hash::check($data['current_password'], $user->password)) {
+                $this->activityLog(
+                    $request,
+                    'password_update_failed',
+                    'users',
+                    'users',
+                    (int)$user->id,
+                    ['current_password'],
+                    null,
+                    null,
+                    'Current password incorrect'
+                );
+
                 return response()->json([
                     'success' => false,
                     'errors'  => [
@@ -1047,6 +1390,19 @@ class UserController extends Controller
             'user_id' => $user->id,
         ]);
 
+        // ✅ ACTIVITY LOG (password change) - do not store password hashes
+        $this->activityLog(
+            $request,
+            'update_password',
+            'users',
+            'users',
+            (int)$user->id,
+            ['password'],
+            null,
+            null,
+            'Password updated'
+        );
+
         return response()->json([
             'success' => true,
             'message' => 'Password updated successfully',
@@ -1060,6 +1416,7 @@ class UserController extends Controller
     public function updateImage(Request $request, string $uuid)
     {
         if ($resp = $this->requireRole($request, self::ALLOWED_ROLES)) {
+            $this->activityLog($request, 'image_update_denied', 'users', 'users', null, null, null, null, 'Unauthorized Access');
             return $resp;
         }
 
@@ -1069,6 +1426,7 @@ class UserController extends Controller
             ->first();
 
         if (!$user) {
+            $this->activityLog($request, 'image_update_not_found', 'users', 'users', null, null, null, ['uuid' => $uuid], 'User not found');
             return response()->json([
                 'success' => false,
                 'error'   => 'User not found',
@@ -1082,6 +1440,18 @@ class UserController extends Controller
         $isHigh = in_array($actor['role'], $highRoles, true);
 
         if (!$isHigh && !$isSelf) {
+            $this->activityLog(
+                $request,
+                'image_update_denied',
+                'users',
+                'users',
+                (int)$user->id,
+                ['image'],
+                ['image' => (string)($user->image ?? null)],
+                null,
+                'Unauthorized Access'
+            );
+
             return response()->json([
                 'success' => false,
                 'error'   => 'Unauthorized Access',
@@ -1093,6 +1463,18 @@ class UserController extends Controller
         ]);
 
         if ($v->fails()) {
+            $this->activityLog(
+                $request,
+                'image_update_failed_validation',
+                'users',
+                'users',
+                (int)$user->id,
+                ['image'],
+                null,
+                null,
+                'Validation failed'
+            );
+
             return response()->json([
                 'success' => false,
                 'errors'  => $v->errors(),
@@ -1100,6 +1482,8 @@ class UserController extends Controller
         }
 
         $data = $v->validated();
+
+        $old = (string)($user->image ?? null);
 
         DB::table('users')
             ->where('id', $user->id)
@@ -1111,6 +1495,19 @@ class UserController extends Controller
         $this->logWithActor('msit.users.update_image', $request, [
             'user_id' => $user->id,
         ]);
+
+        // ✅ ACTIVITY LOG
+        $this->activityLog(
+            $request,
+            'update_image',
+            'users',
+            'users',
+            (int)$user->id,
+            ['image'],
+            ['image' => $old],
+            ['image' => (string)$data['image']],
+            'Image updated'
+        );
 
         $fresh = DB::table('users')
             ->select($this->userSelectColumns())
@@ -1133,8 +1530,10 @@ class UserController extends Controller
         $actorId = (int) $request->attributes->get('auth_tokenable_id');
         $ac      = $this->accessControl($actorId);
 
-        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
-        if ($ac['mode'] === 'none')        return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'not_allowed' || $ac['mode'] === 'none') {
+            $this->activityLog($request, 'delete_denied', 'users', 'users', null, null, null, null, 'Not allowed');
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
 
         $qUser = DB::table('users')
             ->where('uuid', $uuid)
@@ -1147,6 +1546,7 @@ class UserController extends Controller
         $user = $qUser->first();
 
         if (!$user) {
+            $this->activityLog($request, 'delete_not_found', 'users', 'users', null, null, null, ['uuid' => $uuid], 'User not found');
             return response()->json([
                 'success' => false,
                 'error'   => 'User not found',
@@ -1157,22 +1557,48 @@ class UserController extends Controller
 
         // Don't allow deleting yourself
         if ($actor['id'] === (int) $user->id) {
+            $this->activityLog(
+                $request,
+                'delete_denied',
+                'users',
+                'users',
+                (int)$user->id,
+                ['status'],
+                ['status' => (string)($user->status ?? '')],
+                null,
+                'Tried to delete own account'
+            );
+
             return response()->json([
                 'success' => false,
                 'error'   => 'You cannot delete your own account',
             ], 422);
         }
 
+        $oldStatus = (string)($user->status ?? '');
+
         DB::table('users')
             ->where('id', $user->id)
             ->update([
-                // 'deleted_at' => Carbon::now(),
                 'status'     => 'inactive',
             ]);
 
         $this->logWithActor('msit.users.destroy', $request, [
             'user_id' => $user->id,
         ]);
+
+        // ✅ ACTIVITY LOG (delete/inactivate)
+        $this->activityLog(
+            $request,
+            'delete',
+            'users',
+            'users',
+            (int)$user->id,
+            ['status'],
+            ['status' => $oldStatus],
+            ['status' => 'inactive'],
+            'User marked inactive'
+        );
 
         return response()->json([
             'success' => true,
@@ -1222,6 +1648,7 @@ class UserController extends Controller
     {
         $actor = $this->actor($request);
         if (!$actor['id']) {
+            $this->activityLog($request, 'update_me_denied', 'users', 'users', null, null, null, null, 'Unauthenticated');
             return response()->json([
                 'success' => false,
                 'error'   => 'Unauthenticated',
@@ -1234,6 +1661,7 @@ class UserController extends Controller
             ->first();
 
         if (!$user) {
+            $this->activityLog($request, 'update_me_not_found', 'users', 'users', (int)$actor['id'], null, null, null, 'User not found');
             return response()->json([
                 'success' => false,
                 'error'   => 'User not found',
@@ -1272,6 +1700,18 @@ class UserController extends Controller
         ]);
 
         if ($v->fails()) {
+            $this->activityLog(
+                $request,
+                'update_me_failed_validation',
+                'users',
+                'users',
+                (int)$user->id,
+                array_keys($request->all() ?: []),
+                null,
+                null,
+                'Validation failed'
+            );
+
             return response()->json([
                 'success' => false,
                 'errors'  => $v->errors(),
@@ -1289,6 +1729,18 @@ class UserController extends Controller
         if (!empty($fileRules)) {
             $fv = Validator::make($request->all(), $fileRules);
             if ($fv->fails()) {
+                $this->activityLog(
+                    $request,
+                    'update_me_failed_validation',
+                    'users',
+                    'users',
+                    (int)$user->id,
+                    array_keys($fileRules),
+                    null,
+                    null,
+                    'File validation failed'
+                );
+
                 return response()->json([
                     'success' => false,
                     'errors'  => $fv->errors(),
@@ -1361,6 +1813,8 @@ class UserController extends Controller
             $update['address'] = $data['address'] ?? null;
         }
 
+        $oldImage = (string)($user->image ?? null);
+
         // ✅ Image (FILE has priority)
         try {
             if ($request->hasFile('image') || $request->hasFile('image_file')) {
@@ -1378,6 +1832,18 @@ class UserController extends Controller
                 }
             }
         } catch (\Throwable $e) {
+            $this->activityLog(
+                $request,
+                'update_me_failed',
+                'users',
+                'users',
+                (int)$user->id,
+                ['image'],
+                ['image' => $oldImage],
+                null,
+                'Image update failed: ' . $e->getMessage()
+            );
+
             return response()->json([
                 'success' => false,
                 'error'   => $e->getMessage(),
@@ -1396,11 +1862,33 @@ class UserController extends Controller
 
         $update['updated_at'] = Carbon::now();
 
+        // snapshots for log
+        $changedFields = array_keys($update);
+        $oldVals = [];
+        $newVals = [];
+        foreach ($changedFields as $f) {
+            $oldVals[$f] = $user->{$f} ?? null;
+            $newVals[$f] = $update[$f] ?? null;
+        }
+
         DB::table('users')->where('id', $user->id)->update($update);
 
         $this->logWithActor('msit.users.update_me', $request, [
             'user_id' => $user->id,
         ]);
+
+        // ✅ ACTIVITY LOG (update_me)
+        $this->activityLog(
+            $request,
+            'update_me',
+            'users',
+            'users',
+            (int)$user->id,
+            $changedFields,
+            $oldVals,
+            $newVals,
+            'Self profile updated'
+        );
 
         $fresh = DB::table('users')
             ->select($this->userSelectColumns())
@@ -2020,16 +2508,34 @@ class UserController extends Controller
         $actorId = (int) $request->attributes->get('auth_tokenable_id');
         $ac      = $this->accessControl($actorId);
 
-        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
-        if ($ac['mode'] === 'none')        return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'not_allowed' || $ac['mode'] === 'none') {
+            $this->activityLog($request, 'import_denied', 'users', 'users', null, null, null, null, 'Not allowed');
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
 
         $forcedDeptId = ($ac['mode'] === 'department') ? (int)$ac['department_id'] : null;
 
-        $request->validate([
-            'file' => 'required|file|mimes:csv,txt',
-            'update_existing' => 'nullable|boolean',
-            'create_missing'  => 'nullable|boolean',
-        ]);
+        // keep same behavior, but log validation error too
+        try {
+            $request->validate([
+                'file' => 'required|file|mimes:csv,txt',
+                'update_existing' => 'nullable|boolean',
+                'create_missing'  => 'nullable|boolean',
+            ]);
+        } catch (ValidationException $ve) {
+            $this->activityLog(
+                $request,
+                'import_failed_validation',
+                'users',
+                'users',
+                null,
+                ['file','update_existing','create_missing'],
+                null,
+                null,
+                'Validation failed'
+            );
+            throw $ve;
+        }
 
         $updateExisting = (bool) $request->input('update_existing', true);
         $createMissing  = (bool) $request->input('create_missing', true);
@@ -2053,12 +2559,14 @@ class UserController extends Controller
 
         $handle = fopen($path, 'r');
         if (!$handle) {
+            $this->activityLog($request, 'import_failed', 'users', 'users', null, null, null, null, 'Failed to read uploaded CSV');
             return response()->json(['success' => false, 'error' => 'Failed to read uploaded CSV.'], 422);
         }
 
         $header = fgetcsv($handle);
         if (!$header) {
             fclose($handle);
+            $this->activityLog($request, 'import_failed', 'users', 'users', null, null, null, null, 'CSV header missing');
             return response()->json(['success' => false, 'error' => 'CSV header missing.'], 422);
         }
 
@@ -2074,6 +2582,7 @@ class UserController extends Controller
         foreach (['name', 'email'] as $c) {
             if (!array_key_exists($c, $idx)) {
                 fclose($handle);
+                $this->activityLog($request, 'import_failed', 'users', 'users', null, null, null, ['missing' => $c], "Missing required column: {$c}");
                 return response()->json(['success' => false, 'error' => "Missing required column: {$c}"], 422);
             }
         }
@@ -2085,6 +2594,7 @@ class UserController extends Controller
         // ✅ if dept scoping is required, but users.dept is missing => block (matches accessControl safety)
         if ($forcedDeptId !== null && !$hasDept) {
             fclose($handle);
+            $this->activityLog($request, 'import_denied', 'users', 'users', null, ['department_id'], null, ['forced_department_id' => $forcedDeptId], 'Dept column missing');
             return response()->json(['success' => false, 'error' => 'Not allowed'], 403);
         }
 
@@ -2480,6 +2990,18 @@ class UserController extends Controller
             DB::rollBack();
             fclose($handle);
 
+            $this->activityLog(
+                $request,
+                'import_failed',
+                'users',
+                'users',
+                null,
+                null,
+                null,
+                ['row' => $rowNum],
+                'Import failed: ' . $e->getMessage()
+            );
+
             return response()->json([
                 'success' => false,
                 'error'   => $e->getMessage(),
@@ -2488,6 +3010,27 @@ class UserController extends Controller
         }
 
         fclose($handle);
+
+        // ✅ ACTIVITY LOG (import summary)
+        $this->activityLog(
+            $request,
+            'import',
+            'users',
+            'users',
+            null,
+            ['imported','updated','skipped','academic_created','academic_updated','academic_skipped'],
+            null,
+            [
+                'imported' => $imported,
+                'updated'  => $updated,
+                'skipped'  => $skipped,
+                'academic_created' => $academicCreated,
+                'academic_updated' => $academicUpdated,
+                'academic_skipped' => $academicSkipped,
+                'errors_count' => is_array($errors) ? count($errors) : 0,
+            ],
+            'CSV import finished'
+        );
 
         return response()->json([
             'success' => true,

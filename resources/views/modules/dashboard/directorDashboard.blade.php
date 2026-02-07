@@ -1,5 +1,5 @@
-{{-- resources/views/modules/hod/hodDashboard.blade.php --}}
-@section('title','HOD Dashboard')
+{{-- resources/views/modules/director/directorDashboard.blade.php --}}
+@section('title','Director Dashboard')
 
 @push('styles')
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
@@ -7,16 +7,16 @@
 
 <style>
 /* =========================
- * HOD Dashboard (MSIT theme)
- * - Fully dynamic from GET /api/hod/dashboard (default)
- * - No static numbers
- * - Same UI language as Admin Dashboard for theme consistency
+ * Director Dashboard (MSIT theme)
+ * - Same UI as Admin Dashboard
+ * - Hero title: Welcome, {dynamic-user-name} 👋
+ * - Removed "Loads from GET /api/admin/dashboard" header text
  * ========================= */
 
-.hd-wrap{max-width:1200px;margin:18px auto 48px;padding:0 12px;overflow:visible}
+.ad-wrap{max-width:1200px;margin:18px auto 48px;padding:0 12px;overflow:visible}
 
 /* Hero */
-.hd-hero{
+.ad-hero{
   position:relative;
   border-radius:22px;
   padding:20px 20px;
@@ -28,54 +28,54 @@
     color-mix(in oklab, var(--primary-color) 70%, #7c3aed) 100%);
   border:1px solid color-mix(in oklab, #fff 15%, transparent);
 }
-.hd-hero::before{
+.ad-hero::before{
   content:'';
   position:absolute;right:-80px;top:-80px;
   width:260px;height:260px;border-radius:50%;
   background:radial-gradient(circle, rgba(255,255,255,.14) 0%, rgba(255,255,255,0) 70%);
 }
-.hd-hero-inner{position:relative;z-index:1;display:flex;gap:14px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
-.hd-hero-left{min-width:260px;flex:1}
-.hd-hero-title{font-size:26px;font-weight:800;letter-spacing:-.2px;margin:0;font-family:var(--font-head)}
-.hd-hero-sub{margin:8px 0 0;font-size:14px;opacity:.92}
-.hd-hero-meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
-.hd-chip{
+.ad-hero-inner{position:relative;z-index:1;display:flex;gap:14px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.ad-hero-left{min-width:260px;flex:1}
+.ad-hero-title{font-size:26px;font-weight:800;letter-spacing:-.2px;margin:0;font-family:var(--font-head)}
+.ad-hero-sub{margin:8px 0 0;font-size:14px;opacity:.92}
+.ad-hero-meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.ad-chip{
   display:inline-flex;align-items:center;gap:8px;
   padding:8px 12px;border-radius:999px;
   background:rgba(255,255,255,.12);
   border:1px solid rgba(255,255,255,.16);
   font-size:13px;
 }
-.hd-chip i{opacity:.95}
+.ad-chip i{opacity:.95}
 
 /* Grid */
-.hd-grid{margin-top:14px;display:grid;grid-template-columns:repeat(12, minmax(0,1fr));gap:14px}
-.hd-col-4{grid-column:span 4}
-.hd-col-8{grid-column:span 8}
-.hd-col-6{grid-column:span 6}
-.hd-col-12{grid-column:span 12}
+.ad-grid{margin-top:14px;display:grid;grid-template-columns:repeat(12, minmax(0,1fr));gap:14px}
+.ad-col-4{grid-column:span 4}
+.ad-col-8{grid-column:span 8}
+.ad-col-6{grid-column:span 6}
+.ad-col-12{grid-column:span 12}
 
 /* Cards */
-.hd-card{
+.ad-card{
   border:1px solid var(--line-strong);
   border-radius:16px;
   background:var(--surface);
   box-shadow:var(--shadow-2);
   overflow:hidden;
 }
-.hd-card-head{
+.ad-card-head{
   padding:14px 16px;
   border-bottom:1px solid var(--line-soft);
   display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;
 }
-.hd-card-title{
+.ad-card-title{
   display:flex;align-items:center;gap:10px;
   font-weight:800;color:var(--ink);
   font-family:var(--font-head);
 }
-.hd-card-sub{font-size:12.5px;color:var(--muted-color);margin-top:3px}
-.hd-card-body{padding:14px 16px}
-.hd-card-foot{
+.ad-card-sub{font-size:12.5px;color:var(--muted-color);margin-top:3px}
+.ad-card-body{padding:14px 16px}
+.ad-card-foot{
   padding:12px 16px;
   border-top:1px solid var(--line-soft);
   background:color-mix(in oklab, var(--surface) 96%, transparent);
@@ -159,18 +159,14 @@
 .toast-container{z-index:99999}
 
 @media (max-width: 992px){
-  .hd-col-8,.hd-col-6,.hd-col-4{grid-column:span 12}
+  .ad-col-8,.ad-col-6,.ad-col-4{grid-column:span 12}
   .chart-canvas{height:240px}
 }
 </style>
 @endpush
 
 @section('content')
-{{-- data-endpoint can be overridden from controller if needed --}}
-<div class="hd-wrap" id="hodDashWrap" data-endpoint="{{ $endpoint ?? '/api/hod/dashboard' }}">
-
-  {{-- hidden debug hook (kept for JS compatibility; not shown in UI) --}}
-  <code id="endpointHint" class="d-none"></code>
+<div class="ad-wrap">
 
   {{-- overlay loader --}}
   <div id="inlineLoader" class="inline-loader">
@@ -178,16 +174,15 @@
   </div>
 
   {{-- HERO --}}
-  <div class="hd-hero">
-    <div class="hd-hero-inner">
-      <div class="hd-hero-left">
-        <h1 class="hd-hero-title" id="heroTitle">Welcome 👋</h1>
-        <div class="hd-hero-sub" id="heroSub">Loading your dashboard…</div>
+  <div class="ad-hero">
+    <div class="ad-hero-inner">
+      <div class="ad-hero-left">
+        <h1 class="ad-hero-title" id="heroTitle">Welcome 👋</h1>
+        <div class="ad-hero-sub" id="heroSub">Loading dashboard data…</div>
 
-        <div class="hd-hero-meta">
-          <span class="hd-chip"><i class="fa-solid fa-user-tie"></i> <span id="chipRole">—</span></span>
-          <span class="hd-chip"><i class="fa-solid fa-building-user"></i> <span id="chipDept">—</span></span>
-          <span class="hd-chip"><i class="fa-regular fa-clock"></i> <span id="chipUpdated">—</span></span>
+        <div class="ad-hero-meta">
+          <span class="ad-chip"><i class="fa-solid fa-user-tie"></i> <span id="chipRole">—</span></span>
+          <span class="ad-chip"><i class="fa-regular fa-clock"></i> <span id="chipUpdated">—</span></span>
         </div>
       </div>
 
@@ -199,20 +194,20 @@
     </div>
   </div>
 
-  <div class="hd-grid">
+  <div class="ad-grid">
 
     {{-- KPIs --}}
-    <div class="hd-col-12">
-      <div class="hd-card">
-        <div class="hd-card-head">
+    <div class="ad-col-12">
+      <div class="ad-card">
+        <div class="ad-card-head">
           <div>
-            <div class="hd-card-title"><i class="fa-solid fa-chart-line"></i> Department Overview</div>
-            <div class="hd-card-sub">Your department’s key numbers (dynamic)</div>
+            <div class="ad-card-title"><i class="fa-solid fa-chart-line"></i> Overview</div>
+            <div class="ad-card-sub">Key platform numbers (dynamic)</div>
           </div>
-          {{-- removed API calling text from header (kept hidden code hook above) --}}
+          {{-- ✅ removed API calling text from header --}}
         </div>
 
-        <div class="hd-card-body">
+        <div class="ad-card-body">
           <div class="row g-3" id="kpiRow">
             {{-- skeletons (replaced by JS) --}}
             @for($i=0;$i<4;$i++)
@@ -229,7 +224,7 @@
           </div>
         </div>
 
-        <div class="hd-card-foot">
+        <div class="ad-card-foot">
           <div class="small text-muted">
             <i class="fa-regular fa-circle-info me-1"></i>
             KPI order & labels come from API response.
@@ -240,15 +235,15 @@
     </div>
 
     {{-- CHART: Activity --}}
-    <div class="hd-col-8">
-      <div class="hd-card">
-        <div class="hd-card-head">
+    <div class="ad-col-8">
+      <div class="ad-card">
+        <div class="ad-card-head">
           <div>
-            <div class="hd-card-title"><i class="fa-solid fa-wave-square"></i> Department Activity</div>
-            <div class="hd-card-sub" id="activitySub">Last 7 days</div>
+            <div class="ad-card-title"><i class="fa-solid fa-wave-square"></i> Activity</div>
+            <div class="ad-card-sub" id="activitySub">Last 7 days</div>
           </div>
         </div>
-        <div class="hd-card-body">
+        <div class="ad-card-body">
           <div class="chart-wrap">
             <canvas id="activityChart" class="chart-canvas"></canvas>
           </div>
@@ -258,29 +253,29 @@
     </div>
 
     {{-- RIGHT: Quick cards --}}
-    <div class="hd-col-4">
-      <div class="hd-card">
-        <div class="hd-card-head">
+    <div class="ad-col-4">
+      <div class="ad-card">
+        <div class="ad-card-head">
           <div>
-            <div class="hd-card-title"><i class="fa-solid fa-bolt"></i> Quick Actions</div>
-            <div class="hd-card-sub">Shortcuts for department tasks</div>
+            <div class="ad-card-title"><i class="fa-solid fa-bolt"></i> Quick Actions</div>
+            <div class="ad-card-sub">Based on your role</div>
           </div>
         </div>
-        <div class="hd-card-body" id="quickActions">
+        <div class="ad-card-body" id="quickActions">
           <div class="skel w80"></div>
           <div class="skel w60" style="margin-top:10px"></div>
           <div class="skel w40" style="margin-top:10px"></div>
         </div>
       </div>
 
-      <div class="hd-card mt-3">
-        <div class="hd-card-head">
+      <div class="ad-card mt-3">
+        <div class="ad-card-head">
           <div>
-            <div class="hd-card-title"><i class="fa-solid fa-circle-exclamation"></i> Alerts</div>
-            <div class="hd-card-sub">Needs your attention</div>
+            <div class="ad-card-title"><i class="fa-solid fa-circle-exclamation"></i> Alerts</div>
+            <div class="ad-card-sub">Requires attention</div>
           </div>
         </div>
-        <div class="hd-card-body" id="alertsBox">
+        <div class="ad-card-body" id="alertsBox">
           <div class="skel w80"></div>
           <div class="skel w60" style="margin-top:10px"></div>
           <div class="skel w40" style="margin-top:10px"></div>
@@ -289,15 +284,15 @@
     </div>
 
     {{-- TABLE: Recent items --}}
-    <div class="hd-col-12">
-      <div class="hd-card">
-        <div class="hd-card-head">
+    <div class="ad-col-12">
+      <div class="ad-card">
+        <div class="ad-card-head">
           <div>
-            <div class="hd-card-title"><i class="fa-solid fa-list"></i> Recent Department Updates</div>
-            <div class="hd-card-sub" id="recentSub">Latest updates</div>
+            <div class="ad-card-title"><i class="fa-solid fa-list"></i> Recent</div>
+            <div class="ad-card-sub" id="recentSub">Latest updates</div>
           </div>
         </div>
-        <div class="hd-card-body">
+        <div class="ad-card-body">
           <div class="table-wrap">
             <table class="table table-hover align-middle">
               <thead>
@@ -348,20 +343,11 @@
 
 <script>
 (function(){
-  if (window.__HOD_DASH_INIT__) return;
-  window.__HOD_DASH_INIT__ = true;
+  if (window.__DIRECTOR_DASH_INIT__) return;
+  window.__DIRECTOR_DASH_INIT__ = true;
 
   const token = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
   if (!token) { window.location.href = '/'; return; }
-
-  const wrap = document.getElementById('hodDashWrap');
-  const preferredEndpoint = wrap?.dataset?.endpoint || '/api/hod/dashboard';
-
-  // Fallbacks (only tried if the preferred endpoint fails)
-  const endpointCandidates = [
-    preferredEndpoint,
-    '/api/hod/dashboard'
-  ].filter((v, i, a) => v && a.indexOf(v) === i);
 
   const inlineLoader = document.getElementById('inlineLoader');
   const showInlineLoading = (show) => inlineLoader?.classList.toggle('show', !!show);
@@ -380,10 +366,8 @@
   const heroTitle   = document.getElementById('heroTitle');
   const heroSub     = document.getElementById('heroSub');
   const chipRole    = document.getElementById('chipRole');
-  const chipDept    = document.getElementById('chipDept');
   const chipUpdated = document.getElementById('chipUpdated');
   const btnRefresh  = document.getElementById('btnRefresh');
-  const endpointHint= document.getElementById('endpointHint'); // hidden
 
   const kpiRow   = document.getElementById('kpiRow');
   const kpiNote  = document.getElementById('kpiNote');
@@ -420,49 +404,31 @@
   function isObj(x){ return x && typeof x === 'object' && !Array.isArray(x); }
 
   function normalizeDashboardPayload(raw){
-    /**
-     * Supported shapes (so backend can evolve without breaking UI):
-     *
-     * Best:
-     * {
-     *   success:true,
-     *   data:{
-     *     hero:{ title, sub, role, updated_at, department, user_name },
-     *     user:{ name },
-     *     department:{ id, name, code },
-     *     kpis:[{ icon,label,value,sub,badge }],
-     *     activity:{ labels, values, sub, hint, label } or { points:[{label,value}] },
-     *     quick_actions:[{ title,url,icon,hint }],
-     *     alerts:[{ type, icon, title, sub }],
-     *     recent:{ sub, hint, columns:[{key,label,align}], rows:[{...}] }
-     *   }
-     * }
-     *
-     * Minimal:
-     * { ...data... } or { data:{...} }
-     */
     const root = isObj(raw) ? raw : {};
     const data = isObj(root.data) ? root.data : (isObj(root) && !('success' in root) ? root : {});
     return data;
   }
 
-  // Make technical subtext user-friendly
-  function friendlyHeroSub(rawSub, deptName){
-    const s = (rawSub ?? '').toString().trim();
-    const dn = (deptName ?? '').toString().trim();
-
-    if (!s) {
-      return dn ? `Here’s what’s happening in ${dn} today.` : `Here’s what’s happening in your department today.`;
+  function pickUserName(data){
+    // Support many possible backend shapes safely
+    const hero = isObj(data?.hero) ? data.hero : {};
+    const u = isObj(data?.user) ? data.user : {};
+    const candidates = [
+      hero.user_name,
+      hero.username,
+      hero.name,
+      data.user_name,
+      data.username,
+      data.name,
+      u.name,
+      u.full_name,
+      u.username
+    ];
+    for (const c of candidates){
+      const s = (c ?? '').toString().trim();
+      if (s) return s;
     }
-
-    // Replace known technical wording
-    const lower = s.toLowerCase();
-    if (lower.includes('department scoped access') || lower.includes('dept id') || lower.includes('department_id')) {
-      return dn ? `You’re viewing updates for ${dn}.` : `You’re viewing updates for your department.`;
-    }
-
-    // Generic cleanup (optional)
-    return s;
+    return '';
   }
 
   function renderKPIs(kpis){
@@ -570,7 +536,6 @@
   }
 
   function renderRecent(recent){
-    // recent: { columns:[{key,label,align}], rows:[{...}], hint, sub }
     if(!isObj(recent) || (!isArr(recent.rows) || !recent.rows.length)){
       recentBody.innerHTML = `
         <tr><td colspan="3" class="text-muted">
@@ -587,7 +552,6 @@
           { key:'time',   label:'Time', align:'end' }
         ];
 
-    // Head
     recentHead.innerHTML = columns.map(c => {
       const label = safeStr(c.label, c.key || '—');
       const align = (c.align || '').toString().toLowerCase();
@@ -595,7 +559,6 @@
       return `<th class="${cls}">${label}</th>`;
     }).join('');
 
-    // Body
     recentBody.innerHTML = recent.rows.map(r => {
       return `<tr>${
         columns.map(c => {
@@ -609,7 +572,6 @@
   }
 
   function renderActivity(activity){
-    // activity: { labels:[], values:[], sub, hint } OR { points:[{label,value}] }
     const labels = isArr(activity?.labels) ? activity.labels : [];
     const values = isArr(activity?.values) ? activity.values : [];
 
@@ -664,67 +626,29 @@
     });
   }
 
-  async function fetchDashboardFromCandidates(){
-    let lastErr = null;
-
-    for (const url of endpointCandidates) {
-      try{
-        if (endpointHint) endpointHint.textContent = `GET ${url}`;
-        const res = await fetch(url, { headers: authHeaders() });
-        const js = await res.json().catch(()=>({}));
-
-        if(!res.ok || js.success === false){
-          const msg = js.error || js.message || `Failed (${res.status})`;
-          throw new Error(msg);
-        }
-
-        return { url, json: js };
-      }catch(ex){
-        lastErr = ex;
-        // try next
-      }
-    }
-
-    throw lastErr || new Error('Failed to load dashboard');
-  }
-
   async function loadDashboard(){
     showInlineLoading(true);
     try{
-      const { url, json } = await fetchDashboardFromCandidates();
-      if (endpointHint) endpointHint.textContent = `GET ${url}`;
+      // Same protected endpoint used by admin/director
+      const res = await fetch('/api/admin/dashboard', { headers: authHeaders() });
+      const js = await res.json().catch(()=>({}));
 
-      const data = normalizeDashboardPayload(json);
+      if(!res.ok || js.success === false){
+        throw new Error(js.error || js.message || 'Failed to load dashboard');
+      }
 
-      // HERO / DEPT
+      const data = normalizeDashboardPayload(js);
+
+      // HERO (Welcome, {name} 👋)
       const hero = isObj(data.hero) ? data.hero : {};
-      const deptFromHero = hero.department;
-      const deptObj = isObj(data.department) ? data.department : (isObj(deptFromHero) ? deptFromHero : {});
-      const deptName = safeStr(deptObj?.name || deptObj?.title || hero.department_name || data.department_name, '—');
+      const name = pickUserName(data);
+      heroTitle.textContent = name ? `Welcome, ${name} 👋` : 'Welcome 👋';
+      heroSub.textContent = safeStr(hero.sub, '—');
 
-      // USER NAME (dynamic)
-      const userNameRaw =
-        hero.user_name ||
-        hero.name ||
-        hero.user?.name ||
-        data.user?.name ||
-        data.profile?.name ||
-        data.name ||
-        '';
-
-      const userName = safeStr(userNameRaw, '');
-
-      // Title: Welcome, {name} 👋
-      heroTitle.textContent = userName ? `Welcome, ${userName} 👋` : `Welcome 👋`;
-
-      // Sub: user-friendly (also replaces “department scoped access (Dept ID: xx)” type text)
-      heroSub.textContent = friendlyHeroSub(hero.sub, deptName);
-
-      chipRole.textContent  = safeStr(hero.role, (data.role || 'HOD'));
-      chipDept.textContent  = deptName;
+      chipRole.textContent = safeStr(hero.role, (data.role || 'DIRECTOR'));
       chipUpdated.textContent = fmtDateTime(hero.updated_at || data.updated_at || new Date().toISOString());
 
-      // KPIs / note
+      // KPIs
       renderKPIs(data.kpis);
       kpiNote.textContent = safeStr(data.kpi_note, '');
 
@@ -745,24 +669,11 @@
       console.error(ex);
       err(ex.message || 'Failed to load dashboard');
 
-      heroSub.textContent = 'Could not load your dashboard right now.';
-      chipDept.textContent = '—';
-
+      heroSub.textContent = 'Failed to load dashboard data.';
       kpiRow.innerHTML = `<div class="col-12"><div class="empty">No data (API error).</div></div>`;
       quickActions.innerHTML = `<div class="empty">No data (API error).</div>`;
       alertsBox.innerHTML = `<div class="empty">No data (API error).</div>`;
       recentBody.innerHTML = `<tr><td colspan="3" class="text-muted">No data (API error).</td></tr>`;
-
-      // empty chart
-      const ctx = document.getElementById('activityChart');
-      if (ctx) {
-        if (activityChart) { try { activityChart.destroy(); } catch(_) {} }
-        activityChart = new Chart(ctx, {
-          type: 'line',
-          data: { labels: ['—'], datasets: [{ label: 'No data', data: [0], tension: .35, fill: true }] },
-          options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}} }
-        });
-      }
     }finally{
       showInlineLoading(false);
     }

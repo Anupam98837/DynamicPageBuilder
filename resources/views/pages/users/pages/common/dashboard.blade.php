@@ -20,9 +20,9 @@
     'principal'           => 'modules.dashboard.principalDashboard',
     'hod'                 => 'modules.dashboard.hodDashboard',
     'faculty'             => 'modules.dashboard.facultyDashboard',
-    'technical_assistant' => 'modules.dashboard.technical_assistantDashboard',
-    'it_person'           => 'modules.dashboard.it_personDashboard',
-    'placement_officer'   => 'modules.dashboard.placement_officerDashboard',
+    'technical_assistant' => 'modules.dashboard.technicalAssistantDashboard',
+    'it_person'           => 'modules.dashboard.itPersonDashboard',
+    'placement_officer'   => 'modules.dashboard.placementOfficerDashboard',
   ];
 
   $dashboardView = $role !== '' ? ($roleToView[$role] ?? null) : null;

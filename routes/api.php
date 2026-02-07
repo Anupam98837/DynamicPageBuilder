@@ -95,6 +95,25 @@ Route::get('/auth/check',   [UserController::class, 'authenticateToken']);
 Route::middleware('checkRole:admin,director,principal')
     ->get('/admin/dashboard', [DashboardController::class, 'adminDashboard']);
 
+// ✅ HOD Dashboard
+Route::middleware('checkRole:hod,admin,director,principal')
+    ->get('/hod/dashboard', [DashboardController::class, 'hodDashboard']);
+
+// ✅ Technical Assistant Dashboard
+Route::middleware('checkRole:technical_assistant,admin,director,principal')
+    ->get('/technical-assistant/dashboard', [DashboardController::class, 'technicalAssistantDashboard']);
+
+// ✅ Placement Officer Dashboard
+Route::middleware('checkRole:placement_officer,admin,director,principal')
+    ->get('/placement-officer/dashboard', [DashboardController::class, 'placementOfficerDashboard']);
+
+// ✅ IT Person Dashboard
+Route::middleware('checkRole:it_person,admin,director,principal')
+    ->get('/it-person/dashboard', [DashboardController::class, 'itPersonDashboard']);
+
+// ✅ Faculty Dashboard
+Route::middleware('checkRole:faculty,admin,director,principal')
+    ->get('/faculty/dashboard', [DashboardController::class, 'facultyDashboard']);
 
 /*
 |--------------------------------------------------------------------------
@@ -115,7 +134,7 @@ Route::middleware(['throttle:10,1'])->group(function () {
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['checkRole:admin,director,principal,hod,student'])
+Route::middleware(['checkRole:admin,director,principal,hod,student,technical_assistant,placement_officer,it_person,faculty'])
     ->prefix('users')
     ->group(function () {
         Route::get('/',                  [UserController::class, 'index']);

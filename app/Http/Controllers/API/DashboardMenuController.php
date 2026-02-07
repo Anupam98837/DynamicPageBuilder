@@ -26,6 +26,94 @@ class DashboardMenuController extends Controller
         ];
     }
 
+    /* =========================
+     * Activity log helpers
+     * ========================= */
+
+    private function jsonOrNull($value): ?string
+    {
+        if ($value === null) return null;
+        return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    private function flatDiff(array $before, array $after, array $fields): array
+    {
+        $changed = [];
+        $old = [];
+        $new = [];
+
+        $norm = function ($v) {
+            if ($v === null) return null;
+            if (is_bool($v)) return $v ? '1' : '0';
+            if (is_int($v) || is_float($v) || is_string($v)) return (string) $v;
+            return $this->jsonOrNull($v);
+        };
+
+        foreach ($fields as $f) {
+            $b = $before[$f] ?? null;
+            $a = $after[$f] ?? null;
+
+            if ($norm($b) !== $norm($a)) {
+                $changed[] = $f;
+                $old[$f] = $b;
+                $new[$f] = $a;
+            }
+        }
+
+        return [$changed, $old, $new];
+    }
+
+    /**
+     * Write into user_data_activity_log table.
+     * - NEVER throws (so it won't break business logic)
+     * - Skips if table not present or actor missing
+     */
+    private function logActivity(
+        Request $request,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        ?array $oldValues = null,
+        ?array $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            if (!Schema::hasTable('user_data_activity_log')) return;
+
+            $actor = $this->actor($request);
+            if (empty($actor['id'])) return; // performed_by is NOT NULL in migration
+
+            $ua = (string) ($request->userAgent() ?? '');
+            if (mb_strlen($ua) > 512) $ua = mb_substr($ua, 0, 512);
+
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'       => (int) $actor['id'],
+                'performed_by_role'  => $actor['role'] !== '' ? $actor['role'] : null,
+                'ip'                 => $request->ip(),
+                'user_agent'         => $ua,
+
+                'activity'           => $activity,
+                'module'             => $module,
+
+                'table_name'         => $tableName,
+                'record_id'          => $recordId ? (int) $recordId : null,
+
+                'changed_fields'     => $changedFields ? $this->jsonOrNull(array_values($changedFields)) : null,
+                'old_values'         => $oldValues ? $this->jsonOrNull($oldValues) : null,
+                'new_values'         => $newValues ? $this->jsonOrNull($newValues) : null,
+
+                'log_note'           => $note,
+
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ]);
+        } catch (\Throwable $e) {
+            // swallow (logging must not affect main flow)
+        }
+    }
+
     /**
      * Normalize an incoming href for storage:
      * - strip leading slashes
@@ -119,65 +207,56 @@ class DashboardMenuController extends Controller
     /**
      * Helper to build a safe select array including href only if column exists.
      */
+    protected function moduleSelectColumns($includeDeletedAt = false)
+    {
+        $cols = [
+            'id',
+            'uuid',
 
-protected function moduleSelectColumns($includeDeletedAt = false)
-{
-    $cols = [
-        'id',
-        'uuid',
+            // ✅ REQUIRED for tree structure
+            'parent_id',
 
-        // ✅ REQUIRED for tree structure
-        'parent_id',
+            'name',
+            'description',
+            'status',
+            'created_by',
+            'created_at_ip',
+            'created_at',
+            'updated_at',
+        ];
 
-        // ✅ REQUIRED for your rule: privileges go to children where is_dropdown_head = 0
-        // (Only include if column exists so it won't break older DBs)
-        // We'll push it conditionally below.
-
-        // ✅ Optional but recommended for correct ordering in tree
-        // We'll push it conditionally below.
-
-        'name',
-        'description',
-        'status',
-        'created_by',
-        'created_at_ip',
-        'created_at',
-        'updated_at',
-    ];
-
-    // ✅ Put href after name (or around description like you wanted)
-    if (Schema::hasColumn('dashboard_menu', 'href')) {
-        // after name
-        $nameIndex = array_search('name', $cols, true);
-        if ($nameIndex !== false) {
-            array_splice($cols, $nameIndex + 1, 0, ['href']);
-        } else {
-            $cols[] = 'href';
+        // ✅ Put href after name (or around description like you wanted)
+        if (Schema::hasColumn('dashboard_menu', 'href')) {
+            // after name
+            $nameIndex = array_search('name', $cols, true);
+            if ($nameIndex !== false) {
+                array_splice($cols, $nameIndex + 1, 0, ['href']);
+            } else {
+                $cols[] = 'href';
+            }
         }
+
+        // ✅ Keep dropdown flag if exists
+        if (Schema::hasColumn('dashboard_menu', 'is_dropdown_head')) {
+            // place after parent_id
+            $pidIndex = array_search('parent_id', $cols, true);
+            array_splice($cols, ($pidIndex !== false ? $pidIndex + 1 : 2), 0, ['is_dropdown_head']);
+        }
+
+        // ✅ Keep position if exists (helps order children properly)
+        if (Schema::hasColumn('dashboard_menu', 'position')) {
+            // place after is_dropdown_head if present, else after parent_id
+            $after = array_search('is_dropdown_head', $cols, true);
+            if ($after === false) $after = array_search('parent_id', $cols, true);
+            array_splice($cols, ($after !== false ? $after + 1 : 2), 0, ['position']);
+        }
+
+        if ($includeDeletedAt) {
+            $cols[] = 'deleted_at';
+        }
+
+        return $cols;
     }
-
-    // ✅ Keep dropdown flag if exists
-    if (Schema::hasColumn('dashboard_menu', 'is_dropdown_head')) {
-        // place after parent_id
-        $pidIndex = array_search('parent_id', $cols, true);
-        array_splice($cols, ($pidIndex !== false ? $pidIndex + 1 : 2), 0, ['is_dropdown_head']);
-    }
-
-    // ✅ Keep position if exists (helps order children properly)
-    if (Schema::hasColumn('dashboard_menu', 'position')) {
-        // place after is_dropdown_head if present, else after parent_id
-        $after = array_search('is_dropdown_head', $cols, true);
-        if ($after === false) $after = array_search('parent_id', $cols, true);
-        array_splice($cols, ($after !== false ? $after + 1 : 2), 0, ['position']);
-    }
-
-    if ($includeDeletedAt) {
-        $cols[] = 'deleted_at';
-    }
-
-    return $cols;
-}
-
 
     /**
      * List dashboard menu items (active / all non-deleted). Accepts: per_page, page, q, status, sort, with_privileges
@@ -284,118 +363,145 @@ protected function moduleSelectColumns($includeDeletedAt = false)
 
         return response()->json($out);
     }
-/**
- * Store a new dashboard menu item
- */
-public function store(Request $request)
-{
-    $v = Validator::make($request->all(), [
-        'parent_id' => [
-            'nullable',
-            'integer',
-            Rule::exists('dashboard_menu', 'id')->whereNull('deleted_at'),
-        ],
 
-        'name' => [
-            'required',
-            'string',
-            'max:150',
-            Rule::unique('dashboard_menu', 'name')->whereNull('deleted_at'),
-        ],
+    /**
+     * Store a new dashboard menu item
+     */
+    public function store(Request $request)
+    {
+        $v = Validator::make($request->all(), [
+            'parent_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('dashboard_menu', 'id')->whereNull('deleted_at'),
+            ],
 
-        'href'            => 'nullable|string|max:255',
-        'description'     => 'nullable|string',
-        'status'          => 'nullable|string|max:20',
-        'icon_class'      => 'nullable|string|max:120',
-        'is_dropdown_head'=> 'nullable|in:0,1',
+            'name' => [
+                'required',
+                'string',
+                'max:150',
+                Rule::unique('dashboard_menu', 'name')->whereNull('deleted_at'),
+            ],
 
-        // ✅ new / supported by migration
-        'position'        => 'nullable|integer|min:0',
-    ]);
+            'href'             => 'nullable|string|max:255',
+            'description'      => 'nullable|string',
+            'status'           => 'nullable|string|max:20',
+            'icon_class'       => 'nullable|string|max:120',
+            'is_dropdown_head' => 'nullable|in:0,1',
 
-    if ($v->fails()) {
-        return response()->json(['errors' => $v->errors()], 422);
-    }
+            // ✅ new / supported by migration
+            'position'         => 'nullable|integer|min:0',
+        ]);
 
-    $actor = $this->actor($request);
-    $ip    = $request->ip();
-
-    try {
-        $id = DB::transaction(function () use ($request, $actor, $ip) {
-
-            // normalize href for storage; store NULL when empty
-            $hrefNorm = null;
-            if ($request->has('href')) {
-                $tmp = $this->normalizeHrefForStorage($request->input('href'));
-                $hrefNorm = ($tmp === '') ? null : $tmp;
-            }
-
-            // normalize parent_id strictly (avoid "" being inserted)
-            $parentId = $request->filled('parent_id') ? (int) $request->input('parent_id') : null;
-
-            // ✅ position:
-            // If provided, use it. Else auto-append within siblings (max+1)
-            $position = null;
-            if ($request->filled('position')) {
-                $position = (int) $request->input('position');
-            } else {
-                $maxPos = DB::table('dashboard_menu')
-                    ->whereNull('deleted_at')
-                    ->where(function ($q) use ($parentId) {
-                        if ($parentId === null) $q->whereNull('parent_id');
-                        else $q->where('parent_id', $parentId);
-                    })
-                    ->max('position');
-
-                $position = is_null($maxPos) ? 0 : ((int)$maxPos + 1);
-            }
-
-            $payload = [
-                'uuid'            => (string) Str::uuid(),
-                'parent_id'       => $parentId,
-                'position'        => $position,
-
-                'name'            => trim((string) $request->input('name')),
-                'href'            => $hrefNorm,
-                'description'     => $request->input('description'),
-                'status'          => $request->input('status', 'Active'),
-                'icon_class'      => $request->input('icon_class'),
-                'is_dropdown_head'=> (int) $request->input('is_dropdown_head', 0),
-
-                // ✅ audit (new migration has these)
-                'created_by'      => $actor['id'] ?: null,
-                'created_at_ip'   => $ip,
-                'updated_at_ip'   => $ip,
-
-                // timestamps
-                'created_at'      => now(),
-                'updated_at'      => now(),
-
-                // soft delete
-                'deleted_at'      => null,
-            ];
-
-            return DB::table('dashboard_menu')->insertGetId($payload);
-        });
-
-        $module = DB::table('dashboard_menu')
-            ->where('id', $id)
-            ->first();
-
-        // normalize href for response
-        if ($module && property_exists($module, 'href')) {
-            $module->href = $this->normalizeHrefForResponse($module->href);
+        if ($v->fails()) {
+            return response()->json(['errors' => $v->errors()], 422);
         }
 
-        return response()->json(['module' => $module], 201);
+        $actor = $this->actor($request);
+        $ip    = $request->ip();
 
-    } catch (Exception $e) {
-        return response()->json([
-            'message' => 'Could not create menu item',
-            'error'   => $e->getMessage()
-        ], 500);
+        try {
+            $id = DB::transaction(function () use ($request, $actor, $ip) {
+
+                // normalize href for storage; store NULL when empty
+                $hrefNorm = null;
+                if ($request->has('href')) {
+                    $tmp = $this->normalizeHrefForStorage($request->input('href'));
+                    $hrefNorm = ($tmp === '') ? null : $tmp;
+                }
+
+                // normalize parent_id strictly (avoid "" being inserted)
+                $parentId = $request->filled('parent_id') ? (int) $request->input('parent_id') : null;
+
+                // ✅ position:
+                // If provided, use it. Else auto-append within siblings (max+1)
+                $position = null;
+                if ($request->filled('position')) {
+                    $position = (int) $request->input('position');
+                } else {
+                    $maxPos = DB::table('dashboard_menu')
+                        ->whereNull('deleted_at')
+                        ->where(function ($q) use ($parentId) {
+                            if ($parentId === null) $q->whereNull('parent_id');
+                            else $q->where('parent_id', $parentId);
+                        })
+                        ->max('position');
+
+                    $position = is_null($maxPos) ? 0 : ((int)$maxPos + 1);
+                }
+
+                $payload = [
+                    'uuid'             => (string) Str::uuid(),
+                    'parent_id'        => $parentId,
+                    'position'         => $position,
+
+                    'name'             => trim((string) $request->input('name')),
+                    'href'             => $hrefNorm,
+                    'description'      => $request->input('description'),
+                    'status'           => $request->input('status', 'Active'),
+                    'icon_class'       => $request->input('icon_class'),
+                    'is_dropdown_head' => (int) $request->input('is_dropdown_head', 0),
+
+                    // ✅ audit (new migration has these)
+                    'created_by'       => $actor['id'] ?: null,
+                    'created_at_ip'    => $ip,
+                    'updated_at_ip'    => $ip,
+
+                    // timestamps
+                    'created_at'       => now(),
+                    'updated_at'       => now(),
+
+                    // soft delete
+                    'deleted_at'       => null,
+                ];
+
+                return DB::table('dashboard_menu')->insertGetId($payload);
+            });
+
+            $module = DB::table('dashboard_menu')
+                ->where('id', $id)
+                ->first();
+
+            // ✅ activity log (POST)
+            if ($module) {
+                $snapshot = (array) $module;
+                $fieldsToLog = [
+                    'id','uuid','parent_id','position','name','href','description','status',
+                    'icon_class','is_dropdown_head','created_by','created_at_ip','updated_at_ip',
+                    'created_at','updated_at','deleted_at'
+                ];
+                $changedFields = [];
+                foreach ($fieldsToLog as $f) {
+                    if (array_key_exists($f, $snapshot)) $changedFields[] = $f;
+                }
+
+                $this->logActivity(
+                    $request,
+                    'create',
+                    'dashboard_menu',
+                    'dashboard_menu',
+                    (int) $id,
+                    $changedFields,
+                    null,
+                    $snapshot,
+                    'Created dashboard menu item'
+                );
+            }
+
+            // normalize href for response
+            if ($module && property_exists($module, 'href')) {
+                $module->href = $this->normalizeHrefForResponse($module->href);
+            }
+
+            return response()->json(['module' => $module], 201);
+
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'Could not create menu item',
+                'error'   => $e->getMessage()
+            ], 500);
+        }
     }
-}
 
     /**
      * Attempt to resolve dashboard menu item by id, uuid or slug
@@ -442,126 +548,150 @@ public function store(Request $request)
 
         return response()->json(['module' => $module]);
     }
-/**
- * Full update (PATCH/PUT)
- */
-public function update(Request $request, $identifier)
-{
-    $module = $this->resolveModule($identifier, false);
-    if (! $module) return response()->json(['message' => 'Menu item not found'], 404);
 
-    $v = Validator::make($request->all(), [
-        'parent_id' => [
-            'sometimes',
-            'nullable',
-            'integer',
-            Rule::exists('dashboard_menu', 'id')->whereNull('deleted_at'),
-            function ($attr, $val, $fail) use ($module) {
-                if ($val !== null && (int)$val === (int)$module->id) {
-                    $fail('parent_id cannot be same as the item id.');
+    /**
+     * Full update (PATCH/PUT)
+     */
+    public function update(Request $request, $identifier)
+    {
+        $module = $this->resolveModule($identifier, false);
+        if (! $module) return response()->json(['message' => 'Menu item not found'], 404);
+
+        $v = Validator::make($request->all(), [
+            'parent_id' => [
+                'sometimes',
+                'nullable',
+                'integer',
+                Rule::exists('dashboard_menu', 'id')->whereNull('deleted_at'),
+                function ($attr, $val, $fail) use ($module) {
+                    if ($val !== null && (int)$val === (int)$module->id) {
+                        $fail('parent_id cannot be same as the item id.');
+                    }
                 }
+            ],
+
+            'name' => [
+                'sometimes', 'required', 'string', 'max:150',
+                Rule::unique('dashboard_menu', 'name')
+                    ->ignore($module->id)
+                    ->whereNull('deleted_at'),
+            ],
+
+            'href'             => 'sometimes|nullable|string|max:255',
+            'description'      => 'sometimes|nullable|string',
+            'status'           => 'sometimes|nullable|string|max:20',
+            'icon_class'       => 'sometimes|nullable|string|max:120',
+            'is_dropdown_head' => 'sometimes|nullable|in:0,1',
+
+            // ✅ new migration support
+            'position'         => 'sometimes|integer|min:0',
+        ]);
+
+        if ($v->fails()) return response()->json(['errors' => $v->errors()], 422);
+
+        $actor  = $this->actor($request);
+        $ip     = $request->ip();
+        $before = (array) $module;
+
+        try {
+            DB::transaction(function () use ($request, $module, $actor, $ip) {
+
+                $update = [];
+
+                if ($request->has('parent_id')) {
+                    // normalize: "" => null
+                    $update['parent_id'] = $request->filled('parent_id')
+                        ? (int) $request->input('parent_id')
+                        : null;
+                }
+
+                if ($request->has('name')) {
+                    $update['name'] = trim((string) $request->input('name'));
+                }
+
+                if ($request->has('description')) {
+                    $update['description'] = $request->input('description');
+                }
+
+                if ($request->has('status')) {
+                    $update['status'] = $request->input('status');
+                }
+
+                if ($request->has('icon_class')) {
+                    $update['icon_class'] = $request->input('icon_class');
+                }
+
+                if ($request->has('is_dropdown_head')) {
+                    $update['is_dropdown_head'] = (int) $request->input('is_dropdown_head', 0);
+                }
+
+                if ($request->has('position')) {
+                    $update['position'] = (int) $request->input('position', 0);
+                }
+
+                // href: normalize for storage; store NULL when empty
+                if ($request->has('href')) {
+                    $tmp = $this->normalizeHrefForStorage($request->input('href'));
+                    $update['href'] = ($tmp === '') ? null : $tmp;
+                }
+
+                // nothing meaningful?
+                if (empty($update)) {
+                    throw new \RuntimeException('Nothing to update');
+                }
+
+                // ✅ audit + timestamps per new migration
+                $update['updated_by']    = $actor['id'] ?: null;
+                $update['updated_at_ip'] = $ip;
+                $update['updated_at']    = now();
+
+                DB::table('dashboard_menu')
+                    ->where('id', $module->id)
+                    ->whereNull('deleted_at')
+                    ->update($update);
+            });
+
+            $module = DB::table('dashboard_menu')->where('id', $module->id)->first();
+            $after  = $module ? (array) $module : [];
+
+            // ✅ activity log (PUT/PATCH)
+            if ($module) {
+                $fieldsToCompare = [
+                    'parent_id','position','name','href','description','status','icon_class','is_dropdown_head',
+                    'updated_by','updated_at_ip','updated_at','deleted_at'
+                ];
+                [$changedFields, $oldValues, $newValues] = $this->flatDiff($before, $after, $fieldsToCompare);
+
+                $this->logActivity(
+                    $request,
+                    'update',
+                    'dashboard_menu',
+                    'dashboard_menu',
+                    (int) $module->id,
+                    $changedFields,
+                    $oldValues,
+                    $newValues,
+                    empty($changedFields) ? 'Update called but no field-level change detected' : 'Updated dashboard menu item'
+                );
             }
-        ],
 
-        'name' => [
-            'sometimes', 'required', 'string', 'max:150',
-            Rule::unique('dashboard_menu', 'name')
-                ->ignore($module->id)
-                ->whereNull('deleted_at'),
-        ],
-
-        'href'            => 'sometimes|nullable|string|max:255',
-        'description'     => 'sometimes|nullable|string',
-        'status'          => 'sometimes|nullable|string|max:20',
-        'icon_class'      => 'sometimes|nullable|string|max:120',
-        'is_dropdown_head'=> 'sometimes|nullable|in:0,1',
-
-        // ✅ new migration support
-        'position'        => 'sometimes|integer|min:0',
-    ]);
-
-    if ($v->fails()) return response()->json(['errors' => $v->errors()], 422);
-
-    $actor = $this->actor($request);
-    $ip    = $request->ip();
-
-    try {
-        DB::transaction(function () use ($request, $module, $actor, $ip) {
-
-            $update = [];
-
-            if ($request->has('parent_id')) {
-                // normalize: "" => null
-                $update['parent_id'] = $request->filled('parent_id')
-                    ? (int) $request->input('parent_id')
-                    : null;
+            // normalize href for response
+            if ($module && property_exists($module, 'href')) {
+                $module->href = $this->normalizeHrefForResponse($module->href);
             }
 
-            if ($request->has('name')) {
-                $update['name'] = trim((string) $request->input('name'));
+            return response()->json(['module' => $module]);
+
+        } catch (\RuntimeException $e) {
+            if ($e->getMessage() === 'Nothing to update') {
+                return response()->json(['message' => 'Nothing to update'], 400);
             }
+            return response()->json(['message' => 'Could not update menu item', 'error' => $e->getMessage()], 500);
 
-            if ($request->has('description')) {
-                $update['description'] = $request->input('description');
-            }
-
-            if ($request->has('status')) {
-                $update['status'] = $request->input('status');
-            }
-
-            if ($request->has('icon_class')) {
-                $update['icon_class'] = $request->input('icon_class');
-            }
-
-            if ($request->has('is_dropdown_head')) {
-                $update['is_dropdown_head'] = (int) $request->input('is_dropdown_head', 0);
-            }
-
-            if ($request->has('position')) {
-                $update['position'] = (int) $request->input('position', 0);
-            }
-
-            // href: normalize for storage; store NULL when empty
-            if ($request->has('href')) {
-                $tmp = $this->normalizeHrefForStorage($request->input('href'));
-                $update['href'] = ($tmp === '') ? null : $tmp;
-            }
-
-            // nothing meaningful?
-            if (empty($update)) {
-                throw new \RuntimeException('Nothing to update');
-            }
-
-            // ✅ audit + timestamps per new migration
-            $update['updated_by']    = $actor['id'] ?: null;
-            $update['updated_at_ip'] = $ip;
-            $update['updated_at']    = now();
-
-            DB::table('dashboard_menu')
-                ->where('id', $module->id)
-                ->whereNull('deleted_at')
-                ->update($update);
-        });
-
-        $module = DB::table('dashboard_menu')->where('id', $module->id)->first();
-
-        // normalize href for response
-        if ($module && property_exists($module, 'href')) {
-            $module->href = $this->normalizeHrefForResponse($module->href);
+        } catch (Exception $e) {
+            return response()->json(['message' => 'Could not update menu item', 'error' => $e->getMessage()], 500);
         }
-
-        return response()->json(['module' => $module]);
-
-    } catch (\RuntimeException $e) {
-        if ($e->getMessage() === 'Nothing to update') {
-            return response()->json(['message' => 'Nothing to update'], 400);
-        }
-        return response()->json(['message' => 'Could not update menu item', 'error' => $e->getMessage()], 500);
-
-    } catch (Exception $e) {
-        return response()->json(['message' => 'Could not update menu item', 'error' => $e->getMessage()], 500);
     }
-}
 
     /**
      * Archive a dashboard menu item (set status = 'archived')
@@ -571,8 +701,28 @@ public function update(Request $request, $identifier)
         $module = $this->resolveModule($identifier, false);
         if (! $module) return response()->json(['message' => 'Menu item not found'], 404);
 
+        $before = (array) $module;
+
         try {
             DB::table('dashboard_menu')->where('id', $module->id)->update(['status' => 'archived', 'updated_at' => now()]);
+
+            $fresh = DB::table('dashboard_menu')->where('id', $module->id)->first();
+            if ($fresh) {
+                $after = (array) $fresh;
+                [$changedFields, $oldValues, $newValues] = $this->flatDiff($before, $after, ['status','updated_at']);
+                $this->logActivity(
+                    $request,
+                    'archive',
+                    'dashboard_menu',
+                    'dashboard_menu',
+                    (int) $module->id,
+                    $changedFields,
+                    $oldValues,
+                    $newValues,
+                    'Archived dashboard menu item'
+                );
+            }
+
             return response()->json(['message' => 'Menu item archived']);
         } catch (Exception $e) {
             return response()->json(['message' => 'Could not archive', 'error' => $e->getMessage()], 500);
@@ -587,8 +737,28 @@ public function update(Request $request, $identifier)
         $module = $this->resolveModule($identifier, false);
         if (! $module) return response()->json(['message' => 'Menu item not found'], 404);
 
+        $before = (array) $module;
+
         try {
             DB::table('dashboard_menu')->where('id', $module->id)->update(['status' => 'Active', 'updated_at' => now()]);
+
+            $fresh = DB::table('dashboard_menu')->where('id', $module->id)->first();
+            if ($fresh) {
+                $after = (array) $fresh;
+                [$changedFields, $oldValues, $newValues] = $this->flatDiff($before, $after, ['status','updated_at']);
+                $this->logActivity(
+                    $request,
+                    'unarchive',
+                    'dashboard_menu',
+                    'dashboard_menu',
+                    (int) $module->id,
+                    $changedFields,
+                    $oldValues,
+                    $newValues,
+                    'Unarchived dashboard menu item'
+                );
+            }
+
             return response()->json(['message' => 'Menu item unarchived']);
         } catch (Exception $e) {
             return response()->json(['message' => 'Could not unarchive', 'error' => $e->getMessage()], 500);
@@ -599,119 +769,174 @@ public function update(Request $request, $identifier)
      * Soft-delete menu item — keeps privileges soft-delete
      */
     public function destroy(Request $request, $identifier)
-{
-    $module = $this->resolveModule($identifier, false);
-    if (! $module) {
-        return response()->json(['message' => 'Menu item not found or already deleted'], 404);
-    }
+    {
+        $module = $this->resolveModule($identifier, false);
+        if (! $module) {
+            return response()->json(['message' => 'Menu item not found or already deleted'], 404);
+        }
 
-    try {
-        DB::transaction(function () use ($module) {
-            $now = now();
+        $before = (array) $module;
 
-            // Soft delete dashboard_menu
-            DB::table('dashboard_menu')
-                ->where('id', $module->id)
-                ->update([
-                    'deleted_at' => $now,
-                    'updated_at' => $now,
-                ]);
+        try {
+            DB::transaction(function () use ($module) {
+                $now = now();
 
-            // Soft delete page_privilege (ONLY if table exists)
-            if (Schema::hasTable('page_privilege')) {
-                DB::table('page_privilege')
-                    ->where('dashboard_menu_id', $module->id)
-                    ->whereNull('deleted_at')
+                // Soft delete dashboard_menu
+                DB::table('dashboard_menu')
+                    ->where('id', $module->id)
                     ->update([
                         'deleted_at' => $now,
                         'updated_at' => $now,
                     ]);
+
+                // Soft delete page_privilege (ONLY if table exists)
+                if (Schema::hasTable('page_privilege')) {
+                    DB::table('page_privilege')
+                        ->where('dashboard_menu_id', $module->id)
+                        ->whereNull('deleted_at')
+                        ->update([
+                            'deleted_at' => $now,
+                            'updated_at' => $now,
+                        ]);
+                }
+            });
+
+            // fetch after (including deleted)
+            $afterObj = $this->resolveModule($module->id, true);
+            if ($afterObj) {
+                $after = (array) $afterObj;
+                [$changedFields, $oldValues, $newValues] = $this->flatDiff($before, $after, ['deleted_at','updated_at']);
+                $this->logActivity(
+                    $request,
+                    'delete',
+                    'dashboard_menu',
+                    'dashboard_menu',
+                    (int) $module->id,
+                    $changedFields,
+                    $oldValues,
+                    $newValues,
+                    'Soft-deleted dashboard menu item (and related page_privilege if present)'
+                );
             }
-        });
 
-        return response()->json(['message' => 'Menu item soft-deleted']);
-    } catch (Exception $e) {
-        return response()->json([
-            'message' => 'Could not delete menu item',
-            'error' => $e->getMessage()
-        ], 500);
+            return response()->json(['message' => 'Menu item soft-deleted']);
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'Could not delete menu item',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
-}
-
 
     public function restore(Request $request, $identifier)
-{
-    $module = $this->resolveModule($identifier, true);
-    if (! $module || $module->deleted_at === null) {
-        return response()->json(['message' => 'Menu item not found or not deleted'], 404);
-    }
+    {
+        $module = $this->resolveModule($identifier, true);
+        if (! $module || $module->deleted_at === null) {
+            return response()->json(['message' => 'Menu item not found or not deleted'], 404);
+        }
 
-    try {
-        DB::transaction(function () use ($module) {
-            $now = now();
+        $before = (array) $module;
 
-            // Restore dashboard_menu
-            DB::table('dashboard_menu')
-                ->where('id', $module->id)
-                ->update([
-                    'deleted_at' => null,
-                    'updated_at' => $now,
-                ]);
+        try {
+            DB::transaction(function () use ($module) {
+                $now = now();
 
-            // Restore page_privilege (ONLY if table exists)
-            if (Schema::hasTable('page_privilege')) {
-                DB::table('page_privilege')
-                    ->where('dashboard_menu_id', $module->id)
-                    ->whereNotNull('deleted_at')
+                // Restore dashboard_menu
+                DB::table('dashboard_menu')
+                    ->where('id', $module->id)
                     ->update([
                         'deleted_at' => null,
                         'updated_at' => $now,
                     ]);
-            }
-        });
 
-        $module = DB::table('dashboard_menu')->where('id', $module->id)->first();
-        if (isset($module->href)) {
-            $module->href = $this->normalizeHrefForResponse($module->href);
+                // Restore page_privilege (ONLY if table exists)
+                if (Schema::hasTable('page_privilege')) {
+                    DB::table('page_privilege')
+                        ->where('dashboard_menu_id', $module->id)
+                        ->whereNotNull('deleted_at')
+                        ->update([
+                            'deleted_at' => null,
+                            'updated_at' => $now,
+                        ]);
+                }
+            });
+
+            $module = DB::table('dashboard_menu')->where('id', $module->id)->first();
+
+            // ✅ activity log (POST-ish restore)
+            if ($module) {
+                $after = (array) $module;
+                [$changedFields, $oldValues, $newValues] = $this->flatDiff($before, $after, ['deleted_at','updated_at']);
+                $this->logActivity(
+                    $request,
+                    'restore',
+                    'dashboard_menu',
+                    'dashboard_menu',
+                    (int) $module->id,
+                    $changedFields,
+                    $oldValues,
+                    $newValues,
+                    'Restored dashboard menu item (and related page_privilege if present)'
+                );
+            }
+
+            if (isset($module->href)) {
+                $module->href = $this->normalizeHrefForResponse($module->href);
+            }
+
+            return response()->json(['module' => $module, 'message' => 'Menu item restored']);
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'Could not restore menu item',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        return response()->json(['module' => $module, 'message' => 'Menu item restored']);
-    } catch (Exception $e) {
-        return response()->json([
-            'message' => 'Could not restore menu item',
-            'error' => $e->getMessage()
-        ], 500);
     }
-}
-public function forceDelete(Request $request, $identifier)
-{
-    $module = $this->resolveModule($identifier, true);
-    if (! $module) return response()->json(['message' => 'Menu item not found'], 404);
 
-    try {
-        DB::transaction(function () use ($module) {
+    public function forceDelete(Request $request, $identifier)
+    {
+        $module = $this->resolveModule($identifier, true);
+        if (! $module) return response()->json(['message' => 'Menu item not found'], 404);
 
-            // Hard delete page_privilege first (optional; cascade also covers it)
-            if (Schema::hasTable('page_privilege')) {
-                DB::table('page_privilege')
-                    ->where('dashboard_menu_id', $module->id)
+        $before = (array) $module;
+
+        try {
+            DB::transaction(function () use ($module) {
+
+                // Hard delete page_privilege first (optional; cascade also covers it)
+                if (Schema::hasTable('page_privilege')) {
+                    DB::table('page_privilege')
+                        ->where('dashboard_menu_id', $module->id)
+                        ->delete();
+                }
+
+                // Hard delete dashboard_menu
+                DB::table('dashboard_menu')
+                    ->where('id', $module->id)
                     ->delete();
-            }
+            });
 
-            // Hard delete dashboard_menu
-            DB::table('dashboard_menu')
-                ->where('id', $module->id)
-                ->delete();
-        });
+            // ✅ activity log (DELETE)
+            $this->logActivity(
+                $request,
+                'force_delete',
+                'dashboard_menu',
+                'dashboard_menu',
+                (int) $module->id,
+                ['hard_delete'],
+                $before,
+                null,
+                'Permanently deleted dashboard menu item (and related page_privilege if present)'
+            );
 
-        return response()->json(['message' => 'Menu item permanently deleted']);
-    } catch (Exception $e) {
-        return response()->json([
-            'message' => 'Could not permanently delete menu item',
-            'error' => $e->getMessage()
-        ], 500);
+            return response()->json(['message' => 'Menu item permanently deleted']);
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'Could not permanently delete menu item',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
-}
 
     /**
      * Reorder menu items — expects { ids: [id1,id2,id3,...] }
@@ -734,132 +959,138 @@ public function forceDelete(Request $request, $identifier)
                     }
                 }
             });
+
+            // ✅ activity log (POST)
+            $this->logActivity(
+                $request,
+                'reorder',
+                'dashboard_menu',
+                'dashboard_menu',
+                null,
+                ['order_no'],
+                null,
+                ['ids' => $ids],
+                'Reordered dashboard_menu items'
+            );
+
             return response()->json(['message' => 'Order updated']);
         } catch (Exception $e) {
             return response()->json(['message' => 'Could not update order', 'error' => $e->getMessage()], 500);
         }
     }
-/**
- * Return dashboard menu as TREE with privileges attached ONLY to children
- * where is_dropdown_head == 0.
- *
- * Output:
- * [
- *   { id, name, ..., children:[...], privileges:[...] },
- *   ...
- * ]
- */
-public function allWithPrivileges(Request $request)
-{
-    $modules = DB::table('dashboard_menu')
-        ->whereNull('deleted_at')
-        ->select($this->moduleSelectColumns(false))
-        ->orderBy('position', 'asc')
-        ->orderBy('id', 'asc')
-        ->get();
 
-    if ($modules->isEmpty()) {
-        return response()->json(['success' => true, 'data' => []]);
-    }
+    /**
+     * Return dashboard menu as TREE with privileges attached ONLY to children
+     * where is_dropdown_head == 0.
+     */
+    public function allWithPrivileges(Request $request)
+    {
+        $modules = DB::table('dashboard_menu')
+            ->whereNull('deleted_at')
+            ->select($this->moduleSelectColumns(false))
+            ->orderBy('position', 'asc')
+            ->orderBy('id', 'asc')
+            ->get();
 
-    $ids = $modules->pluck('id')->all();
+        if ($modules->isEmpty()) {
+            return response()->json(['success' => true, 'data' => []]);
+        }
 
-    $privilegesByMenuId = DB::table('page_privilege')
-        ->whereIn('dashboard_menu_id', $ids)
-        ->whereNull('deleted_at')
-        ->select(
-            'id',
-            'uuid',
-            'dashboard_menu_id',
-            DB::raw('action as name'),
-            'action',
-            'description',
-            'created_at'
-        )
-        ->orderBy('action', 'asc')
-        ->get()
-        ->groupBy('dashboard_menu_id');
+        $ids = $modules->pluck('id')->all();
 
-    $byId = [];
-    $byParent = [];
+        $privilegesByMenuId = DB::table('page_privilege')
+            ->whereIn('dashboard_menu_id', $ids)
+            ->whereNull('deleted_at')
+            ->select(
+                'id',
+                'uuid',
+                'dashboard_menu_id',
+                DB::raw('action as name'),
+                'action',
+                'description',
+                'created_at'
+            )
+            ->orderBy('action', 'asc')
+            ->get()
+            ->groupBy('dashboard_menu_id');
 
-    foreach ($modules as $m) {
-        $m->href = $m->href ? $this->normalizeHrefForResponse($m->href) : '';
-        $m->children = [];
-        $m->privileges = [];
+        $byId = [];
+        $byParent = [];
 
-        $byId[$m->id] = $m;
-        $byParent[$m->parent_id][] = $m->id;
-    }
+        foreach ($modules as $m) {
+            $m->href = $m->href ? $this->normalizeHrefForResponse($m->href) : '';
+            $m->children = [];
+            $m->privileges = [];
 
-    $makeTree = function ($pid) use (&$makeTree, &$byParent, &$byId, $privilegesByMenuId) {
-        $nodes = [];
+            $byId[$m->id] = $m;
+            $byParent[$m->parent_id][] = $m->id;
+        }
 
-        foreach ($byParent[$pid] ?? [] as $id) {
-            $node = $byId[$id];
+        $makeTree = function ($pid) use (&$makeTree, &$byParent, &$byId, $privilegesByMenuId) {
+            $nodes = [];
 
-            // recurse
-            $node->children = $makeTree($node->id);
+            foreach ($byParent[$pid] ?? [] as $id) {
+                $node = $byId[$id];
 
-            // privileges only if NOT dropdown head
-            if ((int)($node->is_dropdown_head ?? 0) === 0) {
-                $node->privileges = $privilegesByMenuId[$node->id] ?? collect([]);
+                // recurse
+                $node->children = $makeTree($node->id);
+
+                // privileges only if NOT dropdown head
+                if ((int)($node->is_dropdown_head ?? 0) === 0) {
+                    $node->privileges = $privilegesByMenuId[$node->id] ?? collect([]);
+                }
+
+                $nodes[] = $node;
             }
 
-            $nodes[] = $node;
-        }
+            return $nodes;
+        };
 
-        return $nodes;
-    };
-
-    return response()->json([
-        'success' => true,
-        'data' => array_merge(
-            $makeTree(null), // ✅ REAL ROOTS
-            $makeTree(0)
-        ),
-    ]);
-}
-
+        return response()->json([
+            'success' => true,
+            'data' => array_merge(
+                $makeTree(null), // ✅ REAL ROOTS
+                $makeTree(0)
+            ),
+        ]);
+    }
 
     public function tree(Request $r)
-{
-    $onlyActive = (int) $r->query('only_active', 0) === 1;
+    {
+        $onlyActive = (int) $r->query('only_active', 0) === 1;
 
-    $q = DB::table('dashboard_menu')
-        ->whereNull('deleted_at');
+        $q = DB::table('dashboard_menu')
+            ->whereNull('deleted_at');
 
-    // ✅ Your table does NOT have `active` column.
-    // Use `status` (default 'Active') from your migration.
-    if ($onlyActive) {
-        $q->whereRaw('LOWER(status) = ?', ['active']);
-        // or: $q->where('status', 'Active');
-    }
-
-    $rows = $q->orderBy('position', 'asc')
-              ->orderBy('id', 'asc')
-              ->get();
-
-    // Build tree in memory
-    $byParent = [];
-    foreach ($rows as $row) {
-        $pid = $row->parent_id ?? 0; // keep your existing root handling
-        $byParent[$pid][] = $row;
-    }
-
-    $make = function ($pid) use (&$make, &$byParent) {
-        $nodes = $byParent[$pid] ?? [];
-        foreach ($nodes as $n) {
-            $n->children = $make($n->id);
+        // ✅ Your table does NOT have `active` column.
+        // Use `status` (default 'Active') from your migration.
+        if ($onlyActive) {
+            $q->whereRaw('LOWER(status) = ?', ['active']);
+            // or: $q->where('status', 'Active');
         }
-        return $nodes;
-    };
 
-    return response()->json([
-        'success' => true,
-        'data' => $make(0),
-    ]);
-}
+        $rows = $q->orderBy('position', 'asc')
+                  ->orderBy('id', 'asc')
+                  ->get();
 
+        // Build tree in memory
+        $byParent = [];
+        foreach ($rows as $row) {
+            $pid = $row->parent_id ?? 0; // keep your existing root handling
+            $byParent[$pid][] = $row;
+        }
+
+        $make = function ($pid) use (&$make, &$byParent) {
+            $nodes = $byParent[$pid] ?? [];
+            foreach ($nodes as $n) {
+                $n->children = $make($n->id);
+            }
+            return $nodes;
+        };
+
+        return response()->json([
+            'success' => true,
+            'data' => $make(0),
+        ]);
+    }
 }
-          

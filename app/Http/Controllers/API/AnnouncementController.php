@@ -26,6 +26,74 @@ class AnnouncementController extends Controller
         ];
     }
 
+    /**
+     * Insert into user_data_activity_log safely (never breaks primary flow)
+     * Logs ONLY for non-GET mutations (create/update/delete/restore/force_delete/toggle_featured).
+     */
+    private function logActivity(
+        Request $r,
+        string $activity,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        $oldValues = null,
+        $newValues = null,
+        ?string $note = null,
+        string $module = 'announcements'
+    ): void {
+        try {
+            if (!Schema::hasTable('user_data_activity_log')) return;
+
+            $a = $this->actor($r);
+
+            // keep UA within migration limit (512)
+            $ua = (string) ($r->userAgent() ?? '');
+            if (strlen($ua) > 512) $ua = substr($ua, 0, 512);
+
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'      => (int) ($a['id'] ?? 0),
+                'performed_by_role' => trim((string) ($a['role'] ?? '')) !== '' ? (string) $a['role'] : null,
+                'ip'                => $r->ip(),
+                'user_agent'        => $ua,
+
+                'activity'          => $activity,
+                'module'            => $module,
+
+                'table_name'        => $tableName,
+                'record_id'         => $recordId,
+
+                'changed_fields'    => $changedFields !== null ? json_encode(array_values($changedFields)) : null,
+                'old_values'        => $oldValues !== null ? json_encode($oldValues) : null,
+                'new_values'        => $newValues !== null ? json_encode($newValues) : null,
+
+                'log_note'          => $note,
+
+                'created_at'        => now(),
+                'updated_at'        => now(),
+            ]);
+        } catch (\Throwable $e) {
+            // never block real APIs because of logging
+        }
+    }
+
+    private function subsetRow($row, array $keys): array
+    {
+        $out = [];
+        if (!$row) {
+            foreach ($keys as $k) $out[$k] = null;
+            return $out;
+        }
+
+        foreach ($keys as $k) {
+            if (is_array($row)) {
+                $out[$k] = array_key_exists($k, $row) ? $row[$k] : null;
+            } else {
+                $out[$k] = $row->{$k} ?? null;
+            }
+        }
+        return $out;
+    }
+
     private function normSlug(?string $s): string
     {
         $s = trim((string) $s);
@@ -683,31 +751,47 @@ class AnnouncementController extends Controller
         $requestForApproval = $featured === 1 ? 1 : 0;
 
         $id = DB::table('announcements')->insertGetId([
-            'uuid'               => $uuid,
-            'department_id'      => $validated['department_id'] ?? null,
-            'title'              => $validated['title'],
-            'slug'               => $slug,
-            'body'               => $validated['body'],
-            'cover_image'        => $coverPath,
-            'attachments_json'   => !empty($attachments) ? json_encode($attachments) : null,
-            'is_featured_home'   => $featured,
+            'uuid'                 => $uuid,
+            'department_id'        => $validated['department_id'] ?? null,
+            'title'                => $validated['title'],
+            'slug'                 => $slug,
+            'body'                 => $validated['body'],
+            'cover_image'          => $coverPath,
+            'attachments_json'     => !empty($attachments) ? json_encode($attachments) : null,
+            'is_featured_home'     => $featured,
 
             // ✅ NEW: Authority Control Flag
             'request_for_approval' => $requestForApproval,
 
-            'status'             => (string) ($validated['status'] ?? 'draft'),
-            'publish_at'         => !empty($validated['publish_at']) ? Carbon::parse($validated['publish_at']) : null,
-            'expire_at'          => !empty($validated['expire_at']) ? Carbon::parse($validated['expire_at']) : null,
-            'views_count'        => 0,
-            'created_by'         => $actor['id'] ?: null,
-            'created_at'         => $now,
-            'updated_at'         => $now,
-            'created_at_ip'      => $request->ip(),
-            'updated_at_ip'      => $request->ip(),
-            'metadata'           => $metadata !== null ? json_encode($metadata) : null,
+            'status'               => (string) ($validated['status'] ?? 'draft'),
+            'publish_at'           => !empty($validated['publish_at']) ? Carbon::parse($validated['publish_at']) : null,
+            'expire_at'            => !empty($validated['expire_at']) ? Carbon::parse($validated['expire_at']) : null,
+            'views_count'          => 0,
+            'created_by'           => $actor['id'] ?: null,
+            'created_at'           => $now,
+            'updated_at'           => $now,
+            'created_at_ip'        => $request->ip(),
+            'updated_at_ip'        => $request->ip(),
+            'metadata'             => $metadata !== null ? json_encode($metadata) : null,
         ]);
 
         $row = DB::table('announcements')->where('id', $id)->first();
+
+        // ✅ ACTIVITY LOG (POST)
+        $createFields = [
+            'department_id','title','slug','body','cover_image','attachments_json',
+            'is_featured_home','request_for_approval','status','publish_at','expire_at','metadata'
+        ];
+        $this->logActivity(
+            $request,
+            'create',
+            'announcements',
+            (int) $id,
+            $createFields,
+            null,
+            $this->subsetRow($row, $createFields),
+            'Announcement created'
+        );
 
         return response()->json([
             'success' => true,
@@ -734,7 +818,7 @@ class AnnouncementController extends Controller
 
         // force department_id (always)
         $request->merge(['department_id' => (int) $dept->id]);
-        return $this->store($request);
+        return $this->store($request); // logs happen inside store()
     }
 
     public function update(Request $request, $identifier)
@@ -755,6 +839,9 @@ class AnnouncementController extends Controller
 
         $row = $this->resolveAnnouncement($request, $identifier, true, $deptId);
         if (! $row) return response()->json(['message' => 'Announcement not found'], 404);
+
+        // ✅ OLD SNAPSHOT (for log)
+        $oldDbRow = DB::table('announcements')->where('id', (int) $row->id)->first();
 
         $validated = $request->validate([
             'department_id'      => ['nullable', 'integer', 'exists:departments,id'],
@@ -905,6 +992,21 @@ class AnnouncementController extends Controller
 
         $fresh = DB::table('announcements')->where('id', (int) $row->id)->first();
 
+        // ✅ ACTIVITY LOG (PUT/PATCH)
+        $changedKeys = array_keys($update);
+        // don't spam with timestamps for "changed_fields"
+        $changedKeys = array_values(array_diff($changedKeys, ['updated_at', 'updated_at_ip']));
+        $this->logActivity(
+            $request,
+            'update',
+            'announcements',
+            (int) $row->id,
+            $changedKeys,
+            $this->subsetRow($oldDbRow, $changedKeys),
+            $this->subsetRow($fresh, $changedKeys),
+            'Announcement updated'
+        );
+
         return response()->json([
             'success' => true,
             'data'    => $fresh ? $this->normalizeRow($fresh) : null,
@@ -925,6 +1027,9 @@ class AnnouncementController extends Controller
         $row = $this->resolveAnnouncement($request, $identifier, true, $deptId);
         if (! $row) return response()->json(['message' => 'Announcement not found'], 404);
 
+        // ✅ OLD SNAPSHOT (for log)
+        $oldDbRow = DB::table('announcements')->where('id', (int) $row->id)->first();
+
         $new = ((int) ($row->is_featured_home ?? 0)) ? 0 : 1;
 
         DB::table('announcements')->where('id', (int) $row->id)->update([
@@ -938,6 +1043,19 @@ class AnnouncementController extends Controller
         ]);
 
         $fresh = DB::table('announcements')->where('id', (int) $row->id)->first();
+
+        // ✅ ACTIVITY LOG (PATCH)
+        $keys = ['is_featured_home', 'request_for_approval'];
+        $this->logActivity(
+            $request,
+            'toggle_featured',
+            'announcements',
+            (int) $row->id,
+            $keys,
+            $this->subsetRow($oldDbRow, $keys),
+            $this->subsetRow($fresh, $keys),
+            $new === 1 ? 'Featured enabled' : 'Featured disabled'
+        );
 
         return response()->json([
             'success' => true,
@@ -959,11 +1077,29 @@ class AnnouncementController extends Controller
         $row = $this->resolveAnnouncement($request, $identifier, false, $deptId);
         if (! $row) return response()->json(['message' => 'Not found or already deleted'], 404);
 
+        // ✅ OLD SNAPSHOT (for log)
+        $oldDbRow = DB::table('announcements')->where('id', (int) $row->id)->first();
+
         DB::table('announcements')->where('id', (int) $row->id)->update([
             'deleted_at'    => now(),
             'updated_at'    => now(),
             'updated_at_ip' => $request->ip(),
         ]);
+
+        $fresh = DB::table('announcements')->where('id', (int) $row->id)->first();
+
+        // ✅ ACTIVITY LOG (DELETE)
+        $keys = ['deleted_at'];
+        $this->logActivity(
+            $request,
+            'delete',
+            'announcements',
+            (int) $row->id,
+            $keys,
+            $this->subsetRow($oldDbRow, $keys),
+            $this->subsetRow($fresh, $keys),
+            'Announcement moved to trash'
+        );
 
         return response()->json(['success' => true]);
     }
@@ -984,6 +1120,9 @@ class AnnouncementController extends Controller
             return response()->json(['message' => 'Not found in bin'], 404);
         }
 
+        // ✅ OLD SNAPSHOT (for log)
+        $oldDbRow = DB::table('announcements')->where('id', (int) $row->id)->first();
+
         DB::table('announcements')->where('id', (int) $row->id)->update([
             'deleted_at'    => null,
             'updated_at'    => now(),
@@ -991,6 +1130,19 @@ class AnnouncementController extends Controller
         ]);
 
         $fresh = DB::table('announcements')->where('id', (int) $row->id)->first();
+
+        // ✅ ACTIVITY LOG (POST/PATCH)
+        $keys = ['deleted_at'];
+        $this->logActivity(
+            $request,
+            'restore',
+            'announcements',
+            (int) $row->id,
+            $keys,
+            $this->subsetRow($oldDbRow, $keys),
+            $this->subsetRow($fresh, $keys),
+            'Announcement restored from trash'
+        );
 
         return response()->json([
             'success' => true,
@@ -1012,6 +1164,9 @@ class AnnouncementController extends Controller
         $row = $this->resolveAnnouncement($request, $identifier, true, $deptId);
         if (! $row) return response()->json(['message' => 'Announcement not found'], 404);
 
+        // ✅ OLD SNAPSHOT (for log) - capture key data before deletion
+        $oldDbRow = DB::table('announcements')->where('id', (int) $row->id)->first();
+
         // delete cover
         $this->deletePublicPath($row->cover_image ?? null);
 
@@ -1027,6 +1182,22 @@ class AnnouncementController extends Controller
         }
 
         DB::table('announcements')->where('id', (int) $row->id)->delete();
+
+        // ✅ ACTIVITY LOG (DELETE - force)
+        $keys = [
+            'id','uuid','department_id','title','slug','status','is_featured_home','request_for_approval',
+            'publish_at','expire_at','cover_image','attachments_json','deleted_at','created_by','created_at','updated_at'
+        ];
+        $this->logActivity(
+            $request,
+            'force_delete',
+            'announcements',
+            (int) $row->id,
+            ['force_delete'],
+            $this->subsetRow($oldDbRow, $keys),
+            null,
+            'Announcement permanently deleted'
+        );
 
         return response()->json(['success' => true]);
     }

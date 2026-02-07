@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 
@@ -100,6 +101,100 @@ class CourseSemesterController extends Controller
             return $this->colCache[$k] = Schema::hasColumn($table, $col);
         } catch (\Throwable $e) {
             return $this->colCache[$k] = false;
+        }
+    }
+
+    protected function pickArray(array $arr, array $keys): array
+    {
+        $out = [];
+        foreach ($keys as $k) {
+            if (array_key_exists($k, $arr)) $out[$k] = $arr[$k];
+        }
+        return $out;
+    }
+
+    protected function safeJson($value): ?string
+    {
+        if ($value === null) return null;
+        try {
+            $json = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            return (json_last_error() === JSON_ERROR_NONE) ? $json : null;
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * ✅ Activity logging (NEVER breaks API flow)
+     * Logs for POST/PUT/PATCH/DELETE operations (non-GET).
+     */
+    protected function logActivity(
+        Request $request,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        ?array $oldValues = null,
+        ?array $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            if (!Schema::hasTable('user_data_activity_log')) return;
+
+            $actor = $this->actor($request);
+
+            $ua = (string) $request->userAgent();
+            if (strlen($ua) > 512) $ua = substr($ua, 0, 512);
+
+            $role = trim((string) ($actor['role'] ?? ''));
+            if ($role !== '' && strlen($role) > 50) $role = substr($role, 0, 50);
+
+            $activity = substr((string) $activity, 0, 50);
+            $module   = substr((string) $module, 0, 100);
+            $tableName= substr((string) $tableName, 0, 128);
+
+            $changedFieldsJson = null;
+            if (is_array($changedFields)) {
+                // store as array of field names
+                $changedFieldsJson = $this->safeJson(array_values($changedFields));
+            }
+
+            $oldJson = is_array($oldValues) ? $this->safeJson($oldValues) : null;
+            $newJson = is_array($newValues) ? $this->safeJson($newValues) : null;
+
+            // keep log_note safe-ish
+            $noteStr = $note !== null ? (string) $note : null;
+            if ($noteStr !== null && strlen($noteStr) > 5000) $noteStr = substr($noteStr, 0, 5000);
+
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'      => (int) ($actor['id'] ?? 0),
+                'performed_by_role' => $role !== '' ? $role : null,
+                'ip'                => $request->ip(),
+                'user_agent'        => $ua !== '' ? $ua : null,
+
+                'activity'          => $activity,
+                'module'            => $module,
+
+                'table_name'        => $tableName,
+                'record_id'         => $recordId,
+
+                'changed_fields'    => $changedFieldsJson,
+                'old_values'        => $oldJson,
+                'new_values'        => $newJson,
+
+                'log_note'          => $noteStr,
+
+                'created_at'        => now(),
+                'updated_at'        => now(),
+            ]);
+        } catch (\Throwable $e) {
+            // Never let logging break any controller response
+            try {
+                Log::warning('user_data_activity_log insert failed: ' . $e->getMessage());
+            } catch (\Throwable $e2) {
+                // ignore
+            }
         }
     }
 
@@ -683,6 +778,30 @@ class CourseSemesterController extends Controller
 
         $row = DB::table('course_semesters')->where('id', $id)->first();
 
+        // ✅ LOG (POST)
+        $trackKeys = [
+            'uuid','course_id','department_id','semester_no','title','description',
+            'code','slug','total_credits','syllabus_url','sort_order','status',
+            'publish_at','expire_at','metadata'
+        ];
+        $newArr = $row ? (array) $row : [];
+        $changed = [];
+        foreach ($trackKeys as $k) {
+            // on create, consider these as changed if present
+            if (array_key_exists($k, $newArr)) $changed[] = $k;
+        }
+        $this->logActivity(
+            $request,
+            'create',
+            'course_semesters',
+            'course_semesters',
+            (int) $id,
+            $changed,
+            null,
+            $this->pickArray($newArr, $changed),
+            'Created course semester'
+        );
+
         return response()->json([
             'success' => true,
             'data'    => $row ? $this->normalizeRow($row) : null,
@@ -707,6 +826,7 @@ class CourseSemesterController extends Controller
         // force department_id for dept users (store() also enforces, but keep consistent)
         if ($deptScope !== null) $request->merge(['department_id' => $deptScope]);
 
+        // ✅ store() will log create
         return $this->store($request);
     }
 
@@ -722,6 +842,10 @@ class CourseSemesterController extends Controller
 
         $row = $this->resolveSemester($request, $identifier, true, null, $deptScope);
         if (! $row) return response()->json(['message' => 'Course semester not found'], 404);
+
+        // ✅ snapshot BEFORE update for logging
+        $before = DB::table('course_semesters')->where('id', (int) $row->id)->first();
+        $beforeArr = $before ? (array) $before : [];
 
         $validated = $request->validate([
             'course_id'       => ['nullable', 'integer', 'exists:courses,id'],
@@ -866,6 +990,37 @@ class CourseSemesterController extends Controller
         DB::table('course_semesters')->where('id', (int) $row->id)->update($update);
 
         $fresh = DB::table('course_semesters')->where('id', (int) $row->id)->first();
+        $afterArr = $fresh ? (array) $fresh : [];
+
+        // ✅ LOG (PUT/PATCH)
+        $trackKeys = [
+            'course_id','department_id','semester_no','title','description',
+            'code','slug','total_credits','syllabus_url','sort_order','status',
+            'publish_at','expire_at','metadata','deleted_at'
+        ];
+        $changed = [];
+        foreach ($trackKeys as $k) {
+            $old = array_key_exists($k, $beforeArr) ? $beforeArr[$k] : null;
+            $new = array_key_exists($k, $afterArr)  ? $afterArr[$k]  : null;
+
+            // normalize for compare
+            $oldN = is_string($old) ? trim($old) : $old;
+            $newN = is_string($new) ? trim($new) : $new;
+
+            if ($oldN != $newN) $changed[] = $k;
+        }
+
+        $this->logActivity(
+            $request,
+            'update',
+            'course_semesters',
+            'course_semesters',
+            (int) $row->id,
+            $changed,
+            $this->pickArray($beforeArr, $changed),
+            $this->pickArray($afterArr,  $changed),
+            'Updated course semester'
+        );
 
         return response()->json([
             'success' => true,
@@ -886,11 +1041,34 @@ class CourseSemesterController extends Controller
         $row = $this->resolveSemester($request, $identifier, false, null, $deptScope);
         if (! $row) return response()->json(['message' => 'Not found or already deleted'], 404);
 
+        // ✅ snapshot BEFORE delete for logging
+        $before = DB::table('course_semesters')->where('id', (int) $row->id)->first();
+        $beforeArr = $before ? (array) $before : [];
+
+        $now = now();
+
         DB::table('course_semesters')->where('id', (int) $row->id)->update([
-            'deleted_at'    => now(),
-            'updated_at'    => now(),
+            'deleted_at'    => $now,
+            'updated_at'    => $now,
             'updated_at_ip' => $request->ip(),
         ]);
+
+        $after = DB::table('course_semesters')->where('id', (int) $row->id)->first();
+        $afterArr = $after ? (array) $after : [];
+
+        // ✅ LOG (DELETE - soft)
+        $changed = ['deleted_at'];
+        $this->logActivity(
+            $request,
+            'delete',
+            'course_semesters',
+            'course_semesters',
+            (int) $row->id,
+            $changed,
+            $this->pickArray($beforeArr, $changed),
+            $this->pickArray($afterArr,  $changed),
+            'Soft deleted course semester'
+        );
 
         return response()->json(['success' => true]);
     }
@@ -910,13 +1088,34 @@ class CourseSemesterController extends Controller
             return response()->json(['message' => 'Not found in bin'], 404);
         }
 
+        // ✅ snapshot BEFORE restore for logging
+        $before = DB::table('course_semesters')->where('id', (int) $row->id)->first();
+        $beforeArr = $before ? (array) $before : [];
+
+        $now = now();
+
         DB::table('course_semesters')->where('id', (int) $row->id)->update([
             'deleted_at'    => null,
-            'updated_at'    => now(),
+            'updated_at'    => $now,
             'updated_at_ip' => $request->ip(),
         ]);
 
         $fresh = DB::table('course_semesters')->where('id', (int) $row->id)->first();
+        $afterArr = $fresh ? (array) $fresh : [];
+
+        // ✅ LOG (PATCH/POST - restore)
+        $changed = ['deleted_at'];
+        $this->logActivity(
+            $request,
+            'restore',
+            'course_semesters',
+            'course_semesters',
+            (int) $row->id,
+            $changed,
+            $this->pickArray($beforeArr, $changed),
+            $this->pickArray($afterArr,  $changed),
+            'Restored course semester'
+        );
 
         return response()->json([
             'success' => true,
@@ -937,9 +1136,26 @@ class CourseSemesterController extends Controller
         $row = $this->resolveSemester($request, $identifier, true, null, $deptScope);
         if (! $row) return response()->json(['message' => 'Course semester not found'], 404);
 
+        // ✅ snapshot BEFORE hard delete for logging
+        $before = DB::table('course_semesters')->where('id', (int) $row->id)->first();
+        $beforeArr = $before ? (array) $before : [];
+
         $this->deletePublicPath($row->syllabus_url ?? null);
 
         DB::table('course_semesters')->where('id', (int) $row->id)->delete();
+
+        // ✅ LOG (DELETE - force)
+        $this->logActivity(
+            $request,
+            'force_delete',
+            'course_semesters',
+            'course_semesters',
+            (int) $row->id,
+            ['force_delete'],
+            $beforeArr,
+            null,
+            'Permanently deleted course semester'
+        );
 
         return response()->json(['success' => true]);
     }
@@ -1289,6 +1505,20 @@ class CourseSemesterController extends Controller
         } catch (\Throwable $e) {
             DB::rollBack();
             fclose($handle);
+
+            // ✅ LOG (POST - import failed)
+            $this->logActivity(
+                $request,
+                'import_failed',
+                'course_semesters',
+                'course_semesters',
+                null,
+                ['import'],
+                null,
+                ['error' => $e->getMessage()],
+                'CSV import failed'
+            );
+
             return response()->json([
                 'success' => false,
                 'message' => 'Import failed: ' . $e->getMessage(),
@@ -1297,13 +1527,32 @@ class CourseSemesterController extends Controller
 
         fclose($handle);
 
-        return response()->json([
+        $resp = [
             'success'  => true,
             'message'  => 'Import completed',
             'inserted' => $inserted,
             'skipped'  => $skipped,
             'failed'   => count($failed),
             'errors'   => array_slice($failed, 0, 50),
-        ]);
+        ];
+
+        // ✅ LOG (POST - import)
+        $this->logActivity(
+            $request,
+            'import',
+            'course_semesters',
+            'course_semesters',
+            null,
+            ['import'],
+            null,
+            [
+                'inserted' => $inserted,
+                'skipped'  => $skipped,
+                'failed'   => count($failed),
+            ],
+            'Imported course semesters via CSV'
+        );
+
+        return response()->json($resp);
     }
 }

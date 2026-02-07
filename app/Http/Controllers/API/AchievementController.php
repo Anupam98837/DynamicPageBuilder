@@ -8,9 +8,12 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
+use Throwable;
 
 class AchievementController extends Controller
 {
+    private const LOG_MODULE = 'achievements';
+
     /* ============================================
      | Access Control (ONLY users table)
      |============================================ */
@@ -86,10 +89,113 @@ class AchievementController extends Controller
     {
         return [
             'id'   => (int) ($r->attributes->get('auth_tokenable_id') ?? optional($r->user())->id ?? 0),
-            'role' => (string) ($r->attributes->get('auth_role') ?? ($r->user()->role ?? '')),
+            'role' => (string) ($r->attributes->get('auth_role') ?? (optional($r->user())->role ?? '')),
             'type' => (string) ($r->attributes->get('auth_tokenable_type') ?? ($r->user() ? get_class($r->user()) : '')),
-            'uuid' => (string) ($r->attributes->get('auth_user_uuid') ?? ($r->user()->uuid ?? '')),
+            'uuid' => (string) ($r->attributes->get('auth_user_uuid') ?? (optional($r->user())->uuid ?? '')),
         ];
+    }
+
+    /**
+     * Safe value for logs (prevents huge rows / oversized JSON).
+     */
+    private function safeLogValue($v, int $depth = 0)
+    {
+        if ($depth > 3) return '[depth_limit]';
+
+        if (is_null($v) || is_bool($v) || is_int($v) || is_float($v)) return $v;
+
+        if (is_string($v)) {
+            $s = $v;
+            if (mb_strlen($s) > 2000) {
+                $s = mb_substr($s, 0, 2000) . '...[truncated]';
+            }
+            return $s;
+        }
+
+        if (is_array($v)) {
+            $out = [];
+            $i = 0;
+            foreach ($v as $k => $val) {
+                // prevent gigantic arrays
+                if ($i++ > 200) {
+                    $out['__truncated__'] = true;
+                    break;
+                }
+                $out[$k] = $this->safeLogValue($val, $depth + 1);
+            }
+            return $out;
+        }
+
+        if (is_object($v)) {
+            // Try to convert to array-ish
+            return $this->safeLogValue((array) $v, $depth + 1);
+        }
+
+        return (string) $v;
+    }
+
+    /**
+     * Central activity log writer
+     * - Never throws (does NOT break functionality)
+     * - Logs only if table exists
+     */
+    private function writeActivityLog(
+        Request $request,
+        string $activity,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        $oldValues = null,
+        $newValues = null,
+        ?string $note = null,
+        ?string $module = null
+    ): void {
+        try {
+            if (!Schema::hasTable('user_data_activity_log')) return;
+
+            $a = $this->actor($request);
+
+            $performedBy = (int) ($a['id'] ?? 0);
+            $performedRole = trim((string) ($a['role'] ?? ''));
+            if ($performedRole !== '') {
+                $performedRole = strtolower($performedRole);
+                $performedRole = str_replace([' ', '-'], '_', $performedRole);
+                $performedRole = preg_replace('/_+/', '_', $performedRole) ?? $performedRole;
+            }
+            $performedRole = $performedRole !== '' ? mb_substr($performedRole, 0, 50) : null;
+
+            $reqNote = trim((string) ($request->method() . ' ' . ($request->getRequestUri() ?: $request->path())));
+            $finalNote = trim((string) $note);
+            if ($finalNote !== '') $finalNote .= ' | ';
+            $finalNote .= $reqNote;
+            $finalNote = mb_substr($finalNote, 0, 65000);
+
+            $payload = [
+                'performed_by'      => $performedBy,
+                'performed_by_role' => $performedRole,
+                'ip'                => mb_substr((string) ($request->ip() ?? ''), 0, 45),
+                'user_agent'        => mb_substr((string) ($request->userAgent() ?? ''), 0, 512),
+
+                'activity'          => mb_substr($activity, 0, 50),
+                'module'            => mb_substr((string) ($module ?: self::LOG_MODULE), 0, 100),
+
+                'table_name'        => mb_substr($tableName, 0, 128),
+                'record_id'         => $recordId !== null ? (int) $recordId : null,
+
+                'changed_fields'    => $changedFields !== null ? json_encode($this->safeLogValue(array_values($changedFields))) : null,
+                'old_values'        => $oldValues !== null ? json_encode($this->safeLogValue($oldValues)) : null,
+                'new_values'        => $newValues !== null ? json_encode($this->safeLogValue($newValues)) : null,
+
+                'log_note'          => $finalNote,
+
+                'created_at'        => now(),
+                'updated_at'        => now(),
+            ];
+
+            DB::table('user_data_activity_log')->insert($payload);
+        } catch (Throwable $e) {
+            // Never break any API due to logging failure
+        }
     }
 
     private function normSlug(?string $s): string
@@ -591,32 +697,46 @@ class AchievementController extends Controller
         // is_featured_home = 0 => request_for_approval = 0
         $isFeatured = (int) ($validated['is_featured_home'] ?? 0);
 
-        $id = DB::table('achievements')->insertGetId([
-            'uuid'               => $uuid,
-            'department_id'      => $validated['department_id'] ?? null,
-            'title'              => $validated['title'],
-            'slug'               => $slug,
-            'body'               => $validated['body'],
-            'cover_image'        => $coverPath,
-            'attachments_json'   => !empty($attachments) ? json_encode($attachments) : null,
-            'is_featured_home'   => $isFeatured,
+        $insert = [
+            'uuid'                 => $uuid,
+            'department_id'        => $validated['department_id'] ?? null,
+            'title'                => $validated['title'],
+            'slug'                 => $slug,
+            'body'                 => $validated['body'],
+            'cover_image'          => $coverPath,
+            'attachments_json'     => !empty($attachments) ? json_encode($attachments) : null,
+            'is_featured_home'     => $isFeatured,
 
             // ✅ added
             'request_for_approval' => $isFeatured,
 
-            'status'             => (string) ($validated['status'] ?? 'draft'),
-            'publish_at'         => !empty($validated['publish_at']) ? Carbon::parse($validated['publish_at']) : null,
-            'expire_at'          => !empty($validated['expire_at']) ? Carbon::parse($validated['expire_at']) : null,
-            'views_count'        => 0,
-            'created_by'         => $actor['id'] ?: null,
-            'created_at'         => $now,
-            'updated_at'         => $now,
-            'created_at_ip'      => $request->ip(),
-            'updated_at_ip'      => $request->ip(),
-            'metadata'           => $metadata !== null ? json_encode($metadata) : null,
-        ]);
+            'status'               => (string) ($validated['status'] ?? 'draft'),
+            'publish_at'           => !empty($validated['publish_at']) ? Carbon::parse($validated['publish_at']) : null,
+            'expire_at'            => !empty($validated['expire_at']) ? Carbon::parse($validated['expire_at']) : null,
+            'views_count'          => 0,
+            'created_by'           => $actor['id'] ?: null,
+            'created_at'           => $now,
+            'updated_at'           => $now,
+            'created_at_ip'        => $request->ip(),
+            'updated_at_ip'        => $request->ip(),
+            'metadata'             => $metadata !== null ? json_encode($metadata) : null,
+        ];
+
+        $id = DB::table('achievements')->insertGetId($insert);
 
         $row = DB::table('achievements')->where('id', $id)->first();
+
+        // ✅ ACTIVITY LOG (POST)
+        $this->writeActivityLog(
+            $request,
+            'create',
+            'achievements',
+            (int) $id,
+            array_keys($insert),
+            null,
+            $row ? $this->normalizeRow($row) : ['id' => (int) $id, 'uuid' => $uuid],
+            'Achievement created'
+        );
 
         return response()->json([
             'success' => true,
@@ -641,7 +761,7 @@ class AchievementController extends Controller
         }
 
         $request->merge(['department_id' => (int) $dept->id]);
-        return $this->store($request);
+        return $this->store($request); // (logs happen inside store)
     }
 
     public function update(Request $request, $identifier)
@@ -681,6 +801,9 @@ class AchievementController extends Controller
             'attachments_mode'   => ['nullable', 'in:append,replace'],
             'attachments_remove' => ['nullable', 'array'],
         ]);
+
+        // Snapshot BEFORE update for logging
+        $beforeForLog = $this->normalizeRow($row);
 
         $update = [
             'updated_at'    => now(),
@@ -811,6 +934,29 @@ class AchievementController extends Controller
 
         $fresh = DB::table('achievements')->where('id', (int) $row->id)->first();
 
+        // ✅ ACTIVITY LOG (PUT/PATCH)
+        $changedFields = array_values(array_diff(array_keys($update), ['updated_at', 'updated_at_ip']));
+        $afterForLog = $fresh ? $this->normalizeRow($fresh) : null;
+
+        // Old/New values only for changed fields (keeps log smaller & meaningful)
+        $old = [];
+        $new = [];
+        foreach ($changedFields as $f) {
+            $old[$f] = $beforeForLog[$f] ?? null;
+            $new[$f] = is_array($afterForLog) ? ($afterForLog[$f] ?? null) : null;
+        }
+
+        $this->writeActivityLog(
+            $request,
+            'update',
+            'achievements',
+            (int) $row->id,
+            $changedFields,
+            $old,
+            $new,
+            'Achievement updated'
+        );
+
         return response()->json([
             'success' => true,
             'data'    => $fresh ? $this->normalizeRow($fresh) : null,
@@ -830,6 +976,11 @@ class AchievementController extends Controller
         $row = $this->resolveAchievement($request, $identifier, true, $deptId);
         if (! $row) return response()->json(['message' => 'Achievement not found'], 404);
 
+        $oldVals = [
+            'is_featured_home'     => (int) ($row->is_featured_home ?? 0),
+            'request_for_approval' => (int) ($row->request_for_approval ?? 0),
+        ];
+
         $new = ((int) ($row->is_featured_home ?? 0)) ? 0 : 1;
 
         DB::table('achievements')->where('id', (int) $row->id)->update([
@@ -843,6 +994,21 @@ class AchievementController extends Controller
         ]);
 
         $fresh = DB::table('achievements')->where('id', (int) $row->id)->first();
+
+        // ✅ ACTIVITY LOG (PATCH)
+        $this->writeActivityLog(
+            $request,
+            'toggle_featured',
+            'achievements',
+            (int) $row->id,
+            ['is_featured_home', 'request_for_approval'],
+            $oldVals,
+            [
+                'is_featured_home'     => (int) $new,
+                'request_for_approval' => (int) $new,
+            ],
+            'Achievement featured toggled'
+        );
 
         return response()->json([
             'success' => true,
@@ -863,11 +1029,25 @@ class AchievementController extends Controller
         $row = $this->resolveAchievement($request, $identifier, false, $deptId);
         if (! $row) return response()->json(['message' => 'Not found or already deleted'], 404);
 
+        $now = now();
+
         DB::table('achievements')->where('id', (int) $row->id)->update([
-            'deleted_at'    => now(),
-            'updated_at'    => now(),
+            'deleted_at'    => $now,
+            'updated_at'    => $now,
             'updated_at_ip' => $request->ip(),
         ]);
+
+        // ✅ ACTIVITY LOG (DELETE - soft)
+        $this->writeActivityLog(
+            $request,
+            'delete',
+            'achievements',
+            (int) $row->id,
+            ['deleted_at'],
+            ['deleted_at' => null],
+            ['deleted_at' => (string) $now],
+            'Achievement moved to trash'
+        );
 
         return response()->json(['success' => true]);
     }
@@ -887,6 +1067,8 @@ class AchievementController extends Controller
             return response()->json(['message' => 'Not found in bin'], 404);
         }
 
+        $oldDeletedAt = (string) $row->deleted_at;
+
         DB::table('achievements')->where('id', (int) $row->id)->update([
             'deleted_at'    => null,
             'updated_at'    => now(),
@@ -894,6 +1076,18 @@ class AchievementController extends Controller
         ]);
 
         $fresh = DB::table('achievements')->where('id', (int) $row->id)->first();
+
+        // ✅ ACTIVITY LOG (PATCH)
+        $this->writeActivityLog(
+            $request,
+            'restore',
+            'achievements',
+            (int) $row->id,
+            ['deleted_at'],
+            ['deleted_at' => $oldDeletedAt],
+            ['deleted_at' => null],
+            'Achievement restored from trash'
+        );
 
         return response()->json([
             'success' => true,
@@ -914,6 +1108,9 @@ class AchievementController extends Controller
         $row = $this->resolveAchievement($request, $identifier, true, $deptId);
         if (! $row) return response()->json(['message' => 'Achievement not found'], 404);
 
+        // snapshot for log BEFORE delete
+        $snapshot = $this->normalizeRow($row);
+
         // delete cover
         $this->deletePublicPath($row->cover_image ?? null);
 
@@ -929,6 +1126,18 @@ class AchievementController extends Controller
         }
 
         DB::table('achievements')->where('id', (int) $row->id)->delete();
+
+        // ✅ ACTIVITY LOG (DELETE - hard)
+        $this->writeActivityLog(
+            $request,
+            'force_delete',
+            'achievements',
+            (int) $row->id,
+            null,
+            $snapshot,
+            null,
+            'Achievement permanently deleted'
+        );
 
         return response()->json(['success' => true]);
     }

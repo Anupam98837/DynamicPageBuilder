@@ -26,68 +26,67 @@ class CourseController extends Controller
     }
 
     /**
- * accessControl (ONLY users table)
- *
- * Returns ONLY:
- *  - ['mode' => 'all',         'department_id' => null]
- *  - ['mode' => 'department',  'department_id' => <int>]
- *  - ['mode' => 'none',        'department_id' => null]
- *  - ['mode' => 'not_allowed', 'department_id' => null]
- */
-private function accessControl(int $userId): array
-{
-    if ($userId <= 0) {
-        return ['mode' => 'none', 'department_id' => null];
-    }
+     * accessControl (ONLY users table)
+     *
+     * Returns ONLY:
+     *  - ['mode' => 'all',         'department_id' => null]
+     *  - ['mode' => 'department',  'department_id' => <int>]
+     *  - ['mode' => 'none',        'department_id' => null]
+     *  - ['mode' => 'not_allowed', 'department_id' => null]
+     */
+    private function accessControl(int $userId): array
+    {
+        if ($userId <= 0) {
+            return ['mode' => 'none', 'department_id' => null];
+        }
 
-    // Safety (if some env doesn't have dept column yet)
-    if (!Schema::hasColumn('users', 'department_id')) {
+        // Safety (if some env doesn't have dept column yet)
+        if (!Schema::hasColumn('users', 'department_id')) {
+            return ['mode' => 'not_allowed', 'department_id' => null];
+        }
+
+        $q = DB::table('users')->select(['id', 'role', 'department_id', 'status']);
+
+        // your schema has deleted_at; keep it safe
+        if (Schema::hasColumn('users', 'deleted_at')) {
+            $q->whereNull('deleted_at');
+        }
+
+        $u = $q->where('id', $userId)->first();
+
+        if (!$u) {
+            return ['mode' => 'none', 'department_id' => null];
+        }
+
+        // optional: inactive users => none
+        if (isset($u->status) && (string)$u->status !== 'active') {
+            return ['mode' => 'none', 'department_id' => null];
+        }
+
+        // normalize role from users table
+        $role = strtolower(trim((string)($u->role ?? '')));
+        $role = str_replace([' ', '-'], '_', $role);
+        $role = preg_replace('/_+/', '_', $role) ?? $role;
+
+        $deptId = $u->department_id !== null ? (int)$u->department_id : null;
+        if ($deptId !== null && $deptId <= 0) $deptId = null;
+
+        // ✅ CONFIG: decide access by role + department_id
+        $allRoles  = ['admin', 'director', 'principal']; // gets ALL even if dept null
+        $deptRoles = ['hod', 'faculty', 'technical_assistant', 'it_person', 'placement_officer', 'student']; // needs dept
+
+        if (in_array($role, $allRoles, true)) {
+            return ['mode' => 'all', 'department_id' => null];
+        }
+
+        if (in_array($role, $deptRoles, true)) {
+            // none is based on role + dept id (your rule)
+            if (!$deptId) return ['mode' => 'none', 'department_id' => null];
+            return ['mode' => 'department', 'department_id' => $deptId];
+        }
+
         return ['mode' => 'not_allowed', 'department_id' => null];
     }
-
-    $q = DB::table('users')->select(['id', 'role', 'department_id', 'status']);
-
-    // your schema has deleted_at; keep it safe
-    if (Schema::hasColumn('users', 'deleted_at')) {
-        $q->whereNull('deleted_at');
-    }
-
-    $u = $q->where('id', $userId)->first();
-
-    if (!$u) {
-        return ['mode' => 'none', 'department_id' => null];
-    }
-
-    // optional: inactive users => none
-    if (isset($u->status) && (string)$u->status !== 'active') {
-        return ['mode' => 'none', 'department_id' => null];
-    }
-
-    // normalize role from users table
-    $role = strtolower(trim((string)($u->role ?? '')));
-    $role = str_replace([' ', '-'], '_', $role);
-    $role = preg_replace('/_+/', '_', $role) ?? $role;
-
-    $deptId = $u->department_id !== null ? (int)$u->department_id : null;
-    if ($deptId !== null && $deptId <= 0) $deptId = null;
-
-    // ✅ CONFIG: decide access by role + department_id
-    $allRoles  = ['admin', 'director', 'principal']; // gets ALL even if dept null
-    $deptRoles = ['hod', 'faculty', 'technical_assistant', 'it_person', 'placement_officer', 'student']; // needs dept
-
-    if (in_array($role, $allRoles, true)) {
-        return ['mode' => 'all', 'department_id' => null];
-    }
-
-    if (in_array($role, $deptRoles, true)) {
-        // none is based on role + dept id (your rule)
-        if (!$deptId) return ['mode' => 'none', 'department_id' => null];
-        return ['mode' => 'department', 'department_id' => $deptId];
-    }
-
-    return ['mode' => 'not_allowed', 'department_id' => null];
-}
-
 
     private function normSlug(?string $s): string
     {
@@ -227,38 +226,134 @@ private function accessControl(int $userId): array
         $abs = public_path(ltrim($path, '/'));
         if (is_file($abs)) @unlink($abs);
     }
-private function applyVisibleWindow($q): void
-{
-    $now = now();
- 
-    // ✅ public should never show trashed
-    $q->whereNull('c.deleted_at');
- 
-    // ✅ must be published for public
-    $q->where('c.status', 'published');
- 
-    // ✅ visible start: publish_at is NULL OR publish_at <= now
-    $q->where(function ($w) use ($now) {
-        $w->whereNull('c.publish_at')
-          ->orWhere('c.publish_at', '<=', $now);
-    });
- 
-    // ✅ visible end: expire_at is NULL OR expire_at > now  (matches publicShow)
-    $q->where(function ($w) use ($now) {
-        $w->whereNull('c.expire_at')
-          ->orWhere('c.expire_at', '>', $now);
-    });
- 
-    // Optional support if you ever add publish_end_at later
-    if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'publish_end_at')) {
-        $q->where(function ($w) use ($now) {
-            $w->whereNull('c.publish_end_at')
-              ->orWhere('c.publish_end_at', '>=', $now);
-        });
-    }
-}
- 
 
+    private function applyVisibleWindow($q): void
+    {
+        $now = now();
+
+        // ✅ public should never show trashed
+        $q->whereNull('c.deleted_at');
+
+        // ✅ must be published for public
+        $q->where('c.status', 'published');
+
+        // ✅ visible start: publish_at is NULL OR publish_at <= now
+        $q->where(function ($w) use ($now) {
+            $w->whereNull('c.publish_at')
+              ->orWhere('c.publish_at', '<=', $now);
+        });
+
+        // ✅ visible end: expire_at is NULL OR expire_at > now  (matches publicShow)
+        $q->where(function ($w) use ($now) {
+            $w->whereNull('c.expire_at')
+              ->orWhere('c.expire_at', '>', $now);
+        });
+
+        // Optional support if you ever add publish_end_at later
+        if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'publish_end_at')) {
+            $q->where(function ($w) use ($now) {
+                $w->whereNull('c.publish_end_at')
+                  ->orWhere('c.publish_end_at', '>=', $now);
+            });
+        }
+    }
+
+    /* ============================================
+     | Activity Log Helpers (POST/PUT/PATCH/DELETE)
+     |============================================ */
+
+    private function safeJson($v): ?string
+    {
+        if ($v === null) return null;
+        try {
+            return json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Compute diffs between two associative arrays (best-effort).
+     * Returns: [changed_fields[], old_values{}, new_values{}]
+     */
+    private function computeDiff(?array $before, ?array $after, ?array $onlyKeys = null): array
+    {
+        $before = $before ?? [];
+        $after  = $after ?? [];
+
+        $keys = $onlyKeys ?: array_values(array_unique(array_merge(array_keys($before), array_keys($after))));
+
+        $changed = [];
+        $oldOut  = [];
+        $newOut  = [];
+
+        foreach ($keys as $k) {
+            $b = $before[$k] ?? null;
+            $a = $after[$k] ?? null;
+
+            // normalize arrays/objects for comparison
+            $bCmp = is_scalar($b) || $b === null ? $b : json_encode($b);
+            $aCmp = is_scalar($a) || $a === null ? $a : json_encode($a);
+
+            if ($bCmp !== $aCmp) {
+                $changed[] = $k;
+                $oldOut[$k] = $b;
+                $newOut[$k] = $a;
+            }
+        }
+
+        return [$changed, $oldOut, $newOut];
+    }
+
+    /**
+     * Insert into user_data_activity_log (best-effort; never breaks main flow)
+     */
+    private function logActivity(
+        Request $r,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        ?array $oldValues = null,
+        ?array $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            if (!Schema::hasTable('user_data_activity_log')) return;
+
+            $actor = $this->actor($r);
+            $now = now();
+
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'       => (int) ($actor['id'] ?? 0),
+                'performed_by_role'  => ($actor['role'] ?? null) ?: null,
+                'ip'                 => $r->ip(),
+                'user_agent'         => substr((string) ($r->userAgent() ?? ''), 0, 512),
+
+                'activity'           => substr($activity, 0, 50),
+                'module'             => substr($module, 0, 100),
+
+                'table_name'         => substr($tableName, 0, 128),
+                'record_id'          => $recordId !== null ? (int) $recordId : null,
+
+                'changed_fields'     => $this->safeJson($changedFields),
+                'old_values'         => $this->safeJson($oldValues),
+                'new_values'         => $this->safeJson($newValues),
+
+                'log_note'           => $note,
+
+                'created_at'         => $now,
+                'updated_at'         => $now,
+            ]);
+        } catch (\Throwable $e) {
+            // never break API flow
+        }
+    }
+
+    /* ============================================
+     | Query builders
+     |============================================ */
 
     protected function baseQuery(Request $request, bool $includeDeleted = false)
     {
@@ -380,23 +475,23 @@ private function applyVisibleWindow($q): void
     public function index(Request $request)
     {
         $actor = $this->actor($request);
-$ac = $this->accessControl($actor['id']);
+        $ac = $this->accessControl($actor['id']);
 
-if ($ac['mode'] === 'not_allowed') {
-    return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
-}
+        if ($ac['mode'] === 'not_allowed') {
+            return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+        }
 
-if ($ac['mode'] === 'none') {
-    return response()->json([
-        'data' => [],
-        'pagination' => ['page' => 1, 'per_page' => (int)$request->query('per_page', 20), 'total' => 0, 'last_page' => 1],
-    ]);
-}
+        if ($ac['mode'] === 'none') {
+            return response()->json([
+                'data' => [],
+                'pagination' => ['page' => 1, 'per_page' => (int)$request->query('per_page', 20), 'total' => 0, 'last_page' => 1],
+            ]);
+        }
 
-if ($ac['mode'] === 'department') {
-    // force only their department (ignore client query department)
-    $request->query->set('department', (int)$ac['department_id']);
-}
+        if ($ac['mode'] === 'department') {
+            // force only their department (ignore client query department)
+            $request->query->set('department', (int)$ac['department_id']);
+        }
 
         $perPage = max(1, min(200, (int) $request->query('per_page', 20)));
 
@@ -476,18 +571,17 @@ if ($ac['mode'] === 'department') {
     public function store(Request $request)
     {
         $actor = $this->actor($request);
-$ac = $this->accessControl($actor['id']);
+        $ac = $this->accessControl($actor['id']);
 
-if ($ac['mode'] === 'not_allowed' || $ac['mode'] === 'none') {
-    return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
-}
+        if ($ac['mode'] === 'not_allowed' || $ac['mode'] === 'none') {
+            $this->logActivity($request, 'forbidden', 'courses', 'courses', null, null, null, null, 'Create course blocked (not allowed)');
+            return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+        }
 
-if ($ac['mode'] === 'department') {
-    // force department_id (ignore any department_id from client)
-    $request->merge(['department_id' => (int)$ac['department_id']]);
-}
-
-        $actor = $this->actor($request);
+        if ($ac['mode'] === 'department') {
+            // force department_id (ignore any department_id from client)
+            $request->merge(['department_id' => (int)$ac['department_id']]);
+        }
 
         $validated = $request->validate([
             'department_id'     => ['nullable', 'integer', 'exists:departments,id'],
@@ -540,6 +634,17 @@ if ($ac['mode'] === 'department') {
         if ($request->hasFile('cover_image')) {
             $f = $request->file('cover_image');
             if (!$f || !$f->isValid()) {
+                $this->logActivity(
+                    $request,
+                    'create_failed',
+                    'courses',
+                    'courses',
+                    null,
+                    null,
+                    null,
+                    ['title' => $validated['title'] ?? null, 'department_id' => $validated['department_id'] ?? null],
+                    'Cover image upload failed'
+                );
                 return response()->json(['success' => false, 'message' => 'Cover image upload failed'], 422);
             }
             $meta = $this->uploadFileToPublic($f, $dirRel, $slug . '-cover');
@@ -552,6 +657,17 @@ if ($ac['mode'] === 'department') {
             foreach ((array) $request->file('attachments') as $file) {
                 if (!$file) continue;
                 if (!$file->isValid()) {
+                    $this->logActivity(
+                        $request,
+                        'create_failed',
+                        'courses',
+                        'courses',
+                        null,
+                        null,
+                        null,
+                        ['title' => $validated['title'] ?? null, 'department_id' => $validated['department_id'] ?? null],
+                        'One of the attachments failed to upload'
+                    );
                     return response()->json(['success' => false, 'message' => 'One of the attachments failed to upload'], 422);
                 }
                 $attachments[] = $this->uploadFileToPublic($file, $dirRel, $slug . '-att');
@@ -578,7 +694,7 @@ if ($ac['mode'] === 'department') {
             if (json_last_error() === JSON_ERROR_NONE) $metadata = $decoded;
         }
 
-        $id = DB::table('courses')->insertGetId([
+        $insert = [
             'uuid'             => $uuid,
             'department_id'    => $validated['department_id'] ?? null,
 
@@ -623,9 +739,26 @@ if ($ac['mode'] === 'department') {
             'updated_at_ip'    => $request->ip(),
 
             'metadata'         => $metadata !== null ? json_encode($metadata) : null,
-        ]);
+        ];
+
+        $id = DB::table('courses')->insertGetId($insert);
 
         $row = DB::table('courses')->where('id', $id)->first();
+
+        // ✅ ACTIVITY LOG (create)
+        $newVals = $row ? (array) $row : ['id' => $id] + $insert;
+        [$changedFields, $oldVals, $newOnly] = $this->computeDiff(null, $newVals, array_keys($insert));
+        $this->logActivity(
+            $request,
+            'create',
+            'courses',
+            'courses',
+            (int) $id,
+            $changedFields,
+            null,
+            $newVals,
+            'Course created'
+        );
 
         return response()->json([
             'success' => true,
@@ -645,20 +778,25 @@ if ($ac['mode'] === 'department') {
     public function update(Request $request, $identifier)
     {
         $actor = $this->actor($request);
-$ac = $this->accessControl($actor['id']);
+        $ac = $this->accessControl($actor['id']);
 
-if ($ac['mode'] === 'not_allowed' || $ac['mode'] === 'none') {
-    return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
-}
+        if ($ac['mode'] === 'not_allowed' || $ac['mode'] === 'none') {
+            $this->logActivity($request, 'forbidden', 'courses', 'courses', null, null, null, null, 'Update course blocked (not allowed)');
+            return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+        }
 
-$deptId = ($ac['mode'] === 'department') ? (int)$ac['department_id'] : null;
+        $deptId = ($ac['mode'] === 'department') ? (int)$ac['department_id'] : null;
 
-// ✅ this ensures they can't even load a course outside their dept
-$row = $this->resolveCourse($request, $identifier, true, $deptId);
-if (! $row) return response()->json(['message' => 'Course not found'], 404);
+        // ✅ this ensures they can't even load a course outside their dept
+        $row = $this->resolveCourse($request, $identifier, true, $deptId);
+        if (! $row) {
+            $this->logActivity($request, 'update_failed', 'courses', 'courses', null, null, null, null, 'Course not found (or not accessible)');
+            return response()->json(['message' => 'Course not found'], 404);
+        }
 
-        $row = $this->resolveCourse($request, $identifier, true);
-        if (! $row) return response()->json(['message' => 'Course not found'], 404);
+        // capture BEFORE snapshot (raw table row)
+        $beforeRow = DB::table('courses')->where('id', (int) $row->id)->first();
+        $before = $beforeRow ? (array) $beforeRow : (array) $row;
 
         $validated = $request->validate([
             'department_id'      => ['nullable', 'integer', 'exists:departments,id'],
@@ -699,9 +837,9 @@ if (! $row) return response()->json(['message' => 'Course not found'], 404);
         ]);
 
         if ($ac['mode'] === 'department' && array_key_exists('department_id', $validated)) {
-    // do not allow changing department
-    $validated['department_id'] = (int)$deptId;
-}
+            // do not allow changing department
+            $validated['department_id'] = (int)$deptId;
+        }
 
         $update = [
             'updated_at'    => now(),
@@ -770,6 +908,17 @@ if (! $row) return response()->json(['message' => 'Course not found'], 404);
         if ($request->hasFile('cover_image')) {
             $f = $request->file('cover_image');
             if (!$f || !$f->isValid()) {
+                $this->logActivity(
+                    $request,
+                    'update_failed',
+                    'courses',
+                    'courses',
+                    (int) $row->id,
+                    null,
+                    null,
+                    ['id' => (int) $row->id],
+                    'Cover image upload failed'
+                );
                 return response()->json(['success' => false, 'message' => 'Cover image upload failed'], 422);
             }
             $this->deletePublicPath($row->cover_image ?? null);
@@ -810,6 +959,17 @@ if (! $row) return response()->json(['message' => 'Course not found'], 404);
             foreach ((array) $request->file('attachments') as $file) {
                 if (!$file) continue;
                 if (!$file->isValid()) {
+                    $this->logActivity(
+                        $request,
+                        'update_failed',
+                        'courses',
+                        'courses',
+                        (int) $row->id,
+                        null,
+                        null,
+                        ['id' => (int) $row->id],
+                        'One of the attachments failed to upload'
+                    );
                     return response()->json(['success' => false, 'message' => 'One of the attachments failed to upload'], 422);
                 }
                 $useSlug = (string) ($update['slug'] ?? $row->slug ?? 'course');
@@ -834,6 +994,22 @@ if (! $row) return response()->json(['message' => 'Course not found'], 404);
 
         $fresh = DB::table('courses')->where('id', (int) $row->id)->first();
 
+        // ✅ ACTIVITY LOG (update)
+        $after = $fresh ? (array) $fresh : null;
+        $onlyKeys = array_values(array_unique(array_merge(array_keys($update), ['attachments_json', 'cover_image', 'metadata', 'department_id', 'slug'])));
+        [$changedFields, $oldVals, $newVals] = $this->computeDiff($before, $after, $onlyKeys);
+        $this->logActivity(
+            $request,
+            'update',
+            'courses',
+            'courses',
+            (int) $row->id,
+            $changedFields,
+            $oldVals,
+            $newVals,
+            'Course updated'
+        );
+
         return response()->json([
             'success' => true,
             'data'    => $fresh ? $this->normalizeRow($fresh) : null,
@@ -843,7 +1019,13 @@ if (! $row) return response()->json(['message' => 'Course not found'], 404);
     public function toggleFeatured(Request $request, $identifier)
     {
         $row = $this->resolveCourse($request, $identifier, true);
-        if (! $row) return response()->json(['message' => 'Course not found'], 404);
+        if (! $row) {
+            $this->logActivity($request, 'toggle_featured_failed', 'courses', 'courses', null, null, null, null, 'Course not found');
+            return response()->json(['message' => 'Course not found'], 404);
+        }
+
+        $before = DB::table('courses')->where('id', (int) $row->id)->first();
+        $beforeArr = $before ? (array) $before : (array) $row;
 
         $new = ((int) ($row->is_featured_home ?? 0)) ? 0 : 1;
 
@@ -855,6 +1037,21 @@ if (! $row) return response()->json(['message' => 'Course not found'], 404);
 
         $fresh = DB::table('courses')->where('id', (int) $row->id)->first();
 
+        // ✅ ACTIVITY LOG (toggle featured)
+        $afterArr = $fresh ? (array) $fresh : null;
+        [$changedFields, $oldVals, $newVals] = $this->computeDiff($beforeArr, $afterArr, ['is_featured_home', 'updated_at', 'updated_at_ip']);
+        $this->logActivity(
+            $request,
+            'toggle_featured',
+            'courses',
+            'courses',
+            (int) $row->id,
+            $changedFields,
+            $oldVals,
+            $newVals,
+            'Course featured toggled'
+        );
+
         return response()->json([
             'success' => true,
             'data'    => $fresh ? $this->normalizeRow($fresh) : null,
@@ -864,13 +1061,36 @@ if (! $row) return response()->json(['message' => 'Course not found'], 404);
     public function destroy(Request $request, $identifier)
     {
         $row = $this->resolveCourse($request, $identifier, false);
-        if (! $row) return response()->json(['message' => 'Not found or already deleted'], 404);
+        if (! $row) {
+            $this->logActivity($request, 'delete_failed', 'courses', 'courses', null, null, null, null, 'Not found or already deleted');
+            return response()->json(['message' => 'Not found or already deleted'], 404);
+        }
+
+        $before = DB::table('courses')->where('id', (int) $row->id)->first();
+        $beforeArr = $before ? (array) $before : (array) $row;
 
         DB::table('courses')->where('id', (int) $row->id)->update([
             'deleted_at'    => now(),
             'updated_at'    => now(),
             'updated_at_ip' => $request->ip(),
         ]);
+
+        $fresh = DB::table('courses')->where('id', (int) $row->id)->first();
+
+        // ✅ ACTIVITY LOG (soft delete)
+        $afterArr = $fresh ? (array) $fresh : null;
+        [$changedFields, $oldVals, $newVals] = $this->computeDiff($beforeArr, $afterArr, ['deleted_at', 'updated_at', 'updated_at_ip']);
+        $this->logActivity(
+            $request,
+            'delete',
+            'courses',
+            'courses',
+            (int) $row->id,
+            $changedFields,
+            $oldVals,
+            $newVals,
+            'Course moved to bin'
+        );
 
         return response()->json(['success' => true]);
     }
@@ -879,8 +1099,12 @@ if (! $row) return response()->json(['message' => 'Course not found'], 404);
     {
         $row = $this->resolveCourse($request, $identifier, true);
         if (! $row || $row->deleted_at === null) {
+            $this->logActivity($request, 'restore_failed', 'courses', 'courses', null, null, null, null, 'Not found in bin');
             return response()->json(['message' => 'Not found in bin'], 404);
         }
+
+        $before = DB::table('courses')->where('id', (int) $row->id)->first();
+        $beforeArr = $before ? (array) $before : (array) $row;
 
         DB::table('courses')->where('id', (int) $row->id)->update([
             'deleted_at'    => null,
@@ -889,6 +1113,21 @@ if (! $row) return response()->json(['message' => 'Course not found'], 404);
         ]);
 
         $fresh = DB::table('courses')->where('id', (int) $row->id)->first();
+
+        // ✅ ACTIVITY LOG (restore)
+        $afterArr = $fresh ? (array) $fresh : null;
+        [$changedFields, $oldVals, $newVals] = $this->computeDiff($beforeArr, $afterArr, ['deleted_at', 'updated_at', 'updated_at_ip']);
+        $this->logActivity(
+            $request,
+            'restore',
+            'courses',
+            'courses',
+            (int) $row->id,
+            $changedFields,
+            $oldVals,
+            $newVals,
+            'Course restored from bin'
+        );
 
         return response()->json([
             'success' => true,
@@ -899,7 +1138,13 @@ if (! $row) return response()->json(['message' => 'Course not found'], 404);
     public function forceDelete(Request $request, $identifier)
     {
         $row = $this->resolveCourse($request, $identifier, true);
-        if (! $row) return response()->json(['message' => 'Course not found'], 404);
+        if (! $row) {
+            $this->logActivity($request, 'force_delete_failed', 'courses', 'courses', null, null, null, null, 'Course not found');
+            return response()->json(['message' => 'Course not found'], 404);
+        }
+
+        $before = DB::table('courses')->where('id', (int) $row->id)->first();
+        $beforeArr = $before ? (array) $before : (array) $row;
 
         // delete cover
         $this->deletePublicPath($row->cover_image ?? null);
@@ -917,36 +1162,49 @@ if (! $row) return response()->json(['message' => 'Course not found'], 404);
 
         DB::table('courses')->where('id', (int) $row->id)->delete();
 
+        // ✅ ACTIVITY LOG (force delete)
+        $this->logActivity(
+            $request,
+            'force_delete',
+            'courses',
+            'courses',
+            (int) $row->id,
+            ['__deleted__'],
+            $beforeArr,
+            null,
+            'Course permanently deleted'
+        );
+
         return response()->json(['success' => true]);
     }
 
     /* ============================================
      | Public (no auth)
      |============================================ */
- 
-public function publicIndex(Request $request)
-{
-    $perPage = max(1, min(200, (int) $request->query('per_page', 10)));
- 
-    $q = $this->baseQuery($request, false); // ✅ don't include deleted in public
-    $this->applyVisibleWindow($q);
- 
-    $q->orderByRaw('COALESCE(c.publish_at, c.created_at) desc');
- 
-    $paginator = $q->paginate($perPage);
-    $items = array_map(fn($r) => $this->normalizeRow($r), $paginator->items());
- 
-    return response()->json([
-        'success' => true,
-        'data'    => $items,
-        'pagination' => [
-            'page'      => $paginator->currentPage(),
-            'per_page'  => $paginator->perPage(),
-            'total'     => $paginator->total(),
-            'last_page' => $paginator->lastPage(),
-        ],
-    ]);
-}
+
+    public function publicIndex(Request $request)
+    {
+        $perPage = max(1, min(200, (int) $request->query('per_page', 10)));
+
+        $q = $this->baseQuery($request, false); // ✅ don't include deleted in public
+        $this->applyVisibleWindow($q);
+
+        $q->orderByRaw('COALESCE(c.publish_at, c.created_at) desc');
+
+        $paginator = $q->paginate($perPage);
+        $items = array_map(fn($r) => $this->normalizeRow($r), $paginator->items());
+
+        return response()->json([
+            'success' => true,
+            'data'    => $items,
+            'pagination' => [
+                'page'      => $paginator->currentPage(),
+                'per_page'  => $paginator->perPage(),
+                'total'     => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+            ],
+        ]);
+    }
 
     public function publicIndexByDepartment(Request $request, $department)
     {
@@ -960,20 +1218,20 @@ public function publicIndex(Request $request)
     public function publicShow(Request $request, $identifier)
     {
         $actor = $this->actor($request);
-$ac = $this->accessControl($actor['id']);
+        $ac = $this->accessControl($actor['id']);
 
-if ($ac['mode'] === 'not_allowed') {
-    return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
-}
-if ($ac['mode'] === 'none') {
-    return response()->json(['message' => 'Course not found'], 404);
-}
+        if ($ac['mode'] === 'not_allowed') {
+            return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+        }
+        if ($ac['mode'] === 'none') {
+            return response()->json(['message' => 'Course not found'], 404);
+        }
 
-$includeDeleted = filter_var($request->query('with_trashed', false), FILTER_VALIDATE_BOOLEAN);
-$deptId = ($ac['mode'] === 'department') ? (int)$ac['department_id'] : null;
+        $includeDeleted = filter_var($request->query('with_trashed', false), FILTER_VALIDATE_BOOLEAN);
+        $deptId = ($ac['mode'] === 'department') ? (int)$ac['department_id'] : null;
 
-$row = $this->resolveCourse($request, $identifier, $includeDeleted, $deptId);
-if (!$row) return response()->json(['message' => 'Course not found'], 404);
+        $row = $this->resolveCourse($request, $identifier, $includeDeleted, $deptId);
+        if (!$row) return response()->json(['message' => 'Course not found'], 404);
 
         $row = $this->resolveCourse($request, $identifier, false);
         if (! $row) return response()->json(['message' => 'Course not found'], 404);

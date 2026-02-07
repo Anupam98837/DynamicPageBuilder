@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class AlumniSpeakController extends Controller
@@ -21,6 +22,92 @@ class AlumniSpeakController extends Controller
             'type' => (string) ($r->attributes->get('auth_tokenable_type') ?? ($r->user() ? get_class($r->user()) : '')),
             'uuid' => (string) ($r->attributes->get('auth_user_uuid') ?? ($r->user()->uuid ?? '')),
         ];
+    }
+
+    /**
+     * Write activity log into user_data_activity_log.
+     * IMPORTANT: Must never break main controller flows.
+     */
+    private function writeActivityLog(
+        Request $request,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        $oldValues = null,
+        $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            $actor = $this->actor($request);
+
+            // performed_by is NOT NULL in migration, so fallback to 0
+            $performedBy = (int) ($actor['id'] ?? 0);
+            if ($performedBy < 0) $performedBy = 0;
+
+            $ua = $request->userAgent();
+            if (is_string($ua) && strlen($ua) > 512) {
+                $ua = substr($ua, 0, 512);
+            }
+
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'       => $performedBy,
+                'performed_by_role'  => ($actor['role'] !== '' ? $actor['role'] : null),
+                'ip'                 => $request->ip(),
+                'user_agent'         => $ua,
+
+                'activity'           => $activity,
+                'module'             => $module,
+
+                'table_name'         => $tableName,
+                'record_id'          => $recordId,
+
+                'changed_fields'     => $changedFields !== null ? json_encode(array_values($changedFields)) : null,
+                'old_values'         => $oldValues !== null ? json_encode($oldValues) : null,
+                'new_values'         => $newValues !== null ? json_encode($newValues) : null,
+
+                'log_note'           => $note,
+
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ]);
+        } catch (\Throwable $e) {
+            // Never break core functionality if logging fails
+            try {
+                Log::warning('Activity log insert failed (AlumniSpeakController)', [
+                    'error' => $e->getMessage(),
+                ]);
+            } catch (\Throwable $ignored) {}
+        }
+    }
+
+    /**
+     * Compute changes for a given set of keys between before/after row arrays.
+     */
+    private function computeChanges(array $before, array $after, array $keys, array $excludeKeys = ['updated_at','updated_at_ip']): array
+    {
+        $changed = [];
+        $old = [];
+        $new = [];
+
+        $exclude = array_flip($excludeKeys);
+
+        foreach ($keys as $k) {
+            if (isset($exclude[$k])) continue;
+
+            $bv = $before[$k] ?? null;
+            $av = $after[$k] ?? null;
+
+            // robust-ish comparison for scalars/nulls
+            if (json_encode($bv) !== json_encode($av)) {
+                $changed[] = $k;
+                $old[$k] = $bv;
+                $new[$k] = $av;
+            }
+        }
+
+        return [$changed, $old, $new];
     }
 
     protected function resolveDepartmentId($department)
@@ -302,7 +389,7 @@ class AlumniSpeakController extends Controller
         ]);
     }
 
-    // Create (global)
+    // Create (global)  [POST] => LOG
     public function store(Request $request)
     {
         $actor = $this->actor($request);
@@ -349,7 +436,7 @@ class AlumniSpeakController extends Controller
         $slugInput = $request->input('slug');
         $slug = $slugInput ? $this->makeUniqueSlug((string) $slugInput) : $this->makeUniqueSlug((string) $validated['title']);
 
-        $id = DB::table('alumni_speak')->insertGetId([
+        $payload = [
             'uuid'             => $uuid,
             'department_id'     => array_key_exists('department_id', $validated) ? $validated['department_id'] : null,
             'slug'             => $slug,
@@ -378,9 +465,25 @@ class AlumniSpeakController extends Controller
             'created_at_ip'     => $request->ip(),
             'updated_at_ip'     => $request->ip(),
             'metadata'          => $metadata !== null ? json_encode($metadata) : null,
-        ]);
+        ];
+
+        $id = DB::table('alumni_speak')->insertGetId($payload);
 
         $fresh = DB::table('alumni_speak')->where('id', (int) $id)->first();
+
+        // LOG: create
+        $newValues = $fresh ? (array) $fresh : (array) ($payload + ['id' => (int) $id]);
+        $this->writeActivityLog(
+            $request,
+            'create',
+            'alumni_speak',
+            'alumni_speak',
+            (int) $id,
+            array_keys($newValues),
+            null,
+            $newValues,
+            'Created alumni_speak'
+        );
 
         return response()->json([
             'success' => true,
@@ -388,7 +491,7 @@ class AlumniSpeakController extends Controller
         ], 201);
     }
 
-    // Create (department-scoped)
+    // Create (department-scoped) [POST] => store() already logs (avoid double log)
     public function storeForDepartment(Request $request, $department)
     {
         $deptId = $this->resolveDepartmentId($department);
@@ -399,11 +502,13 @@ class AlumniSpeakController extends Controller
         return $this->store($request);
     }
 
-    // Update by id|uuid|slug
+    // Update by id|uuid|slug  [PUT/PATCH] => LOG
     public function update(Request $request, $identifier)
     {
         $row = $this->resolveItem($identifier, true);
         if (! $row) return response()->json(['message' => 'Alumni speak not found'], 404);
+
+        $beforeArr = (array) $row;
 
         $validated = $request->validate([
             'department_id'      => ['nullable', 'integer', 'exists:departments,id'],
@@ -476,17 +581,36 @@ class AlumniSpeakController extends Controller
 
         $fresh = DB::table('alumni_speak')->where('id', (int) $row->id)->first();
 
+        // LOG: update
+        $afterArr = $fresh ? (array) $fresh : [];
+        $logKeys = array_keys($update);
+        [$changedFields, $oldValues, $newValues] = $this->computeChanges($beforeArr, $afterArr, $logKeys);
+
+        $this->writeActivityLog(
+            $request,
+            'update',
+            'alumni_speak',
+            'alumni_speak',
+            (int) $row->id,
+            $changedFields,
+            $oldValues,
+            $newValues,
+            'Updated alumni_speak'
+        );
+
         return response()->json([
             'success' => true,
             'item' => $fresh ? $this->normalizeRow($fresh) : null,
         ]);
     }
 
-    // Soft delete
+    // Soft delete  [DELETE] => LOG
     public function destroy(Request $request, $identifier)
     {
         $row = $this->resolveItem($identifier, false);
         if (! $row) return response()->json(['message' => 'Not found or already deleted'], 404);
+
+        $beforeArr = (array) $row;
 
         DB::table('alumni_speak')->where('id', (int) $row->id)->update([
             'deleted_at'    => now(),
@@ -494,16 +618,40 @@ class AlumniSpeakController extends Controller
             'updated_at_ip' => $request->ip(),
         ]);
 
+        $after = DB::table('alumni_speak')->where('id', (int) $row->id)->first();
+        $afterArr = $after ? (array) $after : [];
+
+        // LOG: soft delete
+        [$changedFields, $oldValues, $newValues] = $this->computeChanges(
+            $beforeArr,
+            $afterArr,
+            ['deleted_at','updated_at','updated_at_ip']
+        );
+
+        $this->writeActivityLog(
+            $request,
+            'delete',
+            'alumni_speak',
+            'alumni_speak',
+            (int) $row->id,
+            $changedFields ?: ['deleted_at'],
+            $oldValues ?: ['deleted_at' => ($beforeArr['deleted_at'] ?? null)],
+            $newValues ?: ['deleted_at' => ($afterArr['deleted_at'] ?? null)],
+            'Soft deleted alumni_speak'
+        );
+
         return response()->json(['success' => true]);
     }
 
-    // Restore
+    // Restore  [POST/PUT depending on route] => LOG
     public function restore(Request $request, $identifier)
     {
         $row = $this->resolveItem($identifier, true);
         if (! $row || $row->deleted_at === null) {
             return response()->json(['message' => 'Not found in bin'], 404);
         }
+
+        $beforeArr = (array) $row;
 
         DB::table('alumni_speak')->where('id', (int) $row->id)->update([
             'deleted_at'    => null,
@@ -512,6 +660,26 @@ class AlumniSpeakController extends Controller
         ]);
 
         $fresh = DB::table('alumni_speak')->where('id', (int) $row->id)->first();
+        $afterArr = $fresh ? (array) $fresh : [];
+
+        // LOG: restore
+        [$changedFields, $oldValues, $newValues] = $this->computeChanges(
+            $beforeArr,
+            $afterArr,
+            ['deleted_at','updated_at','updated_at_ip']
+        );
+
+        $this->writeActivityLog(
+            $request,
+            'restore',
+            'alumni_speak',
+            'alumni_speak',
+            (int) $row->id,
+            $changedFields ?: ['deleted_at'],
+            $oldValues ?: ['deleted_at' => ($beforeArr['deleted_at'] ?? null)],
+            $newValues ?: ['deleted_at' => ($afterArr['deleted_at'] ?? null)],
+            'Restored alumni_speak'
+        );
 
         return response()->json([
             'success' => true,
@@ -519,13 +687,28 @@ class AlumniSpeakController extends Controller
         ]);
     }
 
-    // Hard delete
+    // Hard delete  [DELETE] => LOG
     public function forceDelete(Request $request, $identifier)
     {
         $row = $this->resolveItem($identifier, true);
         if (! $row) return response()->json(['message' => 'Alumni speak not found'], 404);
 
+        $beforeArr = (array) $row;
+
         DB::table('alumni_speak')->where('id', (int) $row->id)->delete();
+
+        // LOG: force delete (snapshot old row)
+        $this->writeActivityLog(
+            $request,
+            'force_delete',
+            'alumni_speak',
+            'alumni_speak',
+            (int) $row->id,
+            array_keys($beforeArr),
+            $beforeArr,
+            null,
+            'Hard deleted alumni_speak'
+        );
 
         return response()->json(['success' => true]);
     }
