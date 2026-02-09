@@ -34,6 +34,22 @@ class FacultyPreviewOrderController extends Controller
     {
         $a = $this->actor($r);
         if (!$a['role'] || !in_array($a['role'], $allowed, true)) {
+
+            // ✅ Audit unauthorized attempts for non-GET only (per your requirement)
+            if (strtoupper($r->method()) !== 'GET') {
+                $this->writeActivityLog(
+                    $r,
+                    'unauthorized',
+                    'faculty_preview_orders',
+                    self::TABLE,
+                    null,
+                    ['role'],
+                    ['attempted_role' => $a['role']],
+                    ['allowed_roles' => $allowed, 'path' => $r->path(), 'method' => $r->method()],
+                    'Unauthorized access attempt'
+                );
+            }
+
             return response()->json(['success' => false, 'error' => 'Unauthorized Access'], 403);
         }
         return null;
@@ -46,6 +62,63 @@ class FacultyPreviewOrderController extends Controller
             'actor_role' => $a['role'],
             'actor_id'   => $a['id'],
         ], $extra));
+    }
+
+    // =========================
+    // Activity Log (DB) helpers
+    // =========================
+    private function activityLogReady(): bool
+    {
+        return Schema::hasTable('user_data_activity_log');
+    }
+
+    private function writeActivityLog(
+        Request $r,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        ?array $oldValues = null,
+        ?array $newValues = null,
+        ?string $note = null
+    ): void {
+        if (!$this->activityLogReady()) return;
+
+        $a = $this->actor($r);
+
+        try {
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'       => (int)($a['id'] ?? 0),
+                'performed_by_role'  => (string)($a['role'] ?? ''),
+                'ip'                 => (string)($r->ip() ?? ''),
+                'user_agent'         => (string)($r->userAgent() ?? ''),
+
+                'activity'           => (string)$activity,
+                'module'             => (string)$module,
+
+                'table_name'         => (string)$tableName,
+                'record_id'          => $recordId !== null ? (int)$recordId : null,
+
+                'changed_fields'     => $changedFields !== null ? json_encode($changedFields) : null,
+                'old_values'         => $oldValues !== null ? json_encode($oldValues) : null,
+                'new_values'         => $newValues !== null ? json_encode($newValues) : null,
+
+                'log_note'           => $note,
+
+                'created_at'         => Carbon::now(),
+                'updated_at'         => Carbon::now(),
+            ]);
+        } catch (\Throwable $e) {
+            // ✅ Never break APIs due to logging failure
+            Log::warning('msit.activity_log.insert_failed', [
+                'error' => $e->getMessage(),
+                'activity' => $activity,
+                'module' => $module,
+                'table_name' => $tableName,
+                'record_id' => $recordId,
+            ]);
+        }
     }
 
     private function isUuid(string $v): bool
@@ -358,6 +431,18 @@ class FacultyPreviewOrderController extends Controller
     public function save(Request $request, string $department)
     {
         if (!$this->tableReady()) {
+            $this->writeActivityLog(
+                $request,
+                'error',
+                'faculty_preview_orders',
+                self::TABLE,
+                null,
+                null,
+                null,
+                ['error' => 'faculty_preview_orders table not found'],
+                'Save failed: table not found'
+            );
+
             return response()->json(['success' => false, 'error' => 'faculty_preview_orders table not found'], 422);
         }
 
@@ -365,6 +450,18 @@ class FacultyPreviewOrderController extends Controller
 
         $dept = $this->resolveDepartment($department);
         if (!$dept) {
+            $this->writeActivityLog(
+                $request,
+                'not_found',
+                'faculty_preview_orders',
+                self::TABLE,
+                null,
+                ['department'],
+                null,
+                ['department' => $department],
+                'Save failed: department not found'
+            );
+
             return response()->json(['success' => false, 'error' => 'Department not found'], 404);
         }
 
@@ -375,6 +472,18 @@ class FacultyPreviewOrderController extends Controller
         ]);
 
         if ($v->fails()) {
+            $this->writeActivityLog(
+                $request,
+                'validation_failed',
+                'faculty_preview_orders',
+                self::TABLE,
+                null,
+                ['faculty_ids', 'active'],
+                null,
+                ['errors' => $v->errors()->toArray(), 'department_id' => (int)$dept->id],
+                'Save failed: validation errors'
+            );
+
             return response()->json(['success' => false, 'errors' => $v->errors()], 422);
         }
 
@@ -413,7 +522,24 @@ class FacultyPreviewOrderController extends Controller
             $existing = DB::table(self::TABLE)
                 ->where('department_id', (int)$dept->id)
                 ->whereNull('deleted_at')
+                ->lockForUpdate()
                 ->first();
+
+            // ✅ snapshot before
+            $oldValues = null;
+            $oldActive = null;
+            $oldJson   = null;
+
+            if ($existing) {
+                $oldJson = $this->toArray($existing->{$jsonCol} ?? null);
+                if ($activeCol) $oldActive = $this->normalizeActive($existing->{$activeCol} ?? null);
+
+                $oldValues = [
+                    'department_id' => (int)$dept->id,
+                    $jsonCol => $oldJson,
+                ];
+                if ($activeCol) $oldValues[$activeCol] = $oldActive;
+            }
 
             $payload = [
                 $jsonCol      => json_encode($final),
@@ -432,6 +558,7 @@ class FacultyPreviewOrderController extends Controller
             if ($existing) {
                 DB::table(self::TABLE)->where('id', $existing->id)->update($payload);
                 $rowId = (int)$existing->id;
+                $action = 'update';
             } else {
                 $insert = array_merge([
                     'department_id' => (int)$dept->id,
@@ -450,9 +577,34 @@ class FacultyPreviewOrderController extends Controller
                 }
 
                 $rowId = (int) DB::table(self::TABLE)->insertGetId($insert);
+                $action = 'create';
             }
 
             DB::commit();
+
+            // ✅ DB activity log (required)
+            $changed = [$jsonCol];
+            if ($activeCol) $changed[] = $activeCol;
+
+            $newValues = [
+                'department_id' => (int)$dept->id,
+                $jsonCol => $final,
+            ];
+            if ($activeCol) $newValues[$activeCol] = (int)($activeVal ?? 1);
+
+            $this->writeActivityLog(
+                $request,
+                $action,
+                'faculty_preview_orders',
+                self::TABLE,
+                $rowId,
+                $changed,
+                $oldValues,
+                $newValues,
+                $action === 'create'
+                    ? 'Created faculty preview order'
+                    : 'Updated faculty preview order'
+            );
 
             $this->logWithActor('msit.faculty_preview_order.save', $request, [
                 'department_id' => (int)$dept->id,
@@ -474,6 +626,18 @@ class FacultyPreviewOrderController extends Controller
         } catch (\Throwable $e) {
             DB::rollBack();
 
+            $this->writeActivityLog(
+                $request,
+                'error',
+                'faculty_preview_orders',
+                self::TABLE,
+                null,
+                null,
+                null,
+                ['error' => $e->getMessage(), 'department_id' => (int)$dept->id],
+                'Save failed: exception'
+            );
+
             $this->logWithActor('msit.faculty_preview_order.save_failed', $request, [
                 'department_id' => (int)$dept->id,
                 'error' => $e->getMessage(),
@@ -490,6 +654,18 @@ class FacultyPreviewOrderController extends Controller
     public function toggleActive(Request $request, string $department)
     {
         if (!$this->tableReady()) {
+            $this->writeActivityLog(
+                $request,
+                'error',
+                'faculty_preview_orders',
+                self::TABLE,
+                null,
+                null,
+                null,
+                ['error' => 'faculty_preview_orders table not found'],
+                'Toggle active failed: table not found'
+            );
+
             return response()->json(['success' => false, 'error' => 'faculty_preview_orders table not found'], 422);
         }
 
@@ -497,16 +673,56 @@ class FacultyPreviewOrderController extends Controller
 
         $activeCol = $this->activeCol();
         if (!$activeCol) {
+            $this->writeActivityLog(
+                $request,
+                'error',
+                'faculty_preview_orders',
+                self::TABLE,
+                null,
+                ['active'],
+                null,
+                ['error' => 'No active/status column found'],
+                'Toggle active failed: active/status column missing'
+            );
+
             return response()->json(['success' => false, 'error' => 'No active/status column found in faculty_preview_orders'], 422);
         }
 
         $dept = $this->resolveDepartment($department);
-        if (!$dept) return response()->json(['success' => false, 'error' => 'Department not found'], 404);
+        if (!$dept) {
+            $this->writeActivityLog(
+                $request,
+                'not_found',
+                'faculty_preview_orders',
+                self::TABLE,
+                null,
+                ['department'],
+                null,
+                ['department' => $department],
+                'Toggle active failed: department not found'
+            );
+
+            return response()->json(['success' => false, 'error' => 'Department not found'], 404);
+        }
 
         $v = Validator::make($request->all(), [
             'active' => ['required'],
         ]);
-        if ($v->fails()) return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+        if ($v->fails()) {
+            $this->writeActivityLog(
+                $request,
+                'validation_failed',
+                'faculty_preview_orders',
+                self::TABLE,
+                null,
+                ['active'],
+                null,
+                ['errors' => $v->errors()->toArray(), 'department_id' => (int)$dept->id],
+                'Toggle active failed: validation errors'
+            );
+
+            return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+        }
 
         $raw = $request->input('active');
         $val = 0;
@@ -522,24 +738,66 @@ class FacultyPreviewOrderController extends Controller
             ->whereNull('deleted_at')
             ->first();
 
+        $jsonCol = $this->facultyJsonCol();
+        $oldValues = null;
+        $newValues = null;
+        $rowId = null;
+        $action = 'update';
+
         if (!$existing) {
             // If no row exists yet, create one with empty array
             $now = Carbon::now();
             $insert = [
                 'department_id' => (int)$dept->id,
-                $this->facultyJsonCol() => json_encode([]),
+                $jsonCol => json_encode([]),
                 $activeCol => $val,
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
             if (Schema::hasColumn(self::TABLE, 'uuid')) $insert['uuid'] = (string) Str::uuid();
-            DB::table(self::TABLE)->insert($insert);
+
+            $rowId = (int) DB::table(self::TABLE)->insertGetId($insert);
+            $action = 'create';
+
+            $oldValues = null;
+            $newValues = [
+                'department_id' => (int)$dept->id,
+                $jsonCol => [],
+                $activeCol => $val,
+            ];
         } else {
+            $rowId = (int)$existing->id;
+
+            $oldValues = [
+                'department_id' => (int)$dept->id,
+                $jsonCol => $this->toArray($existing->{$jsonCol} ?? null),
+                $activeCol => $this->normalizeActive($existing->{$activeCol} ?? null),
+            ];
+
             DB::table(self::TABLE)->where('id', $existing->id)->update([
                 $activeCol => $val,
                 'updated_at' => Carbon::now(),
             ]);
+
+            $newValues = [
+                'department_id' => (int)$dept->id,
+                $jsonCol => $oldValues[$jsonCol] ?? [],
+                $activeCol => $val,
+            ];
         }
+
+        // ✅ DB activity log (required)
+        $this->writeActivityLog(
+            $request,
+            $action === 'create' ? 'create' : 'update',
+            'faculty_preview_orders',
+            self::TABLE,
+            $rowId,
+            [$activeCol],
+            $oldValues,
+            $newValues,
+            'Toggled active status'
+        );
 
         $this->logWithActor('msit.faculty_preview_order.toggle_active', $request, [
             'department_id' => (int)$dept->id,
@@ -556,13 +814,39 @@ class FacultyPreviewOrderController extends Controller
     public function destroy(Request $request, string $department)
     {
         if (!$this->tableReady()) {
+            $this->writeActivityLog(
+                $request,
+                'error',
+                'faculty_preview_orders',
+                self::TABLE,
+                null,
+                null,
+                null,
+                ['error' => 'faculty_preview_orders table not found'],
+                'Destroy failed: table not found'
+            );
+
             return response()->json(['success' => false, 'error' => 'faculty_preview_orders table not found'], 422);
         }
 
         if ($resp = $this->requireRole($request, ['admin','director','principal'])) return $resp;
 
         $dept = $this->resolveDepartment($department);
-        if (!$dept) return response()->json(['success' => false, 'error' => 'Department not found'], 404);
+        if (!$dept) {
+            $this->writeActivityLog(
+                $request,
+                'not_found',
+                'faculty_preview_orders',
+                self::TABLE,
+                null,
+                ['department'],
+                null,
+                ['department' => $department],
+                'Destroy failed: department not found'
+            );
+
+            return response()->json(['success' => false, 'error' => 'Department not found'], 404);
+        }
 
         $row = DB::table(self::TABLE)
             ->where('department_id', (int)$dept->id)
@@ -570,17 +854,71 @@ class FacultyPreviewOrderController extends Controller
             ->first();
 
         if (!$row) {
+            $this->writeActivityLog(
+                $request,
+                'not_found',
+                'faculty_preview_orders',
+                self::TABLE,
+                null,
+                ['record'],
+                null,
+                ['department_id' => (int)$dept->id],
+                'Destroy failed: order record not found'
+            );
+
             return response()->json(['success' => false, 'error' => 'Order record not found'], 404);
         }
 
+        $jsonCol   = $this->facultyJsonCol();
+        $activeCol = $this->activeCol();
+
+        // ✅ snapshot before delete
+        $oldValues = [
+            'department_id' => (int)$dept->id,
+            'id' => (int)$row->id,
+            $jsonCol => $this->toArray($row->{$jsonCol} ?? null),
+        ];
+        if ($activeCol) $oldValues[$activeCol] = $this->normalizeActive($row->{$activeCol} ?? null);
+
+        $newValues = null;
+        $changedFields = [];
+
         if (Schema::hasColumn(self::TABLE, 'deleted_at')) {
+            $ts = Carbon::now();
             DB::table(self::TABLE)->where('id', $row->id)->update([
-                'deleted_at' => Carbon::now(),
-                'updated_at' => Carbon::now(),
+                'deleted_at' => $ts,
+                'updated_at' => $ts,
             ]);
+
+            $changedFields = ['deleted_at'];
+            $newValues = [
+                'department_id' => (int)$dept->id,
+                'id' => (int)$row->id,
+                'deleted_at' => (string)$ts,
+            ];
         } else {
             DB::table(self::TABLE)->where('id', $row->id)->delete();
+
+            $changedFields = ['deleted'];
+            $newValues = [
+                'department_id' => (int)$dept->id,
+                'id' => (int)$row->id,
+                'deleted' => true,
+            ];
         }
+
+        // ✅ DB activity log (required)
+        $this->writeActivityLog(
+            $request,
+            'delete',
+            'faculty_preview_orders',
+            self::TABLE,
+            (int)$row->id,
+            $changedFields,
+            $oldValues,
+            $newValues,
+            'Deleted faculty preview order'
+        );
 
         $this->logWithActor('msit.faculty_preview_order.destroy', $request, [
             'department_id' => (int)$dept->id,
@@ -591,112 +929,140 @@ class FacultyPreviewOrderController extends Controller
     }
 
     // =====================================================
-// PUBLIC ENDPOINTS (NO AUTH) — for landing pages
-// =====================================================
+    // PUBLIC ENDPOINTS (NO AUTH) — for landing pages
+    // =====================================================
 
-private function normalizeActive($raw): int
-{
-    if ($raw === null) return 1;
+    private function normalizeActive($raw): int
+    {
+        if ($raw === null) return 1;
 
-    if (is_numeric($raw)) return ((int)$raw) === 1 ? 1 : 0;
+        if (is_numeric($raw)) return ((int)$raw) === 1 ? 1 : 0;
 
-    $s = strtolower(trim((string)$raw));
-    return ($s === '1' || $s === 'true' || $s === 'active') ? 1 : 0;
-}
-
-/**
- * GET /api/public/faculty-preview-order
- * Returns departments that have an ACTIVE order row + faculty ids count
- */
-public function publicIndex(Request $request)
-{
-    if (!$this->tableReady()) {
-        return response()->json(['success' => false, 'error' => 'faculty_preview_orders table not found'], 422);
+        $s = strtolower(trim((string)$raw));
+        return ($s === '1' || $s === 'true' || $s === 'active') ? 1 : 0;
     }
 
-    $activeCol = $this->activeCol();
-    $jsonCol   = $this->facultyJsonCol();
+    /**
+     * GET /api/public/faculty-preview-order
+     * Returns departments that have an ACTIVE order row + faculty ids count
+     */
+    public function publicIndex(Request $request)
+    {
+        if (!$this->tableReady()) {
+            return response()->json(['success' => false, 'error' => 'faculty_preview_orders table not found'], 422);
+        }
 
-    $rows = DB::table(self::TABLE . ' as fpo')
-        ->leftJoin('departments as d', 'd.id', '=', 'fpo.department_id')
-        ->whereNull('fpo.deleted_at')
-        ->whereNull('d.deleted_at')
-        ->select(array_filter([
-            'fpo.id',
-            Schema::hasColumn(self::TABLE, 'uuid') ? 'fpo.uuid' : null,
-            'fpo.department_id',
-            'd.uuid as department_uuid',
-            'd.slug as department_slug',
-            'd.title as department_title',
-            $activeCol ? 'fpo.'.$activeCol.' as active_raw' : null,
-            'fpo.'.$jsonCol.' as faculty_user_ids_json',
-            'fpo.updated_at',
-        ]))
-        ->orderBy('d.title', 'asc')
-        ->get();
+        $activeCol = $this->activeCol();
+        $jsonCol   = $this->facultyJsonCol();
 
-    $out = [];
-    foreach ($rows as $r) {
-        $ids = $this->normalizeIds($this->toArray($r->faculty_user_ids_json ?? null));
-        $active = $activeCol ? $this->normalizeActive($r->active_raw ?? null) : 1;
+        $rows = DB::table(self::TABLE . ' as fpo')
+            ->leftJoin('departments as d', 'd.id', '=', 'fpo.department_id')
+            ->whereNull('fpo.deleted_at')
+            ->whereNull('d.deleted_at')
+            ->select(array_filter([
+                'fpo.id',
+                Schema::hasColumn(self::TABLE, 'uuid') ? 'fpo.uuid' : null,
+                'fpo.department_id',
+                'd.uuid as department_uuid',
+                'd.slug as department_slug',
+                'd.title as department_title',
+                $activeCol ? 'fpo.'.$activeCol.' as active_raw' : null,
+                'fpo.'.$jsonCol.' as faculty_user_ids_json',
+                'fpo.updated_at',
+            ]))
+            ->orderBy('d.title', 'asc')
+            ->get();
 
-        // ✅ only show ACTIVE + has some assigned ids
-        if ($active !== 1) continue;
-        if (count($ids) === 0) continue;
+        $out = [];
+        foreach ($rows as $r) {
+            $ids = $this->normalizeIds($this->toArray($r->faculty_user_ids_json ?? null));
+            $active = $activeCol ? $this->normalizeActive($r->active_raw ?? null) : 1;
 
-        $out[] = [
-            'department' => [
-                'id'    => (int)($r->department_id ?? 0),
-                'uuid'  => (string)($r->department_uuid ?? ''),
-                'slug'  => (string)($r->department_slug ?? ''),
-                'title' => (string)($r->department_title ?? ''),
-            ],
-            'order' => [
-                'active'        => 1,
-                'faculty_count' => count($ids),
-            ],
-        ];
+            // ✅ only show ACTIVE + has some assigned ids
+            if ($active !== 1) continue;
+            if (count($ids) === 0) continue;
+
+            $out[] = [
+                'department' => [
+                    'id'    => (int)($r->department_id ?? 0),
+                    'uuid'  => (string)($r->department_uuid ?? ''),
+                    'slug'  => (string)($r->department_slug ?? ''),
+                    'title' => (string)($r->department_title ?? ''),
+                ],
+                'order' => [
+                    'active'        => 1,
+                    'faculty_count' => count($ids),
+                ],
+            ];
+        }
+
+        return response()->json(['success' => true, 'data' => $out]);
     }
 
-    return response()->json(['success' => true, 'data' => $out]);
-}
+    /**
+     * GET /api/public/faculty-preview-order/{department}
+     * Public: returns ONLY assigned users (ordered) + order ids
+     */
+    public function publicShow(Request $request, string $department)
+    {
+        if (!$this->tableReady()) {
+            return response()->json(['success' => false, 'error' => 'faculty_preview_orders table not found'], 422);
+        }
 
-/**
- * GET /api/public/faculty-preview-order/{department}
- * Public: returns ONLY assigned users (ordered) + order ids
- */
-public function publicShow(Request $request, string $department)
-{
-    if (!$this->tableReady()) {
-        return response()->json(['success' => false, 'error' => 'faculty_preview_orders table not found'], 422);
-    }
+        $dept = $this->resolveDepartment($department);
+        if (!$dept) {
+            return response()->json(['success' => false, 'error' => 'Department not found'], 404);
+        }
 
-    $dept = $this->resolveDepartment($department);
-    if (!$dept) {
-        return response()->json(['success' => false, 'error' => 'Department not found'], 404);
-    }
+        $statusFilter = strtolower(trim((string)$request->query('status', 'active'))) ?: 'active';
+        if (!in_array($statusFilter, ['active','inactive','all'], true)) $statusFilter = 'active';
 
-    $statusFilter = strtolower(trim((string)$request->query('status', 'active'))) ?: 'active';
-    if (!in_array($statusFilter, ['active','inactive','all'], true)) $statusFilter = 'active';
+        $jsonCol   = $this->facultyJsonCol();
+        $activeCol = $this->activeCol();
 
-    $jsonCol   = $this->facultyJsonCol();
-    $activeCol = $this->activeCol();
+        $orderRow = DB::table(self::TABLE)
+            ->where('department_id', (int)$dept->id)
+            ->whereNull('deleted_at')
+            ->first();
 
-    $orderRow = DB::table(self::TABLE)
-        ->where('department_id', (int)$dept->id)
-        ->whereNull('deleted_at')
-        ->first();
+        $assignedIds = [];
+        $activeVal = 1;
 
-    $assignedIds = [];
-    $activeVal = 1;
+        if ($orderRow) {
+            $assignedIds = $this->normalizeIds($this->toArray($orderRow->{$jsonCol} ?? null));
+            $activeVal   = $activeCol ? $this->normalizeActive($orderRow->{$activeCol} ?? null) : 1;
+        }
 
-    if ($orderRow) {
-        $assignedIds = $this->normalizeIds($this->toArray($orderRow->{$jsonCol} ?? null));
-        $activeVal   = $activeCol ? $this->normalizeActive($orderRow->{$activeCol} ?? null) : 1;
-    }
+        // ✅ If no row / inactive / empty => return empty assigned (public-safe)
+        if (!$orderRow || $activeVal !== 1 || empty($assignedIds)) {
+            return response()->json([
+                'success' => true,
+                'department' => [
+                    'id'    => (int)$dept->id,
+                    'uuid'  => (string)($dept->uuid ?? ''),
+                    'slug'  => (string)($dept->slug ?? ''),
+                    'title' => (string)($dept->title ?? ''),
+                ],
+                'order' => [
+                    'exists'        => (bool)$orderRow,
+                    'active'        => (int)$activeVal,
+                    'faculty_ids'   => $assignedIds,
+                    'faculty_count' => count($assignedIds),
+                ],
+                'assigned' => [],
+            ]);
+        }
 
-    // ✅ If no row / inactive / empty => return empty assigned (public-safe)
-    if (!$orderRow || $activeVal !== 1 || empty($assignedIds)) {
+        // assigned users (eligible + ordered)
+        $assignedRows = $this->eligibleUsersByIds((int)$dept->id, $assignedIds, $statusFilter);
+        $assignedMap  = [];
+        foreach ($assignedRows as $u) $assignedMap[(int)$u->id] = $u;
+
+        $assignedOrdered = [];
+        foreach ($assignedIds as $id) {
+            if (isset($assignedMap[$id])) $assignedOrdered[] = $assignedMap[$id];
+        }
+
         return response()->json([
             'success' => true,
             'department' => [
@@ -706,41 +1072,12 @@ public function publicShow(Request $request, string $department)
                 'title' => (string)($dept->title ?? ''),
             ],
             'order' => [
-                'exists'        => (bool)$orderRow,
-                'active'        => (int)$activeVal,
+                'exists'        => true,
+                'active'        => 1,
                 'faculty_ids'   => $assignedIds,
                 'faculty_count' => count($assignedIds),
             ],
-            'assigned' => [],
+            'assigned' => $assignedOrdered, // ✅ already ordered exactly like DB
         ]);
     }
-
-    // assigned users (eligible + ordered)
-    $assignedRows = $this->eligibleUsersByIds((int)$dept->id, $assignedIds, $statusFilter);
-    $assignedMap  = [];
-    foreach ($assignedRows as $u) $assignedMap[(int)$u->id] = $u;
-
-    $assignedOrdered = [];
-    foreach ($assignedIds as $id) {
-        if (isset($assignedMap[$id])) $assignedOrdered[] = $assignedMap[$id];
-    }
-
-    return response()->json([
-        'success' => true,
-        'department' => [
-            'id'    => (int)$dept->id,
-            'uuid'  => (string)($dept->uuid ?? ''),
-            'slug'  => (string)($dept->slug ?? ''),
-            'title' => (string)($dept->title ?? ''),
-        ],
-        'order' => [
-            'exists'        => true,
-            'active'        => 1,
-            'faculty_ids'   => $assignedIds,
-            'faculty_count' => count($assignedIds),
-        ],
-        'assigned' => $assignedOrdered, // ✅ already ordered exactly like DB
-    ]);
-}
-
 }

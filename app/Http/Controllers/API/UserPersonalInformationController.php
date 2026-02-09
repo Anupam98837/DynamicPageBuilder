@@ -90,6 +90,97 @@ class UserPersonalInformationController extends Controller
     }
 
     /* =========================
+     * Activity Log (DB table: user_data_activity_log)
+     * ========================= */
+
+    private function jsonOrNull($val): ?string
+    {
+        if ($val === null) return null;
+        return json_encode($val, JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * Insert into user_data_activity_log.
+     * Never throws (logging failures must not break API).
+     */
+    private function logActivity(
+        Request $r,
+        string $activity,            // create|update|delete|restore|...
+        string $module,              // e.g. user_personal_information
+        string $tableName,           // e.g. user_personal_information
+        ?int $recordId = null,       // primary key id (if known)
+        ?array $changedFields = null,
+        ?array $oldValues = null,
+        ?array $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            $a = $this->actor($r);
+            $now = Carbon::now();
+
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'       => (int) ($a['id'] ?? 0),
+                'performed_by_role'  => $a['role'] ?? null,
+                'ip'                 => $r->ip(),
+                'user_agent'         => (string) ($r->header('User-Agent') ?? ''),
+                'activity'           => $activity,
+                'module'             => $module,
+                'table_name'         => $tableName,
+                'record_id'          => $recordId,
+                'changed_fields'     => $changedFields ? $this->jsonOrNull($changedFields) : null,
+                'old_values'         => $oldValues ? $this->jsonOrNull($oldValues) : null,
+                'new_values'         => $newValues ? $this->jsonOrNull($newValues) : null,
+                'log_note'           => $note,
+                'created_at'         => $now,
+                'updated_at'         => $now,
+            ]);
+        } catch (\Throwable $e) {
+            // Must not affect core flow
+            Log::warning('activity_log.insert_failed', [
+                'error'   => $e->getMessage(),
+                'module'  => $module,
+                'table'   => $tableName,
+                'action'  => $activity,
+            ]);
+        }
+    }
+
+    /**
+     * Build diff arrays between old row and fresh row for selected fields.
+     */
+    private function buildDiff(?object $old, ?object $fresh, array $fields): array
+    {
+        $changed = [];
+        $oldVals = [];
+        $newVals = [];
+
+        foreach ($fields as $f) {
+            $ov = $old ? ($old->$f ?? null) : null;
+            $nv = $fresh ? ($fresh->$f ?? null) : null;
+
+            // Normalize arrays for comparison (qualification)
+            if (is_array($ov) || is_array($nv)) {
+                $ovNorm = is_array($ov) ? $ov : [];
+                $nvNorm = is_array($nv) ? $nv : [];
+                if ($ovNorm !== $nvNorm) {
+                    $changed[] = $f;
+                    $oldVals[$f] = $ovNorm;
+                    $newVals[$f] = $nvNorm;
+                }
+                continue;
+            }
+
+            if ($ov !== $nv) {
+                $changed[] = $f;
+                $oldVals[$f] = $ov;
+                $newVals[$f] = $nv;
+            }
+        }
+
+        return [$changed, $oldVals, $newVals];
+    }
+
+    /* =========================
      * Qualification helpers
      * ========================= */
 
@@ -278,9 +369,15 @@ class UserPersonalInformationController extends Controller
 
     public function store(Request $request, ?string $user_uuid = null)
     {
+        // ---- activity log: attempt (POST) ----
+        $this->logActivity($request, 'create', 'user_personal_information', $this->table, null, null, null, null, 'attempt');
+
         if ($resp = $this->requireRole($request, [
             'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
-        ])) return $resp;
+        ])) {
+            $this->logActivity($request, 'create', 'user_personal_information', $this->table, null, null, null, null, 'unauthorized');
+            return $resp;
+        }
 
         Log::info('PI.store.request', [
             'method'       => $request->method(),
@@ -292,9 +389,13 @@ class UserPersonalInformationController extends Controller
         ]);
 
         $user = $this->resolveTargetUser($request, $user_uuid);
-        if (!$user) return response()->json(['success' => false, 'error' => 'User not found'], 404);
+        if (!$user) {
+            $this->logActivity($request, 'create', 'user_personal_information', $this->table, null, null, null, null, 'user_not_found');
+            return response()->json(['success' => false, 'error' => 'User not found'], 404);
+        }
 
         if (!$this->canAccessUser($request, (int)$user->id)) {
+            $this->logActivity($request, 'create', 'user_personal_information', $this->table, null, null, null, null, 'unauthorized_access_target_user');
             return response()->json(['success' => false, 'error' => 'Unauthorized Access'], 403);
         }
 
@@ -307,7 +408,20 @@ class UserPersonalInformationController extends Controller
             'research_project' => ['nullable', 'string'],
         ]);
 
-        if ($v->fails()) return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+        if ($v->fails()) {
+            $this->logActivity(
+                $request,
+                'create',
+                'user_personal_information',
+                $this->table,
+                null,
+                null,
+                null,
+                null,
+                'validation_failed: ' . $v->errors()->toJson()
+            );
+            return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+        }
 
         [$qPresent, $qValue, $qErr] = $this->readQualificationFromRequest($request);
 
@@ -319,7 +433,10 @@ class UserPersonalInformationController extends Controller
             'error'   => $qErr,
         ]);
 
-        if ($qErr) return response()->json(['success' => false, 'error' => $qErr], 422);
+        if ($qErr) {
+            $this->logActivity($request, 'create', 'user_personal_information', $this->table, null, ['qualification'], null, null, 'qualification_error: '.$qErr);
+            return response()->json(['success' => false, 'error' => $qErr], 422);
+        }
 
         $data  = $v->validated();
         $now   = Carbon::now();
@@ -335,6 +452,19 @@ class UserPersonalInformationController extends Controller
 
             if ($existing) {
                 DB::rollBack();
+
+                $this->logActivity(
+                    $request,
+                    'create',
+                    'user_personal_information',
+                    $this->table,
+                    (int)($existing->id ?? 0),
+                    null,
+                    null,
+                    null,
+                    'conflict: already_exists'
+                );
+
                 return response()->json([
                     'success' => false,
                     'error'   => 'Personal information already exists. Use update.',
@@ -368,6 +498,24 @@ class UserPersonalInformationController extends Controller
             $row = DB::table($this->table)->where('id', $id)->first();
             $row = $this->decodeQualificationRow($row);
 
+            // ---- activity log: success (create) ----
+            $fields = ['uuid','user_id','qualification','affiliation','specification','experience','interest','administration','research_project'];
+            $changedFields = $fields;
+            $newValues = [];
+            foreach ($fields as $f) $newValues[$f] = $row->$f ?? null;
+
+            $this->logActivity(
+                $request,
+                'create',
+                'user_personal_information',
+                $this->table,
+                (int)$id,
+                $changedFields,
+                null,
+                $newValues,
+                'success'
+            );
+
             return response()->json(['success' => true, 'data' => $row], 201);
 
         } catch (\Throwable $e) {
@@ -378,15 +526,33 @@ class UserPersonalInformationController extends Controller
                 'user_id' => (int)$user->id,
             ]);
 
+            $this->logActivity(
+                $request,
+                'create',
+                'user_personal_information',
+                $this->table,
+                null,
+                null,
+                null,
+                null,
+                'failed: '.$e->getMessage()
+            );
+
             return response()->json(['success' => false, 'error' => 'Failed to create personal information'], 500);
         }
     }
 
     public function update(Request $request, ?string $user_uuid = null)
     {
+        // ---- activity log: attempt (PUT/PATCH) ----
+        $this->logActivity($request, 'update', 'user_personal_information', $this->table, null, null, null, null, 'attempt');
+
         if ($resp = $this->requireRole($request, [
             'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
-        ])) return $resp;
+        ])) {
+            $this->logActivity($request, 'update', 'user_personal_information', $this->table, null, null, null, null, 'unauthorized');
+            return $resp;
+        }
 
         Log::info('PI.update.request', [
             'method'       => $request->method(),
@@ -398,9 +564,13 @@ class UserPersonalInformationController extends Controller
         ]);
 
         $user = $this->resolveTargetUser($request, $user_uuid);
-        if (!$user) return response()->json(['success' => false, 'error' => 'User not found'], 404);
+        if (!$user) {
+            $this->logActivity($request, 'update', 'user_personal_information', $this->table, null, null, null, null, 'user_not_found');
+            return response()->json(['success' => false, 'error' => 'User not found'], 404);
+        }
 
         if (!$this->canAccessUser($request, (int)$user->id)) {
+            $this->logActivity($request, 'update', 'user_personal_information', $this->table, null, null, null, null, 'unauthorized_access_target_user');
             return response()->json(['success' => false, 'error' => 'Unauthorized Access'], 403);
         }
 
@@ -414,7 +584,20 @@ class UserPersonalInformationController extends Controller
             'qualification_force_clear' => ['sometimes','boolean'],
         ]);
 
-        if ($v->fails()) return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+        if ($v->fails()) {
+            $this->logActivity(
+                $request,
+                'update',
+                'user_personal_information',
+                $this->table,
+                null,
+                null,
+                null,
+                null,
+                'validation_failed: ' . $v->errors()->toJson()
+            );
+            return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+        }
 
         [$qPresent, $qValue, $qErr] = $this->readQualificationFromRequest($request);
 
@@ -426,7 +609,10 @@ class UserPersonalInformationController extends Controller
             'error'   => $qErr,
         ]);
 
-        if ($qErr) return response()->json(['success' => false, 'error' => $qErr], 422);
+        if ($qErr) {
+            $this->logActivity($request, 'update', 'user_personal_information', $this->table, null, ['qualification'], null, null, 'qualification_error: '.$qErr);
+            return response()->json(['success' => false, 'error' => $qErr], 422);
+        }
 
         $data  = $v->validated();
         $now   = Carbon::now();
@@ -441,11 +627,26 @@ class UserPersonalInformationController extends Controller
 
             if (!$row) {
                 DB::rollBack();
+
+                $this->logActivity(
+                    $request,
+                    'update',
+                    'user_personal_information',
+                    $this->table,
+                    null,
+                    null,
+                    null,
+                    null,
+                    'not_found: personal_information_missing'
+                );
+
                 return response()->json([
                     'success' => false,
                     'error'   => 'Personal information not found. Create it first (store).',
                 ], 404);
             }
+
+            $oldRow = $this->decodeQualificationRow(clone $row);
 
             $update = [];
 
@@ -479,6 +680,20 @@ class UserPersonalInformationController extends Controller
 
             if (empty($update)) {
                 DB::commit();
+
+                // ---- activity log: no-op update (still a PUT/PATCH call) ----
+                $this->logActivity(
+                    $request,
+                    'update',
+                    'user_personal_information',
+                    $this->table,
+                    (int)($row->id ?? 0),
+                    [],
+                    [],
+                    [],
+                    'no_changes'
+                );
+
                 return response()->json(['success' => true, 'data' => $this->decodeQualificationRow($row)]);
             }
 
@@ -511,6 +726,22 @@ class UserPersonalInformationController extends Controller
                 'q_count'     => is_array($qValue) ? count($qValue) : null,
             ]);
 
+            // ---- activity log: success (update) with diffs ----
+            $diffFields = ['qualification','affiliation','specification','experience','interest','administration','research_project'];
+            [$changedFields, $oldValues, $newValues] = $this->buildDiff($oldRow, $fresh, $diffFields);
+
+            $this->logActivity(
+                $request,
+                'update',
+                'user_personal_information',
+                $this->table,
+                (int)($row->id ?? 0),
+                $changedFields,
+                $oldValues,
+                $newValues,
+                'success'
+            );
+
             return response()->json(['success' => true, 'data' => $fresh]);
 
         } catch (\Throwable $e) {
@@ -521,20 +752,42 @@ class UserPersonalInformationController extends Controller
                 'user_id' => (int)$user->id,
             ]);
 
+            $this->logActivity(
+                $request,
+                'update',
+                'user_personal_information',
+                $this->table,
+                null,
+                null,
+                null,
+                null,
+                'failed: '.$e->getMessage()
+            );
+
             return response()->json(['success' => false, 'error' => 'Failed to update personal information'], 500);
         }
     }
 
     public function destroy(Request $request, ?string $user_uuid = null)
     {
+        // ---- activity log: attempt (DELETE) ----
+        $this->logActivity($request, 'delete', 'user_personal_information', $this->table, null, null, null, null, 'attempt');
+
         if ($resp = $this->requireRole($request, [
             'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
-        ])) return $resp;
+        ])) {
+            $this->logActivity($request, 'delete', 'user_personal_information', $this->table, null, null, null, null, 'unauthorized');
+            return $resp;
+        }
 
         $user = $this->resolveTargetUser($request, $user_uuid);
-        if (!$user) return response()->json(['success' => false, 'error' => 'User not found'], 404);
+        if (!$user) {
+            $this->logActivity($request, 'delete', 'user_personal_information', $this->table, null, null, null, null, 'user_not_found');
+            return response()->json(['success' => false, 'error' => 'User not found'], 404);
+        }
 
         if (!$this->canAccessUser($request, (int)$user->id)) {
+            $this->logActivity($request, 'delete', 'user_personal_information', $this->table, null, null, null, null, 'unauthorized_access_target_user');
             return response()->json(['success' => false, 'error' => 'Unauthorized Access'], 403);
         }
 
@@ -543,7 +796,12 @@ class UserPersonalInformationController extends Controller
             ->whereNull('deleted_at')
             ->first();
 
-        if (!$row) return response()->json(['success' => false, 'error' => 'Personal information not found'], 404);
+        if (!$row) {
+            $this->logActivity($request, 'delete', 'user_personal_information', $this->table, null, null, null, null, 'not_found');
+            return response()->json(['success' => false, 'error' => 'Personal information not found'], 404);
+        }
+
+        $oldRow = $this->decodeQualificationRow(clone $row);
 
         $now = Carbon::now();
 
@@ -557,20 +815,43 @@ class UserPersonalInformationController extends Controller
             'user_id' => (int)$user->id,
         ]);
 
+        // ---- activity log: success (delete) ----
+        $this->logActivity(
+            $request,
+            'delete',
+            'user_personal_information',
+            $this->table,
+            (int)($row->id ?? 0),
+            ['deleted_at'],
+            ['deleted_at' => $oldRow->deleted_at ?? null],
+            ['deleted_at' => $now->toDateTimeString()],
+            'success'
+        );
+
         return response()->json(['success' => true, 'message' => 'Personal information deleted']);
     }
 
     public function restore(Request $request, ?string $user_uuid = null)
     {
+        // ---- activity log: attempt (POST/PATCH restore) ----
+        $this->logActivity($request, 'restore', 'user_personal_information', $this->table, null, null, null, null, 'attempt');
+
         if ($resp = $this->requireRole($request, [
             'admin','director','principal','hod','technical_assistant','it_person'
-        ])) return $resp;
+        ])) {
+            $this->logActivity($request, 'restore', 'user_personal_information', $this->table, null, null, null, null, 'unauthorized');
+            return $resp;
+        }
 
         $user = $this->resolveTargetUser($request, $user_uuid);
-        if (!$user) return response()->json(['success' => false, 'error' => 'User not found'], 404);
+        if (!$user) {
+            $this->logActivity($request, 'restore', 'user_personal_information', $this->table, null, null, null, null, 'user_not_found');
+            return response()->json(['success' => false, 'error' => 'User not found'], 404);
+        }
 
         $actor = $this->actor($request);
         if (!$this->isHighRole($actor['role']) && $actor['id'] !== (int)$user->id) {
+            $this->logActivity($request, 'restore', 'user_personal_information', $this->table, null, null, null, null, 'unauthorized_access_target_user');
             return response()->json(['success' => false, 'error' => 'Unauthorized Access'], 403);
         }
 
@@ -579,7 +860,12 @@ class UserPersonalInformationController extends Controller
             ->whereNotNull('deleted_at')
             ->first();
 
-        if (!$row) return response()->json(['success' => false, 'error' => 'No deleted personal information found'], 404);
+        if (!$row) {
+            $this->logActivity($request, 'restore', 'user_personal_information', $this->table, null, null, null, null, 'not_found_deleted_row');
+            return response()->json(['success' => false, 'error' => 'No deleted personal information found'], 404);
+        }
+
+        $oldDeletedAt = $row->deleted_at ?? null;
 
         DB::table($this->table)->where('user_id', $user->id)->update([
             'deleted_at' => null,
@@ -597,6 +883,19 @@ class UserPersonalInformationController extends Controller
             ->first();
 
         $fresh = $this->decodeQualificationRow($fresh);
+
+        // ---- activity log: success (restore) ----
+        $this->logActivity(
+            $request,
+            'restore',
+            'user_personal_information',
+            $this->table,
+            (int)($row->id ?? 0),
+            ['deleted_at'],
+            ['deleted_at' => $oldDeletedAt],
+            ['deleted_at' => null],
+            'success'
+        );
 
         return response()->json(['success' => true, 'data' => $fresh]);
     }

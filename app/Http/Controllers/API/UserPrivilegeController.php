@@ -23,6 +23,62 @@ class UserPrivilegeController extends Controller
     }
 
     /* =========================
+     * ACTIVITY LOGGING (user_data_activity_log)
+     * Logs ONLY for POST/PUT/PATCH/DELETE flows (we call it from write methods)
+     * ========================= */
+    private function toJsonOrNull($value): ?string
+    {
+        if ($value === null) return null;
+
+        return json_encode(
+            $value,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR
+        );
+    }
+
+    private function logActivity(
+        Request $r,
+        string $activity,        // create|update|delete|error|etc
+        string $module,          // e.g. user_privileges
+        string $tableName,       // e.g. user_privileges
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        $oldValues = null,
+        $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            if (!Schema::hasTable('user_data_activity_log')) return;
+
+            $actor = $this->actor($r);
+
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'      => (int) ($actor['id'] ?? 0),
+                'performed_by_role' => $actor['role'] ?? null,
+                'ip'                => $r->ip(),
+                'user_agent'        => substr((string) $r->userAgent(), 0, 512),
+
+                'activity'          => $activity,
+                'module'            => $module,
+
+                'table_name'        => $tableName,
+                'record_id'         => $recordId,
+
+                'changed_fields'    => $changedFields ? $this->toJsonOrNull(array_values($changedFields)) : null,
+                'old_values'        => $this->toJsonOrNull($oldValues),
+                'new_values'        => $this->toJsonOrNull($newValues),
+
+                'log_note'          => $note,
+
+                'created_at'        => now(),
+                'updated_at'        => now(),
+            ]);
+        } catch (\Throwable $e) {
+            // Never break primary functionality due to logging failure
+        }
+    }
+
+    /* =========================
      * Utilities
      * ========================= */
 
@@ -57,14 +113,13 @@ class UserPrivilegeController extends Controller
      * - $withTrashed=false => only active row
      */
     private function getUserPrivilegeRow(int $userId, bool $withTrashed = true): ?object
-{
-    $q = DB::table('user_privileges')->where('user_id', $userId);
-    if (!$withTrashed) $q->whereNull('deleted_at');
+    {
+        $q = DB::table('user_privileges')->where('user_id', $userId);
+        if (!$withTrashed) $q->whereNull('deleted_at');
 
-    // ✅ Always pick the newest row (prevents random "first()" row)
-    return $q->orderByDesc('id')->first();
-}
-
+        // ✅ Always pick the newest row (prevents random "first()" row)
+        return $q->orderByDesc('id')->first();
+    }
 
     /** Simple guard: actor can view self or (admin/super_admin) can view others. */
     private function canViewUserModules(array $actor, int $targetUserId): bool
@@ -250,296 +305,398 @@ class UserPrivilegeController extends Controller
      * - Stores tree into `privileges` JSON column (your migration)
      */
     private function upsertUserPrivilegesRow(Request $r, int $userId, array $tree, array $actor, $now): object
-{
-    // ✅ Keep only ONE row per user: newest row wins
-    $rows = DB::table('user_privileges')
-        ->where('user_id', $userId)
-        ->orderByDesc('id')
-        ->get(['id','deleted_at']);
+    {
+        // ✅ Keep only ONE row per user: newest row wins
+        $rows = DB::table('user_privileges')
+            ->where('user_id', $userId)
+            ->orderByDesc('id')
+            ->get(['id','deleted_at']);
 
-    $keep = $rows->first();
+        $keep = $rows->first();
 
-    // Soft-delete all other rows (active OR trashed) to avoid future confusion
-    $dupIds = $rows->skip(1)->pluck('id')->all();
-    if (!empty($dupIds)) {
-        DB::table('user_privileges')
-            ->whereIn('id', $dupIds)
-            ->update([
-                'deleted_at' => $now,
-                'updated_at' => $now,
-            ]);
-    }
-
-    $payloadToStore = json_encode($tree);
-
-    if ($keep) {
-        DB::table('user_privileges')
-            ->where('id', $keep->id)
-            ->update([
-                'privileges'    => $payloadToStore,
-                'assigned_by'   => $actor['id'] ?: null,
-                'created_at_ip' => $r->ip(),
-                'deleted_at'    => null, // ✅ revive the kept row if it was trashed
-                'updated_at'    => $now,
-            ]);
-
-        return DB::table('user_privileges')->where('id', $keep->id)->first();
-    }
-
-    $id = DB::table('user_privileges')->insertGetId([
-        'uuid'          => (string) Str::uuid(),
-        'user_id'       => $userId,
-        'privileges'    => $payloadToStore,
-        'assigned_by'   => $actor['id'] ?: null,
-        'created_at_ip' => $r->ip(),
-        'created_at'    => $now,
-        'updated_at'    => $now,
-    ]);
-
-    return DB::table('user_privileges')->where('id', $id)->first();
-}
-
-/**
- * Build TREE structure in required format:
- * [
- *   { id: headerId, type:'header', children:[
- *       { id: pageId, type:'page', privileges:[{id,action},...] }
- *   ]}
- * ]
- *
- * This guarantees DB stores header->page->privileges mapping.
- */
-private function buildTreeFromPrivilegeIds(array $privIds): array
-{
-    $privIds = array_values(array_unique(array_filter(array_map('intval', $privIds), fn($x)=>$x>0)));
-    if (empty($privIds)) return [];
-
-    // Pull mapping from DB
-    $rows = DB::table('page_privilege as p')
-        ->join('dashboard_menu as m', 'm.id', '=', 'p.dashboard_menu_id')
-        ->whereIn('p.id', $privIds)
-        ->whereNull('p.deleted_at')
-        ->whereNull('m.deleted_at')
-        ->select([
-            'p.id as priv_id',
-            'p.action as priv_action',
-            'p.dashboard_menu_id as page_id',
-            'm.parent_id',
-            'm.is_dropdown_head',
-        ])
-        ->get();
-
-    // headerId => pageId => [privileges...]
-    $bucket = [];
-
-    foreach ($rows as $r) {
-        $pageId = (int) $r->page_id;
-
-        // header logic:
-        // - if page has parent => that is header
-        // - else if page itself is dropdown head => header = page
-        // - else header = 0 (no parent)
-        $headerId = 0;
-        if (!is_null($r->parent_id)) {
-            $headerId = (int) $r->parent_id;
-        } elseif ((int)($r->is_dropdown_head ?? 0) === 1) {
-            $headerId = $pageId;
+        // Soft-delete all other rows (active OR trashed) to avoid future confusion
+        $dupIds = $rows->skip(1)->pluck('id')->all();
+        if (!empty($dupIds)) {
+            DB::table('user_privileges')
+                ->whereIn('id', $dupIds)
+                ->update([
+                    'deleted_at' => $now,
+                    'updated_at' => $now,
+                ]);
         }
 
-        $bucket[$headerId][$pageId][] = [
-            'id' => (int) $r->priv_id,
-            'action' => (string) ($r->priv_action ?? null),
-        ];
+        $payloadToStore = json_encode($tree);
+
+        if ($keep) {
+            DB::table('user_privileges')
+                ->where('id', $keep->id)
+                ->update([
+                    'privileges'    => $payloadToStore,
+                    'assigned_by'   => $actor['id'] ?: null,
+                    'created_at_ip' => $r->ip(),
+                    'deleted_at'    => null, // ✅ revive the kept row if it was trashed
+                    'updated_at'    => $now,
+                ]);
+
+            return DB::table('user_privileges')->where('id', $keep->id)->first();
+        }
+
+        $id = DB::table('user_privileges')->insertGetId([
+            'uuid'          => (string) Str::uuid(),
+            'user_id'       => $userId,
+            'privileges'    => $payloadToStore,
+            'assigned_by'   => $actor['id'] ?: null,
+            'created_at_ip' => $r->ip(),
+            'created_at'    => $now,
+            'updated_at'    => $now,
+        ]);
+
+        return DB::table('user_privileges')->where('id', $id)->first();
     }
 
-    // Build final tree
-    ksort($bucket);
-    $tree = [];
+    /**
+     * Build TREE structure in required format:
+     * [
+     *   { id: headerId, type:'header', children:[
+     *       { id: pageId, type:'page', privileges:[{id,action},...] }
+     *   ]}
+     * ]
+     *
+     * This guarantees DB stores header->page->privileges mapping.
+     */
+    private function buildTreeFromPrivilegeIds(array $privIds): array
+    {
+        $privIds = array_values(array_unique(array_filter(array_map('intval', $privIds), fn($x)=>$x>0)));
+        if (empty($privIds)) return [];
 
-    foreach ($bucket as $headerId => $pages) {
-        ksort($pages);
-        $children = [];
+        // Pull mapping from DB
+        $rows = DB::table('page_privilege as p')
+            ->join('dashboard_menu as m', 'm.id', '=', 'p.dashboard_menu_id')
+            ->whereIn('p.id', $privIds)
+            ->whereNull('p.deleted_at')
+            ->whereNull('m.deleted_at')
+            ->select([
+                'p.id as priv_id',
+                'p.action as priv_action',
+                'p.dashboard_menu_id as page_id',
+                'm.parent_id',
+                'm.is_dropdown_head',
+            ])
+            ->get();
 
-        foreach ($pages as $pageId => $privs) {
-            // unique privileges by id
-            $tmp = [];
-            foreach ($privs as $p) $tmp[(int)$p['id']] = $p;
-            $privs = array_values($tmp);
+        // headerId => pageId => [privileges...]
+        $bucket = [];
 
-            $children[] = [
-                'id' => (int) $pageId,
-                'type' => 'page',
-                'privileges' => $privs,
+        foreach ($rows as $r) {
+            $pageId = (int) $r->page_id;
+
+            // header logic:
+            // - if page has parent => that is header
+            // - else if page itself is dropdown head => header = page
+            // - else header = 0 (no parent)
+            $headerId = 0;
+            if (!is_null($r->parent_id)) {
+                $headerId = (int) $r->parent_id;
+            } elseif ((int)($r->is_dropdown_head ?? 0) === 1) {
+                $headerId = $pageId;
+            }
+
+            $bucket[$headerId][$pageId][] = [
+                'id' => (int) $r->priv_id,
+                'action' => (string) ($r->priv_action ?? null),
             ];
         }
 
-        $tree[] = [
-            'id' => (int) $headerId,
-            'type' => 'header',
-            'children' => $children,
-        ];
-    }
+        // Build final tree
+        ksort($bucket);
+        $tree = [];
 
-    return $tree;
-}
+        foreach ($bucket as $headerId => $pages) {
+            ksort($pages);
+            $children = [];
 
-  public function sync(Request $r)
-{
-    $data = $r->validate([
-        'user_id'   => 'sometimes|integer|exists:users,id',
-        'user_uuid' => 'sometimes|uuid|exists:users,uuid',
+            foreach ($pages as $pageId => $privs) {
+                // unique privileges by id
+                $tmp = [];
+                foreach ($privs as $p) $tmp[(int)$p['id']] = $p;
+                $privs = array_values($tmp);
 
-        'tree' => 'sometimes|array|min:0',
+                $children[] = [
+                    'id' => (int) $pageId,
+                    'type' => 'page',
+                    'privileges' => $privs,
+                ];
+            }
 
-        // header
-        'tree.*.id' => 'required|integer|min:0',
-        'tree.*.type' => 'required|string|in:header',
-        'tree.*.children' => 'required|array|min:1',
-
-        // page
-        'tree.*.children.*.id' => 'required|integer|min:0',
-        'tree.*.children.*.type' => 'required|string|in:page',
-        'tree.*.children.*.privileges' => 'required|array|min:0',
-
-        // privileges
-        'tree.*.children.*.privileges.*.id' => 'required|integer|exists:page_privilege,id',
-        'tree.*.children.*.privileges.*.action' => 'nullable|string',
-    ]);
-
-    $userId = $this->resolveUserIdFromRequest($data);
-    if (!$userId) return response()->json(['error' => 'User not found'], 404);
-
-    $actor = $this->actor($r);
-    $now   = now();
-
-    // normalize actions using DB (authoritative)
-    $newTree = $this->normalizeIncomingTree($data['tree']);
-    $newIds  = $this->extractPrivilegeIdsFromTree($newTree)['ids'];
-
-    try {
-        $result = DB::transaction(function () use ($r, $userId, $newTree, $newIds, $actor, $now) {
-
-            $row = $this->getUserPrivilegeRow($userId, true);
-            $currentTree = $row ? $this->decodeStoredPrivileges($row->privileges ?? null) : [];
-            $curIds = $this->extractPrivilegeIdsFromTree($currentTree)['ids'];
-
-            $addedIds   = array_values(array_diff($newIds, $curIds));
-            $removedIds = array_values(array_diff($curIds, $newIds));
-
-            $actionMap = $this->actionMapFromDb(array_values(array_unique(array_merge($newIds, $curIds))));
-            $added   = array_map(fn($id)=>['id'=>(int)$id, 'action'=>($actionMap[(int)$id] ?? null)], $addedIds);
-            $removed = array_map(fn($id)=>['id'=>(int)$id, 'action'=>($actionMap[(int)$id] ?? null)], $removedIds);
-
-            // ✅ store EXACT tree sent (normalized)
-            $savedRow = $this->upsertUserPrivilegesRow($r, $userId, $newTree, $actor, $now);
-
-            return [
-                'row' => $savedRow,
-                'added' => $added,
-                'removed' => $removed,
-                'saved_ids' => $newIds,
-                'saved_tree' => $newTree,
+            $tree[] = [
+                'id' => (int) $headerId,
+                'type' => 'header',
+                'children' => $children,
             ];
-        });
+        }
 
-        return response()->json([
-            'message'    => 'Privileges synced successfully (tree stored).',
-            'user_uuid'  => $this->getUserUuid($userId),
-            'user_privileges_uuid' => $result['row']->uuid ?? null,
-            'added'      => $result['added'],
-            'removed'    => $result['removed'],
-            'saved_count'=> count($result['saved_ids']),
-            'saved_ids'  => $result['saved_ids'],
-            'tree'       => $result['saved_tree'],
-        ], 200);
-
-    } catch (\Throwable $e) {
-        return response()->json([
-            'error'  => 'Could not sync privileges',
-            'detail' => $e->getMessage()
-        ], 500);
-    }
-}
-public function assign(Request $r)
-{
-    $data = $r->validate([
-        'user_id'   => 'sometimes|integer|exists:users,id',
-        'user_uuid' => 'sometimes|uuid|exists:users,uuid',
-
-        'privilege_id'     => 'sometimes|integer|exists:page_privilege,id',
-        'privilege_ids'    => 'sometimes|array|min:1',
-        'privilege_ids.*'  => 'integer|exists:page_privilege,id',
-
-        'tree'             => 'sometimes|array',
-        'tree.*.id'        => 'required_with:tree|integer',
-    ]);
-
-    $userId = $this->resolveUserIdFromRequest($data);
-    if (!$userId) return response()->json(['message' => 'User not found'], 404);
-
-    $actor = $this->actor($r);
-    $now   = now();
-
-    $incomingIds = [];
-
-    if (!empty($data['privilege_id'])) $incomingIds[] = (int) $data['privilege_id'];
-    if (!empty($data['privilege_ids']) && is_array($data['privilege_ids'])) {
-        foreach ($data['privilege_ids'] as $pid) $incomingIds[] = (int) $pid;
+        return $tree;
     }
 
-    // If they send tree, take ids from it too
-    if (!empty($data['tree']) && is_array($data['tree'])) {
-        $normTree = $this->normalizeIncomingTree($data['tree']);
-        $incomingIds = array_merge($incomingIds, $this->extractPrivilegeIdsFromTree($normTree)['ids']);
+    public function sync(Request $r)
+    {
+        $data = $r->validate([
+            'user_id'   => 'sometimes|integer|exists:users,id',
+            'user_uuid' => 'sometimes|uuid|exists:users,uuid',
+
+            'tree' => 'sometimes|array|min:0',
+
+            // header
+            'tree.*.id' => 'required|integer|min:0',
+            'tree.*.type' => 'required|string|in:header',
+            'tree.*.children' => 'required|array|min:1',
+
+            // page
+            'tree.*.children.*.id' => 'required|integer|min:0',
+            'tree.*.children.*.type' => 'required|string|in:page',
+            'tree.*.children.*.privileges' => 'required|array|min:0',
+
+            // privileges
+            'tree.*.children.*.privileges.*.id' => 'required|integer|exists:page_privilege,id',
+            'tree.*.children.*.privileges.*.action' => 'nullable|string',
+        ]);
+
+        $userId = $this->resolveUserIdFromRequest($data);
+        if (!$userId) return response()->json(['error' => 'User not found'], 404);
+
+        $actor = $this->actor($r);
+        $now   = now();
+
+        // normalize actions using DB (authoritative)
+        $newTree = $this->normalizeIncomingTree($data['tree']);
+        $newIds  = $this->extractPrivilegeIdsFromTree($newTree)['ids'];
+
+        // For logging (snapshot BEFORE)
+        $beforeRow  = $this->getUserPrivilegeRow($userId, true);
+        $beforeTree = $beforeRow ? $this->decodeStoredPrivileges($beforeRow->privileges ?? null) : [];
+        $beforeIds  = $this->extractPrivilegeIdsFromTree($beforeTree)['ids'];
+
+        try {
+            $result = DB::transaction(function () use ($r, $userId, $newTree, $newIds, $actor, $now) {
+
+                $row = $this->getUserPrivilegeRow($userId, true);
+                $currentTree = $row ? $this->decodeStoredPrivileges($row->privileges ?? null) : [];
+                $curIds = $this->extractPrivilegeIdsFromTree($currentTree)['ids'];
+
+                $addedIds   = array_values(array_diff($newIds, $curIds));
+                $removedIds = array_values(array_diff($curIds, $newIds));
+
+                $actionMap = $this->actionMapFromDb(array_values(array_unique(array_merge($newIds, $curIds))));
+                $added   = array_map(fn($id)=>['id'=>(int)$id, 'action'=>($actionMap[(int)$id] ?? null)], $addedIds);
+                $removed = array_map(fn($id)=>['id'=>(int)$id, 'action'=>($actionMap[(int)$id] ?? null)], $removedIds);
+
+                // ✅ store EXACT tree sent (normalized)
+                $savedRow = $this->upsertUserPrivilegesRow($r, $userId, $newTree, $actor, $now);
+
+                return [
+                    'row' => $savedRow,
+                    'added' => $added,
+                    'removed' => $removed,
+                    'saved_ids' => $newIds,
+                    'saved_tree' => $newTree,
+                ];
+            });
+
+            // ✅ LOG SUCCESS (POST/PATCH-like)
+            $this->logActivity(
+                $r,
+                $beforeRow ? 'update' : 'create',
+                'user_privileges',
+                'user_privileges',
+                isset($result['row']->id) ? (int)$result['row']->id : null,
+                ['privileges', 'assigned_by', 'deleted_at'],
+                [
+                    'target_user_id' => (int)$userId,
+                    'target_user_uuid' => $this->getUserUuid($userId),
+                    'before_privilege_ids' => $beforeIds,
+                    'before_tree' => $beforeTree,
+                ],
+                [
+                    'target_user_id' => (int)$userId,
+                    'target_user_uuid' => $this->getUserUuid($userId),
+                    'after_privilege_ids' => $result['saved_ids'],
+                    'after_tree' => $result['saved_tree'],
+                    'added' => $result['added'],
+                    'removed' => $result['removed'],
+                ],
+                'Privileges synced successfully (tree stored).'
+            );
+
+            return response()->json([
+                'message'    => 'Privileges synced successfully (tree stored).',
+                'user_uuid'  => $this->getUserUuid($userId),
+                'user_privileges_uuid' => $result['row']->uuid ?? null,
+                'added'      => $result['added'],
+                'removed'    => $result['removed'],
+                'saved_count'=> count($result['saved_ids']),
+                'saved_ids'  => $result['saved_ids'],
+                'tree'       => $result['saved_tree'],
+            ], 200);
+
+        } catch (\Throwable $e) {
+            // ✅ LOG ERROR
+            $this->logActivity(
+                $r,
+                'error',
+                'user_privileges',
+                'user_privileges',
+                $beforeRow ? (int)($beforeRow->id ?? 0) : null,
+                ['privileges'],
+                [
+                    'target_user_id' => (int)$userId,
+                    'target_user_uuid' => $this->getUserUuid($userId),
+                    'before_privilege_ids' => $beforeIds,
+                ],
+                [
+                    'target_user_id' => (int)$userId,
+                    'target_user_uuid' => $this->getUserUuid($userId),
+                    'attempted_privilege_ids' => $newIds,
+                ],
+                'Could not sync privileges: '.$e->getMessage()
+            );
+
+            return response()->json([
+                'error'  => 'Could not sync privileges',
+                'detail' => $e->getMessage()
+            ], 500);
+        }
     }
 
-    $incomingIds = array_values(array_unique(array_filter(array_map('intval', $incomingIds), fn($x)=>$x>0)));
-    if (empty($incomingIds)) return response()->json(['message' => 'No privileges found in payload.'], 422);
+    public function assign(Request $r)
+    {
+        $data = $r->validate([
+            'user_id'   => 'sometimes|integer|exists:users,id',
+            'user_uuid' => 'sometimes|uuid|exists:users,uuid',
 
-    try {
-        $result = DB::transaction(function () use ($r, $userId, $incomingIds, $actor, $now) {
+            'privilege_id'     => 'sometimes|integer|exists:page_privilege,id',
+            'privilege_ids'    => 'sometimes|array|min:1',
+            'privilege_ids.*'  => 'integer|exists:page_privilege,id',
 
-            $row = $this->getUserPrivilegeRow($userId, true);
-            $currentTree = $row ? $this->decodeStoredPrivileges($row->privileges ?? null) : [];
-            $curIds = $this->extractPrivilegeIdsFromTree($currentTree)['ids'];
+            'tree'             => 'sometimes|array',
+            'tree.*.id'        => 'required_with:tree|integer',
+        ]);
 
-            $mergedIds = array_values(array_unique(array_merge($curIds, $incomingIds)));
-            sort($mergedIds);
+        $userId = $this->resolveUserIdFromRequest($data);
+        if (!$userId) return response()->json(['message' => 'User not found'], 404);
 
-            // ✅ KEY: Build the required header->page tree from DB mapping
-            $finalTree = $this->buildTreeFromPrivilegeIds($mergedIds);
+        $actor = $this->actor($r);
+        $now   = now();
 
-            // store
-            $savedRow = $this->upsertUserPrivilegesRow($r, $userId, $finalTree, $actor, $now);
+        $incomingIds = [];
 
-            // response diff
-            $actionMap = $this->actionMapFromDb($mergedIds);
-            $addedIds = array_values(array_diff($mergedIds, $curIds));
-            $added = array_map(fn($id)=>['id'=>(int)$id, 'action'=>($actionMap[(int)$id] ?? null)], $addedIds);
+        if (!empty($data['privilege_id'])) $incomingIds[] = (int) $data['privilege_id'];
+        if (!empty($data['privilege_ids']) && is_array($data['privilege_ids'])) {
+            foreach ($data['privilege_ids'] as $pid) $incomingIds[] = (int) $pid;
+        }
 
-            return [
-                'row' => $savedRow,
-                'added' => $added,
-                'tree' => $finalTree,
-                'ids' => $mergedIds,
-            ];
-        });
+        // If they send tree, take ids from it too
+        if (!empty($data['tree']) && is_array($data['tree'])) {
+            $normTree = $this->normalizeIncomingTree($data['tree']);
+            $incomingIds = array_merge($incomingIds, $this->extractPrivilegeIdsFromTree($normTree)['ids']);
+        }
 
-        return response()->json([
-            'message'     => 'Privilege(s) assigned (tree stored).',
-            'user_uuid'   => $this->getUserUuid($userId),
-            'user_privileges_uuid' => $result['row']->uuid ?? null,
-            'added'       => $result['added'],
-            'saved_count' => count($result['ids']),
-            'saved_ids'   => $result['ids'],
-            'tree'        => $result['tree'],
-        ], 201);
+        $incomingIds = array_values(array_unique(array_filter(array_map('intval', $incomingIds), fn($x)=>$x>0)));
+        if (empty($incomingIds)) return response()->json(['message' => 'No privileges found in payload.'], 422);
 
-    } catch (\Throwable $e) {
-        return response()->json(['message' => 'Could not assign privilege', 'detail' => $e->getMessage()], 500);
+        // For logging (snapshot BEFORE)
+        $beforeRow  = $this->getUserPrivilegeRow($userId, true);
+        $beforeTree = $beforeRow ? $this->decodeStoredPrivileges($beforeRow->privileges ?? null) : [];
+        $beforeIds  = $this->extractPrivilegeIdsFromTree($beforeTree)['ids'];
+
+        try {
+            $result = DB::transaction(function () use ($r, $userId, $incomingIds, $actor, $now) {
+
+                $row = $this->getUserPrivilegeRow($userId, true);
+                $currentTree = $row ? $this->decodeStoredPrivileges($row->privileges ?? null) : [];
+                $curIds = $this->extractPrivilegeIdsFromTree($currentTree)['ids'];
+
+                $mergedIds = array_values(array_unique(array_merge($curIds, $incomingIds)));
+                sort($mergedIds);
+
+                // ✅ KEY: Build the required header->page tree from DB mapping
+                $finalTree = $this->buildTreeFromPrivilegeIds($mergedIds);
+
+                // store
+                $savedRow = $this->upsertUserPrivilegesRow($r, $userId, $finalTree, $actor, $now);
+
+                // response diff
+                $actionMap = $this->actionMapFromDb($mergedIds);
+                $addedIds = array_values(array_diff($mergedIds, $curIds));
+                $added = array_map(fn($id)=>['id'=>(int)$id, 'action'=>($actionMap[(int)$id] ?? null)], $addedIds);
+
+                return [
+                    'row' => $savedRow,
+                    'added' => $added,
+                    'tree' => $finalTree,
+                    'ids' => $mergedIds,
+                ];
+            });
+
+            // ✅ LOG SUCCESS
+            $this->logActivity(
+                $r,
+                $beforeRow ? 'update' : 'create',
+                'user_privileges',
+                'user_privileges',
+                isset($result['row']->id) ? (int)$result['row']->id : null,
+                ['privileges', 'assigned_by', 'deleted_at'],
+                [
+                    'target_user_id' => (int)$userId,
+                    'target_user_uuid' => $this->getUserUuid($userId),
+                    'before_privilege_ids' => $beforeIds,
+                    'before_tree' => $beforeTree,
+                    'incoming_privilege_ids' => $incomingIds,
+                ],
+                [
+                    'target_user_id' => (int)$userId,
+                    'target_user_uuid' => $this->getUserUuid($userId),
+                    'after_privilege_ids' => $result['ids'],
+                    'after_tree' => $result['tree'],
+                    'added' => $result['added'],
+                ],
+                'Privilege(s) assigned (tree stored).'
+            );
+
+            return response()->json([
+                'message'     => 'Privilege(s) assigned (tree stored).',
+                'user_uuid'   => $this->getUserUuid($userId),
+                'user_privileges_uuid' => $result['row']->uuid ?? null,
+                'added'       => $result['added'],
+                'saved_count' => count($result['ids']),
+                'saved_ids'   => $result['ids'],
+                'tree'        => $result['tree'],
+            ], 201);
+
+        } catch (\Throwable $e) {
+            // ✅ LOG ERROR
+            $this->logActivity(
+                $r,
+                'error',
+                'user_privileges',
+                'user_privileges',
+                $beforeRow ? (int)($beforeRow->id ?? 0) : null,
+                ['privileges'],
+                [
+                    'target_user_id' => (int)$userId,
+                    'target_user_uuid' => $this->getUserUuid($userId),
+                    'before_privilege_ids' => $beforeIds,
+                ],
+                [
+                    'target_user_id' => (int)$userId,
+                    'target_user_uuid' => $this->getUserUuid($userId),
+                    'incoming_privilege_ids' => $incomingIds,
+                ],
+                'Could not assign privilege: '.$e->getMessage()
+            );
+
+            return response()->json(['message' => 'Could not assign privilege', 'detail' => $e->getMessage()], 500);
+        }
     }
-}
-
 
     /* ============================================================
      * UNASSIGN (remove one page_privilege id from stored tree)
@@ -559,11 +716,25 @@ public function assign(Request $r)
         $actor  = $this->actor($r);
         $now    = now();
 
+        // For logging (snapshot BEFORE)
+        $beforeRowActive = $this->getUserPrivilegeRow($userId, false);
+        $beforeTree = $beforeRowActive ? $this->decodeStoredPrivileges($beforeRowActive->privileges ?? null) : [];
+        $beforeIds  = $this->extractPrivilegeIdsFromTree($beforeTree)['ids'];
+
         try {
-            $affected = DB::transaction(function () use ($r, $userId, $privId, $actor, $now) {
+            $tx = DB::transaction(function () use ($r, $userId, $privId, $actor, $now) {
 
                 $row = $this->getUserPrivilegeRow($userId, false);
-                if (!$row) return 0;
+                if (!$row) {
+                    return [
+                        'affected' => 0,
+                        'row_id' => null,
+                        'before_ids' => [],
+                        'after_ids' => [],
+                        'before_tree' => [],
+                        'after_tree' => [],
+                    ];
+                }
 
                 $tree = $this->decodeStoredPrivileges($row->privileges ?? null);
 
@@ -583,10 +754,21 @@ public function assign(Request $r)
                 };
 
                 $beforeIds = $this->extractPrivilegeIdsFromTree($tree)['ids'];
-                $removeFromNodes($tree);
-                $afterIds = $this->extractPrivilegeIdsFromTree($tree)['ids'];
+                $beforeTree = $tree;
 
-                if (count($afterIds) === count($beforeIds)) return 0;
+                $removeFromNodes($tree);
+
+                $afterIds = $this->extractPrivilegeIdsFromTree($tree)['ids'];
+                if (count($afterIds) === count($beforeIds)) {
+                    return [
+                        'affected' => 0,
+                        'row_id' => (int)$row->id,
+                        'before_ids' => $beforeIds,
+                        'after_ids' => $beforeIds,
+                        'before_tree' => $beforeTree,
+                        'after_tree' => $beforeTree,
+                    ];
+                }
 
                 $finalTree = $this->normalizeIncomingTree($tree);
 
@@ -599,14 +781,66 @@ public function assign(Request $r)
                         'updated_at'    => $now,
                     ]);
 
-                return 1;
+                return [
+                    'affected' => 1,
+                    'row_id' => (int)$row->id,
+                    'before_ids' => $beforeIds,
+                    'after_ids' => $afterIds,
+                    'before_tree' => $beforeTree,
+                    'after_tree' => $finalTree,
+                ];
             });
+
+            $affected = (int) ($tx['affected'] ?? 0);
+
+            // ✅ LOG (always, even if not changed)
+            $this->logActivity(
+                $r,
+                'update',
+                'user_privileges',
+                'user_privileges',
+                !empty($tx['row_id']) ? (int)$tx['row_id'] : ($beforeRowActive ? (int)($beforeRowActive->id ?? 0) : null),
+                $affected ? ['privileges', 'assigned_by'] : [],
+                [
+                    'target_user_id' => (int)$userId,
+                    'target_user_uuid' => $this->getUserUuid($userId),
+                    'requested_privilege_id' => (int)$privId,
+                    'before_privilege_ids' => $beforeIds,
+                    'before_tree' => $beforeTree,
+                ],
+                [
+                    'target_user_id' => (int)$userId,
+                    'target_user_uuid' => $this->getUserUuid($userId),
+                    'requested_privilege_id' => (int)$privId,
+                    'after_privilege_ids' => $tx['after_ids'] ?? [],
+                    'after_tree' => $tx['after_tree'] ?? [],
+                ],
+                $affected ? 'Privilege unassigned.' : 'Privilege not found for this user (no changes).'
+            );
 
             return $affected
                 ? response()->json(['message' => 'Privilege unassigned.', 'user_uuid' => $this->getUserUuid($userId)])
                 : response()->json(['message' => 'Privilege not found for this user.'], 404);
 
         } catch (\Throwable $e) {
+            // ✅ LOG ERROR
+            $this->logActivity(
+                $r,
+                'error',
+                'user_privileges',
+                'user_privileges',
+                $beforeRowActive ? (int)($beforeRowActive->id ?? 0) : null,
+                ['privileges'],
+                [
+                    'target_user_id' => (int)$userId,
+                    'target_user_uuid' => $this->getUserUuid($userId),
+                    'requested_privilege_id' => (int)$privId,
+                    'before_privilege_ids' => $beforeIds,
+                ],
+                null,
+                'Could not unassign privilege: '.$e->getMessage()
+            );
+
             return response()->json(['message' => 'Could not unassign privilege', 'detail' => $e->getMessage()], 500);
         }
     }
@@ -622,34 +856,148 @@ public function assign(Request $r)
             'user_uuid' => 'sometimes|uuid|exists:users,uuid',
         ]);
 
-        $now = now();
+        $actor = $this->actor($r);
+        $now   = now();
 
         try {
             $affected = 0;
             $userId = 0;
 
+            $oldValues = null;
+            $newValues = null;
+
             if (!empty($data['uuid'])) {
                 $row = DB::table('user_privileges')->where('uuid', $data['uuid'])->first();
-                if (!$row) return response()->json(['message' => 'Not found'], 404);
+                if (!$row) {
+                    // ✅ LOG NOT FOUND (DELETE attempt)
+                    $this->logActivity(
+                        $r,
+                        'delete',
+                        'user_privileges',
+                        'user_privileges',
+                        null,
+                        [],
+                        null,
+                        ['uuid' => $data['uuid']],
+                        'Not found'
+                    );
+                    return response()->json(['message' => 'Not found'], 404);
+                }
 
                 $userId = (int) $row->user_id;
+
+                $oldValues = [
+                    'target_user_id' => (int)$userId,
+                    'target_user_uuid' => $this->getUserUuid($userId),
+                    'row_id' => (int)$row->id,
+                    'row_uuid' => (string)$row->uuid,
+                    'deleted_at' => $row->deleted_at,
+                ];
 
                 $affected = DB::table('user_privileges')
                     ->where('uuid', $data['uuid'])
                     ->whereNull('deleted_at')
                     ->update(['deleted_at' => $now, 'updated_at' => $now]);
+
+                $newValues = [
+                    'target_user_id' => (int)$userId,
+                    'target_user_uuid' => $this->getUserUuid($userId),
+                    'row_id' => (int)$row->id,
+                    'row_uuid' => (string)$row->uuid,
+                    'deleted_at' => $now->toDateTimeString(),
+                    'affected' => (int)$affected,
+                ];
+
+                if (!$affected) {
+                    $this->logActivity(
+                        $r,
+                        'delete',
+                        'user_privileges',
+                        'user_privileges',
+                        (int)$row->id,
+                        [],
+                        $oldValues,
+                        $newValues,
+                        'User privilege record not found (or already deleted).'
+                    );
+                    return response()->json(['message' => 'User privilege record not found (or already deleted).'], 404);
+                }
+
+                // ✅ LOG SUCCESS DELETE
+                $this->logActivity(
+                    $r,
+                    'delete',
+                    'user_privileges',
+                    'user_privileges',
+                    (int)$row->id,
+                    ['deleted_at'],
+                    $oldValues,
+                    $newValues,
+                    'User privileges removed successfully.'
+                );
             } else {
                 $userId = $this->resolveUserIdFromRequest($data);
                 if (!$userId) return response()->json(['message' => 'user_id or user_uuid (or uuid) is required'], 422);
+
+                $rows = DB::table('user_privileges')
+                    ->where('user_id', $userId)
+                    ->whereNull('deleted_at')
+                    ->get(['id','uuid','deleted_at']);
+
+                $rowIds = $rows->pluck('id')->map(fn($x)=>(int)$x)->all();
+                $rowUuids = $rows->pluck('uuid')->map(fn($x)=>(string)$x)->all();
+
+                $oldValues = [
+                    'target_user_id' => (int)$userId,
+                    'target_user_uuid' => $this->getUserUuid($userId),
+                    'row_ids' => $rowIds,
+                    'row_uuids' => $rowUuids,
+                    'count' => count($rowIds),
+                ];
 
                 $affected = DB::table('user_privileges')
                     ->where('user_id', $userId)
                     ->whereNull('deleted_at')
                     ->update(['deleted_at' => $now, 'updated_at' => $now]);
-            }
 
-            if (!$affected) {
-                return response()->json(['message' => 'User privilege record not found (or already deleted).'], 404);
+                $newValues = [
+                    'target_user_id' => (int)$userId,
+                    'target_user_uuid' => $this->getUserUuid($userId),
+                    'row_ids' => $rowIds,
+                    'row_uuids' => $rowUuids,
+                    'deleted_at' => $now->toDateTimeString(),
+                    'affected' => (int)$affected,
+                ];
+
+                if (!$affected) {
+                    // ✅ LOG NOT FOUND/NOOP DELETE
+                    $this->logActivity(
+                        $r,
+                        'delete',
+                        'user_privileges',
+                        'user_privileges',
+                        null,
+                        [],
+                        $oldValues,
+                        $newValues,
+                        'User privilege record not found (or already deleted).'
+                    );
+
+                    return response()->json(['message' => 'User privilege record not found (or already deleted).'], 404);
+                }
+
+                // ✅ LOG SUCCESS DELETE (multi-row)
+                $this->logActivity(
+                    $r,
+                    'delete',
+                    'user_privileges',
+                    'user_privileges',
+                    count($rowIds) === 1 ? (int)$rowIds[0] : null,
+                    ['deleted_at'],
+                    $oldValues,
+                    $newValues,
+                    'User privileges removed successfully.'
+                );
             }
 
             return response()->json([
@@ -658,6 +1006,23 @@ public function assign(Request $r)
             ]);
 
         } catch (\Throwable $e) {
+            // ✅ LOG ERROR
+            $this->logActivity(
+                $r,
+                'error',
+                'user_privileges',
+                'user_privileges',
+                null,
+                ['deleted_at'],
+                [
+                    'uuid' => $data['uuid'] ?? null,
+                    'user_id' => $data['user_id'] ?? null,
+                    'user_uuid' => $data['user_uuid'] ?? null,
+                ],
+                null,
+                'Could not remove user privileges: '.$e->getMessage()
+            );
+
             return response()->json(['message' => 'Could not remove user privileges', 'detail' => $e->getMessage()], 500);
         }
     }
@@ -888,37 +1253,37 @@ public function assign(Request $r)
             'data'      => $menus->values(),
         ]);
     }
-    
-/**
- * GET /api/my/sidebar-menus?with_actions=1
- *
- * Builds sidebar tree from:
- * - user_privileges.privileges (TREE JSON)
- * - dashboard_menu (menu metadata)
- * - page_privilege (optional: actions list)
- *
- * Returns:
- * {
- *   user_uuid: "...",
- *   tree: [
- *     {
- *       id, type:"header", name, href, icon_class, status, is_dropdown_head, children:[
- *         {
- *           id, type:"page", name, href, icon_class, status, parent_id,
- *           privilege_ids:[1,2],
- *           actions:["add","edit"] // only if with_actions=1
- *         }
- *       ]
- *     }
- *   ]
- * }
- */
-public function mySidebarMenus(Request $r)
-{
-    $actor = $this->actor($r);
-    if (empty($actor['id'])) {
-        return response()->json(['message' => 'Unauthenticated'], 401);
-    }
+
+    /**
+     * GET /api/my/sidebar-menus?with_actions=1
+     *
+     * Builds sidebar tree from:
+     * - user_privileges.privileges (TREE JSON)
+     * - dashboard_menu (menu metadata)
+     * - page_privilege (optional: actions list)
+     *
+     * Returns:
+     * {
+     *   user_uuid: "...",
+     *   tree: [
+     *     {
+     *       id, type:"header", name, href, icon_class, status, is_dropdown_head, children:[
+     *         {
+     *           id, type:"page", name, href, icon_class, status, parent_id,
+     *           privilege_ids:[1,2],
+     *           actions:["add","edit"] // only if with_actions=1
+     *         }
+     *       ]
+     *     }
+     *   ]
+     * }
+     */
+    public function mySidebarMenus(Request $r)
+    {
+        $actor = $this->actor($r);
+        if (empty($actor['id'])) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
 
         // ✅ If admin => return string "all"
         if (($actor['role'] ?? '') === 'admin') {
@@ -928,156 +1293,155 @@ public function mySidebarMenus(Request $r)
             ], 200);
         }
 
-    $withActions = filter_var($r->query('with_actions', false), FILTER_VALIDATE_BOOLEAN);
+        $withActions = filter_var($r->query('with_actions', false), FILTER_VALIDATE_BOOLEAN);
 
-    // 1) Load stored tree for actor
-    $row = DB::table('user_privileges')
-        ->where('user_id', (int)$actor['id'])
-        ->whereNull('deleted_at')
-        ->first();
+        // 1) Load stored tree for actor
+        $row = DB::table('user_privileges')
+            ->where('user_id', (int)$actor['id'])
+            ->whereNull('deleted_at')
+            ->first();
 
-    $storedTree = $row ? $this->decodeStoredPrivileges($row->privileges ?? null) : [];
+        $storedTree = $row ? $this->decodeStoredPrivileges($row->privileges ?? null) : [];
 
-    // If user has no privileges => sidebar empty
-    if (empty($storedTree) || !is_array($storedTree)) {
+        // If user has no privileges => sidebar empty
+        if (empty($storedTree) || !is_array($storedTree)) {
+            return response()->json([
+                'user_uuid' => $this->getUserUuid((int)$actor['id']),
+                'tree'      => [],
+            ], 200);
+        }
+
+        // 2) Collect ALL menu IDs present in stored tree (header + pages)
+        $menuIds = [];
+        foreach ($storedTree as $h) {
+            if (is_array($h) && !empty($h['id'])) $menuIds[] = (int)$h['id'];
+            if (!empty($h['children']) && is_array($h['children'])) {
+                foreach ($h['children'] as $p) {
+                    if (is_array($p) && !empty($p['id'])) $menuIds[] = (int)$p['id'];
+                }
+            }
+        }
+        $menuIds = array_values(array_unique(array_filter($menuIds, fn($x)=>$x>0)));
+
+        // 3) Pull dashboard_menu metadata for those IDs
+        $menuCols = ['id','uuid','name','description','created_at','updated_at'];
+        if (Schema::hasColumn('dashboard_menu', 'href')) $menuCols[] = 'href';
+        if (Schema::hasColumn('dashboard_menu', 'icon_class')) $menuCols[] = 'icon_class';
+        if (Schema::hasColumn('dashboard_menu', 'status')) $menuCols[] = 'status';
+        if (Schema::hasColumn('dashboard_menu', 'parent_id')) $menuCols[] = 'parent_id';
+        if (Schema::hasColumn('dashboard_menu', 'is_dropdown_head')) $menuCols[] = 'is_dropdown_head';
+        if (Schema::hasColumn('dashboard_menu', 'order_no')) $menuCols[] = 'order_no';
+
+        $menus = DB::table('dashboard_menu')
+            ->whereIn('id', $menuIds)
+            ->whereNull('deleted_at')
+            ->get($menuCols);
+
+        $menuById = [];
+        foreach ($menus as $m) {
+            $mid = (int)$m->id;
+            $menuById[$mid] = $m;
+        }
+
+        // 4) Optional actions map (privilege_id -> action)
+        // We'll read privilege ids per page directly from stored tree.
+        $actionsByPrivId = [];
+        if ($withActions) {
+            $allPrivIds = $this->extractPrivilegeIdsFromTree($storedTree)['ids'];
+            if (!empty($allPrivIds)) {
+                $rows = DB::table('page_privilege')
+                    ->whereIn('id', $allPrivIds)
+                    ->whereNull('deleted_at')
+                    ->get(['id','action']);
+                foreach ($rows as $pr) {
+                    $actionsByPrivId[(int)$pr->id] = strtolower(trim((string)($pr->action ?? '')));
+                }
+            }
+        }
+
+        // 5) Build sidebar tree from STORED tree ordering (your UI ordering is preserved)
+        $outTree = [];
+
+        foreach ($storedTree as $headerNode) {
+            if (!is_array($headerNode)) continue;
+
+            $hid = (int)($headerNode['id'] ?? 0);
+            if ($hid <= 0) continue;
+
+            $hm = $menuById[$hid] ?? null;
+
+            $hOut = [
+                'id'   => $hid,
+                'type' => 'header',
+                'name' => $hm->name ?? ($headerNode['name'] ?? null),
+            ];
+
+            if ($hm && isset($hm->href)) $hOut['href'] = $this->normalizeHrefForResponse($hm->href);
+            if ($hm && property_exists($hm, 'icon_class')) $hOut['icon_class'] = $hm->icon_class ?? null;
+            if ($hm && property_exists($hm, 'status')) $hOut['status'] = $hm->status ?? null;
+            if ($hm && property_exists($hm, 'is_dropdown_head')) $hOut['is_dropdown_head'] = (bool)($hm->is_dropdown_head ?? false);
+
+            $hOut['children'] = [];
+
+            $children = $headerNode['children'] ?? [];
+            if (is_array($children)) {
+                foreach ($children as $pageNode) {
+                    if (!is_array($pageNode)) continue;
+
+                    $pid = (int)($pageNode['id'] ?? 0);
+                    if ($pid <= 0) continue;
+
+                    $pm = $menuById[$pid] ?? null;
+
+                    // privilege ids from stored page node
+                    $pagePrivIds = [];
+                    if (!empty($pageNode['privileges']) && is_array($pageNode['privileges'])) {
+                        foreach ($pageNode['privileges'] as $pp) {
+                            $ppid = is_array($pp) ? (int)($pp['id'] ?? 0) : (is_numeric($pp) ? (int)$pp : 0);
+                            if ($ppid > 0) $pagePrivIds[] = $ppid;
+                        }
+                    }
+                    $pagePrivIds = array_values(array_unique($pagePrivIds));
+
+                    // If no privileges for this page => do not show it in sidebar
+                    if (empty($pagePrivIds)) continue;
+
+                    $pOut = [
+                        'id'           => $pid,
+                        'type'         => 'page',
+                        'name'         => $pm->name ?? ($pageNode['name'] ?? null),
+                        'privilege_ids'=> $pagePrivIds,
+                    ];
+
+                    if ($pm && isset($pm->href)) $pOut['href'] = $this->normalizeHrefForResponse($pm->href);
+                    if ($pm && property_exists($pm, 'icon_class')) $pOut['icon_class'] = $pm->icon_class ?? null;
+                    if ($pm && property_exists($pm, 'status')) $pOut['status'] = $pm->status ?? null;
+                    if ($pm && property_exists($pm, 'parent_id')) $pOut['parent_id'] = $pm->parent_id ? (int)$pm->parent_id : null;
+
+                    if ($withActions) {
+                        $acts = [];
+                        foreach ($pagePrivIds as $ppid) {
+                            $a = $actionsByPrivId[(int)$ppid] ?? '';
+                            if ($a !== '') $acts[] = $a;
+                        }
+                        $acts = array_values(array_unique($acts));
+                        sort($acts);
+                        $pOut['actions'] = $acts;
+                    }
+
+                    $hOut['children'][] = $pOut;
+                }
+            }
+
+            // If header has no visible pages => skip header
+            if (!empty($hOut['children'])) {
+                $outTree[] = $hOut;
+            }
+        }
+
         return response()->json([
             'user_uuid' => $this->getUserUuid((int)$actor['id']),
-            'tree'      => [],
+            'tree'      => $outTree,
         ], 200);
     }
-
-    // 2) Collect ALL menu IDs present in stored tree (header + pages)
-    $menuIds = [];
-    foreach ($storedTree as $h) {
-        if (is_array($h) && !empty($h['id'])) $menuIds[] = (int)$h['id'];
-        if (!empty($h['children']) && is_array($h['children'])) {
-            foreach ($h['children'] as $p) {
-                if (is_array($p) && !empty($p['id'])) $menuIds[] = (int)$p['id'];
-            }
-        }
-    }
-    $menuIds = array_values(array_unique(array_filter($menuIds, fn($x)=>$x>0)));
-
-    // 3) Pull dashboard_menu metadata for those IDs
-    $menuCols = ['id','uuid','name','description','created_at','updated_at'];
-    if (Schema::hasColumn('dashboard_menu', 'href')) $menuCols[] = 'href';
-    if (Schema::hasColumn('dashboard_menu', 'icon_class')) $menuCols[] = 'icon_class';
-    if (Schema::hasColumn('dashboard_menu', 'status')) $menuCols[] = 'status';
-    if (Schema::hasColumn('dashboard_menu', 'parent_id')) $menuCols[] = 'parent_id';
-    if (Schema::hasColumn('dashboard_menu', 'is_dropdown_head')) $menuCols[] = 'is_dropdown_head';
-    if (Schema::hasColumn('dashboard_menu', 'order_no')) $menuCols[] = 'order_no';
-
-    $menus = DB::table('dashboard_menu')
-        ->whereIn('id', $menuIds)
-        ->whereNull('deleted_at')
-        ->get($menuCols);
-
-    $menuById = [];
-    foreach ($menus as $m) {
-        $mid = (int)$m->id;
-        $menuById[$mid] = $m;
-    }
-
-    // 4) Optional actions map (privilege_id -> action)
-    // We'll read privilege ids per page directly from stored tree.
-    $actionsByPrivId = [];
-    if ($withActions) {
-        $allPrivIds = $this->extractPrivilegeIdsFromTree($storedTree)['ids'];
-        if (!empty($allPrivIds)) {
-            $rows = DB::table('page_privilege')
-                ->whereIn('id', $allPrivIds)
-                ->whereNull('deleted_at')
-                ->get(['id','action']);
-            foreach ($rows as $pr) {
-                $actionsByPrivId[(int)$pr->id] = strtolower(trim((string)($pr->action ?? '')));
-            }
-        }
-    }
-
-    // 5) Build sidebar tree from STORED tree ordering (your UI ordering is preserved)
-    $outTree = [];
-
-    foreach ($storedTree as $headerNode) {
-        if (!is_array($headerNode)) continue;
-
-        $hid = (int)($headerNode['id'] ?? 0);
-        if ($hid <= 0) continue;
-
-        $hm = $menuById[$hid] ?? null;
-
-        $hOut = [
-            'id'   => $hid,
-            'type' => 'header',
-            'name' => $hm->name ?? ($headerNode['name'] ?? null),
-        ];
-
-        if ($hm && isset($hm->href)) $hOut['href'] = $this->normalizeHrefForResponse($hm->href);
-        if ($hm && property_exists($hm, 'icon_class')) $hOut['icon_class'] = $hm->icon_class ?? null;
-        if ($hm && property_exists($hm, 'status')) $hOut['status'] = $hm->status ?? null;
-        if ($hm && property_exists($hm, 'is_dropdown_head')) $hOut['is_dropdown_head'] = (bool)($hm->is_dropdown_head ?? false);
-
-        $hOut['children'] = [];
-
-        $children = $headerNode['children'] ?? [];
-        if (is_array($children)) {
-            foreach ($children as $pageNode) {
-                if (!is_array($pageNode)) continue;
-
-                $pid = (int)($pageNode['id'] ?? 0);
-                if ($pid <= 0) continue;
-
-                $pm = $menuById[$pid] ?? null;
-
-                // privilege ids from stored page node
-                $pagePrivIds = [];
-                if (!empty($pageNode['privileges']) && is_array($pageNode['privileges'])) {
-                    foreach ($pageNode['privileges'] as $pp) {
-                        $ppid = is_array($pp) ? (int)($pp['id'] ?? 0) : (is_numeric($pp) ? (int)$pp : 0);
-                        if ($ppid > 0) $pagePrivIds[] = $ppid;
-                    }
-                }
-                $pagePrivIds = array_values(array_unique($pagePrivIds));
-
-                // If no privileges for this page => do not show it in sidebar
-                if (empty($pagePrivIds)) continue;
-
-                $pOut = [
-                    'id'           => $pid,
-                    'type'         => 'page',
-                    'name'         => $pm->name ?? ($pageNode['name'] ?? null),
-                    'privilege_ids'=> $pagePrivIds,
-                ];
-
-                if ($pm && isset($pm->href)) $pOut['href'] = $this->normalizeHrefForResponse($pm->href);
-                if ($pm && property_exists($pm, 'icon_class')) $pOut['icon_class'] = $pm->icon_class ?? null;
-                if ($pm && property_exists($pm, 'status')) $pOut['status'] = $pm->status ?? null;
-                if ($pm && property_exists($pm, 'parent_id')) $pOut['parent_id'] = $pm->parent_id ? (int)$pm->parent_id : null;
-
-                if ($withActions) {
-                    $acts = [];
-                    foreach ($pagePrivIds as $ppid) {
-                        $a = $actionsByPrivId[(int)$ppid] ?? '';
-                        if ($a !== '') $acts[] = $a;
-                    }
-                    $acts = array_values(array_unique($acts));
-                    sort($acts);
-                    $pOut['actions'] = $acts;
-                }
-
-                $hOut['children'][] = $pOut;
-            }
-        }
-
-        // If header has no visible pages => skip header
-        if (!empty($hOut['children'])) {
-            $outTree[] = $hOut;
-        }
-    }
-
-    return response()->json([
-        'user_uuid' => $this->getUserUuid((int)$actor['id']),
-        'tree'      => $outTree,
-    ], 200);
-}
-
 }

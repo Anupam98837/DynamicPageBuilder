@@ -578,6 +578,11 @@
         <i class="fa-solid fa-gear"></i>
         <span>Settings</span>
       </a>
+
+      <!-- Activity Logs -->
+<a href="/activity-logs" class="w3-link">
+  <i class="fa-solid fa-clipboard-list"></i><span>Activity Logs</span>
+</a>
     </nav>
 
     <!-- Account (mobile only) -->

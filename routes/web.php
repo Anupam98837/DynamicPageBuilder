@@ -482,3 +482,7 @@ Route::get('/master-approval/manage', function () {
 Route::get('/student-subject-attendance', function () {
     return view('pages.users.pages.subject.studentSubjectAttendance');
 });
+
+
+// Activity Logs
+Route::get('/activity-logs', fn () => view('pages.users.pages.userActivityLogs.userActivityLogsView'));

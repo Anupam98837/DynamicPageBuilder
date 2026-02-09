@@ -358,6 +358,110 @@ class ScholarshipController extends Controller
     }
 
     /* ============================================
+     | Activity Log Helpers (POST/PUT/PATCH/DELETE)
+     |============================================ */
+
+    private function logSnapshotScholarship($row): array
+    {
+        $a = (array) $row;
+
+        // keep logs small & safe: DO NOT store full body
+        $snapshot = [
+            'id'                   => $a['id'] ?? null,
+            'uuid'                 => $a['uuid'] ?? null,
+            'department_id'        => $a['department_id'] ?? null,
+            'title'                => $a['title'] ?? null,
+            'slug'                 => $a['slug'] ?? null,
+            'status'               => $a['status'] ?? null,
+            'is_featured_home'     => $a['is_featured_home'] ?? null,
+            'request_for_approval' => $a['request_for_approval'] ?? null,
+            'publish_at'           => $a['publish_at'] ?? null,
+            'expire_at'            => $a['expire_at'] ?? null,
+            'views_count'          => $a['views_count'] ?? null,
+            'cover_image'          => $a['cover_image'] ?? null,
+            'attachments_json'     => $a['attachments_json'] ?? null,
+            'metadata'             => $a['metadata'] ?? null,
+            'created_by'           => $a['created_by'] ?? null,
+            'created_at'           => $a['created_at'] ?? null,
+            'updated_at'           => $a['updated_at'] ?? null,
+            'deleted_at'           => $a['deleted_at'] ?? null,
+        ];
+
+        return $snapshot;
+    }
+
+    private function computeDiff(array $old, array $new): array
+    {
+        $changed = [];
+        $oldOut  = [];
+        $newOut  = [];
+
+        $keys = array_unique(array_merge(array_keys($old), array_keys($new)));
+
+        foreach ($keys as $k) {
+            $ov = $old[$k] ?? null;
+            $nv = $new[$k] ?? null;
+
+            // normalize arrays/objects for comparison
+            $ovCmp = (is_array($ov) || is_object($ov)) ? json_encode($ov) : $ov;
+            $nvCmp = (is_array($nv) || is_object($nv)) ? json_encode($nv) : $nv;
+
+            if ($ovCmp != $nvCmp) {
+                $changed[] = $k;
+                $oldOut[$k] = $ov;
+                $newOut[$k] = $nv;
+            }
+        }
+
+        return [$changed, $oldOut, $newOut];
+    }
+
+    private function safeLogActivity(
+        Request $request,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        $oldValues = null,
+        $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            if (!Schema::hasTable('user_data_activity_log')) return;
+
+            $actor = $this->actor($request);
+
+            $ua = (string) ($request->header('User-Agent') ?? '');
+            if (strlen($ua) > 512) $ua = substr($ua, 0, 512);
+
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'      => (int) ($actor['id'] ?? 0),
+                'performed_by_role' => (string) ($actor['role'] ?? ''),
+                'ip'                => (string) ($request->ip() ?? ''),
+                'user_agent'        => $ua,
+
+                'activity'          => substr((string) $activity, 0, 50),
+                'module'            => substr((string) $module, 0, 100),
+
+                'table_name'        => substr((string) $tableName, 0, 128),
+                'record_id'         => $recordId !== null ? (int) $recordId : null,
+
+                'changed_fields'    => $changedFields !== null ? json_encode(array_values($changedFields)) : null,
+                'old_values'        => $oldValues !== null ? json_encode($oldValues) : null,
+                'new_values'        => $newValues !== null ? json_encode($newValues) : null,
+
+                'log_note'          => $note,
+
+                'created_at'        => now(),
+                'updated_at'        => now(),
+            ]);
+        } catch (\Throwable $e) {
+            // Never break API functionality due to logging errors.
+        }
+    }
+
+    /* ============================================
      | CRUD (Authenticated)
      |============================================ */
 
@@ -621,6 +725,24 @@ class ScholarshipController extends Controller
 
         $row = DB::table('scholarships')->where('id', $id)->first();
 
+        // ✅ LOG (POST)
+        if ($row) {
+            $newSnap = $this->logSnapshotScholarship($row);
+            $notePrefix = (string) ($request->attributes->get('_log_note_prefix') ?? '');
+            $note = $notePrefix !== '' ? ("Created scholarship via " . $notePrefix) : "Created scholarship";
+            $this->safeLogActivity(
+                $request,
+                'create',
+                'scholarships',
+                'scholarships',
+                (int) $id,
+                array_keys($newSnap),
+                null,
+                $newSnap,
+                $note
+            );
+        }
+
         return response()->json([
             'success' => true,
             'data'    => $row ? $this->normalizeRow($row) : null,
@@ -643,6 +765,9 @@ class ScholarshipController extends Controller
             return response()->json(['error' => 'Not allowed'], 403);
         }
 
+        // mark source endpoint for single log entry (inside store)
+        $request->attributes->set('_log_note_prefix', 'storeForDepartment');
+
         $request->merge(['department_id' => (int) $dept->id]);
         return $this->store($request);
     }
@@ -659,6 +784,8 @@ class ScholarshipController extends Controller
 
         $row = $this->resolveScholarship($request, $identifier, true, $deptId);
         if (! $row) return response()->json(['message' => 'Scholarship not found'], 404);
+
+        $oldSnap = $this->logSnapshotScholarship($row);
 
         $validated = $request->validate([
             'department_id'      => ['nullable', 'integer', 'exists:departments,id'],
@@ -816,6 +943,24 @@ class ScholarshipController extends Controller
 
         $fresh = DB::table('scholarships')->where('id', (int) $row->id)->first();
 
+        // ✅ LOG (PUT/PATCH)
+        if ($fresh) {
+            $newSnap = $this->logSnapshotScholarship($fresh);
+            [$changed, $oldVals, $newVals] = $this->computeDiff($oldSnap, $newSnap);
+
+            $this->safeLogActivity(
+                $request,
+                'update',
+                'scholarships',
+                'scholarships',
+                (int) $row->id,
+                $changed,
+                $oldVals,
+                $newVals,
+                'Updated scholarship'
+            );
+        }
+
         return response()->json([
             'success' => true,
             'data'    => $fresh ? $this->normalizeRow($fresh) : null,
@@ -835,6 +980,8 @@ class ScholarshipController extends Controller
         $row = $this->resolveScholarship($request, $identifier, true, $deptId);
         if (! $row) return response()->json(['message' => 'Scholarship not found'], 404);
 
+        $oldSnap = $this->logSnapshotScholarship($row);
+
         $new = ((int) ($row->is_featured_home ?? 0)) ? 0 : 1;
 
         DB::table('scholarships')->where('id', (int) $row->id)->update([
@@ -848,6 +995,24 @@ class ScholarshipController extends Controller
         ]);
 
         $fresh = DB::table('scholarships')->where('id', (int) $row->id)->first();
+
+        // ✅ LOG (PATCH)
+        if ($fresh) {
+            $newSnap = $this->logSnapshotScholarship($fresh);
+            [$changed, $oldVals, $newVals] = $this->computeDiff($oldSnap, $newSnap);
+
+            $this->safeLogActivity(
+                $request,
+                'toggle_featured',
+                'scholarships',
+                'scholarships',
+                (int) $row->id,
+                $changed,
+                $oldVals,
+                $newVals,
+                'Toggled featured flag'
+            );
+        }
 
         return response()->json([
             'success' => true,
@@ -868,11 +1033,33 @@ class ScholarshipController extends Controller
         $row = $this->resolveScholarship($request, $identifier, false, $deptId);
         if (! $row) return response()->json(['message' => 'Not found or already deleted'], 404);
 
+        $oldSnap = $this->logSnapshotScholarship($row);
+
         DB::table('scholarships')->where('id', (int) $row->id)->update([
             'deleted_at'    => now(),
             'updated_at'    => now(),
             'updated_at_ip' => $request->ip(),
         ]);
+
+        $fresh = DB::table('scholarships')->where('id', (int) $row->id)->first();
+
+        // ✅ LOG (DELETE - soft)
+        if ($fresh) {
+            $newSnap = $this->logSnapshotScholarship($fresh);
+            [$changed, $oldVals, $newVals] = $this->computeDiff($oldSnap, $newSnap);
+
+            $this->safeLogActivity(
+                $request,
+                'delete',
+                'scholarships',
+                'scholarships',
+                (int) $row->id,
+                $changed,
+                $oldVals,
+                $newVals,
+                'Soft deleted scholarship'
+            );
+        }
 
         return response()->json(['success' => true]);
     }
@@ -892,6 +1079,8 @@ class ScholarshipController extends Controller
             return response()->json(['message' => 'Not found in bin'], 404);
         }
 
+        $oldSnap = $this->logSnapshotScholarship($row);
+
         DB::table('scholarships')->where('id', (int) $row->id)->update([
             'deleted_at'    => null,
             'updated_at'    => now(),
@@ -899,6 +1088,24 @@ class ScholarshipController extends Controller
         ]);
 
         $fresh = DB::table('scholarships')->where('id', (int) $row->id)->first();
+
+        // ✅ LOG (POST)
+        if ($fresh) {
+            $newSnap = $this->logSnapshotScholarship($fresh);
+            [$changed, $oldVals, $newVals] = $this->computeDiff($oldSnap, $newSnap);
+
+            $this->safeLogActivity(
+                $request,
+                'restore',
+                'scholarships',
+                'scholarships',
+                (int) $row->id,
+                $changed,
+                $oldVals,
+                $newVals,
+                'Restored scholarship'
+            );
+        }
 
         return response()->json([
             'success' => true,
@@ -919,6 +1126,8 @@ class ScholarshipController extends Controller
         $row = $this->resolveScholarship($request, $identifier, true, $deptId);
         if (! $row) return response()->json(['message' => 'Scholarship not found'], 404);
 
+        $oldSnap = $this->logSnapshotScholarship($row);
+
         // delete cover
         $this->deletePublicPath($row->cover_image ?? null);
 
@@ -934,6 +1143,19 @@ class ScholarshipController extends Controller
         }
 
         DB::table('scholarships')->where('id', (int) $row->id)->delete();
+
+        // ✅ LOG (DELETE - force)
+        $this->safeLogActivity(
+            $request,
+            'force_delete',
+            'scholarships',
+            'scholarships',
+            (int) $row->id,
+            array_keys($oldSnap),
+            $oldSnap,
+            null,
+            'Force deleted scholarship'
+        );
 
         return response()->json(['success' => true]);
     }

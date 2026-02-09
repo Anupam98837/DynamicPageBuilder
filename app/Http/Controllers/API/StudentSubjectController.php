@@ -21,6 +21,8 @@ class StudentSubjectController extends Controller
     private const TABLE_COURSES    = 'courses';
     private const TABLE_SEMESTERS  = 'course_semesters';
 
+    private const TABLE_ACTIVITY   = 'user_data_activity_log';
+
     private const COL_UUID         = 'uuid';
     private const COL_DELETED_AT   = 'deleted_at';
 
@@ -222,6 +224,136 @@ class StudentSubjectController extends Controller
         }
 
         return $value;
+    }
+
+    /* ============================================
+     | Activity Log Helpers (DB table user_data_activity_log)
+     |============================================ */
+
+    private function aStr(?string $s, int $max): ?string
+    {
+        if ($s === null) return null;
+        $s = (string)$s;
+        if ($s === '') return '';
+        return mb_substr($s, 0, $max);
+    }
+
+    private function toJsonOrNull($value): ?string
+    {
+        if ($value === null) return null;
+
+        // stdClass -> array
+        if (is_object($value)) {
+            $value = json_decode(json_encode($value), true);
+        }
+
+        if (is_string($value)) {
+            $trim = trim($value);
+            if ($trim === '') return null;
+
+            // if already json, keep
+            json_decode($trim, true);
+            if (json_last_error() === JSON_ERROR_NONE) return $trim;
+
+            // else encode as string container
+            return json_encode(['value' => $value], JSON_UNESCAPED_UNICODE);
+        }
+
+        try {
+            return json_encode($value, JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    private function snapshotRow($row): array
+    {
+        if (!$row) return [];
+
+        $arr = is_array($row) ? $row : (array)$row;
+
+        // keep only relevant columns to avoid huge logs
+        $keep = [
+            'id','uuid',
+            'department_id','course_id','semester_id',
+            'subject_json','status','metadata',
+            'created_by','created_at','updated_at','deleted_at',
+            'created_at_ip','updated_at_ip',
+        ];
+
+        $out = [];
+        foreach ($keep as $k) {
+            if (array_key_exists($k, $arr)) $out[$k] = $arr[$k];
+        }
+        return $out;
+    }
+
+    private function diffSnapshots(array $old, array $new, array $watchKeys): array
+    {
+        $changed = [];
+        $oldOut  = [];
+        $newOut  = [];
+
+        foreach ($watchKeys as $k) {
+            $ov = $old[$k] ?? null;
+            $nv = $new[$k] ?? null;
+
+            // strict compare keeps null vs '' differences
+            if ($ov !== $nv) {
+                $changed[]  = $k;
+                $oldOut[$k] = $ov;
+                $newOut[$k] = $nv;
+            }
+        }
+
+        return [$changed, $oldOut, $newOut];
+    }
+
+    private function activityLog(
+        Request $r,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        $changedFields = null,
+        $oldValues = null,
+        $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            if (!Schema::hasTable(self::TABLE_ACTIVITY)) return;
+
+            $actor = $this->actor($r);
+
+            DB::table(self::TABLE_ACTIVITY)->insert([
+                'performed_by'      => (int) ($actor['id'] ?? 0),
+                'performed_by_role' => $this->aStr((string)($actor['role'] ?? ''), 50),
+                'ip'                => $this->aStr((string)($r->ip() ?? ''), 45),
+                'user_agent'        => $this->aStr((string)($r->userAgent() ?? ''), 512),
+
+                'activity'   => $this->aStr($activity, 50),
+                'module'     => $this->aStr($module, 100),
+
+                'table_name' => $this->aStr($tableName, 128),
+                'record_id'  => $recordId !== null ? (int)$recordId : null,
+
+                'changed_fields' => $this->toJsonOrNull($changedFields),
+                'old_values'     => $this->toJsonOrNull($oldValues),
+                'new_values'     => $this->toJsonOrNull($newValues),
+
+                'log_note'   => $note,
+
+                'created_at' => $this->now(),
+                'updated_at' => $this->now(),
+            ]);
+        } catch (\Throwable $e) {
+            // Never break API flow because of logging
+            $this->logWarn('ACTIVITY_LOG: failed to write', [
+                'error' => $e->getMessage(),
+                'path'  => $r->path(),
+                'method'=> $r->method(),
+            ]);
+        }
     }
 
     /**
@@ -614,6 +746,20 @@ class StudentSubjectController extends Controller
 
         if ($v->fails()) {
             $this->logWarn('STORE: validation failed', $meta + ['errors' => $v->errors()->toArray()]);
+
+            // ✅ activity log (POST)
+            $this->activityLog(
+                $r,
+                'create',
+                'student_subjects',
+                self::TABLE,
+                null,
+                array_keys($v->errors()->toArray()),
+                null,
+                ['errors' => $v->errors()->toArray()],
+                'validation_failed'
+            );
+
             return response()->json([
                 'success' => false,
                 'message' => 'Validation error',
@@ -624,6 +770,7 @@ class StudentSubjectController extends Controller
         try {
             // ✅ auth check (same style)
             if ((int)$actor['id'] <= 0) {
+                $this->activityLog($r, 'create', 'student_subjects', self::TABLE, null, null, null, null, 'unauthenticated');
                 return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
             }
 
@@ -632,14 +779,17 @@ class StudentSubjectController extends Controller
             $ac = $this->accessControl($actorId);
 
             if ($ac['mode'] === 'not_allowed') {
+                $this->activityLog($r, 'create', 'student_subjects', self::TABLE, null, null, null, null, 'not_allowed');
                 return response()->json(['success' => false, 'error' => 'Not allowed'], 403);
             }
             if ($ac['mode'] === 'none') {
+                $this->activityLog($r, 'create', 'student_subjects', self::TABLE, null, null, null, null, 'not_allowed');
                 return response()->json(['success' => false, 'error' => 'Not allowed'], 403);
             }
             if ($ac['mode'] === 'department') {
                 $reqDept = (int) $r->input('department_id');
                 if ($reqDept !== (int)$ac['department_id']) {
+                    $this->activityLog($r, 'create', 'student_subjects', self::TABLE, null, ['department_id'], null, ['department_id' => $reqDept], 'cross_department_blocked');
                     return response()->json(['success' => false, 'error' => 'Not allowed'], 403);
                 }
             }
@@ -648,14 +798,17 @@ class StudentSubjectController extends Controller
 
             $subjectJsonString = $this->normalizeJsonToString($r->input('subject_json'));
             if (!$subjectJsonString) {
+                $this->activityLog($r, 'create', 'student_subjects', self::TABLE, null, ['subject_json'], null, null, 'invalid_subject_json');
                 return response()->json([
                     'success' => false,
                     'message' => 'Invalid subject_json format',
                 ], 422);
             }
 
-            $id = DB::table(self::TABLE)->insertGetId([
-                'uuid' => (string) Str::uuid(),
+            $uuid = (string) Str::uuid();
+
+            $insertPayload = [
+                'uuid' => $uuid,
 
                 'department_id' => (int) $r->input('department_id'),
                 'course_id'     => (int) $r->input('course_id'),
@@ -672,7 +825,9 @@ class StudentSubjectController extends Controller
 
                 'created_at' => $now,
                 'updated_at' => $now,
-            ]);
+            ];
+
+            $id = DB::table(self::TABLE)->insertGetId($insertPayload);
 
             $rowQ = $this->baseQuery(false)->where('ss.id', (int)$id);
 
@@ -683,6 +838,35 @@ class StudentSubjectController extends Controller
 
             $row = $rowQ->first();
 
+            // ✅ activity log (POST success)
+            $newSnap = $this->snapshotRow((array)($row ? (object)[
+                'id' => (int)$id,
+                'uuid' => $uuid,
+                'department_id' => (int)$insertPayload['department_id'],
+                'course_id' => (int)$insertPayload['course_id'],
+                'semester_id' => $insertPayload['semester_id'],
+                'subject_json' => $insertPayload['subject_json'],
+                'status' => $insertPayload['status'],
+                'metadata' => $insertPayload['metadata'],
+                'created_by' => $insertPayload['created_by'],
+                'created_at' => $insertPayload['created_at'],
+                'updated_at' => $insertPayload['updated_at'],
+                'deleted_at' => null,
+                'created_at_ip' => $insertPayload['created_at_ip'],
+                'updated_at_ip' => $insertPayload['updated_at_ip'],
+            ] : []));
+            $this->activityLog(
+                $r,
+                'create',
+                'student_subjects',
+                self::TABLE,
+                (int)$id,
+                array_keys($insertPayload),
+                null,
+                $newSnap ?: $insertPayload,
+                'created'
+            );
+
             return response()->json([
                 'success' => true,
                 'message' => 'Created',
@@ -690,6 +874,10 @@ class StudentSubjectController extends Controller
             ], 201);
         } catch (\Throwable $e) {
             $this->logErr('STORE: failed', $meta + ['error' => $e->getMessage()]);
+
+            // ✅ activity log (POST failure)
+            $this->activityLog($r, 'create', 'student_subjects', self::TABLE, null, null, null, null, 'exception: ' . $e->getMessage());
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to create record',
@@ -711,6 +899,7 @@ class StudentSubjectController extends Controller
 
         try {
             if ((int)$actor['id'] <= 0) {
+                $this->activityLog($r, 'update', 'student_subjects', self::TABLE, null, null, null, null, 'unauthenticated');
                 return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
             }
 
@@ -719,9 +908,11 @@ class StudentSubjectController extends Controller
             $ac = $this->accessControl($actorId);
 
             if ($ac['mode'] === 'not_allowed') {
+                $this->activityLog($r, 'update', 'student_subjects', self::TABLE, null, null, null, null, 'not_allowed');
                 return response()->json(['success' => false, 'error' => 'Not allowed'], 403);
             }
             if ($ac['mode'] === 'none') {
+                $this->activityLog($r, 'update', 'student_subjects', self::TABLE, null, null, null, null, 'not_allowed');
                 return response()->json(['success' => false, 'error' => 'Not allowed'], 403);
             }
 
@@ -729,6 +920,7 @@ class StudentSubjectController extends Controller
             if ($ac['mode'] === 'department' && $r->has('department_id')) {
                 $reqDept = $r->filled('department_id') ? (int) $r->input('department_id') : 0;
                 if ($reqDept !== (int)$ac['department_id']) {
+                    $this->activityLog($r, 'update', 'student_subjects', self::TABLE, null, ['department_id'], null, ['department_id' => $reqDept], 'cross_department_blocked');
                     return response()->json(['success' => false, 'error' => 'Not allowed'], 403);
                 }
             }
@@ -747,8 +939,11 @@ class StudentSubjectController extends Controller
             $existing = $existingQ->first();
 
             if (!$existing) {
+                $this->activityLog($r, 'update', 'student_subjects', self::TABLE, null, null, null, null, 'not_found');
                 return response()->json(['success' => false, 'message' => 'Not found'], 404);
             }
+
+            $oldSnapAll = $this->snapshotRow($existing);
 
             $v = Validator::make($r->all(), [
                 'department_id' => ['sometimes','required','integer','exists:' . self::TABLE_DEPTS . ',id'],
@@ -766,6 +961,20 @@ class StudentSubjectController extends Controller
 
             if ($v->fails()) {
                 $this->logWarn('UPDATE: validation failed', $meta + ['errors' => $v->errors()->toArray()]);
+
+                // ✅ activity log (PUT/PATCH validation fail)
+                $this->activityLog(
+                    $r,
+                    'update',
+                    'student_subjects',
+                    self::TABLE,
+                    (int)$existing->id,
+                    array_keys($v->errors()->toArray()),
+                    $oldSnapAll,
+                    ['errors' => $v->errors()->toArray()],
+                    'validation_failed'
+                );
+
                 return response()->json([
                     'success' => false,
                     'message' => 'Validation error',
@@ -789,6 +998,7 @@ class StudentSubjectController extends Controller
             if ($r->has('subject_json')) {
                 $subjectJsonString = $this->normalizeJsonToString($r->input('subject_json'));
                 if (!$subjectJsonString) {
+                    $this->activityLog($r, 'update', 'student_subjects', self::TABLE, (int)$existing->id, ['subject_json'], $oldSnapAll, null, 'invalid_subject_json');
                     return response()->json([
                         'success' => false,
                         'message' => 'Invalid subject_json format',
@@ -814,6 +1024,29 @@ class StudentSubjectController extends Controller
 
             $updateQ->update($upd);
 
+            // fetch fresh (for diff + response)
+            $fresh = DB::table(self::TABLE)->where('id', (int)$existing->id)->first();
+            $newSnapAll = $this->snapshotRow($fresh);
+
+            [$changedFields, $oldDiff, $newDiff] = $this->diffSnapshots(
+                $oldSnapAll,
+                $newSnapAll,
+                ['department_id','course_id','semester_id','subject_json','status','metadata','deleted_at','updated_at','updated_at_ip']
+            );
+
+            // ✅ activity log (PUT/PATCH success)
+            $this->activityLog(
+                $r,
+                'update',
+                'student_subjects',
+                self::TABLE,
+                (int)$existing->id,
+                $changedFields,
+                $oldDiff,
+                $newDiff,
+                'updated'
+            );
+
             $rowQ = $this->baseQuery(false)->where('ss.id', (int)$existing->id);
 
             // ✅ apply scope
@@ -830,6 +1063,10 @@ class StudentSubjectController extends Controller
             ]);
         } catch (\Throwable $e) {
             $this->logErr('UPDATE: failed', $meta + ['error' => $e->getMessage()]);
+
+            // ✅ activity log (PUT/PATCH failure)
+            $this->activityLog($r, 'update', 'student_subjects', self::TABLE, null, null, null, null, 'exception: ' . $e->getMessage());
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to update record',
@@ -851,6 +1088,7 @@ class StudentSubjectController extends Controller
 
         try {
             if ((int)$actor['id'] <= 0) {
+                $this->activityLog($r, 'delete', 'student_subjects', self::TABLE, null, null, null, null, 'unauthenticated');
                 return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
             }
 
@@ -859,9 +1097,11 @@ class StudentSubjectController extends Controller
             $ac = $this->accessControl($actorId);
 
             if ($ac['mode'] === 'not_allowed') {
+                $this->activityLog($r, 'delete', 'student_subjects', self::TABLE, null, null, null, null, 'not_allowed');
                 return response()->json(['success' => false, 'error' => 'Not allowed'], 403);
             }
             if ($ac['mode'] === 'none') {
+                $this->activityLog($r, 'delete', 'student_subjects', self::TABLE, null, null, null, null, 'not_allowed');
                 return response()->json(['success' => false, 'error' => 'Not allowed'], 403);
             }
 
@@ -878,7 +1118,12 @@ class StudentSubjectController extends Controller
 
             $existing = $existingQ->first();
 
-            if (!$existing) return response()->json(['success' => false, 'message' => 'Not found'], 404);
+            if (!$existing) {
+                $this->activityLog($r, 'delete', 'student_subjects', self::TABLE, null, null, null, null, 'not_found');
+                return response()->json(['success' => false, 'message' => 'Not found'], 404);
+            }
+
+            $oldSnapAll = $this->snapshotRow($existing);
 
             $now = $this->now();
 
@@ -890,12 +1135,38 @@ class StudentSubjectController extends Controller
                     'updated_at_ip' => $actor['ip'] ?: null,
                 ]);
 
+            $fresh = DB::table(self::TABLE)->where('id', (int)$existing->id)->first();
+            $newSnapAll = $this->snapshotRow($fresh);
+
+            [$changedFields, $oldDiff, $newDiff] = $this->diffSnapshots(
+                $oldSnapAll,
+                $newSnapAll,
+                ['deleted_at','updated_at','updated_at_ip']
+            );
+
+            // ✅ activity log (DELETE success)
+            $this->activityLog(
+                $r,
+                'delete',
+                'student_subjects',
+                self::TABLE,
+                (int)$existing->id,
+                $changedFields ?: ['deleted_at'],
+                $oldDiff ?: ['deleted_at' => $oldSnapAll['deleted_at'] ?? null],
+                $newDiff ?: ['deleted_at' => $newSnapAll['deleted_at'] ?? null],
+                'moved_to_trash'
+            );
+
             return response()->json([
                 'success' => true,
                 'message' => 'Moved to trash',
             ]);
         } catch (\Throwable $e) {
             $this->logErr('DESTROY: failed', $meta + ['error' => $e->getMessage()]);
+
+            // ✅ activity log (DELETE failure)
+            $this->activityLog($r, 'delete', 'student_subjects', self::TABLE, null, null, null, null, 'exception: ' . $e->getMessage());
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to delete record',
@@ -917,6 +1188,7 @@ class StudentSubjectController extends Controller
 
         try {
             if ((int)$actor['id'] <= 0) {
+                $this->activityLog($r, 'restore', 'student_subjects', self::TABLE, null, null, null, null, 'unauthenticated');
                 return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
             }
 
@@ -925,9 +1197,11 @@ class StudentSubjectController extends Controller
             $ac = $this->accessControl($actorId);
 
             if ($ac['mode'] === 'not_allowed') {
+                $this->activityLog($r, 'restore', 'student_subjects', self::TABLE, null, null, null, null, 'not_allowed');
                 return response()->json(['success' => false, 'error' => 'Not allowed'], 403);
             }
             if ($ac['mode'] === 'none') {
+                $this->activityLog($r, 'restore', 'student_subjects', self::TABLE, null, null, null, null, 'not_allowed');
                 return response()->json(['success' => false, 'error' => 'Not allowed'], 403);
             }
 
@@ -944,7 +1218,12 @@ class StudentSubjectController extends Controller
 
             $existing = $existingQ->first();
 
-            if (!$existing) return response()->json(['success' => false, 'message' => 'Not found in trash'], 404);
+            if (!$existing) {
+                $this->activityLog($r, 'restore', 'student_subjects', self::TABLE, null, null, null, null, 'not_found_in_trash');
+                return response()->json(['success' => false, 'message' => 'Not found in trash'], 404);
+            }
+
+            $oldSnapAll = $this->snapshotRow($existing);
 
             $now = $this->now();
 
@@ -956,12 +1235,38 @@ class StudentSubjectController extends Controller
                     'updated_at_ip' => $actor['ip'] ?: null,
                 ]);
 
+            $fresh = DB::table(self::TABLE)->where('id', (int)$existing->id)->first();
+            $newSnapAll = $this->snapshotRow($fresh);
+
+            [$changedFields, $oldDiff, $newDiff] = $this->diffSnapshots(
+                $oldSnapAll,
+                $newSnapAll,
+                ['deleted_at','updated_at','updated_at_ip']
+            );
+
+            // ✅ activity log (POST restore success)
+            $this->activityLog(
+                $r,
+                'restore',
+                'student_subjects',
+                self::TABLE,
+                (int)$existing->id,
+                $changedFields ?: ['deleted_at'],
+                $oldDiff ?: ['deleted_at' => $oldSnapAll['deleted_at'] ?? null],
+                $newDiff ?: ['deleted_at' => $newSnapAll['deleted_at'] ?? null],
+                'restored'
+            );
+
             return response()->json([
                 'success' => true,
                 'message' => 'Restored',
             ]);
         } catch (\Throwable $e) {
             $this->logErr('RESTORE: failed', $meta + ['error' => $e->getMessage()]);
+
+            // ✅ activity log (POST restore failure)
+            $this->activityLog($r, 'restore', 'student_subjects', self::TABLE, null, null, null, null, 'exception: ' . $e->getMessage());
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to restore record',
@@ -983,6 +1288,7 @@ class StudentSubjectController extends Controller
 
         try {
             if ((int)$actor['id'] <= 0) {
+                $this->activityLog($r, 'force_delete', 'student_subjects', self::TABLE, null, null, null, null, 'unauthenticated');
                 return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
             }
 
@@ -991,9 +1297,11 @@ class StudentSubjectController extends Controller
             $ac = $this->accessControl($actorId);
 
             if ($ac['mode'] === 'not_allowed') {
+                $this->activityLog($r, 'force_delete', 'student_subjects', self::TABLE, null, null, null, null, 'not_allowed');
                 return response()->json(['success' => false, 'error' => 'Not allowed'], 403);
             }
             if ($ac['mode'] === 'none') {
+                $this->activityLog($r, 'force_delete', 'student_subjects', self::TABLE, null, null, null, null, 'not_allowed');
                 return response()->json(['success' => false, 'error' => 'Not allowed'], 403);
             }
 
@@ -1009,9 +1317,27 @@ class StudentSubjectController extends Controller
 
             $existing = $existingQ->first();
 
-            if (!$existing) return response()->json(['success' => false, 'message' => 'Not found'], 404);
+            if (!$existing) {
+                $this->activityLog($r, 'force_delete', 'student_subjects', self::TABLE, null, null, null, null, 'not_found');
+                return response()->json(['success' => false, 'message' => 'Not found'], 404);
+            }
+
+            $oldSnapAll = $this->snapshotRow($existing);
 
             DB::table(self::TABLE)->where('id', (int)$existing->id)->delete();
+
+            // ✅ activity log (DELETE force success)
+            $this->activityLog(
+                $r,
+                'force_delete',
+                'student_subjects',
+                self::TABLE,
+                (int)$existing->id,
+                ['force_deleted'],
+                $oldSnapAll,
+                null,
+                'permanently_deleted'
+            );
 
             return response()->json([
                 'success' => true,
@@ -1019,6 +1345,10 @@ class StudentSubjectController extends Controller
             ]);
         } catch (\Throwable $e) {
             $this->logErr('FORCE DELETE: failed', $meta + ['error' => $e->getMessage()]);
+
+            // ✅ activity log (DELETE force failure)
+            $this->activityLog($r, 'force_delete', 'student_subjects', self::TABLE, null, null, null, null, 'exception: ' . $e->getMessage());
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to force delete record',

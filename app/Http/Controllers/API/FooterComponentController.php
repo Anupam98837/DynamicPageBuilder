@@ -7,10 +7,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Throwable;
 
 class FooterComponentController extends Controller
 {
     private const TABLE = 'footer_components';
+    private const LOG_TABLE = 'user_data_activity_log';
 
     /** cache schema checks */
     protected array $colCache = [];
@@ -77,6 +79,107 @@ class FooterComponentController extends Controller
             $this->colCache[$key] = Schema::hasTable($table) && Schema::hasColumn($table, $col);
         }
         return (bool) $this->colCache[$key];
+    }
+
+    /* ============================================
+     | Activity Log Helpers (POST/PUT/PATCH/DELETE)
+     |============================================ */
+
+    protected function canLogActivity(): bool
+    {
+        try {
+            return Schema::hasTable(self::LOG_TABLE);
+        } catch (Throwable $e) {
+            return false;
+        }
+    }
+
+    protected function pickForLog($rowOrArray, array $keys): array
+    {
+        $src = is_array($rowOrArray) ? $rowOrArray : (array) $rowOrArray;
+        $out = [];
+        foreach ($keys as $k) {
+            if (array_key_exists($k, $src)) $out[$k] = $src[$k];
+        }
+        return $out;
+    }
+
+    protected function scrubForLog($value, int $maxStr = 8000, int $maxItems = 200, int $depth = 3)
+    {
+        if ($value === null) return null;
+
+        if (is_string($value)) {
+            $v = $value;
+            if (mb_strlen($v) > $maxStr) $v = mb_substr($v, 0, $maxStr) . '…';
+            return $v;
+        }
+
+        if (is_bool($value) || is_int($value) || is_float($value)) return $value;
+
+        if ($depth <= 0) return '[truncated]';
+
+        if (is_object($value)) $value = (array) $value;
+
+        if (is_array($value)) {
+            $out = [];
+            $i = 0;
+            foreach ($value as $k => $v) {
+                if ($i++ >= $maxItems) {
+                    $out['__truncated__'] = true;
+                    break;
+                }
+                $out[$k] = $this->scrubForLog($v, $maxStr, $maxItems, $depth - 1);
+            }
+            return $out;
+        }
+
+        // fallback
+        $v = (string) $value;
+        if (mb_strlen($v) > $maxStr) $v = mb_substr($v, 0, $maxStr) . '…';
+        return $v;
+    }
+
+    protected function logActivity(
+        Request $r,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        $oldValues = null,
+        $newValues = null,
+        ?string $note = null
+    ): void {
+        if (!$this->canLogActivity()) return;
+
+        try {
+            $actor = $this->actor($r);
+
+            $payload = [
+                'performed_by'      => (int) ($actor['id'] ?? 0),
+                'performed_by_role' => (string) ($actor['role'] ?? ''),
+                'ip'                => (string) ($r->ip() ?? ''),
+                'user_agent'        => (string) ($r->userAgent() ?? ''),
+
+                'activity'          => $activity,
+                'module'            => $module,
+
+                'table_name'        => $tableName,
+                'record_id'         => $recordId,
+
+                'changed_fields'    => $changedFields !== null ? $this->encode($this->scrubForLog(array_values($changedFields))) : null,
+                'old_values'        => $oldValues !== null ? $this->encode($this->scrubForLog($oldValues)) : null,
+                'new_values'        => $newValues !== null ? $this->encode($this->scrubForLog($newValues)) : null,
+
+                'log_note'          => $note,
+                'created_at'        => now(),
+                'updated_at'        => now(),
+            ];
+
+            DB::table(self::LOG_TABLE)->insert($payload);
+        } catch (Throwable $e) {
+            // Never break main functionality due to logging failure
+        }
     }
 
     /* ============================================
@@ -392,7 +495,7 @@ class FooterComponentController extends Controller
         return [$logo, $title, $rot];
     }
 
-        /* ============================================
+    /* ============================================
      | Section-2 resolver for PUBLIC render
      | Converts saved "blocks config" into full tree
      | so public footer does NOT need /api/header-menus
@@ -539,7 +642,6 @@ class FooterComponentController extends Controller
         return $out;
     }
 
-
     /* ============================================
      | Row normalization for output
      |============================================ */
@@ -572,8 +674,7 @@ class FooterComponentController extends Controller
         // Brand logo full url
         $arr['brand_logo_full_url'] = $this->toUrl($arr['brand_logo_url'] ?? null);
 
-        // Section2 already stored as tree (menus + submenus)
-                // Section2: keep raw saved JSON (your admin needs it),
+        // Section2: keep raw saved JSON (your admin needs it),
         // and ALSO provide a resolved tree for public render.
         $arr['section2_header_menus'] = $this->ensureArray($arr['section2_header_menu_json'] ?? []);
         $arr['section2_header_menus_resolved'] = $this->resolveSection2ForPublic($arr['section2_header_menu_json'] ?? []);
@@ -938,6 +1039,20 @@ class FooterComponentController extends Controller
 
         $row = DB::table(self::TABLE)->where('id', (int) $id)->first();
 
+        // ✅ LOG: create
+        $newForLog = array_merge(['id' => (int) $id], $insert);
+        $this->logActivity(
+            $request,
+            'create',
+            'footer_components',
+            self::TABLE,
+            (int) $id,
+            array_keys($newForLog),
+            null,
+            $newForLog,
+            'Created footer component (slug: ' . $slug . ')'
+        );
+
         return response()->json([
             'success' => true,
             'data'    => $row ? $this->normalizeRow($row) : null,
@@ -948,6 +1063,8 @@ class FooterComponentController extends Controller
     {
         $row = $this->resolveFooterComponent($identifier, true);
         if (!$row) return response()->json(['success' => false, 'message' => 'Footer component not found'], 404);
+
+        $oldRowArr = (array) $row;
 
         $validated = $request->validate([
             'slug' => ['nullable', 'string', 'max:160'],
@@ -1149,6 +1266,24 @@ class FooterComponentController extends Controller
         DB::table(self::TABLE)->where('id', (int) $row->id)->update($update);
 
         $fresh = DB::table(self::TABLE)->where('id', (int) $row->id)->first();
+        $freshArr = $fresh ? (array) $fresh : [];
+
+        // ✅ LOG: update (store only changed fields snapshot)
+        $changedFields = array_keys($update);
+        $oldForLog = $this->pickForLog($oldRowArr, $changedFields);
+        $newForLog = $this->pickForLog($freshArr, $changedFields);
+
+        $this->logActivity(
+            $request,
+            'update',
+            'footer_components',
+            self::TABLE,
+            (int) $row->id,
+            $changedFields,
+            $oldForLog,
+            $newForLog,
+            'Updated footer component (id: ' . (int) $row->id . ')'
+        );
 
         return response()->json([
             'success' => true,
@@ -1161,11 +1296,31 @@ class FooterComponentController extends Controller
         $row = $this->resolveFooterComponent($identifier, false);
         if (!$row) return response()->json(['success' => false, 'message' => 'Not found or already deleted'], 404);
 
+        $oldRowArr = (array) $row;
+
+        $now = now();
         DB::table(self::TABLE)->where('id', (int) $row->id)->update([
-            'deleted_at'    => now(),
-            'updated_at'    => now(),
+            'deleted_at'    => $now,
+            'updated_at'    => $now,
             'updated_at_ip' => $request->ip(),
         ]);
+
+        $fresh = DB::table(self::TABLE)->where('id', (int) $row->id)->first();
+        $freshArr = $fresh ? (array) $fresh : [];
+
+        // ✅ LOG: soft delete
+        $changed = ['deleted_at', 'updated_at', 'updated_at_ip'];
+        $this->logActivity(
+            $request,
+            'delete',
+            'footer_components',
+            self::TABLE,
+            (int) $row->id,
+            $changed,
+            $this->pickForLog($oldRowArr, $changed),
+            $this->pickForLog($freshArr, $changed),
+            'Soft deleted footer component (id: ' . (int) $row->id . ')'
+        );
 
         return response()->json(['success' => true]);
     }
@@ -1177,13 +1332,31 @@ class FooterComponentController extends Controller
             return response()->json(['success' => false, 'message' => 'Not found in bin'], 404);
         }
 
+        $oldRowArr = (array) $row;
+
+        $now = now();
         DB::table(self::TABLE)->where('id', (int) $row->id)->update([
             'deleted_at'    => null,
-            'updated_at'    => now(),
+            'updated_at'    => $now,
             'updated_at_ip' => $request->ip(),
         ]);
 
         $fresh = DB::table(self::TABLE)->where('id', (int) $row->id)->first();
+        $freshArr = $fresh ? (array) $fresh : [];
+
+        // ✅ LOG: restore
+        $changed = ['deleted_at', 'updated_at', 'updated_at_ip'];
+        $this->logActivity(
+            $request,
+            'restore',
+            'footer_components',
+            self::TABLE,
+            (int) $row->id,
+            $changed,
+            $this->pickForLog($oldRowArr, $changed),
+            $this->pickForLog($freshArr, $changed),
+            'Restored footer component (id: ' . (int) $row->id . ')'
+        );
 
         return response()->json([
             'success' => true,
@@ -1196,10 +1369,26 @@ class FooterComponentController extends Controller
         $row = $this->resolveFooterComponent($identifier, true);
         if (!$row) return response()->json(['success' => false, 'message' => 'Footer component not found'], 404);
 
+        $oldRowArr = (array) $row;
+
         // delete local brand logo file (if any)
         $this->deletePublicPath($row->brand_logo_url ?? null);
 
         DB::table(self::TABLE)->where('id', (int) $row->id)->delete();
+
+        // ✅ LOG: force delete (record removed)
+        $minimalOld = $this->pickForLog($oldRowArr, ['id', 'uuid', 'slug', 'brand_logo_url', 'brand_title', 'status', 'deleted_at']);
+        $this->logActivity(
+            $request,
+            'force_delete',
+            'footer_components',
+            self::TABLE,
+            (int) ($oldRowArr['id'] ?? 0),
+            ['force_deleted'],
+            $minimalOld,
+            null,
+            'Force deleted footer component (id: ' . (int) ($oldRowArr['id'] ?? 0) . ')'
+        );
 
         return response()->json(['success' => true]);
     }

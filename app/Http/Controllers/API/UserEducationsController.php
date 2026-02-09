@@ -81,6 +81,77 @@ class UserEducationsController extends Controller
         ], true);
     }
 
+    /* =========================
+     * Activity Log (best-effort; never breaks flow)
+     * ========================= */
+
+    private function normForJson($val)
+    {
+        if ($val === null) return null;
+
+        if ($val instanceof \Illuminate\Support\Collection) {
+            $val = $val->toArray();
+        }
+
+        // convert objects (stdClass, models, etc.) to array safely
+        if (is_object($val)) {
+            $val = json_decode(json_encode($val), true);
+        }
+
+        return $val;
+    }
+
+    private function jsonOrNull($val): ?string
+    {
+        $val = $this->normForJson($val);
+        if ($val === null) return null;
+
+        $json = json_encode($val, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        return ($json === false) ? null : $json;
+    }
+
+    /**
+     * Log one mutation call (POST/PUT/PATCH/DELETE).
+     * NOTE: Always swallow errors so it never affects API functionality.
+     */
+    private function logActivity(
+        Request $request,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        $oldValues = null,
+        $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            $actor = $this->actor($request);
+
+            $ua = $request->userAgent();
+            if (is_string($ua) && strlen($ua) > 512) $ua = substr($ua, 0, 512);
+
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'      => max(0, (int)($actor['id'] ?? 0)),
+                'performed_by_role' => $actor['role'] ?? null,
+                'ip'                => $request->ip(),
+                'user_agent'        => $ua,
+                'activity'          => $activity,
+                'module'            => $module,
+                'table_name'        => $tableName,
+                'record_id'         => $recordId,
+                'changed_fields'    => $changedFields ? $this->jsonOrNull(array_values($changedFields)) : null,
+                'old_values'        => $this->jsonOrNull($oldValues),
+                'new_values'        => $this->jsonOrNull($newValues),
+                'log_note'          => $note,
+                'created_at'        => Carbon::now(),
+                'updated_at'        => Carbon::now(),
+            ]);
+        } catch (\Throwable $e) {
+            // do nothing (must not break API)
+        }
+    }
+
     private function decodeMetadataRow($row)
     {
         if ($row && isset($row->metadata) && is_string($row->metadata)) {
@@ -236,20 +307,41 @@ class UserEducationsController extends Controller
 
     public function store(Request $request, ?string $user_uuid = null)
     {
+        $module   = 'user_educations';
+        $activity = 'create';
+
         if ($resp = $this->requireRole($request, [
             'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
-        ])) return $resp;
+        ])) {
+            $this->logActivity($request, $activity, $module, $this->table, null, null, null, null, 'FAILED: Unauthorized role');
+            return $resp;
+        }
 
         $user = $this->resolveTargetUser($request, $user_uuid);
-        if (!$user) return response()->json(['success'=>false,'error'=>'User not found'], 404);
+        if (!$user) {
+            $this->logActivity($request, $activity, $module, $this->table, null, null, null, null, 'FAILED: User not found');
+            return response()->json(['success'=>false,'error'=>'User not found'], 404);
+        }
 
         if (!$this->canAccess($request, (int) $user->id)) {
+            $this->logActivity($request, $activity, $module, $this->table, null, null, null, null, 'FAILED: Unauthorized access to user');
             return response()->json(['success'=>false,'error'=>'Unauthorized Access'], 403);
         }
 
         // ✅ allow metadata as array OR JSON string
         $metaNorm = $this->normalizeMetadata($request->input('metadata'));
         if ($metaNorm === '__INVALID__') {
+            $this->logActivity(
+                $request,
+                $activity,
+                $module,
+                $this->table,
+                null,
+                ['metadata'],
+                null,
+                ['errors' => ['metadata' => ['Metadata must be valid JSON array/object']]],
+                'FAILED: Invalid metadata'
+            );
             return response()->json(['success'=>false,'errors'=>['metadata'=>['Metadata must be valid JSON array/object']]], 422);
         }
 
@@ -270,7 +362,20 @@ class UserEducationsController extends Controller
             'metadata'         => ['nullable'],
         ]);
 
-        if ($v->fails()) return response()->json(['success'=>false,'errors'=>$v->errors()], 422);
+        if ($v->fails()) {
+            $this->logActivity(
+                $request,
+                $activity,
+                $module,
+                $this->table,
+                null,
+                array_keys($request->all() ?? []),
+                null,
+                ['errors' => $v->errors()->toArray()],
+                'FAILED: Validation failed'
+            );
+            return response()->json(['success'=>false,'errors'=>$v->errors()], 422);
+        }
 
         $data  = $v->validated();
         $data['metadata'] = $metaNorm;
@@ -285,6 +390,19 @@ class UserEducationsController extends Controller
         ]);
         if ($dup) {
             $dup = $this->decodeMetadataRow($dup);
+
+            $this->logActivity(
+                $request,
+                $activity,
+                $module,
+                $this->table,
+                isset($dup->id) ? (int)$dup->id : null,
+                null,
+                null,
+                $dup,
+                'Duplicate submit prevented'
+            );
+
             return response()->json([
                 'success' => true,
                 'data' => $dup,
@@ -328,19 +446,44 @@ class UserEducationsController extends Controller
         $row = DB::table($this->table)->where('id', $id)->first();
         $row = $this->decodeMetadataRow($row);
 
+        // log create success
+        $fields = array_keys($insert);
+        $fields = array_values(array_diff($fields, ['created_at','updated_at','created_by','updated_by','created_at_ip','updated_at_ip']));
+        $this->logActivity(
+            $request,
+            $activity,
+            $module,
+            $this->table,
+            (int)$id,
+            $fields,
+            null,
+            $row,
+            'Education created'
+        );
+
         return response()->json(['success'=>true,'data'=>$row], 201);
     }
 
     public function update(Request $request, ?string $user_uuid = null, string $uuid = '')
     {
+        $module   = 'user_educations';
+        $activity = 'update';
+
         if ($resp = $this->requireRole($request, [
             'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
-        ])) return $resp;
+        ])) {
+            $this->logActivity($request, $activity, $module, $this->table, null, null, null, null, 'FAILED: Unauthorized role');
+            return $resp;
+        }
 
         $user = $this->resolveTargetUser($request, $user_uuid);
-        if (!$user) return response()->json(['success'=>false,'error'=>'User not found'], 404);
+        if (!$user) {
+            $this->logActivity($request, $activity, $module, $this->table, null, null, null, null, 'FAILED: User not found');
+            return response()->json(['success'=>false,'error'=>'User not found'], 404);
+        }
 
         if (!$this->canAccess($request, (int) $user->id)) {
+            $this->logActivity($request, $activity, $module, $this->table, null, null, null, null, 'FAILED: Unauthorized access to user');
             return response()->json(['success'=>false,'error'=>'Unauthorized Access'], 403);
         }
 
@@ -350,10 +493,24 @@ class UserEducationsController extends Controller
             ->whereNull('deleted_at')
             ->first();
 
-        if (!$row) return response()->json(['success'=>false,'error'=>'Record not found'], 404);
+        if (!$row) {
+            $this->logActivity($request, $activity, $module, $this->table, null, null, null, null, 'FAILED: Record not found');
+            return response()->json(['success'=>false,'error'=>'Record not found'], 404);
+        }
 
         $metaNorm = $this->normalizeMetadata($request->input('metadata'));
         if ($metaNorm === '__INVALID__') {
+            $this->logActivity(
+                $request,
+                $activity,
+                $module,
+                $this->table,
+                (int)$row->id,
+                ['metadata'],
+                null,
+                ['errors' => ['metadata' => ['Metadata must be valid JSON array/object']]],
+                'FAILED: Invalid metadata'
+            );
             return response()->json(['success'=>false,'errors'=>['metadata'=>['Metadata must be valid JSON array/object']]], 422);
         }
 
@@ -373,7 +530,24 @@ class UserEducationsController extends Controller
             'metadata'         => ['sometimes','nullable'],
         ]);
 
-        if ($v->fails()) return response()->json(['success'=>false,'errors'=>$v->errors()], 422);
+        if ($v->fails()) {
+            $this->logActivity(
+                $request,
+                $activity,
+                $module,
+                $this->table,
+                (int)$row->id,
+                array_keys($request->all() ?? []),
+                null,
+                ['errors' => $v->errors()->toArray()],
+                'FAILED: Validation failed'
+            );
+            return response()->json(['success'=>false,'errors'=>$v->errors()], 422);
+        }
+
+        // capture old snapshot (decoded metadata for readability)
+        $oldRow = clone $row;
+        $oldRow = $this->decodeMetadataRow($oldRow);
 
         $data  = $v->validated();
         $actor = $this->actor($request);
@@ -397,6 +571,35 @@ class UserEducationsController extends Controller
         $fresh = DB::table($this->table)->where('id', $row->id)->first();
         $fresh = $this->decodeMetadataRow($fresh);
 
+        // log update success (only meaningful changed fields)
+        $logFields = array_keys($upd);
+        $logFields = array_values(array_diff($logFields, ['updated_at','updated_by','updated_at_ip']));
+
+        $oldVals = [];
+        $newVals = [];
+        foreach ($logFields as $f) {
+            $oldVals[$f] = $oldRow->{$f} ?? null;
+            $newVals[$f] = $fresh->{$f} ?? null;
+
+            // keep metadata readable
+            if ($f === 'metadata') {
+                $oldVals[$f] = $oldRow->metadata ?? null;
+                $newVals[$f] = $fresh->metadata ?? null;
+            }
+        }
+
+        $this->logActivity(
+            $request,
+            $activity,
+            $module,
+            $this->table,
+            (int)$row->id,
+            $logFields,
+            $oldVals,
+            $newVals,
+            'Education updated'
+        );
+
         return response()->json(['success'=>true,'data'=>$fresh]);
     }
 
@@ -405,14 +608,24 @@ class UserEducationsController extends Controller
      */
     public function destroy(Request $request, ?string $user_uuid = null, string $uuid = '')
     {
+        $module   = 'user_educations';
+        $activity = 'delete';
+
         if ($resp = $this->requireRole($request, [
             'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
-        ])) return $resp;
+        ])) {
+            $this->logActivity($request, $activity, $module, $this->table, null, null, null, null, 'FAILED: Unauthorized role');
+            return $resp;
+        }
 
         $user = $this->resolveTargetUser($request, $user_uuid);
-        if (!$user) return response()->json(['success'=>false,'error'=>'User not found'], 404);
+        if (!$user) {
+            $this->logActivity($request, $activity, $module, $this->table, null, null, null, null, 'FAILED: User not found');
+            return response()->json(['success'=>false,'error'=>'User not found'], 404);
+        }
 
         if (!$this->canAccess($request, (int) $user->id)) {
+            $this->logActivity($request, $activity, $module, $this->table, null, null, null, null, 'FAILED: Unauthorized access to user');
             return response()->json(['success'=>false,'error'=>'Unauthorized Access'], 403);
         }
 
@@ -422,7 +635,10 @@ class UserEducationsController extends Controller
             ->whereNull('deleted_at')
             ->first();
 
-        if (!$row) return response()->json(['success'=>false,'error'=>'Record not found'], 404);
+        if (!$row) {
+            $this->logActivity($request, $activity, $module, $this->table, null, null, null, null, 'FAILED: Record not found');
+            return response()->json(['success'=>false,'error'=>'Record not found'], 404);
+        }
 
         $actor = $this->actor($request);
         $now   = Carbon::now();
@@ -435,6 +651,19 @@ class UserEducationsController extends Controller
         if ($this->hasCol('updated_at_ip')) $upd['updated_at_ip'] = $request->ip();
 
         DB::table($this->table)->where('id', $row->id)->update($upd);
+
+        // log soft delete success
+        $this->logActivity(
+            $request,
+            $activity,
+            $module,
+            $this->table,
+            (int)$row->id,
+            ['deleted_at'],
+            ['deleted_at' => $row->deleted_at ?? null],
+            ['deleted_at' => $now],
+            'Education soft deleted'
+        );
 
         return response()->json(['success'=>true,'message'=>'Education deleted']);
     }
@@ -470,14 +699,24 @@ class UserEducationsController extends Controller
 
     public function restore(Request $request, ?string $user_uuid = null, string $uuid = '')
     {
+        $module   = 'user_educations';
+        $activity = 'restore';
+
         if ($resp = $this->requireRole($request, [
             'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
-        ])) return $resp;
+        ])) {
+            $this->logActivity($request, $activity, $module, $this->table, null, null, null, null, 'FAILED: Unauthorized role');
+            return $resp;
+        }
 
         $user = $this->resolveTargetUser($request, $user_uuid);
-        if (!$user) return response()->json(['success'=>false,'error'=>'User not found'], 404);
+        if (!$user) {
+            $this->logActivity($request, $activity, $module, $this->table, null, null, null, null, 'FAILED: User not found');
+            return response()->json(['success'=>false,'error'=>'User not found'], 404);
+        }
 
         if (!$this->canAccess($request, (int) $user->id)) {
+            $this->logActivity($request, $activity, $module, $this->table, null, null, null, null, 'FAILED: Unauthorized access to user');
             return response()->json(['success'=>false,'error'=>'Unauthorized Access'], 403);
         }
 
@@ -487,10 +726,15 @@ class UserEducationsController extends Controller
             ->whereNotNull('deleted_at')
             ->first();
 
-        if (!$row) return response()->json(['success'=>false,'error'=>'Record not found in trash'], 404);
+        if (!$row) {
+            $this->logActivity($request, $activity, $module, $this->table, null, null, null, null, 'FAILED: Record not found in trash');
+            return response()->json(['success'=>false,'error'=>'Record not found in trash'], 404);
+        }
 
         $actor = $this->actor($request);
         $now   = Carbon::now();
+
+        $oldDeletedAt = $row->deleted_at ?? null;
 
         $upd = [
             'deleted_at' => null,
@@ -504,19 +748,42 @@ class UserEducationsController extends Controller
         $fresh = DB::table($this->table)->where('id', $row->id)->first();
         $fresh = $this->decodeMetadataRow($fresh);
 
+        // log restore success
+        $this->logActivity(
+            $request,
+            $activity,
+            $module,
+            $this->table,
+            (int)$row->id,
+            ['deleted_at'],
+            ['deleted_at' => $oldDeletedAt],
+            ['deleted_at' => null],
+            'Education restored'
+        );
+
         return response()->json(['success'=>true,'message'=>'Education restored','data'=>$fresh]);
     }
 
     public function forceDelete(Request $request, ?string $user_uuid = null, string $uuid = '')
     {
+        $module   = 'user_educations';
+        $activity = 'force_delete';
+
         if ($resp = $this->requireRole($request, [
             'admin','director','principal','hod','technical_assistant','it_person'
-        ])) return $resp;
+        ])) {
+            $this->logActivity($request, $activity, $module, $this->table, null, null, null, null, 'FAILED: Unauthorized role');
+            return $resp;
+        }
 
         $user = $this->resolveTargetUser($request, $user_uuid);
-        if (!$user) return response()->json(['success'=>false,'error'=>'User not found'], 404);
+        if (!$user) {
+            $this->logActivity($request, $activity, $module, $this->table, null, null, null, null, 'FAILED: User not found');
+            return response()->json(['success'=>false,'error'=>'User not found'], 404);
+        }
 
         if (!$this->canAccess($request, (int) $user->id)) {
+            $this->logActivity($request, $activity, $module, $this->table, null, null, null, null, 'FAILED: Unauthorized access to user');
             return response()->json(['success'=>false,'error'=>'Unauthorized Access'], 403);
         }
 
@@ -525,7 +792,13 @@ class UserEducationsController extends Controller
             ->where('user_id', $user->id)
             ->first();
 
-        if (!$row) return response()->json(['success'=>false,'error'=>'Record not found'], 404);
+        if (!$row) {
+            $this->logActivity($request, $activity, $module, $this->table, null, null, null, null, 'FAILED: Record not found');
+            return response()->json(['success'=>false,'error'=>'Record not found'], 404);
+        }
+
+        $oldRow = clone $row;
+        $oldRow = $this->decodeMetadataRow($oldRow);
 
         if (isset($row->certificate)) {
             $this->deletePublicAssetIfAny($row->certificate);
@@ -533,19 +806,42 @@ class UserEducationsController extends Controller
 
         DB::table($this->table)->where('id', $row->id)->delete();
 
+        // log force delete success
+        $this->logActivity(
+            $request,
+            $activity,
+            $module,
+            $this->table,
+            (int)$row->id,
+            null,
+            $oldRow,
+            null,
+            'Education permanently deleted'
+        );
+
         return response()->json(['success'=>true,'message'=>'Education permanently deleted']);
     }
 
     public function forceDeleteAllDeleted(Request $request, ?string $user_uuid = null)
     {
+        $module   = 'user_educations';
+        $activity = 'force_delete_all';
+
         if ($resp = $this->requireRole($request, [
             'admin','director','principal','hod','technical_assistant','it_person'
-        ])) return $resp;
+        ])) {
+            $this->logActivity($request, $activity, $module, $this->table, null, null, null, null, 'FAILED: Unauthorized role');
+            return $resp;
+        }
 
         $user = $this->resolveTargetUser($request, $user_uuid);
-        if (!$user) return response()->json(['success'=>false,'error'=>'User not found'], 404);
+        if (!$user) {
+            $this->logActivity($request, $activity, $module, $this->table, null, null, null, null, 'FAILED: User not found');
+            return response()->json(['success'=>false,'error'=>'User not found'], 404);
+        }
 
         if (!$this->canAccess($request, (int) $user->id)) {
+            $this->logActivity($request, $activity, $module, $this->table, null, null, null, null, 'FAILED: Unauthorized access to user');
             return response()->json(['success'=>false,'error'=>'Unauthorized Access'], 403);
         }
 
@@ -553,6 +849,9 @@ class UserEducationsController extends Controller
             ->where('user_id', $user->id)
             ->whereNotNull('deleted_at')
             ->get(['id','certificate']);
+
+        $ids = [];
+        foreach ($rows as $r) $ids[] = (int)$r->id;
 
         $deletedCount = 0;
 
@@ -565,6 +864,19 @@ class UserEducationsController extends Controller
                 DB::table($this->table)->where('id', $r->id)->delete();
             }
         });
+
+        // log bulk force delete success
+        $this->logActivity(
+            $request,
+            $activity,
+            $module,
+            $this->table,
+            null,
+            null,
+            ['ids' => $ids, 'count' => count($ids)],
+            ['deleted' => $deletedCount],
+            'Trash cleared'
+        );
 
         return response()->json(['success'=>true,'message'=>'Trash cleared', 'deleted'=>$deletedCount]);
     }

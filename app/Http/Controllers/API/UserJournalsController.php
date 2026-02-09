@@ -56,6 +56,57 @@ class UserJournalsController extends Controller
         ], $extra));
     }
 
+    /* =========================
+     * ✅ DB Activity Log (user_data_activity_log)
+     * ========================= */
+
+    private function dbActivityLog(
+        Request $r,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        ?array $oldValues = null,
+        ?array $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            $a = $this->actor($r);
+
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'       => (int) ($a['id'] ?? 0), // NOT NULL in migration
+                'performed_by_role'  => $a['role'] ? (string)$a['role'] : null,
+                'ip'                 => $r->ip(),
+                'user_agent'         => (string) $r->userAgent(),
+
+                'activity'           => $activity,
+                'module'             => $module,
+
+                'table_name'         => $tableName,
+                'record_id'          => $recordId,
+
+                'changed_fields'     => $changedFields !== null ? json_encode(array_values($changedFields)) : null,
+                'old_values'         => $oldValues !== null ? json_encode($oldValues) : null,
+                'new_values'         => $newValues !== null ? json_encode($newValues) : null,
+
+                'log_note'           => $note,
+
+                'created_at'         => Carbon::now(),
+                'updated_at'         => Carbon::now(),
+            ]);
+        } catch (\Throwable $e) {
+            // Never break API flow if logging fails
+            Log::warning('user_data_activity_log.insert_failed', [
+                'error' => $e->getMessage(),
+                'activity' => $activity,
+                'module' => $module,
+                'table_name' => $tableName,
+                'record_id' => $recordId,
+            ]);
+        }
+    }
+
     private function fetchUserByUuid(string $uuid)
     {
         return DB::table('users')
@@ -341,14 +392,23 @@ class UserJournalsController extends Controller
      */
     public function store(Request $request, ?string $user_uuid = null)
     {
+        $module = 'user_journals';
+
         if ($resp = $this->requireRole($request, [
             'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
-        ])) return $resp;
+        ])) {
+            $this->dbActivityLog($request, 'create', $module, $this->table, null, null, null, null, 'Unauthorized role');
+            return $resp;
+        }
 
         $user = $this->resolveTargetUser($request, $user_uuid);
-        if (!$user) return response()->json(['success' => false, 'error' => 'User not found'], 404);
+        if (!$user) {
+            $this->dbActivityLog($request, 'create', $module, $this->table, null, null, null, null, 'User not found');
+            return response()->json(['success' => false, 'error' => 'User not found'], 404);
+        }
 
         if (!$this->canAccessUser($request, (int)$user->id)) {
+            $this->dbActivityLog($request, 'create', $module, $this->table, null, null, null, null, 'Unauthorized access to target user');
             return response()->json(['success' => false, 'error' => 'Unauthorized Access'], 403);
         }
 
@@ -367,10 +427,26 @@ class UserJournalsController extends Controller
             'image_file'               => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,gif', 'max:5120'],
         ]);
 
-        if ($v->fails()) return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+        if ($v->fails()) {
+            $this->dbActivityLog(
+                $request,
+                'create',
+                $module,
+                $this->table,
+                null,
+                array_keys($v->errors()->toArray()),
+                null,
+                null,
+                'Validation failed'
+            );
+            return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+        }
 
         [$metaPresent, $metaValue, $metaErr] = $this->readMetadataFromRequest($request);
-        if ($metaErr) return response()->json(['success' => false, 'error' => $metaErr], 422);
+        if ($metaErr) {
+            $this->dbActivityLog($request, 'create', $module, $this->table, null, ['metadata'], null, null, $metaErr);
+            return response()->json(['success' => false, 'error' => $metaErr], 422);
+        }
 
         $data  = $v->validated();
         $actor = $this->actor($request);
@@ -383,6 +459,22 @@ class UserJournalsController extends Controller
             'publication_year' => $data['publication_year'] ?? null,
         ]);
         if ($dup) {
+            $this->dbActivityLog(
+                $request,
+                'create',
+                $module,
+                $this->table,
+                (int)($dup->id ?? 0) ?: null,
+                ['title','publication_organization','publication_year'],
+                null,
+                [
+                    'title' => $data['title'],
+                    'publication_organization' => $data['publication_organization'] ?? null,
+                    'publication_year' => $data['publication_year'] ?? null,
+                ],
+                'Duplicate submit prevented'
+            );
+
             $dup = $this->decodeMetadataRow($dup);
             return response()->json([
                 'success' => true,
@@ -428,6 +520,19 @@ class UserJournalsController extends Controller
                 'target_user_id' => (int)$user->id,
             ]);
 
+            // ✅ DB activity log (one row per request outcome)
+            $this->dbActivityLog(
+                $request,
+                'create',
+                $module,
+                $this->table,
+                (int)$id,
+                array_keys($insert),
+                null,
+                $insert,
+                'Created journal'
+            );
+
             $row = DB::table($this->table)->where('id', $id)->first();
             $row = $this->decodeMetadataRow($row);
 
@@ -441,20 +546,41 @@ class UserJournalsController extends Controller
                 'target_user_id' => (int)$user->id,
             ]);
 
+            $this->dbActivityLog(
+                $request,
+                'create',
+                $module,
+                $this->table,
+                null,
+                null,
+                null,
+                null,
+                'Failed to create journal: ' . $e->getMessage()
+            );
+
             return response()->json(['success' => false, 'error' => 'Failed to create journal'], 500);
         }
     }
 
     public function update(Request $request, ?string $user_uuid = null, string $journal_uuid = '')
     {
+        $module = 'user_journals';
+
         if ($resp = $this->requireRole($request, [
             'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
-        ])) return $resp;
+        ])) {
+            $this->dbActivityLog($request, 'update', $module, $this->table, null, null, null, null, 'Unauthorized role');
+            return $resp;
+        }
 
         $user = $this->resolveTargetUser($request, $user_uuid);
-        if (!$user) return response()->json(['success' => false, 'error' => 'User not found'], 404);
+        if (!$user) {
+            $this->dbActivityLog($request, 'update', $module, $this->table, null, null, null, null, 'User not found');
+            return response()->json(['success' => false, 'error' => 'User not found'], 404);
+        }
 
         if (!$this->canAccessUser($request, (int)$user->id)) {
+            $this->dbActivityLog($request, 'update', $module, $this->table, null, null, null, null, 'Unauthorized access to target user');
             return response()->json(['success' => false, 'error' => 'Unauthorized Access'], 403);
         }
 
@@ -464,7 +590,10 @@ class UserJournalsController extends Controller
             ->whereNull('deleted_at')
             ->first();
 
-        if (!$row) return response()->json(['success' => false, 'error' => 'Journal not found'], 404);
+        if (!$row) {
+            $this->dbActivityLog($request, 'update', $module, $this->table, null, null, null, null, 'Journal not found');
+            return response()->json(['success' => false, 'error' => 'Journal not found'], 404);
+        }
 
         $v = Validator::make($request->all(), [
             'title'                    => ['sometimes', 'required', 'string', 'max:255'],
@@ -476,10 +605,26 @@ class UserJournalsController extends Controller
             'image_file'               => ['sometimes', 'nullable', 'file', 'mimes:jpg,jpeg,png,webp,gif', 'max:5120'],
         ]);
 
-        if ($v->fails()) return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+        if ($v->fails()) {
+            $this->dbActivityLog(
+                $request,
+                'update',
+                $module,
+                $this->table,
+                (int)$row->id,
+                array_keys($v->errors()->toArray()),
+                null,
+                null,
+                'Validation failed'
+            );
+            return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+        }
 
         [$metaPresent, $metaValue, $metaErr] = $this->readMetadataFromRequest($request);
-        if ($metaErr) return response()->json(['success' => false, 'error' => $metaErr], 422);
+        if ($metaErr) {
+            $this->dbActivityLog($request, 'update', $module, $this->table, (int)$row->id, ['metadata'], null, null, $metaErr);
+            return response()->json(['success' => false, 'error' => $metaErr], 422);
+        }
 
         $data   = $v->validated();
         $actor  = $this->actor($request);
@@ -505,8 +650,29 @@ class UserJournalsController extends Controller
             $update['metadata'] = $metaValue !== null ? json_encode($metaValue) : null;
         }
 
+        // If nothing to update, return as-is (but still log the PATCH/PUT attempt)
         if (empty($update)) {
+            $this->dbActivityLog(
+                $request,
+                'update',
+                $module,
+                $this->table,
+                (int)$row->id,
+                [],
+                null,
+                null,
+                'No changes submitted'
+            );
             return response()->json(['success' => true, 'data' => $this->decodeMetadataRow($row)]);
+        }
+
+        // Build old/new snapshots for changed fields (exclude audit fields)
+        $changedKeys = array_keys($update);
+        $oldVals = [];
+        $newVals = [];
+        foreach ($changedKeys as $k) {
+            $oldVals[$k] = $row->$k ?? null;
+            $newVals[$k] = $update[$k] ?? null;
         }
 
         $update['updated_at'] = $now;
@@ -521,6 +687,18 @@ class UserJournalsController extends Controller
             'target_user_id' => (int)$user->id,
         ]);
 
+        $this->dbActivityLog(
+            $request,
+            'update',
+            $module,
+            $this->table,
+            (int)$row->id,
+            $changedKeys,
+            $oldVals,
+            $newVals,
+            'Updated journal'
+        );
+
         $fresh = DB::table($this->table)->where('id', $row->id)->first();
         $fresh = $this->decodeMetadataRow($fresh);
 
@@ -529,14 +707,23 @@ class UserJournalsController extends Controller
 
     public function destroy(Request $request, ?string $user_uuid = null, string $journal_uuid = '')
     {
+        $module = 'user_journals';
+
         if ($resp = $this->requireRole($request, [
             'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
-        ])) return $resp;
+        ])) {
+            $this->dbActivityLog($request, 'delete', $module, $this->table, null, null, null, null, 'Unauthorized role');
+            return $resp;
+        }
 
         $user = $this->resolveTargetUser($request, $user_uuid);
-        if (!$user) return response()->json(['success' => false, 'error' => 'User not found'], 404);
+        if (!$user) {
+            $this->dbActivityLog($request, 'delete', $module, $this->table, null, null, null, null, 'User not found');
+            return response()->json(['success' => false, 'error' => 'User not found'], 404);
+        }
 
         if (!$this->canAccessUser($request, (int)$user->id)) {
+            $this->dbActivityLog($request, 'delete', $module, $this->table, null, null, null, null, 'Unauthorized access to target user');
             return response()->json(['success' => false, 'error' => 'Unauthorized Access'], 403);
         }
 
@@ -546,7 +733,10 @@ class UserJournalsController extends Controller
             ->whereNull('deleted_at')
             ->first();
 
-        if (!$row) return response()->json(['success' => false, 'error' => 'Journal not found'], 404);
+        if (!$row) {
+            $this->dbActivityLog($request, 'delete', $module, $this->table, null, null, null, null, 'Journal not found');
+            return response()->json(['success' => false, 'error' => 'Journal not found'], 404);
+        }
 
         $actor = $this->actor($request);
         $now   = Carbon::now();
@@ -565,6 +755,18 @@ class UserJournalsController extends Controller
             'id' => $row->id,
             'target_user_id' => (int)$user->id,
         ]);
+
+        $this->dbActivityLog(
+            $request,
+            'delete',
+            $module,
+            $this->table,
+            (int)$row->id,
+            ['deleted_at'],
+            ['deleted_at' => $row->deleted_at ?? null],
+            ['deleted_at' => (string)$now],
+            'Deleted journal (soft delete)'
+        );
 
         return response()->json(['success' => true, 'message' => 'Journal deleted']);
     }

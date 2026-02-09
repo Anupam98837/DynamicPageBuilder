@@ -14,6 +14,8 @@ use Carbon\Carbon;
 class TechnicalAssistantPreviewOrderController extends Controller
 {
     private const TABLE = 'technical_assistant_preview_orders';
+    private const LOG_TABLE = 'user_data_activity_log';
+    private const LOG_MODULE = 'technical_assistant_preview_orders';
 
     // Exclude these roles when loading dept users (same pattern as your Faculty controller)
     private const EXCLUDED_ROLES = ['super_admin', 'admin', 'director', 'student', 'students'];
@@ -59,6 +61,78 @@ class TechnicalAssistantPreviewOrderController extends Controller
     private function tableReady(): bool
     {
         return Schema::hasTable(self::TABLE);
+    }
+
+    private function activityLogReady(): bool
+    {
+        return Schema::hasTable(self::LOG_TABLE);
+    }
+
+    /**
+     * Insert a row into user_data_activity_log (failsafe; never breaks API)
+     */
+    private function writeActivityLog(
+        Request $r,
+        string $activity,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        ?array $oldValues = null,
+        ?array $newValues = null,
+        ?string $note = null
+    ): void {
+        if (!$this->activityLogReady()) return;
+
+        $a = $this->actor($r);
+        $now = Carbon::now();
+
+        $ip = (string)($r->ip() ?? '');
+        if (strlen($ip) > 45) $ip = substr($ip, 0, 45);
+
+        $ua = (string)($r->userAgent() ?? $r->header('User-Agent') ?? '');
+        if (strlen($ua) > 512) $ua = substr($ua, 0, 512);
+
+        $role = (string)($a['role'] ?? '');
+        if ($role !== '' && strlen($role) > 50) $role = substr($role, 0, 50);
+
+        try {
+            DB::table(self::LOG_TABLE)->insert([
+                'performed_by'       => (int)($a['id'] ?? 0),
+                'performed_by_role'  => $role !== '' ? $role : null,
+                'ip'                 => $ip !== '' ? $ip : null,
+                'user_agent'         => $ua !== '' ? $ua : null,
+
+                'activity'           => (string)$activity,
+                'module'             => self::LOG_MODULE,
+
+                'table_name'         => (string)$tableName,
+                'record_id'          => $recordId !== null ? (int)$recordId : null,
+
+                'changed_fields'     => $changedFields !== null
+                    ? json_encode(array_values($changedFields), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+                    : null,
+                'old_values'         => $oldValues !== null
+                    ? json_encode($oldValues, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+                    : null,
+                'new_values'         => $newValues !== null
+                    ? json_encode($newValues, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+                    : null,
+
+                'log_note'           => $note,
+
+                'created_at'         => $now,
+                'updated_at'         => $now,
+            ]);
+        } catch (\Throwable $e) {
+            // Never break functionality if logging fails
+            Log::warning('msit.activity_log_failed', [
+                'module' => self::LOG_MODULE,
+                'activity' => $activity,
+                'table_name' => $tableName,
+                'record_id' => $recordId,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
@@ -368,13 +442,18 @@ class TechnicalAssistantPreviewOrderController extends Controller
     public function save(Request $request, string $department)
     {
         if (!$this->tableReady()) {
+            $this->writeActivityLog($request, 'error', self::TABLE, null, null, null, null, 'Target table not found');
             return response()->json(['success' => false, 'error' => 'technical_assistant_preview_orders table not found'], 422);
         }
 
-        if ($resp = $this->requireRole($request, ['admin','director','principal','hod'])) return $resp;
+        if ($resp = $this->requireRole($request, ['admin','director','principal','hod'])) {
+            $this->writeActivityLog($request, 'unauthorized', self::TABLE, null, null, null, null, 'Unauthorized access attempt to save preview order');
+            return $resp;
+        }
 
         $dept = $this->resolveDepartment($department);
         if (!$dept) {
+            $this->writeActivityLog($request, 'error', self::TABLE, null, null, null, null, 'Department not found while saving preview order');
             return response()->json(['success' => false, 'error' => 'Department not found'], 404);
         }
 
@@ -385,6 +464,17 @@ class TechnicalAssistantPreviewOrderController extends Controller
         ]);
 
         if ($v->fails()) {
+            $this->writeActivityLog(
+                $request,
+                'validation_failed',
+                self::TABLE,
+                null,
+                array_keys($v->errors()->toArray()),
+                null,
+                null,
+                'Validation failed while saving preview order (department_id='.$dept->id.')'
+            );
+
             return response()->json(['success' => false, 'errors' => $v->errors()], 422);
         }
 
@@ -425,6 +515,28 @@ class TechnicalAssistantPreviewOrderController extends Controller
                 ->whereNull('deleted_at')
                 ->first();
 
+            // Old snapshot (for activity log)
+            $oldValues = null;
+            if ($existing) {
+                $oldAssigned = $this->normalizeIds($this->toArray($existing->{$jsonCol} ?? null));
+                $oldActive = null;
+                if ($activeCol) {
+                    $rawOld = $existing->{$activeCol};
+                    if (is_numeric($rawOld)) $oldActive = ((int)$rawOld) === 1 ? 1 : 0;
+                    else {
+                        $sOld = strtolower(trim((string)$rawOld));
+                        $oldActive = ($sOld === 'active' || $sOld === '1' || $sOld === 'true') ? 1 : 0;
+                    }
+                }
+
+                $oldValues = [
+                    'department_id' => (int)$dept->id,
+                    'technical_assistant_ids' => $oldAssigned,
+                    'count' => count($oldAssigned),
+                    'active' => $activeCol ? (int)($oldActive ?? 1) : null,
+                ];
+            }
+
             $payload = [
                 $jsonCol     => json_encode($final),
                 'updated_at' => $now,
@@ -440,9 +552,11 @@ class TechnicalAssistantPreviewOrderController extends Controller
                 $payload[$activeCol] = $this->activeToStorage($activeCol, $activeVal);
             }
 
+            $action = 'create';
             if ($existing) {
                 DB::table(self::TABLE)->where('id', $existing->id)->update($payload);
                 $rowId = (int)$existing->id;
+                $action = 'update';
             } else {
                 $insert = array_merge([
                     'department_id' => (int)$dept->id,
@@ -471,6 +585,28 @@ class TechnicalAssistantPreviewOrderController extends Controller
                 'count'         => count($final),
             ]);
 
+            // New snapshot (for activity log)
+            $newValues = [
+                'department_id' => (int)$dept->id,
+                'technical_assistant_ids' => $final,
+                'count' => count($final),
+                'active' => $activeCol ? (int)($activeVal ?? 1) : null,
+            ];
+
+            $changed = [$jsonCol];
+            if ($activeCol) $changed[] = $activeCol;
+
+            $this->writeActivityLog(
+                $request,
+                $action,
+                self::TABLE,
+                (int)$rowId,
+                $changed,
+                $oldValues,
+                $newValues,
+                'Saved technical assistant preview order (department_id='.$dept->id.', count='.count($final).')'
+            );
+
             return response()->json([
                 'success' => true,
                 'message' => 'Technical assistant preview order saved',
@@ -490,6 +626,17 @@ class TechnicalAssistantPreviewOrderController extends Controller
                 'error'         => $e->getMessage(),
             ]);
 
+            $this->writeActivityLog(
+                $request,
+                'error',
+                self::TABLE,
+                null,
+                null,
+                null,
+                null,
+                'Failed to save technical assistant preview order (department_id='.$dept->id.'): '.$e->getMessage()
+            );
+
             return response()->json(['success' => false, 'error' => 'Failed to save order'], 500);
         }
     }
@@ -501,23 +648,43 @@ class TechnicalAssistantPreviewOrderController extends Controller
     public function toggleActive(Request $request, string $department)
     {
         if (!$this->tableReady()) {
+            $this->writeActivityLog($request, 'error', self::TABLE, null, null, null, null, 'Target table not found');
             return response()->json(['success' => false, 'error' => 'technical_assistant_preview_orders table not found'], 422);
         }
 
-        if ($resp = $this->requireRole($request, ['admin','director','principal','hod'])) return $resp;
+        if ($resp = $this->requireRole($request, ['admin','director','principal','hod'])) {
+            $this->writeActivityLog($request, 'unauthorized', self::TABLE, null, null, null, null, 'Unauthorized access attempt to toggle active');
+            return $resp;
+        }
 
         $activeCol = $this->activeCol();
         if (!$activeCol) {
+            $this->writeActivityLog($request, 'error', self::TABLE, null, null, null, null, 'No active/status column found while toggling');
             return response()->json(['success' => false, 'error' => 'No active/status column found in technical_assistant_preview_orders'], 422);
         }
 
         $dept = $this->resolveDepartment($department);
-        if (!$dept) return response()->json(['success' => false, 'error' => 'Department not found'], 404);
+        if (!$dept) {
+            $this->writeActivityLog($request, 'error', self::TABLE, null, null, null, null, 'Department not found while toggling active');
+            return response()->json(['success' => false, 'error' => 'Department not found'], 404);
+        }
 
         $v = Validator::make($request->all(), [
             'active' => ['required'],
         ]);
-        if ($v->fails()) return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+        if ($v->fails()) {
+            $this->writeActivityLog(
+                $request,
+                'validation_failed',
+                self::TABLE,
+                null,
+                array_keys($v->errors()->toArray()),
+                null,
+                null,
+                'Validation failed while toggling active (department_id='.$dept->id.')'
+            );
+            return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+        }
 
         $raw = $request->input('active');
         $val = 0;
@@ -535,34 +702,97 @@ class TechnicalAssistantPreviewOrderController extends Controller
 
         $now = Carbon::now();
 
-        if (!$existing) {
-            $insert = [
-                'department_id' => (int)$dept->id,
-                $this->technicalAssistantJsonCol() => json_encode([]),
-                $activeCol => $this->activeToStorage($activeCol, $val),
-                'created_at' => $now,
-                'updated_at' => $now,
-            ];
-            if (Schema::hasColumn(self::TABLE, 'uuid')) $insert['uuid'] = (string) Str::uuid();
-            if (Schema::hasColumn(self::TABLE, 'created_by')) $insert['created_by'] = $this->actor($request)['id'] ?: null;
-            if (Schema::hasColumn(self::TABLE, 'created_at_ip')) $insert['created_at_ip'] = $request->ip();
+        // Old snapshot
+        $jsonCol = $this->technicalAssistantJsonCol();
+        $oldValues = null;
+        if ($existing) {
+            $oldAssigned = $this->normalizeIds($this->toArray($existing->{$jsonCol} ?? null));
+            $oldActive = null;
+            $rawOld = $existing->{$activeCol};
+            if (is_numeric($rawOld)) $oldActive = ((int)$rawOld) === 1 ? 1 : 0;
+            else {
+                $sOld = strtolower(trim((string)$rawOld));
+                $oldActive = ($sOld === 'active' || $sOld === '1' || $sOld === 'true') ? 1 : 0;
+            }
 
-            DB::table(self::TABLE)->insert($insert);
-        } else {
-            $upd = [
-                $activeCol   => $this->activeToStorage($activeCol, $val),
-                'updated_at' => $now,
+            $oldValues = [
+                'department_id' => (int)$dept->id,
+                'technical_assistant_ids' => $oldAssigned,
+                'count' => count($oldAssigned),
+                'active' => (int)($oldActive ?? 1),
             ];
-            if (Schema::hasColumn(self::TABLE, 'updated_at_ip')) $upd['updated_at_ip'] = $request->ip();
-            DB::table(self::TABLE)->where('id', $existing->id)->update($upd);
         }
 
-        $this->logWithActor('msit.technical_assistant_preview_order.toggle_active', $request, [
-            'department_id' => (int)$dept->id,
-            'active'        => $val,
-        ]);
+        try {
+            $action = 'update';
+            $rowId = $existing ? (int)$existing->id : null;
 
-        return response()->json(['success' => true, 'active' => $val]);
+            if (!$existing) {
+                $insert = [
+                    'department_id' => (int)$dept->id,
+                    $jsonCol => json_encode([]),
+                    $activeCol => $this->activeToStorage($activeCol, $val),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+                if (Schema::hasColumn(self::TABLE, 'uuid')) $insert['uuid'] = (string) Str::uuid();
+                if (Schema::hasColumn(self::TABLE, 'created_by')) $insert['created_by'] = $this->actor($request)['id'] ?: null;
+                if (Schema::hasColumn(self::TABLE, 'created_at_ip')) $insert['created_at_ip'] = $request->ip();
+
+                $rowId = (int) DB::table(self::TABLE)->insertGetId($insert);
+                $action = 'create';
+            } else {
+                $upd = [
+                    $activeCol   => $this->activeToStorage($activeCol, $val),
+                    'updated_at' => $now,
+                ];
+                if (Schema::hasColumn(self::TABLE, 'updated_at_ip')) $upd['updated_at_ip'] = $request->ip();
+                DB::table(self::TABLE)->where('id', $existing->id)->update($upd);
+            }
+
+            $this->logWithActor('msit.technical_assistant_preview_order.toggle_active', $request, [
+                'department_id' => (int)$dept->id,
+                'active'        => $val,
+            ]);
+
+            // New snapshot
+            $newValues = [
+                'department_id' => (int)$dept->id,
+                'active' => (int)$val,
+            ];
+
+            $this->writeActivityLog(
+                $request,
+                $action,
+                self::TABLE,
+                $rowId,
+                [$activeCol],
+                $oldValues,
+                $newValues,
+                'Toggled active for technical assistant preview order (department_id='.$dept->id.', active='.$val.')'
+            );
+
+            return response()->json(['success' => true, 'active' => $val]);
+
+        } catch (\Throwable $e) {
+            $this->logWithActor('msit.technical_assistant_preview_order.toggle_active_failed', $request, [
+                'department_id' => (int)$dept->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            $this->writeActivityLog(
+                $request,
+                'error',
+                self::TABLE,
+                $existing ? (int)$existing->id : null,
+                null,
+                $oldValues,
+                null,
+                'Failed to toggle active (department_id='.$dept->id.'): '.$e->getMessage()
+            );
+
+            return response()->json(['success' => false, 'error' => 'Failed to toggle active'], 500);
+        }
     }
 
     /**
@@ -571,13 +801,20 @@ class TechnicalAssistantPreviewOrderController extends Controller
     public function destroy(Request $request, string $department)
     {
         if (!$this->tableReady()) {
+            $this->writeActivityLog($request, 'error', self::TABLE, null, null, null, null, 'Target table not found');
             return response()->json(['success' => false, 'error' => 'technical_assistant_preview_orders table not found'], 422);
         }
 
-        if ($resp = $this->requireRole($request, ['admin','director','principal'])) return $resp;
+        if ($resp = $this->requireRole($request, ['admin','director','principal'])) {
+            $this->writeActivityLog($request, 'unauthorized', self::TABLE, null, null, null, null, 'Unauthorized access attempt to delete preview order');
+            return $resp;
+        }
 
         $dept = $this->resolveDepartment($department);
-        if (!$dept) return response()->json(['success' => false, 'error' => 'Department not found'], 404);
+        if (!$dept) {
+            $this->writeActivityLog($request, 'error', self::TABLE, null, null, null, null, 'Department not found while deleting preview order');
+            return response()->json(['success' => false, 'error' => 'Department not found'], 404);
+        }
 
         $row = DB::table(self::TABLE)
             ->where('department_id', (int)$dept->id)
@@ -585,24 +822,100 @@ class TechnicalAssistantPreviewOrderController extends Controller
             ->first();
 
         if (!$row) {
+            $this->writeActivityLog(
+                $request,
+                'error',
+                self::TABLE,
+                null,
+                null,
+                null,
+                null,
+                'Order record not found for delete (department_id='.$dept->id.')'
+            );
             return response()->json(['success' => false, 'error' => 'Order record not found'], 404);
         }
 
-        if (Schema::hasColumn(self::TABLE, 'deleted_at')) {
-            DB::table(self::TABLE)->where('id', $row->id)->update([
-                'deleted_at' => Carbon::now(),
-                'updated_at' => Carbon::now(),
-            ]);
-        } else {
-            DB::table(self::TABLE)->where('id', $row->id)->delete();
+        $jsonCol = $this->technicalAssistantJsonCol();
+        $activeCol = $this->activeCol();
+
+        // Old snapshot
+        $oldAssigned = $this->normalizeIds($this->toArray($row->{$jsonCol} ?? null));
+        $oldActive = null;
+        if ($activeCol) {
+            $rawOld = $row->{$activeCol};
+            if (is_numeric($rawOld)) $oldActive = ((int)$rawOld) === 1 ? 1 : 0;
+            else {
+                $sOld = strtolower(trim((string)$rawOld));
+                $oldActive = ($sOld === 'active' || $sOld === '1' || $sOld === 'true') ? 1 : 0;
+            }
         }
 
-        $this->logWithActor('msit.technical_assistant_preview_order.destroy', $request, [
+        $oldValues = [
             'department_id' => (int)$dept->id,
-            'row_id'        => (int)$row->id,
-        ]);
+            'technical_assistant_ids' => $oldAssigned,
+            'count' => count($oldAssigned),
+            'active' => $activeCol ? (int)($oldActive ?? 1) : null,
+        ];
 
-        return response()->json(['success' => true, 'message' => 'Order record removed']);
+        try {
+            $now = Carbon::now();
+            $newValues = null;
+            $changed = null;
+
+            if (Schema::hasColumn(self::TABLE, 'deleted_at')) {
+                DB::table(self::TABLE)->where('id', $row->id)->update([
+                    'deleted_at' => $now,
+                    'updated_at' => $now,
+                ]);
+
+                $changed = ['deleted_at', 'updated_at'];
+                $newValues = [
+                    'deleted_at' => (string)$now,
+                ];
+            } else {
+                DB::table(self::TABLE)->where('id', $row->id)->delete();
+                $changed = ['delete'];
+                $newValues = null;
+            }
+
+            $this->logWithActor('msit.technical_assistant_preview_order.destroy', $request, [
+                'department_id' => (int)$dept->id,
+                'row_id'        => (int)$row->id,
+            ]);
+
+            $this->writeActivityLog(
+                $request,
+                'delete',
+                self::TABLE,
+                (int)$row->id,
+                $changed,
+                $oldValues,
+                $newValues,
+                'Deleted technical assistant preview order (department_id='.$dept->id.', row_id='.$row->id.')'
+            );
+
+            return response()->json(['success' => true, 'message' => 'Order record removed']);
+
+        } catch (\Throwable $e) {
+            $this->logWithActor('msit.technical_assistant_preview_order.destroy_failed', $request, [
+                'department_id' => (int)$dept->id,
+                'row_id' => (int)$row->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            $this->writeActivityLog(
+                $request,
+                'error',
+                self::TABLE,
+                (int)$row->id,
+                null,
+                $oldValues,
+                null,
+                'Failed to delete technical assistant preview order (department_id='.$dept->id.', row_id='.$row->id.'): '.$e->getMessage()
+            );
+
+            return response()->json(['success' => false, 'error' => 'Failed to delete order record'], 500);
+        }
     }
 
     // =====================================================

@@ -14,15 +14,16 @@ use Carbon\Carbon;
 class FeedbackController extends Controller
 {
     // ✅ Table (migration): feedbacks
-    private const TABLE_FEEDBACKS  = 'feedbacks';
-    private const TABLE_USERS      = 'users';
-    private const TABLE_DEPTS      = 'departments';
-    private const TABLE_COURSES    = 'courses';
-    private const TABLE_SEMESTERS  = 'course_semesters';
-    private const TABLE_SECTIONS   = 'course_semester_sections';
+    private const TABLE_FEEDBACKS       = 'feedbacks';
+    private const TABLE_USERS           = 'users';
+    private const TABLE_DEPTS           = 'departments';
+    private const TABLE_COURSES         = 'courses';
+    private const TABLE_SEMESTERS       = 'course_semesters';
+    private const TABLE_SECTIONS        = 'course_semester_sections';
+    private const TABLE_ACTIVITY_LOG    = 'user_data_activity_log';
 
-    private const COL_UUID         = 'uuid';
-    private const COL_DELETED_AT   = 'deleted_at';
+    private const COL_UUID       = 'uuid';
+    private const COL_DELETED_AT = 'deleted_at';
 
     /* ============================================
      | Helpers
@@ -84,6 +85,83 @@ class FeedbackController extends Controller
         Log::error('[Feedback] ' . $msg, $ctx);
     }
 
+    private function jsonSafe($data): ?string
+    {
+        if ($data === null) return null;
+
+        // If it's already a JSON string, keep it
+        if (is_string($data)) {
+            $trim = trim($data);
+            if ($trim === '') return null;
+            json_decode($trim, true);
+            if (json_last_error() === JSON_ERROR_NONE) return $trim;
+            // Otherwise wrap it as JSON string
+        }
+
+        try {
+            return json_encode($data, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * ✅ Inserts into user_data_activity_log
+     * - Never throws (won't break API functionality).
+     */
+    private function activityLog(
+        Request $r,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        $oldValues = null,
+        $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            $actor = $this->actor($r);
+
+            $performedBy = (int)($actor['id'] ?? 0);
+            $role = trim((string)($actor['role'] ?? ''));
+            $ip = (string)($r->ip() ?? ($actor['ip'] ?? ''));
+            $ua = (string)($r->userAgent() ?? '');
+
+            if (strlen($ua) > 512) $ua = substr($ua, 0, 512);
+
+            DB::table(self::TABLE_ACTIVITY_LOG)->insert([
+                'performed_by'      => $performedBy,
+                'performed_by_role' => $role !== '' ? $role : null,
+                'ip'                => $ip !== '' ? $ip : null,
+                'user_agent'        => $ua !== '' ? $ua : null,
+
+                'activity'   => $activity,
+                'module'     => $module,
+
+                'table_name' => $tableName,
+                'record_id'  => $recordId,
+
+                'changed_fields' => $this->jsonSafe($changedFields),
+                'old_values'     => $this->jsonSafe($oldValues),
+                'new_values'     => $this->jsonSafe($newValues),
+
+                'log_note'   => $note,
+
+                'created_at' => $this->now(),
+                'updated_at' => $this->now(),
+            ]);
+        } catch (\Throwable $e) {
+            // don't break anything if logging fails
+            $this->logWarn('ACTIVITY_LOG: insert failed', [
+                'error' => $e->getMessage(),
+                'path'  => $r->path(),
+                'method'=> $r->method(),
+                'rid'   => $this->rid($r),
+            ]);
+        }
+    }
+
     private function boolish($v, bool $default = false): bool
     {
         if ($v === null) return $default;
@@ -133,7 +211,7 @@ class FeedbackController extends Controller
 
         if (is_array($meta)) {
             try {
-                return json_encode($meta, JSON_UNESCAPED_UNICODE);
+                return json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
             } catch (\Throwable $e) {
                 return null;
             }
@@ -306,10 +384,7 @@ class FeedbackController extends Controller
     }
 
     /* =========================================================
-     | LIST
-     | GET /api/feedbacks
-     | Admin: all
-     | Non-admin: only created by them
+     | LIST (GET)  -> no DB activity log needed (as requested)
      |========================================================= */
     public function index(Request $r)
     {
@@ -382,8 +457,6 @@ class FeedbackController extends Controller
                 if ($byUserId !== null && $byUserId !== '')  $q->where('f.feedback_by_user_id', (int)$byUserId);
                 if ($forUserId !== null && $forUserId !== '') $q->where('f.feedback_for_user_id', (int)$forUserId);
             } else {
-                // For non-admin, author is always the actor; but allow filtering by receiver if you still want (safe).
-                // If you DON'T want this, just remove next line.
                 if ($forUserId !== null && $forUserId !== '') $q->where('f.feedback_for_user_id', (int)$forUserId);
             }
 
@@ -424,10 +497,7 @@ class FeedbackController extends Controller
     }
 
     /* =========================================================
-     | SHOW
-     | GET /api/feedbacks/{id|uuid}
-     | Admin: can view any
-     | Non-admin: only if created by them
+     | SHOW (GET) -> no DB activity log needed (as requested)
      |========================================================= */
     public function show(Request $r, string $idOrUuid)
     {
@@ -453,7 +523,6 @@ class FeedbackController extends Controller
             $row = $q->first();
 
             if (!$row) {
-                // For non-admin, this will behave like "not found" if it isn't theirs
                 return response()->json(['success' => false, 'message' => 'Not found'], 404);
             }
 
@@ -484,6 +553,14 @@ class FeedbackController extends Controller
 
         $payload = $r->all();
 
+        $logKeys = [
+            'department_id','course_id','semester_id','section_id',
+            'feedback_for_user_id','feedback_by_user_id',
+            'title','description','rating',
+            'is_anonymous','status','submitted_at','metadata',
+        ];
+        $logInput = array_intersect_key($payload, array_flip($logKeys));
+
         $v = Validator::make($payload, [
             'department_id' => ['nullable','integer','exists:' . self::TABLE_DEPTS . ',id'],
             'course_id'     => ['required','integer','exists:' . self::TABLE_COURSES . ',id'],
@@ -506,6 +583,20 @@ class FeedbackController extends Controller
 
         if ($v->fails()) {
             $this->logWarn('STORE: validation failed', $meta + ['errors' => $v->errors()->toArray()]);
+
+            // ✅ Activity log (POST) - validation fail
+            $this->activityLog(
+                $r,
+                'create',
+                'feedbacks',
+                self::TABLE_FEEDBACKS,
+                null,
+                array_keys($logInput),
+                null,
+                $logInput,
+                'FAILED(validation): rid=' . $this->rid($r) . ' errors=' . $this->jsonSafe($v->errors()->toArray())
+            );
+
             return response()->json([
                 'success' => false,
                 'message' => 'Validation error',
@@ -518,6 +609,19 @@ class FeedbackController extends Controller
             $isAdmin = $this->isAdminLike((string)($actor['role'] ?? ''));
 
             if ($byId <= 0) {
+                // ✅ Activity log (POST) - unauthenticated
+                $this->activityLog(
+                    $r,
+                    'create',
+                    'feedbacks',
+                    self::TABLE_FEEDBACKS,
+                    null,
+                    array_keys($logInput),
+                    null,
+                    $logInput,
+                    'FAILED(unauthenticated): rid=' . $this->rid($r)
+                );
+
                 return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
             }
 
@@ -527,9 +631,10 @@ class FeedbackController extends Controller
 
             $now = $this->now();
             $status = $r->filled('status') ? (string)$r->input('status') : 'submitted';
+            $uuid = (string) Str::uuid();
 
-            $id = DB::table(self::TABLE_FEEDBACKS)->insertGetId([
-                'uuid' => (string) Str::uuid(),
+            $insert = [
+                'uuid' => $uuid,
 
                 'department_id' => $r->filled('department_id') ? (int)$r->input('department_id') : null,
                 'course_id'     => (int)$r->input('course_id'),
@@ -554,7 +659,25 @@ class FeedbackController extends Controller
                 'metadata'   => $this->normalizeMetadataToJson($r->input('metadata', null)),
                 'created_at' => $now,
                 'updated_at' => $now,
-            ]);
+            ];
+
+            $id = DB::table(self::TABLE_FEEDBACKS)->insertGetId($insert);
+
+            // ✅ Activity log (POST) - success
+            $newSnapshot = $insert;
+            $newSnapshot['id'] = (int)$id;
+
+            $this->activityLog(
+                $r,
+                'create',
+                'feedbacks',
+                self::TABLE_FEEDBACKS,
+                (int)$id,
+                array_keys($insert),
+                null,
+                $newSnapshot,
+                'OK: rid=' . $this->rid($r)
+            );
 
             $row = $this->baseQuery(false)->where('f.id', (int)$id)->first();
 
@@ -565,6 +688,20 @@ class FeedbackController extends Controller
             ], 201);
         } catch (\Throwable $e) {
             $this->logErr('STORE: failed', $meta + ['error' => $e->getMessage()]);
+
+            // ✅ Activity log (POST) - exception
+            $this->activityLog(
+                $r,
+                'create',
+                'feedbacks',
+                self::TABLE_FEEDBACKS,
+                null,
+                array_keys($logInput),
+                null,
+                $logInput,
+                'FAILED(exception): rid=' . $this->rid($r) . ' error=' . $e->getMessage()
+            );
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to create feedback',
@@ -587,18 +724,54 @@ class FeedbackController extends Controller
 
         $w = $this->normalizeIdentifier($idOrUuid, null);
 
+        $logKeys = [
+            'department_id','course_id','semester_id','section_id',
+            'feedback_for_user_id',
+            'title','description','rating',
+            'is_anonymous','status','submitted_at','metadata',
+        ];
+        $logInput = array_intersect_key($r->all(), array_flip($logKeys));
+
         try {
             $existing = DB::table(self::TABLE_FEEDBACKS)
                 ->where($w['raw_col'], $w['val'])
                 ->whereNull(self::COL_DELETED_AT)
                 ->first();
 
-            if (!$existing) return response()->json(['success' => false, 'message' => 'Not found'], 404);
+            if (!$existing) {
+                // ✅ Activity log (PATCH) - not found
+                $this->activityLog(
+                    $r,
+                    'update',
+                    'feedbacks',
+                    self::TABLE_FEEDBACKS,
+                    null,
+                    array_keys($logInput),
+                    null,
+                    $logInput,
+                    'FAILED(not_found): rid=' . $this->rid($r) . ' identifier=' . $idOrUuid
+                );
+
+                return response()->json(['success' => false, 'message' => 'Not found'], 404);
+            }
 
             $isAdmin = $this->isAdminLike((string)($actor['role'] ?? ''));
             $actorId = (int)($actor['id'] ?? 0);
 
             if (!$isAdmin && $actorId > 0 && $actorId !== (int)$existing->feedback_by_user_id) {
+                // ✅ Activity log (PATCH) - forbidden
+                $this->activityLog(
+                    $r,
+                    'update',
+                    'feedbacks',
+                    self::TABLE_FEEDBACKS,
+                    (int)$existing->id,
+                    array_keys($logInput),
+                    ['feedback_by_user_id' => (int)$existing->feedback_by_user_id],
+                    $logInput,
+                    'FAILED(forbidden): rid=' . $this->rid($r)
+                );
+
                 return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
             }
 
@@ -623,6 +796,20 @@ class FeedbackController extends Controller
 
             if ($v->fails()) {
                 $this->logWarn('UPDATE: validation failed', $meta + ['errors' => $v->errors()->toArray()]);
+
+                // ✅ Activity log (PATCH) - validation fail
+                $this->activityLog(
+                    $r,
+                    'update',
+                    'feedbacks',
+                    self::TABLE_FEEDBACKS,
+                    (int)$existing->id,
+                    array_keys($logInput),
+                    null,
+                    $logInput,
+                    'FAILED(validation): rid=' . $this->rid($r) . ' errors=' . $this->jsonSafe($v->errors()->toArray())
+                );
+
                 return response()->json([
                     'success' => false,
                     'message' => 'Validation error',
@@ -665,6 +852,48 @@ class FeedbackController extends Controller
 
             DB::table(self::TABLE_FEEDBACKS)->where($w['raw_col'], $w['val'])->update($upd);
 
+            // ✅ Compute diff for activity log (only for fields actually changed)
+            $after = DB::table(self::TABLE_FEEDBACKS)->where('id', (int)$existing->id)->first();
+
+            $changed = [];
+            $oldVals = [];
+            $newVals = [];
+
+            foreach ($upd as $k => $vNew) {
+                // you can skip meta fields if you don't want them; keeping them is useful
+                $vOld = $existing->$k ?? null;
+                $vAft = $after->$k ?? null;
+
+                // normalize booleans and numeric strings a bit
+                if ($k === 'is_anonymous') {
+                    $vOld = (int)((bool)$vOld);
+                    $vAft = (int)((bool)$vAft);
+                }
+
+                $same =
+                    ($vOld === null && $vAft === null) ||
+                    ((string)$vOld === (string)$vAft);
+
+                if (!$same) {
+                    $changed[] = $k;
+                    $oldVals[$k] = $vOld;
+                    $newVals[$k] = $vAft;
+                }
+            }
+
+            // ✅ Activity log (PATCH) - success
+            $this->activityLog(
+                $r,
+                'update',
+                'feedbacks',
+                self::TABLE_FEEDBACKS,
+                (int)$existing->id,
+                $changed,
+                $oldVals,
+                $newVals,
+                'OK: rid=' . $this->rid($r)
+            );
+
             // ✅ keep response scoped: non-admin can only ever update their own, so this is safe
             $row = $this->baseQuery(false)->where('f.id', (int)$existing->id)->first();
 
@@ -675,6 +904,20 @@ class FeedbackController extends Controller
             ]);
         } catch (\Throwable $e) {
             $this->logErr('UPDATE: failed', $meta + ['error' => $e->getMessage()]);
+
+            // ✅ Activity log (PATCH) - exception
+            $this->activityLog(
+                $r,
+                'update',
+                'feedbacks',
+                self::TABLE_FEEDBACKS,
+                null,
+                array_keys($logInput),
+                null,
+                $logInput,
+                'FAILED(exception): rid=' . $this->rid($r) . ' identifier=' . $idOrUuid . ' error=' . $e->getMessage()
+            );
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to update feedback',

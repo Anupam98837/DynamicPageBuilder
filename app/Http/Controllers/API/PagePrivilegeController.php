@@ -70,6 +70,93 @@ class PagePrivilegeController extends Controller
         return null;
     }
 
+    /* ==========================================================
+       ✅ USER DATA ACTIVITY LOG (SAFE)
+       - Logs ONLY for non-GET controller methods (POST/PUT/PATCH/DELETE)
+       - Never throws / never breaks main functionality
+    ========================================================== */
+
+    protected function guessUserRole($user): ?string
+    {
+        if (!$user) return null;
+
+        return data_get($user, 'role')
+            ?? data_get($user, 'user_role')
+            ?? data_get($user, 'user_type')
+            ?? data_get($user, 'type')
+            ?? data_get($user, 'guard_name')
+            ?? null;
+    }
+
+    /**
+     * Safe insert into user_data_activity_log (never breaks API flow).
+     */
+    protected function logActivitySafe(
+        Request $request,
+        string $activity,
+        string $module,
+        string $tableName,
+        $recordId = null,
+        ?array $changedFields = null,
+        $oldValues = null,
+        $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            $user = $request->user();
+
+            $payload = [
+                'performed_by'      => optional($user)->id ?? 0,
+                'performed_by_role' => $this->guessUserRole($user),
+                'ip'                => $request->ip(),
+                'user_agent'        => substr((string) $request->userAgent(), 0, 512),
+
+                'activity'          => $activity,
+                'module'            => $module,
+
+                'table_name'        => $tableName,
+                'record_id'         => $recordId !== null ? (int) $recordId : null,
+
+                'changed_fields'    => $changedFields !== null ? json_encode($changedFields) : null,
+                'old_values'        => $oldValues !== null ? json_encode($oldValues) : null,
+                'new_values'        => $newValues !== null ? json_encode($newValues) : null,
+
+                'log_note'          => $note,
+
+                'created_at'        => now(),
+                'updated_at'        => now(),
+            ];
+
+            DB::table('user_data_activity_log')->insert($payload);
+        } catch (\Throwable $e) {
+            // Never break main request flow if logging fails
+            try {
+                Log::warning('user_data_activity_log.insert_failed', [
+                    'activity' => $activity,
+                    'module'   => $module,
+                    'table'    => $tableName,
+                    'record_id'=> $recordId,
+                    'error'    => $e->getMessage(),
+                ]);
+            } catch (\Throwable $inner) {
+                // ignore
+            }
+        }
+    }
+
+    /**
+     * Helper: extract only changed keys from old/new arrays.
+     */
+    protected function pickKeys($src, array $keys): array
+    {
+        $arr = is_array($src) ? $src : (array) $src;
+        $out = [];
+        foreach ($keys as $k) {
+            if (array_key_exists($k, $arr)) $out[$k] = $arr[$k];
+        }
+        return $out;
+    }
+
     /**
      * List privileges (filter by dashboard_menu_id optional - accepts dashboard menu id or uuid)
      */
@@ -226,7 +313,8 @@ class PagePrivilegeController extends Controller
             ],
         ]);
     }
-  /**
+
+    /**
      * Store privilege(s) (action unique per module).
      * Accepts:
      *  - Single: dashboard_menu_id, action, description, key?, assigned_apis?, meta?
@@ -277,6 +365,19 @@ class PagePrivilegeController extends Controller
                     'mode'    => 'bulk',
                     'errors'  => $v->errors()->toArray(),
                 ]);
+
+                $this->logActivitySafe(
+                    $request,
+                    'create_failed',
+                    'page_privilege',
+                    'page_privilege',
+                    null,
+                    array_keys($request->all()),
+                    null,
+                    null,
+                    'Validation failed (bulk): '.json_encode($v->errors()->toArray())
+                );
+
                 return response()->json(['errors' => $v->errors()], 422);
             }
 
@@ -300,6 +401,19 @@ class PagePrivilegeController extends Controller
                     'mode'     => 'bulk',
                     'menu_raw' => $rawModule,
                 ]);
+
+                $this->logActivitySafe(
+                    $request,
+                    'create_failed',
+                    'page_privilege',
+                    'page_privilege',
+                    null,
+                    ['dashboard_menu_id'],
+                    null,
+                    null,
+                    'Invalid dashboard menu identifier (bulk): '.$rawModule
+                );
+
                 return response()->json(['errors' => ['dashboard_menu_id' => ['Invalid dashboard menu identifier']]], 422);
             }
 
@@ -309,6 +423,19 @@ class PagePrivilegeController extends Controller
                     'mode'     => 'bulk',
                     'menu_raw' => $rawModule,
                 ]);
+
+                $this->logActivitySafe(
+                    $request,
+                    'create_failed',
+                    'page_privilege',
+                    'page_privilege',
+                    null,
+                    ['dashboard_menu_id'],
+                    null,
+                    null,
+                    'Module not found (bulk): '.$rawModule
+                );
+
                 return response()->json(['errors' => ['dashboard_menu_id' => ['Module not found']]], 422);
             }
 
@@ -445,6 +572,19 @@ class PagePrivilegeController extends Controller
                         Log::info('page_privilege.store.bulk.row_created', [
                             'req_id'=>$reqId,'index'=>$idx,'id'=>$id,'action'=>$action,'key'=>$hasKey?$key:null
                         ]);
+
+                        // ✅ Activity log (safe)
+                        $this->logActivitySafe(
+                            request(),
+                            'create',
+                            'page_privilege',
+                            'page_privilege',
+                            $id,
+                            array_keys($payload),
+                            null,
+                            (array) $createdRow,
+                            'Bulk create privilege'
+                        );
                     }
                 });
 
@@ -476,6 +616,18 @@ class PagePrivilegeController extends Controller
                     'exception' => $e,
                 ]);
 
+                $this->logActivitySafe(
+                    $request,
+                    'create_failed',
+                    'page_privilege',
+                    'page_privilege',
+                    null,
+                    array_keys($request->all()),
+                    null,
+                    null,
+                    'Exception in bulk create: '.$e->getMessage()
+                );
+
                 return response()->json([
                     'message' => 'Could not create privileges (bulk)',
                     'error'   => $e->getMessage(),
@@ -505,6 +657,19 @@ class PagePrivilegeController extends Controller
                 'mode'    => 'single',
                 'errors'  => $v->errors()->toArray(),
             ]);
+
+            $this->logActivitySafe(
+                $request,
+                'create_failed',
+                'page_privilege',
+                'page_privilege',
+                null,
+                array_keys($request->all()),
+                null,
+                null,
+                'Validation failed (single): '.json_encode($v->errors()->toArray())
+            );
+
             return response()->json(['errors' => $v->errors()], 422);
         }
 
@@ -528,6 +693,19 @@ class PagePrivilegeController extends Controller
                 'mode'     => 'single',
                 'menu_raw' => $rawModule,
             ]);
+
+            $this->logActivitySafe(
+                $request,
+                'create_failed',
+                'page_privilege',
+                'page_privilege',
+                null,
+                ['dashboard_menu_id'],
+                null,
+                null,
+                'Invalid dashboard menu identifier (single): '.$rawModule
+            );
+
             return response()->json(['errors' => ['dashboard_menu_id' => ['Invalid dashboard menu identifier']]], 422);
         }
 
@@ -537,6 +715,19 @@ class PagePrivilegeController extends Controller
                 'mode'     => 'single',
                 'menu_raw' => $rawModule,
             ]);
+
+            $this->logActivitySafe(
+                $request,
+                'create_failed',
+                'page_privilege',
+                'page_privilege',
+                null,
+                ['dashboard_menu_id'],
+                null,
+                null,
+                'Module not found (single): '.$rawModule
+            );
+
             return response()->json(['errors' => ['dashboard_menu_id' => ['Module not found']]], 422);
         }
 
@@ -557,6 +748,19 @@ class PagePrivilegeController extends Controller
                 'module_id' => $moduleId,
                 'action'    => $action,
             ]);
+
+            $this->logActivitySafe(
+                $request,
+                'create_failed',
+                'page_privilege',
+                'page_privilege',
+                null,
+                ['dashboard_menu_id','action'],
+                null,
+                null,
+                'Conflict: action already exists for this module'
+            );
+
             return response()->json(['message' => 'Action already exists for this module', 'req_id' => $reqId], 409);
         }
 
@@ -583,6 +787,19 @@ class PagePrivilegeController extends Controller
                     'req_id' => $reqId,
                     'key'    => $key,
                 ]);
+
+                $this->logActivitySafe(
+                    $request,
+                    'create_failed',
+                    'page_privilege',
+                    'page_privilege',
+                    null,
+                    ['key'],
+                    null,
+                    null,
+                    'Conflict: key already exists'
+                );
+
                 return response()->json(['message' => 'Key already exists', 'req_id' => $reqId], 409);
             }
         }
@@ -641,6 +858,19 @@ class PagePrivilegeController extends Controller
                 'ms'     => (int) round((microtime(true) - $t0) * 1000),
             ]);
 
+            // ✅ Activity log (safe)
+            $this->logActivitySafe(
+                $request,
+                'create',
+                'page_privilege',
+                'page_privilege',
+                $id,
+                array_keys((array)$priv),
+                null,
+                (array) $priv,
+                'Single create privilege'
+            );
+
             return response()->json(['privilege' => $priv, 'req_id' => $reqId], 201);
 
         } catch (Exception $e) {
@@ -651,6 +881,18 @@ class PagePrivilegeController extends Controller
                 'ms'        => (int) round((microtime(true) - $t0) * 1000),
                 'exception' => $e,
             ]);
+
+            $this->logActivitySafe(
+                $request,
+                'create_failed',
+                'page_privilege',
+                'page_privilege',
+                null,
+                array_keys($request->all()),
+                null,
+                null,
+                'Exception in single create: '.$e->getMessage()
+            );
 
             return response()->json([
                 'message' => 'Could not create privilege',
@@ -701,8 +943,21 @@ class PagePrivilegeController extends Controller
     {
         $priv = $this->resolvePrivilege($identifier, false);
         if (! $priv) {
+            $this->logActivitySafe(
+                $request,
+                'update_failed',
+                'page_privilege',
+                'page_privilege',
+                null,
+                ['identifier'],
+                null,
+                null,
+                'Privilege not found'
+            );
             return response()->json(['message' => 'Privilege not found'], 404);
         }
+
+        $oldPrivArr = (array) $priv;
 
         $v = Validator::make($request->all(), [
             'dashboard_menu_id' => 'sometimes|required',
@@ -717,6 +972,17 @@ class PagePrivilegeController extends Controller
         ]);
 
         if ($v->fails()) {
+            $this->logActivitySafe(
+                $request,
+                'update_failed',
+                'page_privilege',
+                'page_privilege',
+                $priv->id,
+                array_keys($request->all()),
+                $oldPrivArr,
+                null,
+                'Validation failed: '.json_encode($v->errors()->toArray())
+            );
             return response()->json(['errors' => $v->errors()], 422);
         }
 
@@ -730,9 +996,31 @@ class PagePrivilegeController extends Controller
             } elseif (Str::isUuid((string) $rawModule)) {
                 $module = DB::table('dashboard_menu')->where('uuid', (string) $rawModule)->whereNull('deleted_at')->first();
             } else {
+                $this->logActivitySafe(
+                    $request,
+                    'update_failed',
+                    'page_privilege',
+                    'page_privilege',
+                    $priv->id,
+                    ['dashboard_menu_id'],
+                    $oldPrivArr,
+                    null,
+                    'Invalid dashboard menu identifier: '.$rawModule
+                );
                 return response()->json(['errors' => ['dashboard_menu_id' => ['Invalid dashboard menu identifier']]], 422);
             }
             if (! $module) {
+                $this->logActivitySafe(
+                    $request,
+                    'update_failed',
+                    'page_privilege',
+                    'page_privilege',
+                    $priv->id,
+                    ['dashboard_menu_id'],
+                    $oldPrivArr,
+                    null,
+                    'Module not found: '.$rawModule
+                );
                 return response()->json(['errors' => ['dashboard_menu_id' => ['Module not found']]], 422);
             }
             $newModuleId = (int) $module->id;
@@ -749,6 +1037,17 @@ class PagePrivilegeController extends Controller
             ->exists();
 
         if ($exists) {
+            $this->logActivitySafe(
+                $request,
+                'update_failed',
+                'page_privilege',
+                'page_privilege',
+                $priv->id,
+                ['dashboard_menu_id','action'],
+                $oldPrivArr,
+                null,
+                'Conflict: action already exists for this module'
+            );
             return response()->json(['message' => 'Action already exists for this module'], 409);
         }
 
@@ -770,6 +1069,17 @@ class PagePrivilegeController extends Controller
                     ->exists();
 
                 if ($keyExists) {
+                    $this->logActivitySafe(
+                        $request,
+                        'update_failed',
+                        'page_privilege',
+                        'page_privilege',
+                        $priv->id,
+                        ['key'],
+                        $oldPrivArr,
+                        null,
+                        'Conflict: key already exists'
+                    );
                     return response()->json(['message' => 'Key already exists'], 409);
                 }
             }
@@ -811,6 +1121,17 @@ class PagePrivilegeController extends Controller
         }, ARRAY_FILTER_USE_BOTH);
 
         if (empty($update) || (count($update) === 1 && array_key_exists('updated_at', $update))) {
+            $this->logActivitySafe(
+                $request,
+                'update_failed',
+                'page_privilege',
+                'page_privilege',
+                $priv->id,
+                [],
+                $oldPrivArr,
+                null,
+                'Nothing to update'
+            );
             return response()->json(['message' => 'Nothing to update'], 400);
         }
 
@@ -820,8 +1141,34 @@ class PagePrivilegeController extends Controller
             });
 
             $priv = DB::table('page_privilege')->where('id', $priv->id)->first();
+
+            // ✅ Activity log (safe)
+            $changed = array_values(array_filter(array_keys($update), fn($k) => $k !== 'updated_at'));
+            $this->logActivitySafe(
+                $request,
+                'update',
+                'page_privilege',
+                'page_privilege',
+                $priv->id,
+                $changed,
+                $this->pickKeys($oldPrivArr, $changed),
+                $this->pickKeys((array)$priv, $changed),
+                'Update privilege'
+            );
+
             return response()->json(['privilege' => $priv]);
         } catch (Exception $e) {
+            $this->logActivitySafe(
+                $request,
+                'update_failed',
+                'page_privilege',
+                'page_privilege',
+                $priv->id,
+                array_keys($request->all()),
+                $oldPrivArr,
+                null,
+                'Exception in update: '.$e->getMessage()
+            );
             return response()->json(['message' => 'Could not update privilege', 'error' => $e->getMessage()], 500);
         }
     }
@@ -847,6 +1194,17 @@ class PagePrivilegeController extends Controller
         ]);
 
         if ($v->fails()) {
+            $this->logActivitySafe(
+                $request,
+                'bulk_update_failed',
+                'page_privilege',
+                'page_privilege',
+                null,
+                array_keys($request->all()),
+                null,
+                null,
+                'Validation failed (bulk update): '.json_encode($v->errors()->toArray())
+            );
             return response()->json(['errors' => $v->errors()], 422);
         }
 
@@ -879,6 +1237,8 @@ class PagePrivilegeController extends Controller
                         ];
                         continue;
                     }
+
+                    $oldPrivArr = (array) $priv;
 
                     // Determine new module id if given, else existing
                     $newModuleId = $priv->dashboard_menu_id;
@@ -1021,7 +1381,22 @@ class PagePrivilegeController extends Controller
                         $seenKeys[] = $newKey;
                     }
 
-                    $updated[] = DB::table('page_privilege')->where('id', $priv->id)->first();
+                    $fresh = DB::table('page_privilege')->where('id', $priv->id)->first();
+                    $updated[] = $fresh;
+
+                    // ✅ Activity log per updated row (safe)
+                    $changed = array_values(array_filter(array_keys($update), fn($k) => $k !== 'updated_at'));
+                    $this->logActivitySafe(
+                        request(),
+                        'update',
+                        'page_privilege',
+                        'page_privilege',
+                        $priv->id,
+                        $changed,
+                        $this->pickKeys($oldPrivArr, $changed),
+                        $this->pickKeys((array)$fresh, $changed),
+                        'Bulk update privilege'
+                    );
                 }
             });
 
@@ -1032,6 +1407,18 @@ class PagePrivilegeController extends Controller
                 'message'          => 'Bulk update processed',
             ], 200);
         } catch (Exception $e) {
+            $this->logActivitySafe(
+                $request,
+                'bulk_update_failed',
+                'page_privilege',
+                'page_privilege',
+                null,
+                array_keys($request->all()),
+                null,
+                null,
+                'Exception in bulk update: '.$e->getMessage()
+            );
+
             return response()->json([
                 'message' => 'Could not perform bulk update',
                 'error'   => $e->getMessage(),
@@ -1046,13 +1433,51 @@ class PagePrivilegeController extends Controller
     {
         $priv = $this->resolvePrivilege($identifier, false);
         if (! $priv) {
+            $this->logActivitySafe(
+                $request,
+                'delete_failed',
+                'page_privilege',
+                'page_privilege',
+                null,
+                ['identifier'],
+                null,
+                null,
+                'Privilege not found or already deleted'
+            );
             return response()->json(['message' => 'Privilege not found or already deleted'], 404);
         }
 
+        $oldPrivArr = (array) $priv;
+
         try {
             DB::table('page_privilege')->where('id', $priv->id)->update(['deleted_at' => now(), 'updated_at' => now()]);
+            $fresh = DB::table('page_privilege')->where('id', $priv->id)->first();
+
+            $this->logActivitySafe(
+                $request,
+                'delete',
+                'page_privilege',
+                'page_privilege',
+                $priv->id,
+                ['deleted_at'],
+                $this->pickKeys($oldPrivArr, ['deleted_at']),
+                $this->pickKeys((array)$fresh, ['deleted_at']),
+                'Soft delete privilege'
+            );
+
             return response()->json(['message' => 'Privilege soft-deleted']);
         } catch (Exception $e) {
+            $this->logActivitySafe(
+                $request,
+                'delete_failed',
+                'page_privilege',
+                'page_privilege',
+                $priv->id,
+                ['deleted_at'],
+                $oldPrivArr,
+                null,
+                'Exception in soft delete: '.$e->getMessage()
+            );
             return response()->json(['message' => 'Could not delete privilege', 'error' => $e->getMessage()], 500);
         }
     }
@@ -1064,14 +1489,51 @@ class PagePrivilegeController extends Controller
     {
         $priv = $this->resolvePrivilege($identifier, true);
         if (! $priv || $priv->deleted_at === null) {
+            $this->logActivitySafe(
+                $request,
+                'restore_failed',
+                'page_privilege',
+                'page_privilege',
+                null,
+                ['identifier'],
+                null,
+                null,
+                'Privilege not found or not deleted'
+            );
             return response()->json(['message' => 'Privilege not found or not deleted'], 404);
         }
+
+        $oldPrivArr = (array) $priv;
 
         try {
             DB::table('page_privilege')->where('id', $priv->id)->update(['deleted_at' => null, 'updated_at' => now()]);
             $priv = DB::table('page_privilege')->where('id', $priv->id)->first();
+
+            $this->logActivitySafe(
+                $request,
+                'restore',
+                'page_privilege',
+                'page_privilege',
+                $priv->id,
+                ['deleted_at'],
+                $this->pickKeys($oldPrivArr, ['deleted_at']),
+                $this->pickKeys((array)$priv, ['deleted_at']),
+                'Restore privilege'
+            );
+
             return response()->json(['privilege' => $priv, 'message' => 'Privilege restored']);
         } catch (Exception $e) {
+            $this->logActivitySafe(
+                $request,
+                'restore_failed',
+                'page_privilege',
+                'page_privilege',
+                $priv->id,
+                ['deleted_at'],
+                $oldPrivArr,
+                null,
+                'Exception in restore: '.$e->getMessage()
+            );
             return response()->json(['message' => 'Could not restore privilege', 'error' => $e->getMessage()], 500);
         }
     }
@@ -1144,18 +1606,67 @@ class PagePrivilegeController extends Controller
     public function archive(Request $request, $identifier)
     {
         if (! Schema::hasColumn('page_privilege', 'status')) {
+            $this->logActivitySafe(
+                $request,
+                'archive_failed',
+                'page_privilege',
+                'page_privilege',
+                null,
+                [],
+                null,
+                null,
+                'Archive not supported (no status column)'
+            );
             return response()->json(['message' => 'Archive not supported for privileges (no status column)'], 400);
         }
 
         $priv = $this->resolvePrivilege($identifier, false);
         if (! $priv) {
+            $this->logActivitySafe(
+                $request,
+                'archive_failed',
+                'page_privilege',
+                'page_privilege',
+                null,
+                ['identifier'],
+                null,
+                null,
+                'Privilege not found'
+            );
             return response()->json(['message' => 'Privilege not found'], 404);
         }
 
+        $oldPrivArr = (array) $priv;
+
         try {
             DB::table('page_privilege')->where('id', $priv->id)->update(['status' => 'archived', 'updated_at' => now()]);
+            $fresh = DB::table('page_privilege')->where('id', $priv->id)->first();
+
+            $this->logActivitySafe(
+                $request,
+                'archive',
+                'page_privilege',
+                'page_privilege',
+                $priv->id,
+                ['status'],
+                $this->pickKeys($oldPrivArr, ['status']),
+                $this->pickKeys((array)$fresh, ['status']),
+                'Archive privilege'
+            );
+
             return response()->json(['message' => 'Privilege archived']);
         } catch (Exception $e) {
+            $this->logActivitySafe(
+                $request,
+                'archive_failed',
+                'page_privilege',
+                'page_privilege',
+                $priv->id,
+                ['status'],
+                $oldPrivArr,
+                null,
+                'Exception in archive: '.$e->getMessage()
+            );
             return response()->json(['message' => 'Could not archive privilege', 'error' => $e->getMessage()], 500);
         }
     }
@@ -1166,18 +1677,67 @@ class PagePrivilegeController extends Controller
     public function unarchive(Request $request, $identifier)
     {
         if (! Schema::hasColumn('page_privilege', 'status')) {
+            $this->logActivitySafe(
+                $request,
+                'unarchive_failed',
+                'page_privilege',
+                'page_privilege',
+                null,
+                [],
+                null,
+                null,
+                'Unarchive not supported (no status column)'
+            );
             return response()->json(['message' => 'Unarchive not supported for privileges (no status column)'], 400);
         }
 
         $priv = $this->resolvePrivilege($identifier, false);
         if (! $priv) {
+            $this->logActivitySafe(
+                $request,
+                'unarchive_failed',
+                'page_privilege',
+                'page_privilege',
+                null,
+                ['identifier'],
+                null,
+                null,
+                'Privilege not found'
+            );
             return response()->json(['message' => 'Privilege not found'], 404);
         }
 
+        $oldPrivArr = (array) $priv;
+
         try {
             DB::table('page_privilege')->where('id', $priv->id)->update(['status' => 'draft', 'updated_at' => now()]);
+            $fresh = DB::table('page_privilege')->where('id', $priv->id)->first();
+
+            $this->logActivitySafe(
+                $request,
+                'unarchive',
+                'page_privilege',
+                'page_privilege',
+                $priv->id,
+                ['status'],
+                $this->pickKeys($oldPrivArr, ['status']),
+                $this->pickKeys((array)$fresh, ['status']),
+                'Unarchive privilege'
+            );
+
             return response()->json(['message' => 'Privilege unarchived']);
         } catch (Exception $e) {
+            $this->logActivitySafe(
+                $request,
+                'unarchive_failed',
+                'page_privilege',
+                'page_privilege',
+                $priv->id,
+                ['status'],
+                $oldPrivArr,
+                null,
+                'Exception in unarchive: '.$e->getMessage()
+            );
             return response()->json(['message' => 'Could not unarchive privilege', 'error' => $e->getMessage()], 500);
         }
     }
@@ -1189,16 +1749,53 @@ class PagePrivilegeController extends Controller
     {
         $priv = $this->resolvePrivilege($identifier, true);
         if (! $priv) {
+            $this->logActivitySafe(
+                $request,
+                'force_delete_failed',
+                'page_privilege',
+                'page_privilege',
+                null,
+                ['identifier'],
+                null,
+                null,
+                'Privilege not found'
+            );
             return response()->json(['message' => 'Privilege not found'], 404);
         }
+
+        $oldPrivArr = (array) $priv;
 
         try {
             DB::transaction(function () use ($priv) {
                 DB::table('user_privileges')->where('privilege_id', $priv->id)->delete();
                 DB::table('page_privilege')->where('id', $priv->id)->delete();
             });
+
+            $this->logActivitySafe(
+                $request,
+                'force_delete',
+                'page_privilege',
+                'page_privilege',
+                $priv->id,
+                array_keys($oldPrivArr),
+                $oldPrivArr,
+                null,
+                'Privilege permanently deleted (and related user_privileges removed)'
+            );
+
             return response()->json(['message' => 'Privilege permanently deleted']);
         } catch (Exception $e) {
+            $this->logActivitySafe(
+                $request,
+                'force_delete_failed',
+                'page_privilege',
+                'page_privilege',
+                $priv->id,
+                [],
+                $oldPrivArr,
+                null,
+                'Exception in force delete: '.$e->getMessage()
+            );
             return response()->json(['message' => 'Could not permanently delete privilege', 'error' => $e->getMessage()], 500);
         }
     }
@@ -1211,6 +1808,17 @@ class PagePrivilegeController extends Controller
     public function reorder(Request $request)
     {
         if (! Schema::hasColumn('page_privilege', 'order_no')) {
+            $this->logActivitySafe(
+                $request,
+                'reorder_failed',
+                'page_privilege',
+                'page_privilege',
+                null,
+                [],
+                null,
+                null,
+                'Reorder not supported: order_no column missing'
+            );
             return response()->json(['message' => 'Reorder not supported: page_privilege.order_no column missing'], 400);
         }
 
@@ -1219,6 +1827,17 @@ class PagePrivilegeController extends Controller
             'ids.*' => 'integer|min:1',
         ]);
         if ($v->fails()) {
+            $this->logActivitySafe(
+                $request,
+                'reorder_failed',
+                'page_privilege',
+                'page_privilege',
+                null,
+                ['ids'],
+                null,
+                null,
+                'Validation failed (reorder): '.json_encode($v->errors()->toArray())
+            );
             return response()->json(['errors' => $v->errors()], 422);
         }
 
@@ -1235,8 +1854,36 @@ class PagePrivilegeController extends Controller
                         ]);
                 }
             });
+
+            // ✅ Activity log (summary)
+            $map = [];
+            foreach ($ids as $idx => $id) $map[(int)$id] = $idx;
+
+            $this->logActivitySafe(
+                $request,
+                'reorder',
+                'page_privilege',
+                'page_privilege',
+                null,
+                ['order_no'],
+                null,
+                $map,
+                'Reordered privileges (count='.count($ids).')'
+            );
+
             return response()->json(['message' => 'Order updated']);
         } catch (Exception $e) {
+            $this->logActivitySafe(
+                $request,
+                'reorder_failed',
+                'page_privilege',
+                'page_privilege',
+                null,
+                ['order_no'],
+                null,
+                null,
+                'Exception in reorder: '.$e->getMessage()
+            );
             return response()->json(['message' => 'Could not update order', 'error' => $e->getMessage()], 500);
         }
     }
@@ -1305,7 +1952,8 @@ class PagePrivilegeController extends Controller
             return response()->json(['message' => 'Unable to fetch privileges for module'], 500);
         }
     }
-     public function indexOfApi(Request $request)
+
+    public function indexOfApi(Request $request)
     {
         // ✅ Safety: keep this only for admins or local usage (optional)
         // if (!app()->environment('local')) abort(403);

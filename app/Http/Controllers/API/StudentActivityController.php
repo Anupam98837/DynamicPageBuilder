@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
+use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class StudentActivityController extends Controller
 {
@@ -349,6 +351,134 @@ class StudentActivityController extends Controller
     }
 
     /* ============================================
+     | Activity Log Helpers (POST/PUT/PATCH/DELETE)
+     |============================================ */
+
+    protected function __logJson($value): ?string
+    {
+        if ($value === null) return null;
+
+        // If already a valid JSON string, store as-is (MySQL JSON requires valid JSON)
+        if (is_string($value)) {
+            $trim = trim($value);
+            if ($trim === '') return null;
+
+            json_decode($trim, true);
+            if (json_last_error() === JSON_ERROR_NONE) return $trim;
+
+            return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
+
+        return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    protected function __clip(?string $s, int $max): ?string
+    {
+        $s = $s === null ? null : (string) $s;
+        if ($s === null) return null;
+        if (mb_strlen($s) <= $max) return $s;
+        return mb_substr($s, 0, $max);
+    }
+
+    protected function logActivity(
+        Request $request,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        $changedFields = null,
+        $oldValues = null,
+        $newValues = null,
+        ?string $logNote = null
+    ): void {
+        // Never break any endpoint due to logging
+        try {
+            if (!Schema::hasTable('user_data_activity_log')) return;
+
+            $actor = $this->actor($request);
+
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'      => (int) ($actor['id'] ?? 0),
+                'performed_by_role' => $this->__clip(trim((string) ($actor['role'] ?? '')), 50),
+                'ip'                => $this->__clip((string) ($request->ip() ?? ''), 45),
+                'user_agent'        => $this->__clip((string) ($request->userAgent() ?? ''), 512),
+
+                'activity'          => $this->__clip($activity, 50) ?? 'unknown',
+                'module'            => $this->__clip($module, 100) ?? 'unknown',
+
+                'table_name'        => $this->__clip($tableName, 128) ?? '',
+                'record_id'         => $recordId ? (int) $recordId : null,
+
+                'changed_fields'    => $this->__logJson($changedFields),
+                'old_values'        => $this->__logJson($oldValues),
+                'new_values'        => $this->__logJson($newValues),
+
+                'log_note'          => $logNote,
+
+                'created_at'        => now(),
+                'updated_at'        => now(),
+            ]);
+        } catch (Throwable $e) {
+            // swallow
+        }
+    }
+
+    protected function diffValuesForLog($beforeRow, array $afterMap, array $ignoreKeys = ['updated_at', 'updated_at_ip']): array
+    {
+        $before = (array) $beforeRow;
+
+        $changed = [];
+        $old = [];
+        $new = [];
+
+        foreach ($afterMap as $k => $v) {
+            if (in_array($k, $ignoreKeys, true)) continue;
+
+            $beforeVal = $before[$k] ?? null;
+
+            // Normalize some json-ish strings to reduce false diffs
+            if (in_array($k, ['attachments_json', 'metadata'], true)) {
+                $bv = $beforeVal;
+                $av = $v;
+
+                $bvDecoded = null;
+                $avDecoded = null;
+
+                if (is_string($bv)) {
+                    $tmp = json_decode($bv, true);
+                    if (json_last_error() === JSON_ERROR_NONE) $bvDecoded = $tmp;
+                } elseif (is_array($bv)) {
+                    $bvDecoded = $bv;
+                }
+
+                if (is_string($av)) {
+                    $tmp = json_decode($av, true);
+                    if (json_last_error() === JSON_ERROR_NONE) $avDecoded = $tmp;
+                } elseif (is_array($av)) {
+                    $avDecoded = $av;
+                }
+
+                if ($bvDecoded !== null || $avDecoded !== null) {
+                    if ($bvDecoded != $avDecoded) {
+                        $changed[] = $k;
+                        $old[$k] = $bvDecoded;
+                        $new[$k] = $avDecoded;
+                    }
+                    continue;
+                }
+            }
+
+            if ($beforeVal != $v) {
+                $changed[] = $k;
+                $old[$k] = $beforeVal;
+                $new[$k] = $v;
+            }
+        }
+
+        return [$changed, $old, $new];
+    }
+
+    /* ============================================
      | CRUD
      |============================================ */
 
@@ -497,27 +627,48 @@ class StudentActivityController extends Controller
         $actorId = (int) ($request->attributes->get('auth_tokenable_id') ?? 0);
         $ac = $this->accessControl($actorId);
 
-        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
-        if ($ac['mode'] === 'none')        return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'not_allowed') {
+            $this->logActivity($request, 'create', 'student_activities', 'student_activities', null, null, null, null, 'Denied (not_allowed)');
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
+        if ($ac['mode'] === 'none') {
+            $this->logActivity($request, 'create', 'student_activities', 'student_activities', null, null, null, null, 'Denied (none)');
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
 
         $actor = $this->actor($request);
 
-        $validated = $request->validate([
-            'department_id'     => ['nullable', 'integer', 'exists:departments,id'],
-            'title'             => ['required', 'string', 'max:255'],
-            'slug'              => ['nullable', 'string', 'max:160'],
-            'body'              => ['required', 'string'],
-            'is_featured_home'  => ['nullable', 'in:0,1', 'boolean'],
-            'status'            => ['nullable', 'in:draft,published,archived'],
-            'publish_at'        => ['nullable', 'date'],
-            'expire_at'         => ['nullable', 'date'],
-            'metadata'          => ['nullable'],
+        try {
+            $validated = $request->validate([
+                'department_id'     => ['nullable', 'integer', 'exists:departments,id'],
+                'title'             => ['required', 'string', 'max:255'],
+                'slug'              => ['nullable', 'string', 'max:160'],
+                'body'              => ['required', 'string'],
+                'is_featured_home'  => ['nullable', 'in:0,1', 'boolean'],
+                'status'            => ['nullable', 'in:draft,published,archived'],
+                'publish_at'        => ['nullable', 'date'],
+                'expire_at'         => ['nullable', 'date'],
+                'metadata'          => ['nullable'],
 
-            'cover_image'       => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,gif', 'max:5120'],
-            'attachments'       => ['nullable', 'array'],
-            'attachments.*'     => ['file', 'max:20480'],
-            'attachments_json'  => ['nullable'],
-        ]);
+                'cover_image'       => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,gif', 'max:5120'],
+                'attachments'       => ['nullable', 'array'],
+                'attachments.*'     => ['file', 'max:20480'],
+                'attachments_json'  => ['nullable'],
+            ]);
+        } catch (ValidationException $e) {
+            $this->logActivity(
+                $request,
+                'create',
+                'student_activities',
+                'student_activities',
+                null,
+                null,
+                null,
+                ['errors' => $e->errors()],
+                'Validation failed'
+            );
+            throw $e;
+        }
 
         // ✅ DEPARTMENT SCOPE (force dept for dept-roles)
         if ($ac['mode'] === 'department') {
@@ -534,15 +685,19 @@ class StudentActivityController extends Controller
         $deptKey = !empty($validated['department_id']) ? (string) ((int) $validated['department_id']) : 'global';
         $dirRel  = 'depy_uploads/student_activities/' . $deptKey;
 
+        $logNotes = [];
+
         // cover upload
         $coverPath = null;
         if ($request->hasFile('cover_image')) {
             $f = $request->file('cover_image');
             if (!$f || !$f->isValid()) {
+                $this->logActivity($request, 'create', 'student_activities', 'student_activities', null, null, null, null, 'Cover image upload failed');
                 return response()->json(['success' => false, 'message' => 'Cover image upload failed'], 422);
             }
             $meta = $this->uploadFileToPublic($f, $dirRel, $slug . '-cover');
             $coverPath = $meta['path'];
+            $logNotes[] = 'cover_image uploaded';
         }
 
         // attachments upload
@@ -552,10 +707,12 @@ class StudentActivityController extends Controller
             foreach ((array) $request->file('attachments') as $file) {
                 if (!$file) continue;
                 if (!$file->isValid()) {
+                    $this->logActivity($request, 'create', 'student_activities', 'student_activities', null, null, null, null, 'Attachment upload failed');
                     return response()->json(['success' => false, 'message' => 'One of the attachments failed to upload'], 422);
                 }
                 $attachments[] = $this->uploadFileToPublic($file, $dirRel, $slug . '-att');
             }
+            if (!empty($attachments)) $logNotes[] = 'attachments uploaded';
         }
 
         // manual attachments_json (optional)
@@ -569,6 +726,7 @@ class StudentActivityController extends Controller
                     $attachments = $decoded;
                 }
             }
+            if (!empty($attachments)) $logNotes[] = 'attachments_json provided';
         }
 
         // metadata normalize
@@ -582,7 +740,7 @@ class StudentActivityController extends Controller
         $featuredVal = (int) ($validated['is_featured_home'] ?? 0);
         $reqApproval = $featuredVal === 1 ? 1 : 0;
 
-        $id = DB::table('student_activities')->insertGetId([
+        $insert = [
             'uuid'               => $uuid,
             'department_id'      => $validated['department_id'] ?? null,
             'title'              => $validated['title'],
@@ -607,9 +765,26 @@ class StudentActivityController extends Controller
             'created_at_ip'      => $request->ip(),
             'updated_at_ip'      => $request->ip(),
             'metadata'           => $metadata !== null ? json_encode($metadata) : null,
-        ]);
+        ];
+
+        $id = DB::table('student_activities')->insertGetId($insert);
 
         $row = DB::table('student_activities')->where('id', $id)->first();
+
+        // ✅ LOG (skip-able for wrapper routes)
+        if (!$request->attributes->get('__skip_activity_log', false)) {
+            $this->logActivity(
+                $request,
+                'create',
+                'student_activities',
+                'student_activities',
+                (int) $id,
+                array_keys($insert),
+                null,
+                $this->normalizeRow($row ?: (object) array_merge(['id' => $id], $insert)),
+                !empty($logNotes) ? implode('; ', $logNotes) : 'Created'
+            );
+        }
 
         return response()->json([
             'success' => true,
@@ -623,19 +798,62 @@ class StudentActivityController extends Controller
         $actorId = (int) ($request->attributes->get('auth_tokenable_id') ?? 0);
         $ac = $this->accessControl($actorId);
 
-        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
-        if ($ac['mode'] === 'none')        return response()->json(['error' => 'Not allowed'], 403);
-
-        $dept = $this->resolveDepartment($department, false);
-        if (! $dept) return response()->json(['message' => 'Department not found'], 404);
-
-        // If department-scoped user, lock to own department
-        if ($ac['mode'] === 'department' && (int)$ac['department_id'] !== (int)$dept->id) {
+        if ($ac['mode'] === 'not_allowed') {
+            $this->logActivity($request, 'create', 'student_activities', 'student_activities', null, null, null, ['department' => $department], 'Denied (not_allowed) via storeForDepartment');
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
+        if ($ac['mode'] === 'none') {
+            $this->logActivity($request, 'create', 'student_activities', 'student_activities', null, null, null, ['department' => $department], 'Denied (none) via storeForDepartment');
             return response()->json(['error' => 'Not allowed'], 403);
         }
 
+        $dept = $this->resolveDepartment($department, false);
+        if (! $dept) {
+            $this->logActivity($request, 'create', 'student_activities', 'student_activities', null, null, null, ['department' => $department], 'Department not found');
+            return response()->json(['message' => 'Department not found'], 404);
+        }
+
+        // If department-scoped user, lock to own department
+        if ($ac['mode'] === 'department' && (int)$ac['department_id'] !== (int)$dept->id) {
+            $this->logActivity($request, 'create', 'student_activities', 'student_activities', null, null, null, ['department_id' => (int)$dept->id], 'Denied (department mismatch) via storeForDepartment');
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
+
+        // Prevent double log: store() will be skipped; we log here from response.
+        $request->attributes->set('__skip_activity_log', true);
+
         $request->merge(['department_id' => (int) $dept->id]);
-        return $this->store($request);
+        $resp = $this->store($request);
+
+        // Try to log based on response payload (no behavior change)
+        try {
+            $status = method_exists($resp, 'getStatusCode') ? (int) $resp->getStatusCode() : 200;
+            $payload = method_exists($resp, 'getData') ? $resp->getData(true) : null;
+
+            $recordId = null;
+            if (is_array($payload)) {
+                $recordId = isset($payload['data']['id']) ? (int) $payload['data']['id'] : null;
+            }
+
+            $note = 'Created via storeForDepartment';
+            if ($status >= 400) $note = 'Create failed via storeForDepartment (HTTP ' . $status . ')';
+
+            $this->logActivity(
+                $request,
+                'create',
+                'student_activities',
+                'student_activities',
+                $recordId ?: null,
+                null,
+                null,
+                $payload,
+                $note
+            );
+        } catch (Throwable $e) {
+            // swallow
+        }
+
+        return $resp;
     }
 
     public function update(Request $request, $identifier)
@@ -644,33 +862,60 @@ class StudentActivityController extends Controller
         $actorId = (int) ($request->attributes->get('auth_tokenable_id') ?? 0);
         $ac = $this->accessControl($actorId);
 
-        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
-        if ($ac['mode'] === 'none')        return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'not_allowed') {
+            $this->logActivity($request, 'update', 'student_activities', 'student_activities', null, null, null, ['identifier' => $identifier], 'Denied (not_allowed)');
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
+        if ($ac['mode'] === 'none') {
+            $this->logActivity($request, 'update', 'student_activities', 'student_activities', null, null, null, ['identifier' => $identifier], 'Denied (none)');
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
 
         $deptId = ($ac['mode'] === 'department') ? (int) $ac['department_id'] : null;
 
         $row = $this->resolveActivity($request, $identifier, true, $deptId);
-        if (! $row) return response()->json(['message' => 'Student activity not found'], 404);
+        if (! $row) {
+            $this->logActivity($request, 'update', 'student_activities', 'student_activities', null, null, null, ['identifier' => $identifier], 'Not found');
+            return response()->json(['message' => 'Student activity not found'], 404);
+        }
 
-        $validated = $request->validate([
-            'department_id'      => ['nullable', 'integer', 'exists:departments,id'],
-            'title'              => ['nullable', 'string', 'max:255'],
-            'slug'               => ['nullable', 'string', 'max:160'],
-            'body'               => ['nullable', 'string'],
-            'is_featured_home'   => ['nullable', 'in:0,1', 'boolean'],
-            'status'             => ['nullable', 'in:draft,published,archived'],
-            'publish_at'         => ['nullable', 'date'],
-            'expire_at'          => ['nullable', 'date'],
-            'metadata'           => ['nullable'],
+        $before = (array) $row;
+        $noteParts = [];
 
-            'cover_image'        => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,gif', 'max:5120'],
-            'cover_image_remove' => ['nullable', 'in:0,1', 'boolean'],
+        try {
+            $validated = $request->validate([
+                'department_id'      => ['nullable', 'integer', 'exists:departments,id'],
+                'title'              => ['nullable', 'string', 'max:255'],
+                'slug'               => ['nullable', 'string', 'max:160'],
+                'body'               => ['nullable', 'string'],
+                'is_featured_home'   => ['nullable', 'in:0,1', 'boolean'],
+                'status'             => ['nullable', 'in:draft,published,archived'],
+                'publish_at'         => ['nullable', 'date'],
+                'expire_at'          => ['nullable', 'date'],
+                'metadata'           => ['nullable'],
 
-            'attachments'        => ['nullable', 'array'],
-            'attachments.*'      => ['file', 'max:20480'],
-            'attachments_mode'   => ['nullable', 'in:append,replace'],
-            'attachments_remove' => ['nullable', 'array'],
-        ]);
+                'cover_image'        => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,gif', 'max:5120'],
+                'cover_image_remove' => ['nullable', 'in:0,1', 'boolean'],
+
+                'attachments'        => ['nullable', 'array'],
+                'attachments.*'      => ['file', 'max:20480'],
+                'attachments_mode'   => ['nullable', 'in:append,replace'],
+                'attachments_remove' => ['nullable', 'array'],
+            ]);
+        } catch (ValidationException $e) {
+            $this->logActivity(
+                $request,
+                'update',
+                'student_activities',
+                'student_activities',
+                (int) ($row->id ?? 0),
+                null,
+                $this->normalizeRow($row),
+                ['errors' => $e->errors(), 'identifier' => $identifier],
+                'Validation failed'
+            );
+            throw $e;
+        }
 
         // ✅ DEPARTMENT SCOPE: prevent dept change, force own dept
         if ($ac['mode'] === 'department') {
@@ -737,12 +982,14 @@ class StudentActivityController extends Controller
         if (filter_var($request->input('cover_image_remove', false), FILTER_VALIDATE_BOOLEAN)) {
             $this->deletePublicPath($row->cover_image ?? null);
             $update['cover_image'] = null;
+            $noteParts[] = 'cover_image removed';
         }
 
         // cover replace
         if ($request->hasFile('cover_image')) {
             $f = $request->file('cover_image');
             if (!$f || !$f->isValid()) {
+                $this->logActivity($request, 'update', 'student_activities', 'student_activities', (int) $row->id, null, $this->normalizeRow($row), null, 'Cover image upload failed');
                 return response()->json(['success' => false, 'message' => 'Cover image upload failed'], 422);
             }
             $this->deletePublicPath($row->cover_image ?? null);
@@ -750,6 +997,7 @@ class StudentActivityController extends Controller
             $useSlug = (string) ($update['slug'] ?? $row->slug ?? 'student-activity');
             $meta = $this->uploadFileToPublic($f, $dirRel, $useSlug . '-cover');
             $update['cover_image'] = $meta['path'];
+            $noteParts[] = 'cover_image replaced';
         }
 
         // current attachments
@@ -765,15 +1013,19 @@ class StudentActivityController extends Controller
             foreach ($validated['attachments_remove'] as $p) $removePaths[] = (string) $p;
 
             $keep = [];
+            $removedCount = 0;
+
             foreach ($existing as $a) {
                 $p = is_string($a) ? $a : (string) ($a['path'] ?? '');
                 if ($p !== '' && in_array($p, $removePaths, true)) {
                     $this->deletePublicPath($p);
+                    $removedCount++;
                     continue;
                 }
                 $keep[] = $a;
             }
             $existing = $keep;
+            if ($removedCount > 0) $noteParts[] = "attachments removed: {$removedCount}";
         }
 
         // new attachments upload
@@ -783,18 +1035,26 @@ class StudentActivityController extends Controller
             foreach ((array) $request->file('attachments') as $file) {
                 if (!$file) continue;
                 if (!$file->isValid()) {
+                    $this->logActivity($request, 'update', 'student_activities', 'student_activities', (int) $row->id, null, $this->normalizeRow($row), null, 'Attachment upload failed');
                     return response()->json(['success' => false, 'message' => 'One of the attachments failed to upload'], 422);
                 }
                 $useSlug = (string) ($update['slug'] ?? $row->slug ?? 'student-activity');
                 $new[] = $this->uploadFileToPublic($file, $dirRel, $useSlug . '-att');
             }
 
+            if (!empty($new)) $noteParts[] = 'attachments uploaded';
+
             if ($mode === 'replace') {
                 // delete old files
+                $deletedOld = 0;
                 foreach ($existing as $a) {
                     $p = is_string($a) ? $a : (string) ($a['path'] ?? '');
-                    if ($p !== '') $this->deletePublicPath($p);
+                    if ($p !== '') {
+                        $this->deletePublicPath($p);
+                        $deletedOld++;
+                    }
                 }
+                if ($deletedOld > 0) $noteParts[] = "attachments replaced (old deleted: {$deletedOld})";
                 $existing = $new;
             } else {
                 $existing = array_values(array_merge($existing, $new));
@@ -806,6 +1066,20 @@ class StudentActivityController extends Controller
         DB::table('student_activities')->where('id', (int) $row->id)->update($update);
 
         $fresh = DB::table('student_activities')->where('id', (int) $row->id)->first();
+
+        // ✅ LOG
+        [$changedFields, $oldVals, $newVals] = $this->diffValuesForLog($before, $update);
+        $this->logActivity(
+            $request,
+            'update',
+            'student_activities',
+            'student_activities',
+            (int) $row->id,
+            $changedFields,
+            $oldVals,
+            $newVals,
+            !empty($noteParts) ? implode('; ', $noteParts) : 'Updated'
+        );
 
         return response()->json([
             'success' => true,
@@ -819,17 +1093,28 @@ class StudentActivityController extends Controller
         $actorId = (int) ($request->attributes->get('auth_tokenable_id') ?? 0);
         $ac = $this->accessControl($actorId);
 
-        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
-        if ($ac['mode'] === 'none')        return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'not_allowed') {
+            $this->logActivity($request, 'toggle_featured', 'student_activities', 'student_activities', null, null, null, ['identifier' => $identifier], 'Denied (not_allowed)');
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
+        if ($ac['mode'] === 'none') {
+            $this->logActivity($request, 'toggle_featured', 'student_activities', 'student_activities', null, null, null, ['identifier' => $identifier], 'Denied (none)');
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
 
         $deptId = ($ac['mode'] === 'department') ? (int) $ac['department_id'] : null;
 
         $row = $this->resolveActivity($request, $identifier, true, $deptId);
-        if (! $row) return response()->json(['message' => 'Student activity not found'], 404);
+        if (! $row) {
+            $this->logActivity($request, 'toggle_featured', 'student_activities', 'student_activities', null, null, null, ['identifier' => $identifier], 'Not found');
+            return response()->json(['message' => 'Student activity not found'], 404);
+        }
+
+        $before = (array) $row;
 
         $new = ((int) ($row->is_featured_home ?? 0)) ? 0 : 1;
 
-        DB::table('student_activities')->where('id', (int) $row->id)->update([
+        $update = [
             'is_featured_home'     => $new,
 
             // ✅ AUTHORITY CONTROL AUTO-SYNC
@@ -837,9 +1122,25 @@ class StudentActivityController extends Controller
 
             'updated_at'           => now(),
             'updated_at_ip'        => $request->ip(),
-        ]);
+        ];
+
+        DB::table('student_activities')->where('id', (int) $row->id)->update($update);
 
         $fresh = DB::table('student_activities')->where('id', (int) $row->id)->first();
+
+        // ✅ LOG
+        [$changedFields, $oldVals, $newVals] = $this->diffValuesForLog($before, $update);
+        $this->logActivity(
+            $request,
+            'toggle_featured',
+            'student_activities',
+            'student_activities',
+            (int) $row->id,
+            $changedFields,
+            $oldVals,
+            $newVals,
+            'Toggled featured'
+        );
 
         return response()->json([
             'success' => true,
@@ -853,19 +1154,46 @@ class StudentActivityController extends Controller
         $actorId = (int) ($request->attributes->get('auth_tokenable_id') ?? 0);
         $ac = $this->accessControl($actorId);
 
-        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
-        if ($ac['mode'] === 'none')        return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'not_allowed') {
+            $this->logActivity($request, 'delete', 'student_activities', 'student_activities', null, null, null, ['identifier' => $identifier], 'Denied (not_allowed)');
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
+        if ($ac['mode'] === 'none') {
+            $this->logActivity($request, 'delete', 'student_activities', 'student_activities', null, null, null, ['identifier' => $identifier], 'Denied (none)');
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
 
         $deptId = ($ac['mode'] === 'department') ? (int) $ac['department_id'] : null;
 
         $row = $this->resolveActivity($request, $identifier, false, $deptId);
-        if (! $row) return response()->json(['message' => 'Not found or already deleted'], 404);
+        if (! $row) {
+            $this->logActivity($request, 'delete', 'student_activities', 'student_activities', null, null, null, ['identifier' => $identifier], 'Not found or already deleted');
+            return response()->json(['message' => 'Not found or already deleted'], 404);
+        }
 
-        DB::table('student_activities')->where('id', (int) $row->id)->update([
+        $before = (array) $row;
+
+        $update = [
             'deleted_at'    => now(),
             'updated_at'    => now(),
             'updated_at_ip' => $request->ip(),
-        ]);
+        ];
+
+        DB::table('student_activities')->where('id', (int) $row->id)->update($update);
+
+        // ✅ LOG
+        [$changedFields, $oldVals, $newVals] = $this->diffValuesForLog($before, $update, ['updated_at', 'updated_at_ip']);
+        $this->logActivity(
+            $request,
+            'delete',
+            'student_activities',
+            'student_activities',
+            (int) $row->id,
+            $changedFields,
+            $oldVals,
+            $newVals,
+            'Soft deleted'
+        );
 
         return response()->json(['success' => true]);
     }
@@ -876,23 +1204,48 @@ class StudentActivityController extends Controller
         $actorId = (int) ($request->attributes->get('auth_tokenable_id') ?? 0);
         $ac = $this->accessControl($actorId);
 
-        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
-        if ($ac['mode'] === 'none')        return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'not_allowed') {
+            $this->logActivity($request, 'restore', 'student_activities', 'student_activities', null, null, null, ['identifier' => $identifier], 'Denied (not_allowed)');
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
+        if ($ac['mode'] === 'none') {
+            $this->logActivity($request, 'restore', 'student_activities', 'student_activities', null, null, null, ['identifier' => $identifier], 'Denied (none)');
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
 
         $deptId = ($ac['mode'] === 'department') ? (int) $ac['department_id'] : null;
 
         $row = $this->resolveActivity($request, $identifier, true, $deptId);
         if (! $row || $row->deleted_at === null) {
+            $this->logActivity($request, 'restore', 'student_activities', 'student_activities', $row ? (int)$row->id : null, null, null, ['identifier' => $identifier], 'Not found in bin');
             return response()->json(['message' => 'Not found in bin'], 404);
         }
 
-        DB::table('student_activities')->where('id', (int) $row->id)->update([
+        $before = (array) $row;
+
+        $update = [
             'deleted_at'    => null,
             'updated_at'    => now(),
             'updated_at_ip' => $request->ip(),
-        ]);
+        ];
+
+        DB::table('student_activities')->where('id', (int) $row->id)->update($update);
 
         $fresh = DB::table('student_activities')->where('id', (int) $row->id)->first();
+
+        // ✅ LOG
+        [$changedFields, $oldVals, $newVals] = $this->diffValuesForLog($before, $update, ['updated_at', 'updated_at_ip']);
+        $this->logActivity(
+            $request,
+            'restore',
+            'student_activities',
+            'student_activities',
+            (int) $row->id,
+            $changedFields,
+            $oldVals,
+            $newVals,
+            'Restored from bin'
+        );
 
         return response()->json([
             'success' => true,
@@ -906,29 +1259,62 @@ class StudentActivityController extends Controller
         $actorId = (int) ($request->attributes->get('auth_tokenable_id') ?? 0);
         $ac = $this->accessControl($actorId);
 
-        if ($ac['mode'] === 'not_allowed') return response()->json(['error' => 'Not allowed'], 403);
-        if ($ac['mode'] === 'none')        return response()->json(['error' => 'Not allowed'], 403);
+        if ($ac['mode'] === 'not_allowed') {
+            $this->logActivity($request, 'force_delete', 'student_activities', 'student_activities', null, null, null, ['identifier' => $identifier], 'Denied (not_allowed)');
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
+        if ($ac['mode'] === 'none') {
+            $this->logActivity($request, 'force_delete', 'student_activities', 'student_activities', null, null, null, ['identifier' => $identifier], 'Denied (none)');
+            return response()->json(['error' => 'Not allowed'], 403);
+        }
 
         $deptId = ($ac['mode'] === 'department') ? (int) $ac['department_id'] : null;
 
         $row = $this->resolveActivity($request, $identifier, true, $deptId);
-        if (! $row) return response()->json(['message' => 'Student activity not found'], 404);
+        if (! $row) {
+            $this->logActivity($request, 'force_delete', 'student_activities', 'student_activities', null, null, null, ['identifier' => $identifier], 'Not found');
+            return response()->json(['message' => 'Student activity not found'], 404);
+        }
+
+        $before = $this->normalizeRow($row);
+        $noteParts = [];
 
         // delete cover
-        $this->deletePublicPath($row->cover_image ?? null);
+        if (!empty($row->cover_image)) {
+            $this->deletePublicPath($row->cover_image ?? null);
+            $noteParts[] = 'cover_image deleted';
+        }
 
         // delete attachments
+        $deletedAtt = 0;
         if (!empty($row->attachments_json)) {
             $decoded = json_decode((string) $row->attachments_json, true);
             if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
                 foreach ($decoded as $a) {
                     $p = is_string($a) ? $a : (string) ($a['path'] ?? '');
-                    if ($p !== '') $this->deletePublicPath($p);
+                    if ($p !== '') {
+                        $this->deletePublicPath($p);
+                        $deletedAtt++;
+                    }
                 }
             }
         }
+        if ($deletedAtt > 0) $noteParts[] = "attachments deleted: {$deletedAtt}";
 
         DB::table('student_activities')->where('id', (int) $row->id)->delete();
+
+        // ✅ LOG (hard delete)
+        $this->logActivity(
+            $request,
+            'force_delete',
+            'student_activities',
+            'student_activities',
+            (int) $row->id,
+            array_keys((array) $row),
+            $before,
+            null,
+            !empty($noteParts) ? implode('; ', $noteParts) : 'Hard deleted'
+        );
 
         return response()->json(['success' => true]);
     }

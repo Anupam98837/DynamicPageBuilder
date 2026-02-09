@@ -67,6 +67,7 @@ use App\Http\Controllers\API\MasterApprovalController;
 use App\Http\Controllers\API\StudentSubjectController;
 use App\Http\Controllers\API\TechnicalAssistantPreviewOrderController;
 use App\Http\Controllers\API\PlacementOfficerPreviewOrderController;
+use App\Http\Controllers\API\UserActivityLogsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -2180,3 +2181,9 @@ Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assi
         Route::delete('/{idOrUuid}/force', [StudentSubjectController::class, 'forceDelete'])
             ->where('idOrUuid', '[0-9]+|[0-9a-fA-F\-]{36}');
     });
+
+
+
+Route::middleware('checkRole')->get('/activity-logs', [UserActivityLogsController::class, 'index']);
+ 
+ 

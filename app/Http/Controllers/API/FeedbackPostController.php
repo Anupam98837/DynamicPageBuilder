@@ -16,6 +16,9 @@ class FeedbackPostController extends Controller
     /** cache schema checks */
     protected array $colCache = [];
 
+    /** cache table checks */
+    protected array $tableCache = [];
+
     /* =========================================================
      | Helpers
      |========================================================= */
@@ -45,6 +48,84 @@ class FeedbackPostController extends Controller
             return $this->colCache[$k] = Schema::hasColumn($table, $col);
         } catch (\Throwable $e) {
             return $this->colCache[$k] = false;
+        }
+    }
+
+    private function hasTable(string $table): bool
+    {
+        if (array_key_exists($table, $this->tableCache)) return (bool) $this->tableCache[$table];
+        try {
+            return $this->tableCache[$table] = Schema::hasTable($table);
+        } catch (\Throwable $e) {
+            return $this->tableCache[$table] = false;
+        }
+    }
+
+    private function objToArray($v): ?array
+    {
+        if ($v === null) return null;
+        if (is_array($v)) return $v;
+        if (is_object($v)) return json_decode(json_encode($v), true);
+        return null;
+    }
+
+    private function normStrOrNull($v, int $maxLen): ?string
+    {
+        $s = trim((string)$v);
+        if ($s === '') return null;
+        if (mb_strlen($s) > $maxLen) $s = mb_substr($s, 0, $maxLen);
+        return $s;
+    }
+
+    /**
+     * Best-effort activity log (never throws, never breaks responses)
+     */
+    private function logActivity(
+        Request $r,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        ?array $oldValues = null,
+        ?array $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            if (!$this->hasTable('user_data_activity_log')) return;
+
+            $actor = $this->actor($r);
+
+            $changedFields = $changedFields ? array_values(array_unique($changedFields)) : null;
+
+            // Keep payloads reasonably small & valid JSON
+            $changedJson = $changedFields ? json_encode($changedFields) : null;
+            $oldJson     = $oldValues ? json_encode($oldValues) : null;
+            $newJson     = $newValues ? json_encode($newValues) : null;
+
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'      => (int)($actor['id'] ?? 0),
+                'performed_by_role' => $this->normStrOrNull(($actor['role'] ?? null), 50),
+                'ip'                => $this->ip($r),
+                'user_agent'        => $this->normStrOrNull($r->userAgent(), 512),
+
+                'activity'          => $this->normStrOrNull($activity, 50) ?? 'activity',
+                'module'            => $this->normStrOrNull($module, 100) ?? 'module',
+
+                'table_name'        => $this->normStrOrNull($tableName, 128) ?? $tableName,
+                'record_id'         => $recordId,
+
+                'changed_fields'    => $changedJson,
+                'old_values'        => $oldJson,
+                'new_values'        => $newJson,
+
+                'log_note'          => $note,
+
+                'created_at'        => now(),
+                'updated_at'        => now(),
+            ]);
+        } catch (\Throwable $e) {
+            // swallow
         }
     }
 
@@ -699,10 +780,20 @@ class FeedbackPostController extends Controller
         // ✅ ACCESS CONTROL
         $actorId = (int)($r->attributes->get('auth_tokenable_id') ?? 0);
         $ac = $this->accessControl($actorId);
-        if ($ac['mode'] === 'not_allowed') return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
-        if ($ac['mode'] === 'none')        return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
 
-        if ($resp = $this->requireStaff($r)) return $resp;
+        if ($ac['mode'] === 'not_allowed') {
+            $this->logActivity($r, 'create', 'feedback_posts', self::TABLE, null, null, null, null, 'Not allowed (accessControl=not_allowed)');
+            return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+        }
+        if ($ac['mode'] === 'none') {
+            $this->logActivity($r, 'create', 'feedback_posts', self::TABLE, null, null, null, null, 'Not allowed (accessControl=none)');
+            return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+        }
+
+        if ($resp = $this->requireStaff($r)) {
+            $this->logActivity($r, 'create', 'feedback_posts', self::TABLE, null, null, null, null, 'Unauthorized Access (requireStaff)');
+            return $resp;
+        }
 
         $actor = $this->actor($r);
 
@@ -742,6 +833,7 @@ class FeedbackPostController extends Controller
         $deptId = $this->departmentIdFromCourse($courseId);
         if ($this->hasCol(self::TABLE, 'department_id')) {
             if (!$deptId) {
+                $this->logActivity($r, 'create', 'feedback_posts', self::TABLE, null, ['course_id'], ['course_id' => $courseId], null, 'Invalid course_id: department not found for this course');
                 return response()->json([
                     'success' => false,
                     'message' => 'Invalid course_id: department not found for this course'
@@ -758,6 +850,7 @@ class FeedbackPostController extends Controller
                 $courseDept = $courseDept !== null ? (int)$courseDept : null;
             }
             if (!$courseDept || (int)$courseDept !== (int)$ac['department_id']) {
+                $this->logActivity($r, 'create', 'feedback_posts', self::TABLE, null, ['course_id'], ['course_id' => $courseId, 'course_department_id' => $courseDept], null, 'Not allowed (department mismatch)');
                 return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
             }
         }
@@ -775,15 +868,19 @@ class FeedbackPostController extends Controller
         $studentIds  = is_array($studentIds)  ? array_values(array_unique(array_map('intval', $studentIds)))  : [];
 
         if ($err = $this->assertQuestionsExist($questionIds)) {
+            $this->logActivity($r, 'create', 'feedback_posts', self::TABLE, null, ['question_ids'], null, ['question_ids' => $questionIds], $err);
             return response()->json(['success'=>false,'message'=>$err], 422);
         }
         if ($err = $this->assertUsersExistWithRole($facultyIds, 'faculty')) {
+            $this->logActivity($r, 'create', 'feedback_posts', self::TABLE, null, ['faculty_ids'], null, ['faculty_ids' => $facultyIds], $err);
             return response()->json(['success'=>false,'message'=>$err], 422);
         }
         if ($err = $this->assertUsersExistWithRole($studentIds, 'student')) {
+            $this->logActivity($r, 'create', 'feedback_posts', self::TABLE, null, ['student_ids'], null, ['student_ids' => $studentIds], $err);
             return response()->json(['success'=>false,'message'=>$err], 422);
         }
         if ($err = $this->validateQuestionFacultyMap(is_array($qfMap) ? $qfMap : null, $questionIds)) {
+            $this->logActivity($r, 'create', 'feedback_posts', self::TABLE, null, ['question_faculty'], null, ['question_faculty' => $qfMap], $err);
             return response()->json(['success'=>false,'message'=>$err], 422);
         }
 
@@ -830,10 +927,25 @@ class FeedbackPostController extends Controller
 
         $id = DB::table(self::TABLE)->insertGetId($insert);
 
+        $newRow = DB::table(self::TABLE)->where('id', $id)->first();
+        $newArr = $this->objToArray($newRow);
+
+        $this->logActivity(
+            $r,
+            'create',
+            'feedback_posts',
+            self::TABLE,
+            (int)$id,
+            array_keys($insert),
+            null,
+            $newArr,
+            'Created'
+        );
+
         return response()->json([
             'success' => true,
             'message' => 'Created',
-            'data'    => DB::table(self::TABLE)->where('id', $id)->first(),
+            'data'    => $newRow,
         ], 201);
     }
 
@@ -846,15 +958,28 @@ class FeedbackPostController extends Controller
         // ✅ ACCESS CONTROL
         $actorId = (int)($r->attributes->get('auth_tokenable_id') ?? 0);
         $ac = $this->accessControl($actorId);
-        if ($ac['mode'] === 'not_allowed') return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
-        if ($ac['mode'] === 'none')        return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
 
-        if ($resp = $this->requireStaff($r)) return $resp;
+        if ($ac['mode'] === 'not_allowed') {
+            $this->logActivity($r, 'update', 'feedback_posts', self::TABLE, null, null, null, null, 'Not allowed (accessControl=not_allowed)');
+            return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+        }
+        if ($ac['mode'] === 'none') {
+            $this->logActivity($r, 'update', 'feedback_posts', self::TABLE, null, null, null, null, 'Not allowed (accessControl=none)');
+            return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+        }
+
+        if ($resp = $this->requireStaff($r)) {
+            $this->logActivity($r, 'update', 'feedback_posts', self::TABLE, null, null, null, null, 'Unauthorized Access (requireStaff)');
+            return $resp;
+        }
 
         $w = $this->normalizeIdentifier($idOrUuid, null);
 
         $exists = DB::table(self::TABLE)->where($w['raw_col'], $w['val'])->first();
-        if (!$exists) return response()->json(['success'=>false,'message'=>'Not found'], 404);
+        if (!$exists) {
+            $this->logActivity($r, 'update', 'feedback_posts', self::TABLE, null, null, null, null, 'Not found');
+            return response()->json(['success'=>false,'message'=>'Not found'], 404);
+        }
 
         // ✅ enforce dept access on existing record (even before applying updates)
         if ($ac['mode'] === 'department') {
@@ -866,6 +991,7 @@ class FeedbackPostController extends Controller
                 $rowDept = $rowDeptVal !== null ? (int)$rowDeptVal : null;
             }
             if (!$rowDept || $rowDept !== (int)$ac['department_id']) {
+                $this->logActivity($r, 'update', 'feedback_posts', self::TABLE, (int)($exists->id ?? 0), null, null, null, 'Not allowed (department mismatch on existing record)');
                 return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
             }
         }
@@ -917,15 +1043,19 @@ class FeedbackPostController extends Controller
         $studentIds  = is_array($studentIds)  ? array_values(array_unique(array_map('intval', $studentIds)))  : [];
 
         if ($err = $this->assertQuestionsExist($questionIds)) {
+            $this->logActivity($r, 'update', 'feedback_posts', self::TABLE, (int)$exists->id, ['question_ids'], $this->objToArray($exists), ['question_ids' => $questionIds], $err);
             return response()->json(['success'=>false,'message'=>$err], 422);
         }
         if ($err = $this->assertUsersExistWithRole($facultyIds, 'faculty')) {
+            $this->logActivity($r, 'update', 'feedback_posts', self::TABLE, (int)$exists->id, ['faculty_ids'], $this->objToArray($exists), ['faculty_ids' => $facultyIds], $err);
             return response()->json(['success'=>false,'message'=>$err], 422);
         }
         if ($err = $this->assertUsersExistWithRole($studentIds, 'student')) {
+            $this->logActivity($r, 'update', 'feedback_posts', self::TABLE, (int)$exists->id, ['student_ids'], $this->objToArray($exists), ['student_ids' => $studentIds], $err);
             return response()->json(['success'=>false,'message'=>$err], 422);
         }
         if ($err = $this->validateQuestionFacultyMap(is_array($qfMap) ? $qfMap : null, $questionIds)) {
+            $this->logActivity($r, 'update', 'feedback_posts', self::TABLE, (int)$exists->id, ['question_faculty'], $this->objToArray($exists), ['question_faculty' => $qfMap], $err);
             return response()->json(['success'=>false,'message'=>$err], 422);
         }
 
@@ -969,6 +1099,7 @@ class FeedbackPostController extends Controller
 
             $deptId = $this->departmentIdFromCourse($newCourseId);
             if (!$deptId) {
+                $this->logActivity($r, 'update', 'feedback_posts', self::TABLE, (int)$exists->id, ['course_id'], $this->objToArray($exists), ['course_id' => $newCourseId], 'Invalid course_id: department not found for this course');
                 return response()->json([
                     'success' => false,
                     'message' => 'Invalid course_id: department not found for this course'
@@ -976,6 +1107,7 @@ class FeedbackPostController extends Controller
             }
 
             if ($ac['mode'] === 'department' && (int)$deptId !== (int)$ac['department_id']) {
+                $this->logActivity($r, 'update', 'feedback_posts', self::TABLE, (int)$exists->id, ['department_id'], $this->objToArray($exists), ['department_id' => $deptId], 'Not allowed (department mismatch after course change)');
                 return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
             }
 
@@ -987,12 +1119,43 @@ class FeedbackPostController extends Controller
                 $courseDeptVal = DB::table('courses')->where('id', $newCourseId)->whereNull('deleted_at')->value('department_id');
                 $courseDept = $courseDeptVal !== null ? (int)$courseDeptVal : null;
                 if (!$courseDept || $courseDept !== (int)$ac['department_id']) {
+                    $this->logActivity($r, 'update', 'feedback_posts', self::TABLE, (int)$exists->id, ['course_id'], $this->objToArray($exists), ['course_id' => $newCourseId, 'course_department_id' => $courseDept], 'Not allowed (department mismatch after course change)');
                     return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
                 }
             }
         }
 
+        // diff for logging (only changed keys)
+        $changed = [];
+        $oldVals = [];
+        $newVals = [];
+        foreach ($payload as $k => $v) {
+            $old = $exists->$k ?? null;
+
+            // Normalize comparison to avoid "1" vs 1 false diffs
+            $oldCmp = is_null($old) ? null : (is_bool($old) ? (int)$old : (string)$old);
+            $newCmp = is_null($v)   ? null : (is_bool($v)   ? (int)$v   : (string)$v);
+
+            if ($oldCmp !== $newCmp) {
+                $changed[] = $k;
+                $oldVals[$k] = $old;
+                $newVals[$k] = $v;
+            }
+        }
+
         DB::table(self::TABLE)->where($w['raw_col'], $w['val'])->update($payload);
+
+        $this->logActivity(
+            $r,
+            'update',
+            'feedback_posts',
+            self::TABLE,
+            (int)($exists->id ?? 0),
+            $changed,
+            $oldVals ?: null,
+            $newVals ?: null,
+            'Updated'
+        );
 
         return response()->json(['success' => true, 'message' => 'Updated']);
     }
@@ -1006,15 +1169,28 @@ class FeedbackPostController extends Controller
         // ✅ ACCESS CONTROL
         $actorId = (int)($r->attributes->get('auth_tokenable_id') ?? 0);
         $ac = $this->accessControl($actorId);
-        if ($ac['mode'] === 'not_allowed') return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
-        if ($ac['mode'] === 'none')        return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
 
-        if ($resp = $this->requireStaff($r)) return $resp;
+        if ($ac['mode'] === 'not_allowed') {
+            $this->logActivity($r, 'delete', 'feedback_posts', self::TABLE, null, null, null, null, 'Not allowed (accessControl=not_allowed)');
+            return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+        }
+        if ($ac['mode'] === 'none') {
+            $this->logActivity($r, 'delete', 'feedback_posts', self::TABLE, null, null, null, null, 'Not allowed (accessControl=none)');
+            return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+        }
+
+        if ($resp = $this->requireStaff($r)) {
+            $this->logActivity($r, 'delete', 'feedback_posts', self::TABLE, null, null, null, null, 'Unauthorized Access (requireStaff)');
+            return $resp;
+        }
 
         $w = $this->normalizeIdentifier($idOrUuid, null);
 
         $row = DB::table(self::TABLE)->where($w['raw_col'], $w['val'])->first();
-        if (!$row) return response()->json(['success'=>false,'message'=>'Not found'], 404);
+        if (!$row) {
+            $this->logActivity($r, 'delete', 'feedback_posts', self::TABLE, null, null, null, null, 'Not found');
+            return response()->json(['success'=>false,'message'=>'Not found'], 404);
+        }
 
         // ✅ enforce dept access
         if ($ac['mode'] === 'department') {
@@ -1026,17 +1202,35 @@ class FeedbackPostController extends Controller
                 $rowDept = $rowDeptVal !== null ? (int)$rowDeptVal : null;
             }
             if (!$rowDept || $rowDept !== (int)$ac['department_id']) {
+                $this->logActivity($r, 'delete', 'feedback_posts', self::TABLE, (int)$row->id, null, $this->objToArray($row), null, 'Not allowed (department mismatch)');
                 return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
             }
         }
 
-        if ($row->deleted_at) return response()->json(['success'=>true,'message'=>'Already in trash']);
+        if ($row->deleted_at) {
+            $this->logActivity($r, 'delete', 'feedback_posts', self::TABLE, (int)$row->id, ['deleted_at'], ['deleted_at' => $row->deleted_at], null, 'Already in trash');
+            return response()->json(['success'=>true,'message'=>'Already in trash']);
+        }
 
-        DB::table(self::TABLE)->where('id', $row->id)->update([
+        $payload = [
             'deleted_at'    => now(),
             'updated_at'    => now(),
             'updated_at_ip' => $this->ip($r),
-        ]);
+        ];
+
+        DB::table(self::TABLE)->where('id', $row->id)->update($payload);
+
+        $this->logActivity(
+            $r,
+            'delete',
+            'feedback_posts',
+            self::TABLE,
+            (int)$row->id,
+            array_keys($payload),
+            ['deleted_at' => $row->deleted_at, 'updated_at' => $row->updated_at, 'updated_at_ip' => $row->updated_at_ip],
+            $payload,
+            'Moved to trash'
+        );
 
         return response()->json(['success'=>true,'message'=>'Moved to trash']);
     }
@@ -1050,15 +1244,28 @@ class FeedbackPostController extends Controller
         // ✅ ACCESS CONTROL
         $actorId = (int)($r->attributes->get('auth_tokenable_id') ?? 0);
         $ac = $this->accessControl($actorId);
-        if ($ac['mode'] === 'not_allowed') return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
-        if ($ac['mode'] === 'none')        return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
 
-        if ($resp = $this->requireStaff($r)) return $resp;
+        if ($ac['mode'] === 'not_allowed') {
+            $this->logActivity($r, 'restore', 'feedback_posts', self::TABLE, null, null, null, null, 'Not allowed (accessControl=not_allowed)');
+            return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+        }
+        if ($ac['mode'] === 'none') {
+            $this->logActivity($r, 'restore', 'feedback_posts', self::TABLE, null, null, null, null, 'Not allowed (accessControl=none)');
+            return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+        }
+
+        if ($resp = $this->requireStaff($r)) {
+            $this->logActivity($r, 'restore', 'feedback_posts', self::TABLE, null, null, null, null, 'Unauthorized Access (requireStaff)');
+            return $resp;
+        }
 
         $w = $this->normalizeIdentifier($idOrUuid, null);
 
         $row = DB::table(self::TABLE)->where($w['raw_col'], $w['val'])->first();
-        if (!$row) return response()->json(['success'=>false,'message'=>'Not found'], 404);
+        if (!$row) {
+            $this->logActivity($r, 'restore', 'feedback_posts', self::TABLE, null, null, null, null, 'Not found');
+            return response()->json(['success'=>false,'message'=>'Not found'], 404);
+        }
 
         // ✅ enforce dept access
         if ($ac['mode'] === 'department') {
@@ -1070,9 +1277,16 @@ class FeedbackPostController extends Controller
                 $rowDept = $rowDeptVal !== null ? (int)$rowDeptVal : null;
             }
             if (!$rowDept || $rowDept !== (int)$ac['department_id']) {
+                $this->logActivity($r, 'restore', 'feedback_posts', self::TABLE, (int)$row->id, null, $this->objToArray($row), null, 'Not allowed (department mismatch)');
                 return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
             }
         }
+
+        $payload = [
+            'deleted_at'    => null,
+            'updated_at'    => now(),
+            'updated_at_ip' => $this->ip($r),
+        ];
 
         // Optional: ensure department_id exists on restore as well
         if ($this->hasCol(self::TABLE, 'department_id')) {
@@ -1081,19 +1295,26 @@ class FeedbackPostController extends Controller
             if ($deptId) {
                 // ✅ enforce dept access again (safe)
                 if ($ac['mode'] === 'department' && (int)$deptId !== (int)$ac['department_id']) {
+                    $this->logActivity($r, 'restore', 'feedback_posts', self::TABLE, (int)$row->id, ['department_id'], $this->objToArray($row), ['department_id' => $deptId], 'Not allowed (department mismatch on derived department_id)');
                     return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
                 }
-                DB::table(self::TABLE)->where('id', $row->id)->update([
-                    'department_id' => $deptId,
-                ]);
+                $payload['department_id'] = $deptId;
             }
         }
 
-        DB::table(self::TABLE)->where('id', $row->id)->update([
-            'deleted_at'    => null,
-            'updated_at'    => now(),
-            'updated_at_ip' => $this->ip($r),
-        ]);
+        DB::table(self::TABLE)->where('id', $row->id)->update($payload);
+
+        $this->logActivity(
+            $r,
+            'restore',
+            'feedback_posts',
+            self::TABLE,
+            (int)$row->id,
+            array_keys($payload),
+            ['deleted_at' => $row->deleted_at],
+            $payload,
+            'Restored'
+        );
 
         return response()->json(['success'=>true,'message'=>'Restored']);
     }
@@ -1107,15 +1328,28 @@ class FeedbackPostController extends Controller
         // ✅ ACCESS CONTROL
         $actorId = (int)($r->attributes->get('auth_tokenable_id') ?? 0);
         $ac = $this->accessControl($actorId);
-        if ($ac['mode'] === 'not_allowed') return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
-        if ($ac['mode'] === 'none')        return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
 
-        if ($resp = $this->requireStaff($r)) return $resp;
+        if ($ac['mode'] === 'not_allowed') {
+            $this->logActivity($r, 'force_delete', 'feedback_posts', self::TABLE, null, null, null, null, 'Not allowed (accessControl=not_allowed)');
+            return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+        }
+        if ($ac['mode'] === 'none') {
+            $this->logActivity($r, 'force_delete', 'feedback_posts', self::TABLE, null, null, null, null, 'Not allowed (accessControl=none)');
+            return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
+        }
+
+        if ($resp = $this->requireStaff($r)) {
+            $this->logActivity($r, 'force_delete', 'feedback_posts', self::TABLE, null, null, null, null, 'Unauthorized Access (requireStaff)');
+            return $resp;
+        }
 
         $w = $this->normalizeIdentifier($idOrUuid, null);
 
         $row = DB::table(self::TABLE)->where($w['raw_col'], $w['val'])->first();
-        if (!$row) return response()->json(['success'=>false,'message'=>'Not found'], 404);
+        if (!$row) {
+            $this->logActivity($r, 'force_delete', 'feedback_posts', self::TABLE, null, null, null, null, 'Not found');
+            return response()->json(['success'=>false,'message'=>'Not found'], 404);
+        }
 
         // ✅ enforce dept access
         if ($ac['mode'] === 'department') {
@@ -1127,11 +1361,26 @@ class FeedbackPostController extends Controller
                 $rowDept = $rowDeptVal !== null ? (int)$rowDeptVal : null;
             }
             if (!$rowDept || $rowDept !== (int)$ac['department_id']) {
+                $this->logActivity($r, 'force_delete', 'feedback_posts', self::TABLE, (int)$row->id, null, $this->objToArray($row), null, 'Not allowed (department mismatch)');
                 return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
             }
         }
 
+        $oldArr = $this->objToArray($row);
+
         DB::table(self::TABLE)->where('id', $row->id)->delete();
+
+        $this->logActivity(
+            $r,
+            'force_delete',
+            'feedback_posts',
+            self::TABLE,
+            (int)$row->id,
+            ['__force_delete__'],
+            $oldArr,
+            null,
+            'Deleted permanently'
+        );
 
         return response()->json(['success'=>true,'message'=>'Deleted permanently']);
     }

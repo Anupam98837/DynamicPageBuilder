@@ -24,6 +24,55 @@ class PlacedStudentController extends Controller
         ];
     }
 
+    private function jsonOrNull($value): ?string
+    {
+        if ($value === null) return null;
+        $json = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        return ($json === false) ? null : $json;
+    }
+
+    /**
+     * Safe activity logger (never breaks main flow).
+     */
+    private function logActivity(
+        Request $r,
+        string $activity,
+        string $module,
+        string $tableName,
+        $recordId = null,
+        ?array $changedFields = null,
+        $oldValues = null,
+        $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            $actor = $this->actor($r);
+
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'      => (int) ($actor['id'] ?? 0),
+                'performed_by_role' => !empty($actor['role']) ? (string) $actor['role'] : null,
+                'ip'                => $r->ip(),
+                'user_agent'        => substr((string) ($r->userAgent() ?? ''), 0, 512),
+
+                'activity'          => $activity,
+                'module'            => $module,
+                'table_name'        => $tableName,
+                'record_id'         => $recordId !== null ? (int) $recordId : null,
+
+                'changed_fields'    => $changedFields !== null ? $this->jsonOrNull(array_values($changedFields)) : null,
+                'old_values'        => $oldValues !== null ? $this->jsonOrNull($oldValues) : null,
+                'new_values'        => $newValues !== null ? $this->jsonOrNull($newValues) : null,
+
+                'log_note'          => $note,
+
+                'created_at'        => now(),
+                'updated_at'        => now(),
+            ]);
+        } catch (\Throwable $e) {
+            // never block main request
+        }
+    }
+
     protected function resolveDepartment($identifier, bool $includeDeleted = false)
     {
         $q = DB::table('departments');
@@ -326,7 +375,7 @@ class PlacedStudentController extends Controller
             $offerLetterPath = $meta['path'];
         }
 
-        $id = DB::table('placed_students')->insertGetId([
+        $insert = [
             'uuid'                => $uuid,
             'department_id'        => $validated['department_id'] ?? null,
             'placement_notice_id'  => $validated['placement_notice_id'] ?? null,
@@ -352,9 +401,24 @@ class PlacedStudentController extends Controller
             'updated_at_ip'        => $request->ip(),
             'deleted_at'           => null,
             'metadata'             => $metadata !== null ? json_encode($metadata) : null,
-        ]);
+        ];
+
+        $id = DB::table('placed_students')->insertGetId($insert);
 
         $row = DB::table('placed_students')->where('id', (int) $id)->first();
+
+        // LOG (POST)
+        $this->logActivity(
+            $request,
+            'create',
+            'placed_students',
+            'placed_students',
+            $id,
+            array_merge(['id'], array_keys($insert)),
+            null,
+            array_merge(['id' => (int) $id], $insert),
+            'Placed student created'
+        );
 
         return response()->json([
             'success' => true,
@@ -375,6 +439,10 @@ class PlacedStudentController extends Controller
     {
         $row = $this->resolvePlacedStudent($identifier, true);
         if (! $row) return response()->json(['message' => 'Placed student not found'], 404);
+
+        // capture before snapshot (placed_students only)
+        $beforeObj = DB::table('placed_students')->where('id', (int) $row->id)->first();
+        $before = $beforeObj ? (array) $beforeObj : (array) $row;
 
         $validated = $request->validate([
             'department_id'         => ['nullable', 'integer', 'exists:departments,id'],
@@ -478,11 +546,57 @@ class PlacedStudentController extends Controller
 
         DB::table('placed_students')->where('id', (int) $row->id)->update($update);
 
-        $fresh = DB::table('placed_students')->where('id', (int) $row->id)->first();
+        $freshObj = DB::table('placed_students')->where('id', (int) $row->id)->first();
+        $freshArr = $freshObj ? (array) $freshObj : null;
+
+        // LOG (PUT/PATCH)
+        $changed = [];
+        $oldVals = [];
+        $newVals = [];
+        if ($freshArr) {
+            foreach (array_keys($freshArr) as $k) {
+                if (in_array($k, ['updated_at', 'updated_at_ip'], true)) continue;
+
+                $old = $before[$k] ?? null;
+                $new = $freshArr[$k] ?? null;
+
+                // normalize simple comparisons
+                if (is_numeric($old) && is_numeric($new)) {
+                    if ((string)$old === (string)$new) continue;
+                } else {
+                    if ($old === $new) continue;
+                    if ((string)$old === (string)$new) continue;
+                }
+
+                $changed[]     = $k;
+                $oldVals[$k]   = $old;
+                $newVals[$k]   = $new;
+            }
+        } else {
+            // fallback: log intended fields from $update
+            foreach ($update as $k => $v) {
+                if (in_array($k, ['updated_at', 'updated_at_ip'], true)) continue;
+                $changed[]   = $k;
+                $oldVals[$k] = $before[$k] ?? null;
+                $newVals[$k] = $v;
+            }
+        }
+
+        $this->logActivity(
+            $request,
+            'update',
+            'placed_students',
+            'placed_students',
+            (int) $row->id,
+            $changed,
+            $oldVals ?: null,
+            $newVals ?: null,
+            'Placed student updated'
+        );
 
         return response()->json([
             'success' => true,
-            'data'    => $fresh ? $this->normalizeRow($fresh) : null,
+            'data'    => $freshObj ? $this->normalizeRow($freshObj) : null,
         ]);
     }
 
@@ -491,15 +605,29 @@ class PlacedStudentController extends Controller
         $row = $this->resolvePlacedStudent($identifier, true);
         if (! $row) return response()->json(['message' => 'Placed student not found'], 404);
 
-        $new = ((int) ($row->is_featured_home ?? 0)) ? 0 : 1;
+        $oldVal = (int) ($row->is_featured_home ?? 0);
+        $newVal = $oldVal ? 0 : 1;
 
         DB::table('placed_students')->where('id', (int) $row->id)->update([
-            'is_featured_home' => $new,
+            'is_featured_home' => $newVal,
             'updated_at'       => now(),
             'updated_at_ip'    => $request->ip(),
         ]);
 
         $fresh = DB::table('placed_students')->where('id', (int) $row->id)->first();
+
+        // LOG (PATCH)
+        $this->logActivity(
+            $request,
+            'update',
+            'placed_students',
+            'placed_students',
+            (int) $row->id,
+            ['is_featured_home'],
+            ['is_featured_home' => $oldVal],
+            ['is_featured_home' => $newVal],
+            'Placed student featured flag toggled'
+        );
 
         return response()->json([
             'success' => true,
@@ -512,11 +640,26 @@ class PlacedStudentController extends Controller
         $row = $this->resolvePlacedStudent($identifier, false);
         if (! $row) return response()->json(['message' => 'Not found or already deleted'], 404);
 
+        $ts = now();
+
         DB::table('placed_students')->where('id', (int) $row->id)->update([
-            'deleted_at'    => now(),
-            'updated_at'    => now(),
+            'deleted_at'    => $ts,
+            'updated_at'    => $ts,
             'updated_at_ip' => $request->ip(),
         ]);
+
+        // LOG (DELETE - soft delete)
+        $this->logActivity(
+            $request,
+            'delete',
+            'placed_students',
+            'placed_students',
+            (int) $row->id,
+            ['deleted_at'],
+            ['deleted_at' => $row->deleted_at ?? null],
+            ['deleted_at' => $ts->toDateTimeString()],
+            'Placed student soft deleted'
+        );
 
         return response()->json(['success' => true]);
     }
@@ -528,13 +671,28 @@ class PlacedStudentController extends Controller
             return response()->json(['message' => 'Not found in bin'], 404);
         }
 
+        $ts = now();
+
         DB::table('placed_students')->where('id', (int) $row->id)->update([
             'deleted_at'    => null,
-            'updated_at'    => now(),
+            'updated_at'    => $ts,
             'updated_at_ip' => $request->ip(),
         ]);
 
         $fresh = DB::table('placed_students')->where('id', (int) $row->id)->first();
+
+        // LOG (POST/PATCH - restore)
+        $this->logActivity(
+            $request,
+            'restore',
+            'placed_students',
+            'placed_students',
+            (int) $row->id,
+            ['deleted_at'],
+            ['deleted_at' => $row->deleted_at],
+            ['deleted_at' => null],
+            'Placed student restored from bin'
+        );
 
         return response()->json([
             'success' => true,
@@ -547,14 +705,31 @@ class PlacedStudentController extends Controller
         $row = $this->resolvePlacedStudent($identifier, true);
         if (! $row) return response()->json(['message' => 'Placed student not found'], 404);
 
+        // snapshot before delete (for logs)
+        $beforeObj = DB::table('placed_students')->where('id', (int) $row->id)->first();
+        $before = $beforeObj ? (array) $beforeObj : (array) $row;
+
         // delete offer letter if local
         $this->deletePublicPath($row->offer_letter_url ?? null);
 
         DB::table('placed_students')->where('id', (int) $row->id)->delete();
 
+        // LOG (DELETE - force delete)
+        $this->logActivity(
+            $request,
+            'force_delete',
+            'placed_students',
+            'placed_students',
+            (int) $row->id,
+            null,
+            $before ?: null,
+            null,
+            'Placed student permanently deleted'
+        );
+
         return response()->json(['success' => true]);
     }
-    
+
     /* ============================================
      | Public Index
      | GET /api/public/placed-students
@@ -667,5 +842,4 @@ class PlacedStudentController extends Controller
             ],
         ]);
     }
-
 }

@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
+use Throwable;
 
 class HeroCarouselController extends Controller
 {
@@ -22,6 +23,110 @@ class HeroCarouselController extends Controller
             'type' => (string) ($r->attributes->get('auth_tokenable_type') ?? ($r->user() ? get_class($r->user()) : '')),
             'uuid' => (string) ($r->attributes->get('auth_user_uuid') ?? ($r->user()->uuid ?? '')),
         ];
+    }
+
+    /**
+     * Safe activity logger (never breaks the main request).
+     */
+    private function logActivity(
+        Request $r,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        $oldValues = null,
+        $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            $actor = $this->actor($r);
+
+            $payload = [
+                'performed_by'      => $actor['id'] ?: 0,
+                'performed_by_role' => ($actor['role'] ?? '') !== '' ? (string) $actor['role'] : null,
+                'ip'                => $r->ip(),
+                'user_agent'        => substr((string) $r->userAgent(), 0, 512) ?: null,
+
+                'activity'          => $activity,
+                'module'            => $module,
+
+                'table_name'        => $tableName,
+                'record_id'         => $recordId,
+
+                'changed_fields'    => $changedFields !== null ? json_encode(array_values($changedFields), JSON_UNESCAPED_UNICODE) : null,
+                'old_values'        => $oldValues !== null ? json_encode($oldValues, JSON_UNESCAPED_UNICODE) : null,
+                'new_values'        => $newValues !== null ? json_encode($newValues, JSON_UNESCAPED_UNICODE) : null,
+
+                'log_note'          => $note,
+
+                'created_at'        => now(),
+                'updated_at'        => now(),
+            ];
+
+            DB::table('user_data_activity_log')->insert($payload);
+        } catch (Throwable $e) {
+            // Intentionally swallow logging errors to avoid hurting functionality.
+        }
+    }
+
+    private function decodeMaybeJson($v)
+    {
+        if ($v === null) return null;
+        if (is_array($v)) return $v;
+
+        if (is_string($v)) {
+            $trim = trim($v);
+            if ($trim === '') return $v;
+
+            $decoded = json_decode($v, true);
+            return (json_last_error() === JSON_ERROR_NONE) ? $decoded : $v;
+        }
+
+        return $v;
+    }
+
+    private function rowSnapshot($row): array
+    {
+        if (!$row) return [];
+
+        $arr = (array) $row;
+
+        if (array_key_exists('metadata', $arr)) {
+            $arr['metadata'] = $this->decodeMaybeJson($arr['metadata']);
+        }
+
+        return $arr;
+    }
+
+    private function diffRows($oldRow, $newRow, array $keys): array
+    {
+        $changed = [];
+        $old = [];
+        $new = [];
+
+        foreach ($keys as $k) {
+            $ov = $oldRow ? ($oldRow->$k ?? null) : null;
+            $nv = $newRow ? ($newRow->$k ?? null) : null;
+
+            if ($k === 'metadata') {
+                $ov = $this->decodeMaybeJson($ov);
+                $nv = $this->decodeMaybeJson($nv);
+            }
+
+            // Normalize DateTime-like values
+            if ($ov instanceof \DateTimeInterface) $ov = $ov->format('Y-m-d H:i:s');
+            if ($nv instanceof \DateTimeInterface) $nv = $nv->format('Y-m-d H:i:s');
+
+            // Loose compare is fine for DB strings vs parsed values
+            if ($ov != $nv) {
+                $changed[] = $k;
+                $old[$k] = $ov;
+                $new[$k] = $nv;
+            }
+        }
+
+        return [$changed, $old, $new];
     }
 
     private function normSlug(?string $s): string
@@ -306,6 +411,7 @@ class HeroCarouselController extends Controller
         if ($request->hasFile('desktop_image')) {
             $f = $request->file('desktop_image');
             if (!$f || !$f->isValid()) {
+                $this->logActivity($request, 'create', 'hero_carousel', 'hero_carousel', null, null, null, null, 'Desktop image upload failed');
                 return response()->json(['success' => false, 'message' => 'Desktop image upload failed'], 422);
             }
             $meta = $this->uploadFileToPublic($f, $dirRel, $slug . '-desktop');
@@ -319,6 +425,7 @@ class HeroCarouselController extends Controller
         if ($request->hasFile('mobile_image')) {
             $f = $request->file('mobile_image');
             if (!$f || !$f->isValid()) {
+                $this->logActivity($request, 'create', 'hero_carousel', 'hero_carousel', null, null, null, null, 'Mobile image upload failed');
                 return response()->json(['success' => false, 'message' => 'Mobile image upload failed'], 422);
             }
             $meta = $this->uploadFileToPublic($f, $dirRel, $slug . '-mobile');
@@ -330,13 +437,14 @@ class HeroCarouselController extends Controller
 
         // schema: image_url is NOT NULL
         if ($imagePath === null) {
+            $this->logActivity($request, 'create', 'hero_carousel', 'hero_carousel', null, ['image_url'], null, ['image_url' => null], 'image_url is required');
             return response()->json([
                 'success' => false,
                 'message' => 'image_url is required (provide image_url or desktop_image upload)'
             ], 422);
         }
 
-        $id = DB::table('hero_carousel')->insertGetId([
+        $insertData = [
             'uuid'            => $uuid,
             'title'           => $validated['title'] ?? null,
             'slug'            => $slug,
@@ -355,9 +463,28 @@ class HeroCarouselController extends Controller
             'created_at_ip'   => $request->ip(),
             'updated_at_ip'   => $request->ip(),
             'metadata'        => $metadata !== null ? json_encode($metadata) : null,
-        ]);
+        ];
+
+        $id = DB::table('hero_carousel')->insertGetId($insertData);
 
         $row = DB::table('hero_carousel')->where('id', $id)->first();
+
+        // LOG (POST)
+        $logNew = $insertData;
+        $logNew['id'] = (int) $id;
+        // store decoded metadata in log for readability
+        $logNew['metadata'] = $metadata;
+        $this->logActivity(
+            $request,
+            'create',
+            'hero_carousel',
+            'hero_carousel',
+            (int) $id,
+            array_keys($logNew),
+            null,
+            $logNew,
+            'Hero carousel item created'
+        );
 
         return response()->json([
             'success' => true,
@@ -368,7 +495,10 @@ class HeroCarouselController extends Controller
     public function update(Request $request, $identifier)
     {
         $row = $this->resolveHero($identifier, true);
-        if (!$row) return response()->json(['message' => 'Hero carousel item not found'], 404);
+        if (!$row) {
+            $this->logActivity($request, 'update', 'hero_carousel', 'hero_carousel', null, null, null, null, 'Update failed: item not found');
+            return response()->json(['message' => 'Hero carousel item not found'], 404);
+        }
 
         $validated = $request->validate([
             'title'                 => ['nullable', 'string', 'max:255'],
@@ -391,6 +521,8 @@ class HeroCarouselController extends Controller
             'desktop_image_remove'  => ['nullable', 'in:0,1', 'boolean'],
             'mobile_image_remove'   => ['nullable', 'in:0,1', 'boolean'],
         ]);
+
+        $before = $row; // snapshot object for diff
 
         $update = [
             'updated_at'    => now(),
@@ -451,6 +583,7 @@ class HeroCarouselController extends Controller
         if ($request->hasFile('desktop_image')) {
             $f = $request->file('desktop_image');
             if (!$f || !$f->isValid()) {
+                $this->logActivity($request, 'update', 'hero_carousel', 'hero_carousel', (int) $row->id, null, null, null, 'Desktop image upload failed');
                 return response()->json(['success' => false, 'message' => 'Desktop image upload failed'], 422);
             }
             $this->deletePublicPath($row->image_url ?? null);
@@ -465,6 +598,7 @@ class HeroCarouselController extends Controller
         if ($request->hasFile('mobile_image')) {
             $f = $request->file('mobile_image');
             if (!$f || !$f->isValid()) {
+                $this->logActivity($request, 'update', 'hero_carousel', 'hero_carousel', (int) $row->id, null, null, null, 'Mobile image upload failed');
                 return response()->json(['success' => false, 'message' => 'Mobile image upload failed'], 422);
             }
             $this->deletePublicPath($row->mobile_image_url ?? null);
@@ -478,6 +612,17 @@ class HeroCarouselController extends Controller
         // schema requires image_url NOT NULL
         $finalImageUrl = array_key_exists('image_url', $update) ? $update['image_url'] : ($row->image_url ?? null);
         if ($finalImageUrl === null || trim((string)$finalImageUrl) === '') {
+            $this->logActivity(
+                $request,
+                'update',
+                'hero_carousel',
+                'hero_carousel',
+                (int) $row->id,
+                ['image_url'],
+                ['image_url' => $row->image_url ?? null],
+                ['image_url' => $finalImageUrl],
+                'image_url cannot be null (schema requires it)'
+            );
             return response()->json([
                 'success' => false,
                 'message' => 'image_url cannot be null (table schema requires it). Provide desktop_image or image_url.'
@@ -488,6 +633,22 @@ class HeroCarouselController extends Controller
 
         $fresh = DB::table('hero_carousel')->where('id', (int) $row->id)->first();
 
+        // LOG (PUT/PATCH)
+        $keys = ['title','slug','image_url','mobile_image_url','overlay_text','alt_text','sort_order','status','publish_at','expire_at','metadata','deleted_at'];
+        [$changed, $oldVals, $newVals] = $this->diffRows($before, $fresh, $keys);
+
+        $this->logActivity(
+            $request,
+            'update',
+            'hero_carousel',
+            'hero_carousel',
+            (int) $row->id,
+            $changed,
+            $oldVals,
+            $newVals,
+            empty($changed) ? 'Update called but no changes detected' : 'Hero carousel item updated'
+        );
+
         return response()->json([
             'success' => true,
             'data'    => $fresh ? $this->normalizeRow($fresh) : null,
@@ -497,13 +658,36 @@ class HeroCarouselController extends Controller
     public function destroy(Request $request, $identifier)
     {
         $row = $this->resolveHero($identifier, false);
-        if (!$row) return response()->json(['message' => 'Not found or already deleted'], 404);
+        if (!$row) {
+            $this->logActivity($request, 'delete', 'hero_carousel', 'hero_carousel', null, null, null, null, 'Delete failed: not found or already deleted');
+            return response()->json(['message' => 'Not found or already deleted'], 404);
+        }
+
+        $before = $row;
 
         DB::table('hero_carousel')->where('id', (int) $row->id)->update([
             'deleted_at'    => now(),
             'updated_at'    => now(),
             'updated_at_ip' => $request->ip(),
         ]);
+
+        $fresh = DB::table('hero_carousel')->where('id', (int) $row->id)->first();
+
+        // LOG (DELETE)
+        $keys = ['deleted_at','status','title','slug','image_url','mobile_image_url','metadata'];
+        [$changed, $oldVals, $newVals] = $this->diffRows($before, $fresh, $keys);
+
+        $this->logActivity(
+            $request,
+            'delete',
+            'hero_carousel',
+            'hero_carousel',
+            (int) $row->id,
+            $changed,
+            $oldVals,
+            $newVals,
+            'Hero carousel item soft-deleted'
+        );
 
         return response()->json(['success' => true]);
     }
@@ -512,8 +696,11 @@ class HeroCarouselController extends Controller
     {
         $row = $this->resolveHero($identifier, true);
         if (!$row || $row->deleted_at === null) {
+            $this->logActivity($request, 'restore', 'hero_carousel', 'hero_carousel', null, null, null, null, 'Restore failed: not found in bin');
             return response()->json(['message' => 'Not found in bin'], 404);
         }
+
+        $before = $row;
 
         DB::table('hero_carousel')->where('id', (int) $row->id)->update([
             'deleted_at'    => null,
@@ -522,6 +709,22 @@ class HeroCarouselController extends Controller
         ]);
 
         $fresh = DB::table('hero_carousel')->where('id', (int) $row->id)->first();
+
+        // LOG (POST/PUT style action)
+        $keys = ['deleted_at','status','title','slug','image_url','mobile_image_url','metadata'];
+        [$changed, $oldVals, $newVals] = $this->diffRows($before, $fresh, $keys);
+
+        $this->logActivity(
+            $request,
+            'restore',
+            'hero_carousel',
+            'hero_carousel',
+            (int) $row->id,
+            $changed,
+            $oldVals,
+            $newVals,
+            'Hero carousel item restored'
+        );
 
         return response()->json([
             'success' => true,
@@ -532,13 +735,31 @@ class HeroCarouselController extends Controller
     public function forceDelete(Request $request, $identifier)
     {
         $row = $this->resolveHero($identifier, true);
-        if (!$row) return response()->json(['message' => 'Hero carousel item not found'], 404);
+        if (!$row) {
+            $this->logActivity($request, 'force_delete', 'hero_carousel', 'hero_carousel', null, null, null, null, 'Force delete failed: item not found');
+            return response()->json(['message' => 'Hero carousel item not found'], 404);
+        }
+
+        $snapshot = $this->rowSnapshot($row);
 
         // delete files (if stored as local public paths)
         $this->deletePublicPath($row->image_url ?? null);
         $this->deletePublicPath($row->mobile_image_url ?? null);
 
         DB::table('hero_carousel')->where('id', (int) $row->id)->delete();
+
+        // LOG (DELETE)
+        $this->logActivity(
+            $request,
+            'force_delete',
+            'hero_carousel',
+            'hero_carousel',
+            (int) $row->id,
+            ['__force_delete'],
+            $snapshot,
+            null,
+            'Hero carousel item permanently deleted'
+        );
 
         return response()->json(['success' => true]);
     }
@@ -554,14 +775,48 @@ class HeroCarouselController extends Controller
         $now = now();
         $ip  = $request->ip();
 
+        $ids = array_map(fn($it) => (int) $it['id'], $validated['items']);
+        $oldMap = DB::table('hero_carousel')->whereIn('id', $ids)->pluck('sort_order', 'id')->toArray();
+
         foreach ($validated['items'] as $it) {
+            $id = (int) $it['id'];
+            $newSort = (int) $it['sort_order'];
+            $oldSort = array_key_exists($id, $oldMap) ? (int) $oldMap[$id] : null;
+
             DB::table('hero_carousel')
-                ->where('id', (int) $it['id'])
+                ->where('id', $id)
                 ->update([
-                    'sort_order'     => (int) $it['sort_order'],
+                    'sort_order'     => $newSort,
                     'updated_at'     => $now,
                     'updated_at_ip'  => $ip,
                 ]);
+
+            // LOG (PATCH/POST style action)
+            if ($oldSort !== $newSort) {
+                $this->logActivity(
+                    $request,
+                    'reorder',
+                    'hero_carousel',
+                    'hero_carousel',
+                    $id,
+                    ['sort_order'],
+                    ['sort_order' => $oldSort],
+                    ['sort_order' => $newSort],
+                    'Hero carousel sort_order updated'
+                );
+            } else {
+                $this->logActivity(
+                    $request,
+                    'reorder',
+                    'hero_carousel',
+                    'hero_carousel',
+                    $id,
+                    [],
+                    ['sort_order' => $oldSort],
+                    ['sort_order' => $newSort],
+                    'Reorder called but sort_order unchanged'
+                );
+            }
         }
 
         return response()->json(['success' => true]);

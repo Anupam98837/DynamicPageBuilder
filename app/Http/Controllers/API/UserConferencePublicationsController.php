@@ -13,6 +13,8 @@ use Carbon\Carbon;
 class UserConferencePublicationsController extends Controller
 {
     private string $table = 'user_conference_publications';
+    private string $logTable = 'user_data_activity_log';
+    private string $logModule = 'conference_publications';
 
     /* =========================
      * Helpers (token-driven)
@@ -182,6 +184,92 @@ class UserConferencePublicationsController extends Controller
     }
 
     /* =========================
+     * Activity Log Helpers
+     * ========================= */
+
+    private function safeUserAgent(Request $request): ?string
+    {
+        $ua = (string) $request->userAgent();
+        if ($ua === '') return null;
+        return mb_substr($ua, 0, 512);
+    }
+
+    private function rowToArray($row): ?array
+    {
+        if (!$row) return null;
+        $arr = (array) $row;
+
+        if (array_key_exists('metadata', $arr) && is_string($arr['metadata'])) {
+            $decoded = json_decode($arr['metadata'], true);
+            $arr['metadata'] = is_array($decoded) ? $decoded : null;
+        }
+        return $arr;
+    }
+
+    private function buildChanges(?array $before, ?array $after, array $fields): array
+    {
+        $changed = [];
+        $oldVals = [];
+        $newVals = [];
+
+        foreach ($fields as $f) {
+            $old = $before[$f] ?? null;
+            $new = $after[$f] ?? null;
+
+            // normalize arrays/objects for comparison
+            $oldCmp = is_array($old) ? json_encode($old) : $old;
+            $newCmp = is_array($new) ? json_encode($new) : $new;
+
+            if ($oldCmp !== $newCmp) {
+                $changed[] = $f;
+                $oldVals[$f] = $old;
+                $newVals[$f] = $new;
+            }
+        }
+
+        return [$changed, $oldVals, $newVals];
+    }
+
+    private function logActivity(
+        Request $request,
+        string $activity,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        ?array $oldValues = null,
+        ?array $newValues = null,
+        ?string $note = null,
+        ?string $tableName = null
+    ): void {
+        try {
+            $actor = $this->actor($request);
+            $now   = Carbon::now();
+
+            DB::table($this->logTable)->insert([
+                'performed_by'      => (int) ($actor['id'] ?: 0),
+                'performed_by_role' => $actor['role'] ?: null,
+                'ip'                => $request->ip(),
+                'user_agent'        => $this->safeUserAgent($request),
+
+                'activity'   => $activity,
+                'module'     => $this->logModule,
+                'table_name' => $tableName ?: $this->table,
+                'record_id'  => $recordId,
+
+                'changed_fields' => $changedFields !== null ? json_encode($changedFields) : null,
+                'old_values'     => $oldValues !== null ? json_encode($oldValues) : null,
+                'new_values'     => $newValues !== null ? json_encode($newValues) : null,
+
+                'log_note'   => $note,
+
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        } catch (\Throwable $e) {
+            // never break main flow because of logging
+        }
+    }
+
+    /* =========================
      * CRUD (Active)
      * ========================= */
 
@@ -280,10 +368,23 @@ class UserConferencePublicationsController extends Controller
             'publication_organization' => $data['publication_organization'] ?? null,
         ]);
         if ($dup) {
-            $dup = $this->decodeMetadataRow($dup);
+            $dupDecoded = $this->decodeMetadataRow($dup);
+
+            // ✅ ACTIVITY LOG (POST) - duplicate prevented but still an activity
+            $dupArr = $this->rowToArray($dup);
+            $this->logActivity(
+                $request,
+                'create',
+                (int) ($dup->id ?? null),
+                ['duplicate_prevented'],
+                null,
+                $dupArr ? ['existing_record' => $dupArr] : null,
+                'Duplicate submit prevented (returned existing record)'
+            );
+
             return response()->json([
                 'success' => true,
-                'data' => $dup,
+                'data' => $dupDecoded,
                 'message' => 'Duplicate submit prevented'
             ], 200);
         }
@@ -339,6 +440,18 @@ class UserConferencePublicationsController extends Controller
             $row = DB::table($this->table)->where('id', $id)->first();
             $row = $this->decodeMetadataRow($row);
 
+            // ✅ ACTIVITY LOG (POST create)
+            $rowArr = $this->rowToArray($row);
+            $this->logActivity(
+                $request,
+                'create',
+                (int) $id,
+                $rowArr ? array_keys($rowArr) : ['created'],
+                null,
+                $rowArr,
+                'Conference publication created'
+            );
+
             return response()->json(['success'=>true,'data'=>$row], 201);
         });
     }
@@ -389,6 +502,8 @@ class UserConferencePublicationsController extends Controller
         $actor = $this->actor($request);
 
         return DB::transaction(function () use ($request, $user, $row, $data, $actor, $metaNorm) {
+            $beforeArr = $this->rowToArray($row);
+
             $upd = [];
 
             foreach ([
@@ -423,6 +538,25 @@ class UserConferencePublicationsController extends Controller
             $fresh = DB::table($this->table)->where('id', $row->id)->first();
             $fresh = $this->decodeMetadataRow($fresh);
 
+            // ✅ ACTIVITY LOG (PUT/PATCH update)
+            $afterArr = $this->rowToArray($fresh);
+
+            // exclude noisy audit fields from change list
+            $logFields = array_values(array_diff(array_keys($upd), ['updated_at','updated_by','updated_at_ip']));
+            if (empty($logFields)) $logFields = ['updated'];
+
+            [$changed, $oldVals, $newVals] = $this->buildChanges($beforeArr ?? [], $afterArr ?? [], $logFields);
+
+            $this->logActivity(
+                $request,
+                'update',
+                (int) $row->id,
+                !empty($changed) ? $changed : $logFields,
+                !empty($oldVals) ? $oldVals : null,
+                !empty($newVals) ? $newVals : null,
+                'Conference publication updated'
+            );
+
             return response()->json(['success'=>true,'data'=>$fresh]);
         });
     }
@@ -451,6 +585,8 @@ class UserConferencePublicationsController extends Controller
 
         if (!$row) return response()->json(['success'=>false,'error'=>'Record not found'], 404);
 
+        $beforeArr = $this->rowToArray($row);
+
         $actor = $this->actor($request);
         $now   = Carbon::now();
 
@@ -464,6 +600,21 @@ class UserConferencePublicationsController extends Controller
 
         DB::table($this->table)->where('id', $row->id)->update($upd);
 
+        $fresh = DB::table($this->table)->where('id', $row->id)->first();
+        $afterArr = $this->rowToArray($fresh);
+
+        // ✅ ACTIVITY LOG (DELETE soft)
+        [$changed, $oldVals, $newVals] = $this->buildChanges($beforeArr ?? [], $afterArr ?? [], ['deleted_at']);
+        $this->logActivity(
+            $request,
+            'delete',
+            (int) $row->id,
+            !empty($changed) ? $changed : ['deleted_at'],
+            !empty($oldVals) ? $oldVals : null,
+            !empty($newVals) ? $newVals : null,
+            'Conference publication soft deleted'
+        );
+
         return response()->json(['success'=>true,'message'=>'Conference publication deleted']);
     }
 
@@ -476,44 +627,43 @@ class UserConferencePublicationsController extends Controller
      * GET /api/users/{user_uuid}/conference-publications/deleted
      */
     public function indexDeleted(Request $request, ?string $user_uuid = null)
-{
-    // ✅ LOG (request + actor) - add this line
-    \Log::info('UserConferencePublications:indexDeleted', [
-        'ip'         => $request->ip(),
-        'user_agent' => (string) $request->userAgent(),
-        'user_uuid'  => $user_uuid,
-        'actor'      => $this->actor($request),
-    ]);
+    {
+        // ✅ LOG (request + actor) - add this line
+        \Log::info('UserConferencePublications:indexDeleted', [
+            'ip'         => $request->ip(),
+            'user_agent' => (string) $request->userAgent(),
+            'user_uuid'  => $user_uuid,
+            'actor'      => $this->actor($request),
+        ]);
 
-    if ($resp = $this->requireRole($request, [
-        'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
-    ])) return $resp;
+        if ($resp = $this->requireRole($request, [
+            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+        ])) return $resp;
 
-    $user = $this->resolveTargetUser($request, $user_uuid);
-    if (!$user) return response()->json(['success'=>false,'error'=>'User not found'], 404);
+        $user = $this->resolveTargetUser($request, $user_uuid);
+        if (!$user) return response()->json(['success'=>false,'error'=>'User not found'], 404);
 
-    if (!$this->canAccess($request, (int)$user->id)) {
-        return response()->json(['success'=>false,'error'=>'Unauthorized Access'], 403);
+        if (!$this->canAccess($request, (int)$user->id)) {
+            return response()->json(['success'=>false,'error'=>'Unauthorized Access'], 403);
+        }
+
+        $rows = DB::table($this->table)
+            ->where('user_id', $user->id)
+            ->whereNotNull('deleted_at')
+            ->orderBy('deleted_at','desc')
+            ->orderBy('id','desc')
+            ->get();
+
+        $rows = $this->decodeMetadataCollection($rows);
+
+        // ✅ LOG (result count) - add this line
+        \Log::info('UserConferencePublications:indexDeleted:done', [
+            'target_user_id' => (int) $user->id,
+            'count'          => is_countable($rows) ? count($rows) : 0,
+        ]);
+
+        return response()->json(['success'=>true,'data'=>$rows]);
     }
-
-    $rows = DB::table($this->table)
-        ->where('user_id', $user->id)
-        ->whereNotNull('deleted_at')
-        ->orderBy('deleted_at','desc')
-        ->orderBy('id','desc')
-        ->get();
-
-    $rows = $this->decodeMetadataCollection($rows);
-
-    // ✅ LOG (result count) - add this line
-    \Log::info('UserConferencePublications:indexDeleted:done', [
-        'target_user_id' => (int) $user->id,
-        'count'          => is_countable($rows) ? count($rows) : 0,
-    ]);
-
-    return response()->json(['success'=>true,'data'=>$rows]);
-}
-
 
     /**
      * RESTORE (undo soft delete)
@@ -540,6 +690,8 @@ class UserConferencePublicationsController extends Controller
 
         if (!$row) return response()->json(['success'=>false,'error'=>'Record not found in trash'], 404);
 
+        $beforeArr = $this->rowToArray($row);
+
         $actor = $this->actor($request);
         $now   = Carbon::now();
 
@@ -555,6 +707,20 @@ class UserConferencePublicationsController extends Controller
 
         $fresh = DB::table($this->table)->where('id', $row->id)->first();
         $fresh = $this->decodeMetadataRow($fresh);
+
+        $afterArr = $this->rowToArray($fresh);
+
+        // ✅ ACTIVITY LOG (POST restore)
+        [$changed, $oldVals, $newVals] = $this->buildChanges($beforeArr ?? [], $afterArr ?? [], ['deleted_at']);
+        $this->logActivity(
+            $request,
+            'restore',
+            (int) $row->id,
+            !empty($changed) ? $changed : ['deleted_at'],
+            !empty($oldVals) ? $oldVals : null,
+            !empty($newVals) ? $newVals : null,
+            'Conference publication restored (undeleted)'
+        );
 
         return response()->json(['success'=>true,'message'=>'Conference publication restored','data'=>$fresh]);
     }
@@ -588,6 +754,8 @@ class UserConferencePublicationsController extends Controller
 
         if (!$row) return response()->json(['success'=>false,'error'=>'Record not found'], 404);
 
+        $beforeArr = $this->rowToArray($row);
+
         // Remove stored image if inside public/assets/media...
         if (!empty($row->image) && is_string($row->image) && str_starts_with($row->image, '/assets/media/')) {
             $abs = public_path(ltrim($row->image, '/'));
@@ -595,6 +763,17 @@ class UserConferencePublicationsController extends Controller
         }
 
         DB::table($this->table)->where('id', $row->id)->delete();
+
+        // ✅ ACTIVITY LOG (DELETE hard)
+        $this->logActivity(
+            $request,
+            'force_delete',
+            (int) $row->id,
+            ['__deleted__'],
+            $beforeArr,
+            null,
+            'Conference publication permanently deleted'
+        );
 
         return response()->json(['success'=>true,'message'=>'Conference publication permanently deleted']);
     }
@@ -622,9 +801,12 @@ class UserConferencePublicationsController extends Controller
             ->get(['id','image']);
 
         $deletedCount = 0;
+        $ids = [];
 
-        DB::transaction(function() use ($rows, &$deletedCount){
+        DB::transaction(function() use ($rows, &$deletedCount, &$ids){
             foreach ($rows as $r) {
+                $ids[] = (int) $r->id;
+
                 if (!empty($r->image) && is_string($r->image) && str_starts_with($r->image, '/assets/media/')) {
                     $abs = public_path(ltrim($r->image, '/'));
                     if (is_file($abs)) @unlink($abs);
@@ -633,6 +815,17 @@ class UserConferencePublicationsController extends Controller
                 DB::table($this->table)->where('id', $r->id)->delete();
             }
         });
+
+        // ✅ ACTIVITY LOG (DELETE bulk hard)
+        $this->logActivity(
+            $request,
+            'force_delete_all',
+            null,
+            ['bulk_force_delete'],
+            ['user_id' => (int) $user->id, 'ids' => $ids],
+            ['deleted' => (int) $deletedCount],
+            'Trash cleared (bulk permanent delete)'
+        );
 
         return response()->json(['success'=>true,'message'=>"Trash cleared", 'deleted' => $deletedCount]);
     }

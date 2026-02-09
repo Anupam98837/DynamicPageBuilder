@@ -24,6 +24,55 @@ class SuccessStoryController extends Controller
         ];
     }
 
+    private function jsonOrNull($v): ?string
+    {
+        if ($v === null) return null;
+        return json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    /**
+     * Activity logger (safe: never breaks core flow)
+     */
+    private function logActivity(
+        Request $r,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        $changedFields = null,
+        $oldValues = null,
+        $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            $actor = $this->actor($r);
+
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'       => (int) ($actor['id'] ?? 0),
+                'performed_by_role'  => (string) ($actor['role'] ?? null),
+                'ip'                 => (string) ($r->ip() ?? null),
+                'user_agent'         => (string) ($r->userAgent() ?? null),
+
+                'activity'           => $activity,
+                'module'             => $module,
+
+                'table_name'         => $tableName,
+                'record_id'          => $recordId,
+
+                'changed_fields'     => $this->jsonOrNull($changedFields),
+                'old_values'         => $this->jsonOrNull($oldValues),
+                'new_values'         => $this->jsonOrNull($newValues),
+
+                'log_note'           => $note,
+
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ]);
+        } catch (\Throwable $e) {
+            // Intentionally swallow: logging must never affect API functionality.
+        }
+    }
+
     private function normSlug(?string $s): string
     {
         $s = trim((string) $s);
@@ -418,6 +467,17 @@ class SuccessStoryController extends Controller
         if ($request->hasFile('photo_file')) {
             $f = $request->file('photo_file');
             if (!$f || !$f->isValid()) {
+                $this->logActivity(
+                    $request,
+                    'create',
+                    'success_stories',
+                    'success_stories',
+                    null,
+                    ['photo_file'],
+                    null,
+                    null,
+                    'Create failed: photo upload invalid'
+                );
                 return response()->json(['success' => false, 'message' => 'Photo upload failed'], 422);
             }
             $meta = $this->uploadFileToPublic($f, $dirRel, $slug . '-photo');
@@ -463,6 +523,24 @@ class SuccessStoryController extends Controller
 
         $row = DB::table('success_stories')->where('id', $id)->first();
 
+        // LOG: create
+        $note = 'Created success story';
+        $src  = (string) ($request->attributes->get('log_source') ?? '');
+        if ($src !== '') $note .= ' (source: ' . $src . ')';
+
+        $newVals = $row ? (array) $row : ['id' => $id, 'uuid' => $uuid, 'slug' => $slug];
+        $this->logActivity(
+            $request,
+            'create',
+            'success_stories',
+            'success_stories',
+            (int) $id,
+            array_keys($newVals),
+            null,
+            $newVals,
+            $note
+        );
+
         return response()->json([
             'success' => true,
             'data'    => $row ? $this->normalizeRow($row) : null,
@@ -474,6 +552,9 @@ class SuccessStoryController extends Controller
         $dept = $this->resolveDepartment($department, false);
         if (! $dept) return response()->json(['message' => 'Department not found'], 404);
 
+        // mark source (avoid duplicate logs; store() will log)
+        $request->attributes->set('log_source', 'storeForDepartment');
+
         $request->merge(['department_id' => (int) $dept->id]);
         return $this->store($request);
     }
@@ -482,6 +563,8 @@ class SuccessStoryController extends Controller
     {
         $row = $this->resolveStory($request, $identifier, true);
         if (! $row) return response()->json(['message' => 'Success story not found'], 404);
+
+        $before = (array) $row;
 
         $validated = $request->validate([
             'department_id'     => ['nullable', 'integer', 'exists:departments,id'],
@@ -600,6 +683,17 @@ class SuccessStoryController extends Controller
         if ($request->hasFile('photo_file')) {
             $f = $request->file('photo_file');
             if (!$f || !$f->isValid()) {
+                $this->logActivity(
+                    $request,
+                    'update',
+                    'success_stories',
+                    'success_stories',
+                    (int) $row->id,
+                    ['photo_file'],
+                    ['photo_url' => $row->photo_url ?? null],
+                    null,
+                    'Update failed: photo upload invalid'
+                );
                 return response()->json(['success' => false, 'message' => 'Photo upload failed'], 422);
             }
             // delete old if local path
@@ -614,6 +708,55 @@ class SuccessStoryController extends Controller
 
         $fresh = DB::table('success_stories')->where('id', (int) $row->id)->first();
 
+        // LOG: update (diff based on intended update keys; skip audit keys)
+        if ($fresh) {
+            $after = (array) $fresh;
+
+            $diffKeys = array_values(array_diff(array_keys($update), ['updated_at', 'updated_at_ip']));
+            $changed = [];
+            $oldVals = [];
+            $newVals = [];
+
+            foreach ($diffKeys as $k) {
+                $old = $before[$k] ?? null;
+                $new = $after[$k] ?? null;
+
+                // compare as strings for stability (DB values usually strings)
+                if ((string) $old !== (string) $new) {
+                    $changed[] = $k;
+                    $oldVals[$k] = $old;
+                    $newVals[$k] = $new;
+                }
+            }
+
+            // also consider photo_remove flag even if photo_url set to null already handled by above
+            if (!empty($changed)) {
+                $this->logActivity(
+                    $request,
+                    'update',
+                    'success_stories',
+                    'success_stories',
+                    (int) $row->id,
+                    $changed,
+                    $oldVals,
+                    $newVals,
+                    'Updated success story'
+                );
+            } else {
+                $this->logActivity(
+                    $request,
+                    'update',
+                    'success_stories',
+                    'success_stories',
+                    (int) $row->id,
+                    [],
+                    [],
+                    [],
+                    'Update called but no effective field changes detected'
+                );
+            }
+        }
+
         return response()->json([
             'success' => true,
             'data'    => $fresh ? $this->normalizeRow($fresh) : null,
@@ -625,7 +768,8 @@ class SuccessStoryController extends Controller
         $row = $this->resolveStory($request, $identifier, true);
         if (! $row) return response()->json(['message' => 'Success story not found'], 404);
 
-        $new = ((int) ($row->is_featured_home ?? 0)) ? 0 : 1;
+        $old = (int) ($row->is_featured_home ?? 0);
+        $new = $old ? 0 : 1;
 
         DB::table('success_stories')->where('id', (int) $row->id)->update([
             'is_featured_home' => $new,
@@ -634,6 +778,19 @@ class SuccessStoryController extends Controller
         ]);
 
         $fresh = DB::table('success_stories')->where('id', (int) $row->id)->first();
+
+        // LOG: update (toggle featured)
+        $this->logActivity(
+            $request,
+            'update',
+            'success_stories',
+            'success_stories',
+            (int) $row->id,
+            ['is_featured_home'],
+            ['is_featured_home' => $old],
+            ['is_featured_home' => $new],
+            'Toggled featured flag'
+        );
 
         return response()->json([
             'success' => true,
@@ -646,11 +803,26 @@ class SuccessStoryController extends Controller
         $row = $this->resolveStory($request, $identifier, false);
         if (! $row) return response()->json(['message' => 'Not found or already deleted'], 404);
 
+        $ts = now();
+
         DB::table('success_stories')->where('id', (int) $row->id)->update([
-            'deleted_at'    => now(),
-            'updated_at'    => now(),
+            'deleted_at'    => $ts,
+            'updated_at'    => $ts,
             'updated_at_ip' => $request->ip(),
         ]);
+
+        // LOG: delete (soft delete)
+        $this->logActivity(
+            $request,
+            'delete',
+            'success_stories',
+            'success_stories',
+            (int) $row->id,
+            ['deleted_at'],
+            ['deleted_at' => null],
+            ['deleted_at' => (string) $ts],
+            'Soft deleted success story'
+        );
 
         return response()->json(['success' => true]);
     }
@@ -662,6 +834,8 @@ class SuccessStoryController extends Controller
             return response()->json(['message' => 'Not found in bin'], 404);
         }
 
+        $oldDeleted = (string) $row->deleted_at;
+
         DB::table('success_stories')->where('id', (int) $row->id)->update([
             'deleted_at'    => null,
             'updated_at'    => now(),
@@ -669,6 +843,19 @@ class SuccessStoryController extends Controller
         ]);
 
         $fresh = DB::table('success_stories')->where('id', (int) $row->id)->first();
+
+        // LOG: restore
+        $this->logActivity(
+            $request,
+            'restore',
+            'success_stories',
+            'success_stories',
+            (int) $row->id,
+            ['deleted_at'],
+            ['deleted_at' => $oldDeleted],
+            ['deleted_at' => null],
+            'Restored success story'
+        );
 
         return response()->json([
             'success' => true,
@@ -681,10 +868,25 @@ class SuccessStoryController extends Controller
         $row = $this->resolveStory($request, $identifier, true);
         if (! $row) return response()->json(['message' => 'Success story not found'], 404);
 
+        $before = (array) $row;
+
         // delete local photo file (if stored as local path)
         $this->deletePublicPath($row->photo_url ?? null);
 
         DB::table('success_stories')->where('id', (int) $row->id)->delete();
+
+        // LOG: delete (force)
+        $this->logActivity(
+            $request,
+            'delete',
+            'success_stories',
+            'success_stories',
+            (int) $row->id,
+            null,
+            $before,
+            null,
+            'Force deleted success story'
+        );
 
         return response()->json(['success' => true]);
     }

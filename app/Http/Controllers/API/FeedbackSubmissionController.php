@@ -36,6 +36,52 @@ class FeedbackSubmissionController extends Controller
         return $ip ? (string) $ip : null;
     }
 
+    /**
+     * ✅ ACTIVITY LOGGING (non-blocking)
+     * Writes to user_data_activity_log table.
+     */
+    private function logActivity(
+        Request $r,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        $oldValues = null,
+        $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            if (!Schema::hasTable('user_data_activity_log')) return;
+
+            $a = $this->actor($r);
+
+            $payload = [
+                'performed_by'      => (int) ($a['id'] ?? 0),
+                'performed_by_role' => ($a['role'] ?? '') !== '' ? (string) $a['role'] : null,
+                'ip'                => $this->ip($r),
+                'user_agent'        => $r->userAgent() ? mb_substr((string) $r->userAgent(), 0, 512) : null,
+
+                'activity'   => mb_substr($activity, 0, 50),
+                'module'     => mb_substr($module, 0, 100),
+                'table_name' => mb_substr($tableName, 0, 128),
+                'record_id'  => $recordId,
+
+                'changed_fields' => $changedFields ? json_encode(array_values($changedFields), JSON_UNESCAPED_UNICODE) : null,
+                'old_values'     => $oldValues !== null ? json_encode($oldValues, JSON_UNESCAPED_UNICODE) : null,
+                'new_values'     => $newValues !== null ? json_encode($newValues, JSON_UNESCAPED_UNICODE) : null,
+
+                'log_note'   => $note,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+
+            DB::table('user_data_activity_log')->insert($payload);
+        } catch (\Throwable $e) {
+            // do nothing (must not affect any controller functionality)
+        }
+    }
+
     private function hasCol(string $table, string $col): bool
     {
         $k = $table . '.' . $col;
@@ -569,13 +615,14 @@ class FeedbackSubmissionController extends Controller
         }
 
         $meta = $this->normalizeJson($r->input('metadata'));
+        $metaArr = is_array($meta) ? $meta : null;
         $metaStr = is_array($meta) ? json_encode($meta) : null;
 
         $postId = (int)$post['id'];
         $userId = (int)$a['id'];
 
         try {
-            return DB::transaction(function () use ($r, $postId, $userId, $answers, $metaStr) {
+            return DB::transaction(function () use ($r, $a, $postId, $userId, $answers, $metaStr, $metaArr) {
 
                 $existing = DB::table(self::SUBS)
                     ->where('feedback_post_id', $postId)
@@ -586,13 +633,44 @@ class FeedbackSubmissionController extends Controller
 
                 // UPDATE
                 if ($existing) {
+                    $old = [
+                        'answers'       => $this->normalizeJson($existing->answers),
+                        'metadata'      => $this->normalizeJson($existing->metadata),
+                        'status'        => $existing->status ?? null,
+                        'submitted_at'  => $existing->submitted_at ?? null,
+                        'updated_at'    => $existing->updated_at ?? null,
+                        'deleted_at'    => $existing->deleted_at ?? null,
+                    ];
+
+                    $now = now();
+
                     DB::table(self::SUBS)->where('id', (int)$existing->id)->update([
                         'answers'       => json_encode($answers),
                         'metadata'      => $metaStr,
                         'status'        => 'submitted',
-                        'updated_at'    => now(),
+                        'updated_at'    => $now,
                         'updated_at_ip' => $this->ip($r),
                     ]);
+
+                    $new = [
+                        'answers'       => $answers,
+                        'metadata'      => $metaArr,
+                        'status'        => 'submitted',
+                        'updated_at'    => $now,
+                        'updated_at_ip' => $this->ip($r),
+                    ];
+
+                    $this->logActivity(
+                        $r,
+                        'update',
+                        'feedback_submissions',
+                        self::SUBS,
+                        (int) $existing->id,
+                        ['answers','metadata','status','updated_at','updated_at_ip'],
+                        $old,
+                        $new,
+                        'Feedback submission updated (post_id='.$postId.', student_id='.$userId.', actor_uuid='.(string)($a['uuid'] ?? '').')'
+                    );
 
                     return response()->json([
                         'success' => true,
@@ -606,21 +684,52 @@ class FeedbackSubmissionController extends Controller
                 }
 
                 // INSERT (first time)
+                $now  = now();
+                $uuid = (string) Str::uuid();
+
                 $id = DB::table(self::SUBS)->insertGetId([
-                    'uuid' => (string) Str::uuid(),
+                    'uuid' => $uuid,
                     'feedback_post_id' => $postId,
                     'student_id'   => $userId,
                     'answers'      => json_encode($answers),
                     'status'       => 'submitted',
-                    'submitted_at' => now(),
+                    'submitted_at' => $now,
                     'metadata'     => $metaStr,
                     'created_by'       => $userId,
                     'created_at_ip'    => $this->ip($r),
                     'updated_at_ip'    => $this->ip($r),
-                    'created_at'       => now(),
-                    'updated_at'       => now(),
+                    'created_at'       => $now,
+                    'updated_at'       => $now,
                     'deleted_at'       => null,
                 ]);
+
+                $new = [
+                    'id'             => (int) $id,
+                    'uuid'           => $uuid,
+                    'feedback_post_id' => $postId,
+                    'student_id'     => $userId,
+                    'answers'        => $answers,
+                    'metadata'       => $metaArr,
+                    'status'         => 'submitted',
+                    'submitted_at'   => $now,
+                    'created_by'     => $userId,
+                    'created_at_ip'  => $this->ip($r),
+                    'updated_at_ip'  => $this->ip($r),
+                    'created_at'     => $now,
+                    'updated_at'     => $now,
+                ];
+
+                $this->logActivity(
+                    $r,
+                    'create',
+                    'feedback_submissions',
+                    self::SUBS,
+                    (int) $id,
+                    ['uuid','feedback_post_id','student_id','answers','metadata','status','submitted_at','created_by','created_at_ip','updated_at_ip'],
+                    null,
+                    $new,
+                    'Feedback submission created (post_id='.$postId.', student_id='.$userId.', actor_uuid='.(string)($a['uuid'] ?? '').')'
+                );
 
                 return response()->json([
                     'success' => true,
@@ -633,6 +742,19 @@ class FeedbackSubmissionController extends Controller
                 ], 201);
             });
         } catch (\Throwable $e) {
+            // ✅ log error (non-blocking)
+            $this->logActivity(
+                $r,
+                'error',
+                'feedback_submissions',
+                self::SUBS,
+                null,
+                null,
+                null,
+                null,
+                'Submit failed for post_identifier='.$idOrUuid.' (post_id_guess='.$postId.')'
+            );
+
             return response()->json(['success' => false, 'message' => 'Submit failed'], 500);
         }
     }
@@ -756,6 +878,19 @@ class FeedbackSubmissionController extends Controller
     {
         if ($resp = $this->requireAuth($r)) return $resp;
         if (!$this->isAdminish($r)) {
+            // ✅ log unauthorized delete attempt (non-blocking)
+            $this->logActivity(
+                $r,
+                'unauthorized',
+                'feedback_submissions',
+                self::SUBS,
+                null,
+                null,
+                null,
+                null,
+                'Unauthorized delete attempt for submission_identifier='.$idOrUuid
+            );
+
             return response()->json(['success'=>false,'message'=>'Unauthorized Access'], 403);
         }
 
@@ -764,13 +899,54 @@ class FeedbackSubmissionController extends Controller
         $row = DB::table(self::SUBS)->where($w['raw_col'], $w['val'])->first();
         if (!$row) return response()->json(['success'=>false,'message'=>'Not found'], 404);
 
-        if ($row->deleted_at) return response()->json(['success'=>true,'message'=>'Already deleted']);
+        if ($row->deleted_at) {
+            // ✅ optional: log "already deleted" delete action (non-blocking)
+            $this->logActivity(
+                $r,
+                'delete',
+                'feedback_submissions',
+                self::SUBS,
+                (int) $row->id,
+                ['deleted_at'],
+                ['deleted_at' => $row->deleted_at],
+                ['deleted_at' => $row->deleted_at],
+                'Delete requested but record already deleted (id='.(int)$row->id.')'
+            );
+
+            return response()->json(['success'=>true,'message'=>'Already deleted']);
+        }
+
+        $old = [
+            'deleted_at'    => $row->deleted_at ?? null,
+            'updated_at'    => $row->updated_at ?? null,
+            'updated_at_ip' => $row->updated_at_ip ?? null,
+        ];
+
+        $now = now();
 
         DB::table(self::SUBS)->where('id', $row->id)->update([
-            'deleted_at'    => now(),
-            'updated_at'    => now(),
+            'deleted_at'    => $now,
+            'updated_at'    => $now,
             'updated_at_ip' => $this->ip($r),
         ]);
+
+        $new = [
+            'deleted_at'    => $now,
+            'updated_at'    => $now,
+            'updated_at_ip' => $this->ip($r),
+        ];
+
+        $this->logActivity(
+            $r,
+            'delete',
+            'feedback_submissions',
+            self::SUBS,
+            (int) $row->id,
+            ['deleted_at','updated_at','updated_at_ip'],
+            $old,
+            $new,
+            'Feedback submission soft-deleted (id='.(int)$row->id.')'
+        );
 
         return response()->json(['success'=>true,'message'=>'Deleted']);
     }

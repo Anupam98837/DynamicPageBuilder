@@ -24,6 +24,112 @@ class EventController extends Controller
         ];
     }
 
+    /**
+     * Activity logger (failsafe: never breaks main flow)
+     */
+    protected function logActivity(
+        Request $r,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        $oldValues = null,
+        $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            $actor = $this->actor($r);
+
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'      => (int) ($actor['id'] ?? 0),
+                'performed_by_role' => (string) ($actor['role'] ?? ''),
+                'ip'                => (string) ($r->ip() ?? ''),
+                'user_agent'        => substr((string) ($r->userAgent() ?? ''), 0, 512),
+
+                'activity'          => $activity,
+                'module'            => $module,
+
+                'table_name'        => $tableName,
+                'record_id'         => $recordId,
+
+                'changed_fields'    => $changedFields !== null ? json_encode(array_values($changedFields)) : null,
+                'old_values'        => $oldValues !== null ? json_encode($oldValues) : null,
+                'new_values'        => $newValues !== null ? json_encode($newValues) : null,
+
+                'log_note'          => $note,
+
+                'created_at'        => now(),
+                'updated_at'        => now(),
+            ]);
+        } catch (\Throwable $e) {
+            // never interrupt main request flow
+        }
+    }
+
+    protected function eventLogKeys(): array
+    {
+        return [
+            'uuid',
+            'department_id',
+            'slug',
+            'title',
+            'description',
+            'cover_image_url',
+            'gallery_images_json',
+            'location',
+            'event_start_date',
+            'event_end_date',
+            'event_start_time',
+            'event_end_time',
+            'is_featured_home',
+            'sort_order',
+            'status',
+            'publish_at',
+            'expire_at',
+            'views_count',
+            'created_by',
+            'deleted_at',
+            'metadata',
+        ];
+    }
+
+    protected function pickEventLogRow($row): array
+    {
+        if (!$row) return [];
+
+        $arr = (array) $row;
+        $out = [];
+
+        foreach ($this->eventLogKeys() as $k) {
+            if (array_key_exists($k, $arr)) {
+                $out[$k] = $arr[$k];
+            }
+        }
+
+        return $out;
+    }
+
+    protected function diffEventRows(array $old, array $new): array
+    {
+        $changed = [];
+        $oldOut  = [];
+        $newOut  = [];
+
+        foreach ($this->eventLogKeys() as $k) {
+            $ov = $old[$k] ?? null;
+            $nv = $new[$k] ?? null;
+
+            if ($ov === $nv) continue;
+
+            $changed[]   = $k;
+            $oldOut[$k]  = $ov;
+            $newOut[$k]  = $nv;
+        }
+
+        return [$changed, $oldOut, $newOut];
+    }
+
     private function normSlug(?string $s): string
     {
         $s = trim((string) $s);
@@ -423,9 +529,11 @@ class EventController extends Controller
         $startTime = $this->parseTimeNullable($request->input('event_start_time'));
         $endTime   = $this->parseTimeNullable($request->input('event_end_time'));
         if ($request->filled('event_start_time') && $startTime === null) {
+            $this->logActivity($request, 'create_failed', 'events', 'events', null, ['event_start_time'], null, null, 'Invalid event_start_time format');
             return response()->json(['success' => false, 'message' => 'Invalid event_start_time format. Use HH:MM or HH:MM:SS'], 422);
         }
         if ($request->filled('event_end_time') && $endTime === null) {
+            $this->logActivity($request, 'create_failed', 'events', 'events', null, ['event_end_time'], null, null, 'Invalid event_end_time format');
             return response()->json(['success' => false, 'message' => 'Invalid event_end_time format. Use HH:MM or HH:MM:SS'], 422);
         }
 
@@ -445,6 +553,7 @@ class EventController extends Controller
         if ($request->hasFile('cover_image')) {
             $f = $request->file('cover_image');
             if (!$f || !$f->isValid()) {
+                $this->logActivity($request, 'create_failed', 'events', 'events', null, ['cover_image'], null, null, 'Cover image upload failed');
                 return response()->json(['success' => false, 'message' => 'Cover image upload failed'], 422);
             }
             $meta = $this->uploadFileToPublic($f, $dirRel, $slug . '-cover');
@@ -462,6 +571,7 @@ class EventController extends Controller
             foreach ((array) $request->file('gallery_images') as $file) {
                 if (!$file) { $i++; continue; }
                 if (!$file->isValid()) {
+                    $this->logActivity($request, 'create_failed', 'events', 'events', null, ['gallery_images'], null, null, 'One of the gallery images failed to upload');
                     return response()->json(['success' => false, 'message' => 'One of the gallery images failed to upload'], 422);
                 }
                 $meta = $this->uploadFileToPublic($file, $dirRel, $slug . '-gal');
@@ -528,6 +638,20 @@ class EventController extends Controller
 
         $row = DB::table('events')->where('id', $id)->first();
 
+        // ✅ LOG: create
+        $newLog = $this->pickEventLogRow($row);
+        $this->logActivity(
+            $request,
+            'create',
+            'events',
+            'events',
+            (int) $id,
+            !empty($newLog) ? array_keys($newLog) : [],
+            null,
+            $newLog,
+            'Event created'
+        );
+
         return response()->json([
             'success' => true,
             'data'    => $row ? $this->normalizeRow($row) : null,
@@ -547,6 +671,10 @@ class EventController extends Controller
     {
         $row = $this->resolveEvent($request, $identifier, true);
         if (! $row) return response()->json(['message' => 'Event not found'], 404);
+
+        // snapshot BEFORE (from actual table)
+        $beforeRow = DB::table('events')->where('id', (int) $row->id)->first();
+        $beforeLog = $this->pickEventLogRow($beforeRow);
 
         $validated = $request->validate([
             'department_id'       => ['nullable', 'integer', 'exists:departments,id'],
@@ -587,11 +715,17 @@ class EventController extends Controller
         // time normalization (only if provided)
         if ($request->filled('event_start_time')) {
             $t = $this->parseTimeNullable($request->input('event_start_time'));
-            if ($t === null) return response()->json(['success' => false, 'message' => 'Invalid event_start_time format. Use HH:MM or HH:MM:SS'], 422);
+            if ($t === null) {
+                $this->logActivity($request, 'update_failed', 'events', 'events', (int) $row->id, ['event_start_time'], null, null, 'Invalid event_start_time format');
+                return response()->json(['success' => false, 'message' => 'Invalid event_start_time format. Use HH:MM or HH:MM:SS'], 422);
+            }
         }
         if ($request->filled('event_end_time')) {
             $t = $this->parseTimeNullable($request->input('event_end_time'));
-            if ($t === null) return response()->json(['success' => false, 'message' => 'Invalid event_end_time format. Use HH:MM or HH:MM:SS'], 422);
+            if ($t === null) {
+                $this->logActivity($request, 'update_failed', 'events', 'events', (int) $row->id, ['event_end_time'], null, null, 'Invalid event_end_time format');
+                return response()->json(['success' => false, 'message' => 'Invalid event_end_time format. Use HH:MM or HH:MM:SS'], 422);
+            }
         }
 
         $update = [
@@ -677,6 +811,7 @@ class EventController extends Controller
         if ($request->hasFile('cover_image')) {
             $f = $request->file('cover_image');
             if (!$f || !$f->isValid()) {
+                $this->logActivity($request, 'update_failed', 'events', 'events', (int) $row->id, ['cover_image'], null, null, 'Cover image upload failed');
                 return response()->json(['success' => false, 'message' => 'Cover image upload failed'], 422);
             }
             $this->deletePublicPath($row->cover_image_url ?? null);
@@ -724,6 +859,7 @@ class EventController extends Controller
             foreach ((array) $request->file('gallery_images') as $file) {
                 if (!$file) { $i++; continue; }
                 if (!$file->isValid()) {
+                    $this->logActivity($request, 'update_failed', 'events', 'events', (int) $row->id, ['gallery_images'], null, null, 'One of the gallery images failed to upload');
                     return response()->json(['success' => false, 'message' => 'One of the gallery images failed to upload'], 422);
                 }
                 $meta = $this->uploadFileToPublic($file, $dirRel, $useSlug . '-gal');
@@ -778,6 +914,22 @@ class EventController extends Controller
 
         $fresh = DB::table('events')->where('id', (int) $row->id)->first();
 
+        // ✅ LOG: update (diff)
+        $afterLog = $this->pickEventLogRow($fresh);
+        [$changedFields, $oldValues, $newValues] = $this->diffEventRows($beforeLog, $afterLog);
+
+        $this->logActivity(
+            $request,
+            'update',
+            'events',
+            'events',
+            (int) $row->id,
+            $changedFields,
+            $oldValues,
+            $newValues,
+            'Event updated'
+        );
+
         return response()->json([
             'success' => true,
             'data'    => $fresh ? $this->normalizeRow($fresh) : null,
@@ -789,6 +941,9 @@ class EventController extends Controller
         $row = $this->resolveEvent($request, $identifier, true);
         if (! $row) return response()->json(['message' => 'Event not found'], 404);
 
+        $beforeRow = DB::table('events')->where('id', (int) $row->id)->first();
+        $beforeLog = $this->pickEventLogRow($beforeRow);
+
         $new = ((int) ($row->is_featured_home ?? 0)) ? 0 : 1;
 
         DB::table('events')->where('id', (int) $row->id)->update([
@@ -798,6 +953,22 @@ class EventController extends Controller
         ]);
 
         $fresh = DB::table('events')->where('id', (int) $row->id)->first();
+
+        // ✅ LOG: update (toggle featured)
+        $afterLog = $this->pickEventLogRow($fresh);
+        [$changedFields, $oldValues, $newValues] = $this->diffEventRows($beforeLog, $afterLog);
+
+        $this->logActivity(
+            $request,
+            'update',
+            'events',
+            'events',
+            (int) $row->id,
+            $changedFields,
+            $oldValues,
+            $newValues,
+            'Toggled featured on home'
+        );
 
         return response()->json([
             'success' => true,
@@ -810,11 +981,33 @@ class EventController extends Controller
         $row = $this->resolveEvent($request, $identifier, false);
         if (! $row) return response()->json(['message' => 'Not found or already deleted'], 404);
 
+        $beforeRow = DB::table('events')->where('id', (int) $row->id)->first();
+        $beforeLog = $this->pickEventLogRow($beforeRow);
+
+        $now = now();
+
         DB::table('events')->where('id', (int) $row->id)->update([
-            'deleted_at'    => now(),
-            'updated_at'    => now(),
+            'deleted_at'    => $now,
+            'updated_at'    => $now,
             'updated_at_ip' => $request->ip(),
         ]);
+
+        // ✅ LOG: delete (soft)
+        $afterRow = DB::table('events')->where('id', (int) $row->id)->first();
+        $afterLog = $this->pickEventLogRow($afterRow);
+        [$changedFields, $oldValues, $newValues] = $this->diffEventRows($beforeLog, $afterLog);
+
+        $this->logActivity(
+            $request,
+            'delete',
+            'events',
+            'events',
+            (int) $row->id,
+            $changedFields,
+            $oldValues,
+            $newValues,
+            'Event soft deleted'
+        );
 
         return response()->json(['success' => true]);
     }
@@ -826,13 +1019,34 @@ class EventController extends Controller
             return response()->json(['message' => 'Not found in bin'], 404);
         }
 
+        $beforeRow = DB::table('events')->where('id', (int) $row->id)->first();
+        $beforeLog = $this->pickEventLogRow($beforeRow);
+
+        $now = now();
+
         DB::table('events')->where('id', (int) $row->id)->update([
             'deleted_at'    => null,
-            'updated_at'    => now(),
+            'updated_at'    => $now,
             'updated_at_ip' => $request->ip(),
         ]);
 
         $fresh = DB::table('events')->where('id', (int) $row->id)->first();
+
+        // ✅ LOG: restore
+        $afterLog = $this->pickEventLogRow($fresh);
+        [$changedFields, $oldValues, $newValues] = $this->diffEventRows($beforeLog, $afterLog);
+
+        $this->logActivity(
+            $request,
+            'restore',
+            'events',
+            'events',
+            (int) $row->id,
+            $changedFields,
+            $oldValues,
+            $newValues,
+            'Event restored from bin'
+        );
 
         return response()->json([
             'success' => true,
@@ -844,6 +1058,10 @@ class EventController extends Controller
     {
         $row = $this->resolveEvent($request, $identifier, true);
         if (! $row) return response()->json(['message' => 'Event not found'], 404);
+
+        // snapshot BEFORE delete
+        $beforeRow = DB::table('events')->where('id', (int) $row->id)->first();
+        $beforeLog = $this->pickEventLogRow($beforeRow);
 
         // delete cover
         $this->deletePublicPath($row->cover_image_url ?? null);
@@ -860,6 +1078,19 @@ class EventController extends Controller
         }
 
         DB::table('events')->where('id', (int) $row->id)->delete();
+
+        // ✅ LOG: delete (force)
+        $this->logActivity(
+            $request,
+            'delete',
+            'events',
+            'events',
+            (int) $row->id,
+            array_keys($beforeLog),
+            $beforeLog,
+            null,
+            'Event force deleted'
+        );
 
         return response()->json(['success' => true]);
     }

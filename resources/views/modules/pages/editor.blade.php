@@ -17,8 +17,7 @@ body{margin:0;background:var(--ce-bg);color:var(--ce-text);}
 
 /* TABS */
 .ce-tabs{display:flex;background:var(--ce-white);border-bottom:1px solid var(--ce-border);}
-.ce-tab-btn{padding:10px 16px;border:none;background:none;cursor:pointer;font-size:14px;border-right:1px solid var(--ce-border);
-  color:var(--ce-text);display:flex;gap:6px;align-items:center;transition:background var(--ce-transition);}
+.ce-tab-btn{padding:10px 16px;border:none;background:none;cursor:pointer;font-size:14px;border-right:1px solid var(--ce-border);color:var(--ce-text);display:flex;gap:6px;align-items:center;transition:background var(--ce-transition);}
 .ce-tab-btn:hover{background:#f9fafb;}
 .ce-tab-btn.ce-active{background:var(--ce-accent-light);color:var(--ce-accent);font-weight:600;}
 .ce-tab-btn.ce-action{border-right:none;margin-left:auto;}
@@ -45,37 +44,21 @@ body{margin:0;background:var(--ce-bg);color:var(--ce-text);}
 /* FIELDS */
 .ce-field{margin:0 0 10px 0;}
 .ce-field label{display:block;font-size:12px;margin:0 0 4px 0;color:#374151;font-weight:500;}
-.ce-field input[type="text"],.ce-field input[type="number"],.ce-field input[type="color"],.ce-field textarea,.ce-field select{
-  width:100%;border:1px solid var(--ce-border);border-radius:4px;padding:6px 8px;font-size:13px;box-sizing:border-box;background:#fff;}
+.ce-field input[type="text"],.ce-field input[type="number"],.ce-field input[type="color"],.ce-field textarea,.ce-field select{width:100%;border:1px solid var(--ce-border);border-radius:4px;padding:6px 8px;font-size:13px;box-sizing:border-box;background:#fff;}
 .ce-field textarea{min-height:90px;resize:vertical;}
 .ce-color-pair{display:flex;gap:8px;}
 .ce-color-pair input[type=color]{width:34px;height:34px;padding:0;border:none;border-radius:4px;cursor:pointer;}
 .ce-align-group,.ce-typo-tools,.ce-img-align{display:flex;gap:6px;margin-top:4px;}
-.ce-align-btn,.ce-typo-btn,.ce-img-align-btn{
-  flex:1;border:1px solid var(--ce-border);background:#fff;border-radius:4px;padding:6px 0;cursor:pointer;font-size:14px;
-  display:flex;align-items:center;justify-content:center;color:#374151;transition:background .12s;}
-.ce-align-btn.active,.ce-typo-btn.active,.ce-img-align-btn.active{
-  background:var(--ce-accent-light);color:var(--ce-accent);border-color:var(--ce-accent);
-}
+.ce-align-btn,.ce-typo-btn,.ce-img-align-btn{flex:1;border:1px solid var(--ce-border);background:#fff;border-radius:4px;padding:6px 0;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;color:#374151;transition:background .12s;}
+.ce-align-btn.active,.ce-typo-btn.active,.ce-img-align-btn.active{background:var(--ce-accent-light);color:var(--ce-accent);border-color:var(--ce-accent);}
 .ce-unit-toggle {display: flex; gap: 6px; margin-bottom: 8px;}
-.ce-unit-toggle button {
-  flex: 1; padding: 4px; border: 1px solid var(--ce-border); background: #fff;
-  border-radius: 4px; cursor: pointer; font-size: 12px;
-}
-.ce-unit-toggle button.active {
-  background: var(--ce-accent-light); color: var(--ce-accent); border-color: var(--ce-accent);
-}
+.ce-unit-toggle button {flex: 1; padding: 4px; border: 1px solid var(--ce-border); background: #fff;border-radius: 4px; cursor: pointer; font-size: 12px;}
+.ce-unit-toggle button.active {background: var(--ce-accent-light); color: var(--ce-accent); border-color: var(--ce-accent);}
 
 /* CANVAS */
 .ce-canvas-wrap{flex:1;position:relative;overflow:auto;background:#f3f4f6;max-height: 100vh}
-.ce-canvas{
-  min-height:100%;padding:32px 24px;outline:none;position:relative;
-  width: 100%; max-width: 600px; margin: 24px auto; background: var(--ce-white); box-shadow: var(--ce-shadow-sm); border-radius: 8px;
-}
-.ce-canvas[data-placeholder]:empty:before{
-  content:attr(data-placeholder);color:var(--ce-muted);font-size:14px;position:absolute;
-  top:40%;left:50%;transform:translate(-50%,-50%);text-align:center;width:240px;
-}
+.ce-canvas{min-height:100%;padding:32px 24px;outline:none;position:relative;width: 100%; max-width: 600px; margin: 24px auto; background: var(--ce-white); box-shadow: var(--ce-shadow-sm); border-radius: 8px;}
+.ce-canvas[data-placeholder]:empty:before{content:attr(data-placeholder);color:var(--ce-muted);font-size:14px;position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);text-align:center;width:240px;}
 
 /* COMPONENTS */
 .ce-components-panel{width:300px;background:var(--ce-white);border-left:1px solid var(--ce-border);display:flex;flex-direction:column;}
@@ -85,44 +68,26 @@ body{margin:0;background:var(--ce-bg);color:var(--ce-text);}
 .ce-comp-tab-btn.ce-active{background:var(--ce-accent-light);color:var(--ce-accent);font-weight:600;}
 .ce-components-list{flex:1;overflow:auto;padding:12px;display:none;}
 .ce-components-list.ce-active{display:block;}
-.ce-component{
-  border:1px solid var(--ce-border);border-radius:var(--ce-radius);background:var(--ce-white);
-  padding:10px;margin-bottom:10px;cursor:grab;display:flex;align-items:center;gap:8px;font-size:14px;
-  transition:background var(--ce-transition),transform .08s;}
+.ce-component{border:1px solid var(--ce-border);border-radius:var(--ce-radius);background:var(--ce-white);padding:10px;margin-bottom:10px;cursor:grab;display:flex;align-items:center;gap:8px;font-size:14px;transition:background var(--ce-transition),transform .08s;}
 .ce-component:hover{background:#f3f4f6;}
 .ce-component i{font-size:16px;}
 
 /* BLOCK (only edit canvas shows outlines/handles) */
 #ceCanvasEdit .ce-block{position:relative;}
-#ceCanvasEdit .ce-block:hover::after,#ceCanvasEdit .ce-block.ce-selected::after{
-  content:"";position:absolute;inset:0;outline:1px dotted var(--ce-accent);pointer-events:none;z-index:2;
-}
-.ce-block-handle{
-  position:absolute;right:6px;top:6px;background:var(--ce-accent);color:#fff;border-radius:3px;
-  padding:2px 6px;font-size:11px;display:flex;gap:6px;align-items:center;box-shadow:var(--ce-shadow-sm);
-  opacity:0;pointer-events:none;transition:opacity .12s;z-index:3;
-}
+#ceCanvasEdit .ce-block:hover::after,#ceCanvasEdit .ce-block.ce-selected::after{content:"";position:absolute;inset:0;outline:1px dotted var(--ce-accent);pointer-events:none;z-index:2;}
+.ce-block-handle{position:absolute;right:6px;top:6px;background:var(--ce-accent);color:#fff;border-radius:3px;padding:2px 6px;font-size:11px;display:flex;gap:6px;align-items:center;box-shadow:var(--ce-shadow-sm);opacity:0;pointer-events:none;transition:opacity .12s;z-index:3;}
 #ceCanvasEdit .ce-block:hover .ce-block-handle{opacity:1;pointer-events:auto;}
 .ce-block-handle span{cursor:pointer;line-height:1;}
 .ce-block-handle .ce-remove{color:#f87171;}
 .ce-block-handle .ce-dup{color:#34d399;}
 .ce-block-handle .ce-up,.ce-block-handle .ce-down{color:#fff;}
-
 .ce-slot{min-height:24px;}
-.ce-add-inside{
-  margin-top:12px;display:flex;align-items:center;justify-content:center;gap:6px;
-  font-size:12px;color:var(--ce-accent);cursor:pointer;width:100%;
-}
+.ce-add-inside{margin-top:12px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;color:var(--ce-accent);cursor:pointer;width:100%;}
 
 /* ADD POPUP */
-.ce-add-popup{
-  position:absolute;background:#fff;border:1px solid var(--ce-border);border-radius:6px;
-  box-shadow:var(--ce-shadow-md);padding:12px;width:220px;z-index:9999;font-size:13px;
-}
+.ce-add-popup{position:absolute;background:#fff;border:1px solid var(--ce-border);border-radius:6px;box-shadow:var(--ce-shadow-md);padding:12px;width:220px;z-index:9999;font-size:13px;}
 .ce-add-popup h4{margin:0 0 8px 0;font-size:12px;color:#374151;font-weight:600;}
-.ce-add-popup button{
-  display:block;width:100%;text-align:left;border:0;background:none;padding:6px 8px;border-radius:4px;cursor:pointer;
-}
+.ce-add-popup button{display:block;width:100%;text-align:left;border:0;background:none;padding:6px 8px;border-radius:4px;cursor:pointer;}
 .ce-add-popup button:hover{background:#f3f4f6;color:var(--ce-accent);}
 
 /* DROP MARKER */
@@ -138,55 +103,64 @@ body{margin:0;background:var(--ce-bg);color:var(--ce-text);}
 .ce-code-wrap{flex:1;display:flex;}
 .ce-code-left{flex:1;overflow:auto;background:#f9fafb;padding:16px;}
 .ce-code-right{flex:1;display:flex;padding:16px;background:#fafafa;}
-#ceCodeArea{
-  width:100%;height:100%;border:1px solid var(--ce-border);border-radius:6px;padding:12px;font-family:monospace;font-size:13px;resize:none;
-  background:var(--ce-white);color:#374151;
-}
+#ceCodeArea{width:100%;height:100%;border:1px solid var(--ce-border);border-radius:6px;padding:12px;font-family:monospace;font-size:13px;resize:none;background:var(--ce-white);color:#374151;}
 #ceCanvasEdit a { pointer-events:none; cursor:default; }
 .ce-code-actions{padding:10px 16px;background:var(--ce-white);border-top:1px solid var(--ce-border);text-align:right;}
 
 /* MODAL */
 #ceModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999;align-items:center;justify-content:center;}
-#ceModal .ce-modal-box{
-  background:#fff;padding:16px 20px;border-radius:8px;width:500px;max-height:80%;overflow:auto;box-shadow:var(--ce-shadow-md);
-}
+#ceModal .ce-modal-box{background:#fff;padding:16px 20px;border-radius:8px;width:500px;max-height:80%;overflow:auto;box-shadow:var(--ce-shadow-md);}
 #ceExport{width:100%;height:300px;font-size:12px;}
 
 /* Hide export canvas */
 #ceCanvasExport{display:none;}
 
 /* Device Preview */
-.ce-device-preview {
-  display:flex;justify-content:center;gap:12px;padding:12px;border-bottom:1px solid var(--ce-border);
-  background:var(--ce-white);position:sticky;top:0;z-index:10;
-}
-.ce-device-btn {
-  border:none;background:none;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:4px;
-}
+.ce-device-preview {display:flex;justify-content:center;gap:12px;padding:12px;border-bottom:1px solid var(--ce-border);background:var(--ce-white);position:sticky;top:0;z-index:10;}
+.ce-device-btn {border:none;background:none;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:4px;}
 .ce-device-btn.active { background: var(--ce-accent-light); color: var(--ce-accent); }
 .ce-device-btn i { font-size: 16px; }
 /* ✅ Default Section Padding (existing + new) */
-.ce-block[data-key^="ce-section-"] section{
-  padding:12px 0 !important;
-}
+.ce-block[data-key^="ce-section-"] section{padding:12px 0 !important;}
 
 /* Responsive canvas sizes */
 .ce-canvas.desktop { max-width: 100%; }
 .ce-canvas.tablet { max-width: 768px; }
 .ce-canvas.mobile { max-width: 375px; }
-
 .ce-section-slot-wrapper { display:flex; flex-wrap:wrap; }
 .ce-canvas.mobile .ce-section-slot-wrapper{ flex-direction:column !important; }
 
 /* Rich text mini editor */
 .ce-text-toolbar{display:flex;flex-wrap:wrap;gap:.5em;align-items:center;margin-bottom:6px;}
-.ce-text-toolbar button,.ce-text-toolbar select,.ce-text-toolbar input[type="color"]{
-  margin-right:4px;padding:2px 6px;font-size:14px;border:1px solid var(--ce-border);background:#fff;border-radius:4px;cursor:pointer;
-}
+.ce-text-toolbar button,.ce-text-toolbar select,.ce-text-toolbar input[type="color"]{margin-right:4px;padding:2px 6px;font-size:14px;border:1px solid var(--ce-border);background:#fff;border-radius:4px;cursor:pointer;}
 .ce-text-toolbar .ce-font-controls{display:flex;gap:.25em;}
 .ce-text-toolbar select{padding:.2em .4em;}
 .ce-text-toolbar input[type="color"]{width:1.5em;height:1.5em;padding:0;border:none;border-radius:0;}
 .ce-text-area{border:1px solid var(--ce-border);padding:6px;min-height:200px;margin-top:.5em;border-radius:4px;outline:none;}
+
+/* =========================
+   PDF VIEWER (embed)
+========================= */
+.ce-pdf{ width:100%; }
+
+.ce-pdf-embed{
+  width:100%;
+  display:block;
+  border:1px solid #e5e7eb;
+  border-radius:6px;
+  background:#fff;
+
+  /* auto-adjust with screen size */
+  height: 800px;
+  min-height: 600px;
+}
+
+
+/* Editor canvas: allow selecting/moving blocks (iframe won't steal clicks) */
+#ceCanvasEdit .ce-pdf-embed{
+  pointer-events:none;
+}
+
 </style>
 </head>
 <body>
@@ -320,6 +294,15 @@ body{margin:0;background:var(--ce-bg);color:var(--ce-text);}
         <i class="fa-solid fa-video"></i> Video Embed
       </div>
       
+<div class="ce-component" draggable="true" data-key="ce-pdf"
+data-html="<div class='ce-pdf' data-pdf-url='' style='margin:0 0 12px 0;width:100%;'>
+      <iframe class='ce-pdf-embed' src='' style='display:none;width:100% !important;height:800px;'></iframe>
+      <div class='ce-pdf-empty' style='padding:14px;border:1px dashed #e5e7eb;border-radius:6px;color:#6b7280;text-align:center;font-size:13px;'>
+        Add PDF link in Properties → Content
+      </div>
+    </div>">
+  <i class="fa-solid fa-file-pdf"></i> PDF Viewer
+</div>
 
       
         <!-- =========================
@@ -856,9 +839,12 @@ block.querySelectorAll('a').forEach((el,i)=>{
     addTableContentEditors(contentPane, block);          /* ✅ cell content editing grid */
     addTagsEditors(contentPane, stylePane, block);
     addFAQEditors(contentPane, stylePane, block);
+addPDFEditors(contentPane, stylePane, block);
 
     addSocialEditors(contentPane, stylePane, block);     /* ✅ new social editor */
-    addVideoEditors(contentPane, stylePane, block);
+    if ((block.dataset.key || '') === 'ce-video') {
+  addVideoEditors(contentPane, stylePane, block);
+}
     if(block.dataset.key==='ce-html'){ addCustomHTMLField(contentPane, block, contentHTML); }
 
     if(block.querySelector('.ce-slot')){
@@ -967,6 +953,89 @@ block.querySelectorAll('a').forEach((el,i)=>{
     });
     panel.appendChild(field);
   }
+
+  function makePdfSrc(rawUrl){
+  let url = (rawUrl || '').trim();
+  if(!url) return '';
+
+  // --- Google Drive share -> /preview (best embed behavior) ---
+  // https://drive.google.com/file/d/FILE_ID/view?...  =>  /preview
+  const m = url.match(/drive\.google\.com\/file\/d\/([^\/]+)\//i);
+  if(m && m[1]){
+    return `https://drive.google.com/file/d/${m[1]}/preview`;
+  }
+
+  // --- Default: try to force fit-to-width in built-in PDF viewers ---
+  // Adds #zoom=page-width (and view=FitH) safely even if hash already exists
+  const parts = url.split('#');
+  const base = parts[0];
+  const frag = parts[1] || '';
+  const params = new URLSearchParams(frag);
+
+  if(!params.has('zoom')) params.set('zoom', 'page-width');
+  if(!params.has('view')) params.set('view', 'FitH');
+
+  return base + '#' + params.toString();
+}
+
+
+  function addPDFEditors(panel, stylePanel, block){
+  const wrap = block.querySelector('.ce-pdf');
+  if(!wrap || isUI(wrap)) return;
+
+  const iframe = wrap.querySelector('.ce-pdf-embed');
+  const empty  = wrap.querySelector('.ce-pdf-empty');
+
+  const currentUrl = (wrap.dataset.pdfUrl || '').trim();
+
+  const field = document.createElement('div');
+  field.className = 'ce-field';
+  field.innerHTML = `
+    <label>PDF Link</label>
+    <input type="text" class="ce-pdf-url" value="${(currentUrl || '').replace(/"/g,'&quot;')}"
+      placeholder="https://example.com/file.pdf">
+    <label style="margin-top:10px;">Height (px)</label>
+    <input type="number" class="ce-pdf-h" min="250" value="${parseInt((iframe.style.height||'800px'),10) || 800}">
+  `;
+
+  const urlInp = field.querySelector('.ce-pdf-url');
+  const hInp   = field.querySelector('.ce-pdf-h');
+
+  function apply(){
+    const url = (wrap.dataset.pdfUrl || '').trim();
+
+    if(url){
+      iframe.src = makePdfSrc(url);
+      iframe.style.display = 'block';
+      if(empty) empty.style.display = 'none';
+    }else{
+      iframe.src = '';
+      iframe.style.display = 'none';
+      if(empty) empty.style.display = 'block';
+    }
+    syncExport();
+  }
+
+  urlInp.addEventListener('input', ()=>{
+    pushHistory();
+    wrap.dataset.pdfUrl = urlInp.value.trim();
+    apply();
+  });
+
+  hInp.addEventListener('input', ()=>{
+    pushHistory();
+    const h = Math.max(250, parseInt(hInp.value || '800', 10) || 800);
+    iframe.style.height = h + 'px';
+    apply();
+  });
+
+  panel.appendChild(field);
+
+  // init
+  if(!iframe.style.height) iframe.style.height = '800px';
+  apply();
+}
+
 
   function addColorBorderField(panel, block){
     const cs=getComputedStyle(block);
@@ -1939,7 +2008,10 @@ block.querySelectorAll('a').forEach((el,i)=>{
    VIDEO EMBED EDITOR
    ================================ */
    function addVideoEditors(panel, stylePanel, block){
-  const iframe = block.querySelector('iframe');
+
+    if ((block.dataset.key || '') !== 'ce-video') return;
+
+const iframe = block.querySelector('.ce-video-frame iframe');
   if(!iframe || isUI(iframe)) return;
 
   const frame = block.querySelector('.ce-video-frame');

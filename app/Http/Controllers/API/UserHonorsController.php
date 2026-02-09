@@ -32,6 +32,8 @@ class UserHonorsController extends Controller
     {
         $a = $this->actor($r);
         if (!$a['role'] || !in_array($a['role'], $allowed, true)) {
+            // ✅ DB activity log (attempt)
+            $this->activityLog($r, 'unauthorized', 'user_honors', $this->table, null, null, null, null, 'Unauthorized access (role not allowed)');
             return response()->json(['success' => false, 'error' => 'Unauthorized Access'], 403);
         }
         return null;
@@ -44,6 +46,59 @@ class UserHonorsController extends Controller
             'actor_role' => $a['role'],
             'actor_id'   => $a['id'],
         ], $extra));
+    }
+
+    /**
+     * ✅ DB Activity logger (writes to user_data_activity_log)
+     * - NEVER breaks functionality (fails silently with warning log)
+     * - Stores old/new/changed fields when provided
+     */
+    private function activityLog(
+        Request $r,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        $oldValues = null,
+        $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            $a = $this->actor($r);
+
+            $payload = [
+                'performed_by'       => (int) ($a['id'] ?? 0),
+                'performed_by_role'  => $a['role'] ? mb_substr((string)$a['role'], 0, 50) : null,
+                'ip'                 => $r->ip(),
+                'user_agent'         => $r->header('User-Agent') ? mb_substr((string)$r->header('User-Agent'), 0, 512) : null,
+
+                'activity'           => mb_substr($activity, 0, 50),
+                'module'             => mb_substr($module, 0, 100),
+
+                'table_name'         => mb_substr($tableName, 0, 128),
+                'record_id'          => $recordId,
+
+                'changed_fields'     => $changedFields !== null ? json_encode($changedFields) : null,
+                'old_values'         => $oldValues !== null ? json_encode($oldValues) : null,
+                'new_values'         => $newValues !== null ? json_encode($newValues) : null,
+
+                'log_note'           => $note,
+                'created_at'         => Carbon::now(),
+                'updated_at'         => Carbon::now(),
+            ];
+
+            DB::table('user_data_activity_log')->insert($payload);
+        } catch (\Throwable $e) {
+            // Never break API flow
+            Log::warning('user_data_activity_log.insert_failed', [
+                'error' => $e->getMessage(),
+                'activity' => $activity,
+                'module' => $module,
+                'table' => $tableName,
+                'record_id' => $recordId,
+            ]);
+        }
     }
 
     private function fetchUserByUuid(string $uuid)
@@ -279,15 +334,30 @@ class UserHonorsController extends Controller
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
-        if (!$user) return response()->json(['success' => false, 'error' => 'User not found'], 404);
+        if (!$user) {
+            $this->activityLog($request, 'create', 'user_honors', $this->table, null, null, null, null, 'User not found');
+            return response()->json(['success' => false, 'error' => 'User not found'], 404);
+        }
 
         if (!$this->canAccessUser($request, (int)$user->id)) {
+            $this->activityLog($request, 'unauthorized', 'user_honors', $this->table, null, null, null, null, 'Unauthorized: cannot access target user');
             return response()->json(['success' => false, 'error' => 'Unauthorized Access'], 403);
         }
 
         // ✅ accept metadata as array OR JSON string
         $metaNorm = $this->normalizeMetadata($request->input('metadata'));
         if ($metaNorm === '__INVALID__') {
+            $this->activityLog(
+                $request,
+                'create',
+                'user_honors',
+                $this->table,
+                null,
+                ['metadata'],
+                null,
+                ['metadata' => 'INVALID_JSON'],
+                'Validation failed: metadata invalid'
+            );
             return response()->json(['success'=>false,'errors'=>['metadata'=>['Metadata must be valid JSON array/object']]], 422);
         }
 
@@ -304,7 +374,20 @@ class UserHonorsController extends Controller
             'metadata'               => ['nullable'], // normalized above
         ]);
 
-        if ($v->fails()) return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+        if ($v->fails()) {
+            $this->activityLog(
+                $request,
+                'create',
+                'user_honors',
+                $this->table,
+                null,
+                array_keys($request->except(['image','image_file'])),
+                null,
+                ['error_fields' => array_keys($v->errors()->toArray())],
+                'Validation failed'
+            );
+            return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+        }
 
         $data  = $v->validated();
         $data['metadata'] = $metaNorm;
@@ -318,6 +401,19 @@ class UserHonorsController extends Controller
         ]);
         if ($dup) {
             $dup = $this->decodeMetadataRow($dup);
+
+            $this->activityLog(
+                $request,
+                'create',
+                'user_honors',
+                $this->table,
+                isset($dup->id) ? (int)$dup->id : null,
+                null,
+                null,
+                ['duplicate_prevented' => true, 'returned_id' => $dup->id ?? null],
+                'Duplicate submit prevented'
+            );
+
             return response()->json([
                 'success' => true,
                 'data' => $dup,
@@ -374,6 +470,19 @@ class UserHonorsController extends Controller
                 'user_id' => (int)$user->id,
             ]);
 
+            // ✅ DB activity log (success)
+            $this->activityLog(
+                $request,
+                'create',
+                'user_honors',
+                $this->table,
+                (int)$id,
+                array_keys(array_diff_key($insert, array_flip(['created_at','updated_at']))),
+                null,
+                array_merge($insert, ['id' => (int)$id]),
+                'Honor created'
+            );
+
             $row = DB::table($this->table)->where('id', $id)->first();
             $row = $this->decodeMetadataRow($row);
 
@@ -387,6 +496,19 @@ class UserHonorsController extends Controller
                 'user_id' => (int)$user->id,
             ]);
 
+            // ✅ DB activity log (failed)
+            $this->activityLog(
+                $request,
+                'create',
+                'user_honors',
+                $this->table,
+                null,
+                null,
+                null,
+                ['error' => $e->getMessage()],
+                'Failed to create honor'
+            );
+
             return response()->json(['success' => false, 'error' => 'Failed to create honor'], 500);
         }
     }
@@ -398,9 +520,13 @@ class UserHonorsController extends Controller
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
-        if (!$user) return response()->json(['success' => false, 'error' => 'User not found'], 404);
+        if (!$user) {
+            $this->activityLog($request, 'update', 'user_honors', $this->table, null, null, null, null, 'User not found');
+            return response()->json(['success' => false, 'error' => 'User not found'], 404);
+        }
 
         if (!$this->canAccessUser($request, (int)$user->id)) {
+            $this->activityLog($request, 'unauthorized', 'user_honors', $this->table, null, null, null, null, 'Unauthorized: cannot access target user');
             return response()->json(['success' => false, 'error' => 'Unauthorized Access'], 403);
         }
 
@@ -410,10 +536,39 @@ class UserHonorsController extends Controller
             ->whereNull('deleted_at')
             ->first();
 
-        if (!$row) return response()->json(['success' => false, 'error' => 'Honor not found'], 404);
+        if (!$row) {
+            $this->activityLog($request, 'update', 'user_honors', $this->table, null, null, null, null, 'Honor not found');
+            return response()->json(['success' => false, 'error' => 'Honor not found'], 404);
+        }
+
+        // snapshot old values (minimal + safe)
+        $oldSnapshot = [
+            'id'                    => (int)$row->id,
+            'uuid'                  => (string)$row->uuid,
+            'user_id'               => (int)$row->user_id,
+            'title'                 => $row->title ?? null,
+            'honor_type'            => $row->honor_type ?? null,
+            'honouring_organization'=> $row->honouring_organization ?? null,
+            'honor_year'            => $row->honor_year ?? null,
+            'description'           => $row->description ?? null,
+            'image'                 => $row->image ?? null,
+            'metadata'              => (isset($row->metadata) && is_string($row->metadata)) ? (json_decode($row->metadata, true) ?: null) : ($row->metadata ?? null),
+            'deleted_at'            => $row->deleted_at ?? null,
+        ];
 
         $metaNorm = $this->normalizeMetadata($request->input('metadata'));
         if ($metaNorm === '__INVALID__') {
+            $this->activityLog(
+                $request,
+                'update',
+                'user_honors',
+                $this->table,
+                (int)$row->id,
+                ['metadata'],
+                $oldSnapshot,
+                ['metadata' => 'INVALID_JSON'],
+                'Validation failed: metadata invalid'
+            );
             return response()->json(['success'=>false,'errors'=>['metadata'=>['Metadata must be valid JSON array/object']]], 422);
         }
 
@@ -430,7 +585,20 @@ class UserHonorsController extends Controller
             'metadata'               => ['sometimes', 'nullable'], // normalized above
         ]);
 
-        if ($v->fails()) return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+        if ($v->fails()) {
+            $this->activityLog(
+                $request,
+                'update',
+                'user_honors',
+                $this->table,
+                (int)$row->id,
+                array_keys($request->except(['image','image_file'])),
+                $oldSnapshot,
+                ['error_fields' => array_keys($v->errors()->toArray())],
+                'Validation failed'
+            );
+            return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+        }
 
         $data   = $v->validated();
         $actor  = $this->actor($request);
@@ -462,6 +630,19 @@ class UserHonorsController extends Controller
         }
 
         if (empty($update)) {
+            // ✅ log noop update
+            $this->activityLog(
+                $request,
+                'update',
+                'user_honors',
+                $this->table,
+                (int)$row->id,
+                [],
+                $oldSnapshot,
+                $oldSnapshot,
+                'No changes detected'
+            );
+
             return response()->json(['success' => true, 'data' => $this->decodeMetadataRow($row)]);
         }
 
@@ -479,6 +660,34 @@ class UserHonorsController extends Controller
         $fresh = DB::table($this->table)->where('id', $row->id)->first();
         $fresh = $this->decodeMetadataRow($fresh);
 
+        // ✅ determine changed fields (exclude audit fields)
+        $changedFields = array_keys(array_diff_key($update, array_flip(['updated_at','updated_by','updated_at_ip'])));
+        $newSnapshot = [
+            'id'                    => (int)$fresh->id,
+            'uuid'                  => (string)$fresh->uuid,
+            'user_id'               => (int)$fresh->user_id,
+            'title'                 => $fresh->title ?? null,
+            'honor_type'            => $fresh->honor_type ?? null,
+            'honouring_organization'=> $fresh->honouring_organization ?? null,
+            'honor_year'            => $fresh->honor_year ?? null,
+            'description'           => $fresh->description ?? null,
+            'image'                 => $fresh->image ?? null,
+            'metadata'              => $fresh->metadata ?? null,
+            'deleted_at'            => $fresh->deleted_at ?? null,
+        ];
+
+        $this->activityLog(
+            $request,
+            'update',
+            'user_honors',
+            $this->table,
+            (int)$row->id,
+            $changedFields,
+            $oldSnapshot,
+            $newSnapshot,
+            'Honor updated'
+        );
+
         return response()->json(['success' => true, 'data' => $fresh]);
     }
 
@@ -489,9 +698,13 @@ class UserHonorsController extends Controller
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
-        if (!$user) return response()->json(['success' => false, 'error' => 'User not found'], 404);
+        if (!$user) {
+            $this->activityLog($request, 'delete', 'user_honors', $this->table, null, null, null, null, 'User not found');
+            return response()->json(['success' => false, 'error' => 'User not found'], 404);
+        }
 
         if (!$this->canAccessUser($request, (int)$user->id)) {
+            $this->activityLog($request, 'unauthorized', 'user_honors', $this->table, null, null, null, null, 'Unauthorized: cannot access target user');
             return response()->json(['success' => false, 'error' => 'Unauthorized Access'], 403);
         }
 
@@ -501,10 +714,19 @@ class UserHonorsController extends Controller
             ->whereNull('deleted_at')
             ->first();
 
-        if (!$row) return response()->json(['success' => false, 'error' => 'Honor not found'], 404);
+        if (!$row) {
+            $this->activityLog($request, 'delete', 'user_honors', $this->table, null, null, null, null, 'Honor not found');
+            return response()->json(['success' => false, 'error' => 'Honor not found'], 404);
+        }
 
         $actor = $this->actor($request);
         $now   = Carbon::now();
+
+        $oldSnapshot = [
+            'id' => (int)$row->id,
+            'uuid' => (string)$row->uuid,
+            'deleted_at' => $row->deleted_at ?? null,
+        ];
 
         $upd = [
             'deleted_at' => $now,
@@ -519,6 +741,18 @@ class UserHonorsController extends Controller
             'id'      => $row->id,
             'user_id' => (int)$user->id,
         ]);
+
+        $this->activityLog(
+            $request,
+            'delete',
+            'user_honors',
+            $this->table,
+            (int)$row->id,
+            ['deleted_at'],
+            $oldSnapshot,
+            ['id' => (int)$row->id, 'uuid' => (string)$row->uuid, 'deleted_at' => (string)$now],
+            'Honor soft-deleted'
+        );
 
         return response()->json(['success' => true, 'message' => 'Honor deleted']);
     }
@@ -567,9 +801,13 @@ class UserHonorsController extends Controller
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
-        if (!$user) return response()->json(['success' => false, 'error' => 'User not found'], 404);
+        if (!$user) {
+            $this->activityLog($request, 'restore', 'user_honors', $this->table, null, null, null, null, 'User not found');
+            return response()->json(['success' => false, 'error' => 'User not found'], 404);
+        }
 
         if (!$this->canAccessUser($request, (int)$user->id)) {
+            $this->activityLog($request, 'unauthorized', 'user_honors', $this->table, null, null, null, null, 'Unauthorized: cannot access target user');
             return response()->json(['success' => false, 'error' => 'Unauthorized Access'], 403);
         }
 
@@ -579,10 +817,19 @@ class UserHonorsController extends Controller
             ->whereNotNull('deleted_at')
             ->first();
 
-        if (!$row) return response()->json(['success' => false, 'error' => 'Honor not found in trash'], 404);
+        if (!$row) {
+            $this->activityLog($request, 'restore', 'user_honors', $this->table, null, null, null, null, 'Honor not found in trash');
+            return response()->json(['success' => false, 'error' => 'Honor not found in trash'], 404);
+        }
 
         $actor = $this->actor($request);
         $now   = Carbon::now();
+
+        $oldSnapshot = [
+            'id' => (int)$row->id,
+            'uuid' => (string)$row->uuid,
+            'deleted_at' => $row->deleted_at ?? null,
+        ];
 
         $upd = [
             'deleted_at' => null,
@@ -601,6 +848,18 @@ class UserHonorsController extends Controller
             'user_id' => (int)$user->id,
         ]);
 
+        $this->activityLog(
+            $request,
+            'restore',
+            'user_honors',
+            $this->table,
+            (int)$row->id,
+            ['deleted_at'],
+            $oldSnapshot,
+            ['id' => (int)$row->id, 'uuid' => (string)$row->uuid, 'deleted_at' => null],
+            'Honor restored'
+        );
+
         return response()->json(['success' => true, 'message' => 'Honor restored', 'data' => $fresh]);
     }
 
@@ -615,9 +874,13 @@ class UserHonorsController extends Controller
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
-        if (!$user) return response()->json(['success' => false, 'error' => 'User not found'], 404);
+        if (!$user) {
+            $this->activityLog($request, 'force_delete', 'user_honors', $this->table, null, null, null, null, 'User not found');
+            return response()->json(['success' => false, 'error' => 'User not found'], 404);
+        }
 
         if (!$this->canAccessUser($request, (int)$user->id)) {
+            $this->activityLog($request, 'unauthorized', 'user_honors', $this->table, null, null, null, null, 'Unauthorized: cannot access target user');
             return response()->json(['success' => false, 'error' => 'Unauthorized Access'], 403);
         }
 
@@ -626,7 +889,19 @@ class UserHonorsController extends Controller
             ->where('user_id', $user->id)
             ->first();
 
-        if (!$row) return response()->json(['success' => false, 'error' => 'Honor not found'], 404);
+        if (!$row) {
+            $this->activityLog($request, 'force_delete', 'user_honors', $this->table, null, null, null, null, 'Honor not found');
+            return response()->json(['success' => false, 'error' => 'Honor not found'], 404);
+        }
+
+        $oldSnapshot = [
+            'id' => (int)$row->id,
+            'uuid' => (string)$row->uuid,
+            'user_id' => (int)$row->user_id,
+            'title' => $row->title ?? null,
+            'image' => $row->image ?? null,
+            'deleted_at' => $row->deleted_at ?? null,
+        ];
 
         // ✅ delete stored image if local
         $this->deleteStoredImageIfLocal($row->image ?? null);
@@ -637,6 +912,18 @@ class UserHonorsController extends Controller
             'id'      => $row->id,
             'user_id' => (int)$user->id,
         ]);
+
+        $this->activityLog(
+            $request,
+            'force_delete',
+            'user_honors',
+            $this->table,
+            (int)$row->id,
+            null,
+            $oldSnapshot,
+            null,
+            'Honor permanently deleted'
+        );
 
         return response()->json(['success' => true, 'message' => 'Honor permanently deleted']);
     }
@@ -652,9 +939,13 @@ class UserHonorsController extends Controller
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
-        if (!$user) return response()->json(['success' => false, 'error' => 'User not found'], 404);
+        if (!$user) {
+            $this->activityLog($request, 'force_delete', 'user_honors', $this->table, null, null, null, null, 'User not found');
+            return response()->json(['success' => false, 'error' => 'User not found'], 404);
+        }
 
         if (!$this->canAccessUser($request, (int)$user->id)) {
+            $this->activityLog($request, 'unauthorized', 'user_honors', $this->table, null, null, null, null, 'Unauthorized: cannot access target user');
             return response()->json(['success' => false, 'error' => 'Unauthorized Access'], 403);
         }
 
@@ -664,13 +955,15 @@ class UserHonorsController extends Controller
             ->get(['id','image']);
 
         $deletedCount = 0;
+        $deletedIds = [];
 
-        DB::transaction(function () use ($rows, &$deletedCount) {
+        DB::transaction(function () use ($rows, &$deletedCount, &$deletedIds) {
             foreach ($rows as $r) {
                 // ✅ delete stored image if local
                 $this->deleteStoredImageIfLocal($r->image ?? null);
 
                 $deletedCount++;
+                $deletedIds[] = (int)$r->id;
                 DB::table($this->table)->where('id', $r->id)->delete();
             }
         });
@@ -679,6 +972,18 @@ class UserHonorsController extends Controller
             'user_id' => (int)$user->id,
             'deleted' => $deletedCount,
         ]);
+
+        $this->activityLog(
+            $request,
+            'force_delete',
+            'user_honors',
+            $this->table,
+            null,
+            null,
+            ['user_id' => (int)$user->id],
+            ['deleted' => $deletedCount, 'ids' => $deletedIds],
+            'Trash cleared (hard delete all soft-deleted)'
+        );
 
         return response()->json(['success' => true, 'message' => 'Trash cleared', 'deleted' => $deletedCount]);
     }

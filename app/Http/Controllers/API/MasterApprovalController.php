@@ -25,6 +25,63 @@ class MasterApprovalController extends Controller
         ];
     }
 
+    /**
+     * ✅ Activity log writer (silent fail; never breaks API)
+     */
+    private function logActivity(
+        Request $r,
+        string $activity,
+        string $module,
+        string $tableName,
+        $recordId = null,
+        ?array $changedFields = null,
+        ?array $oldValues = null,
+        ?array $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            $a = $this->actor($r);
+
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'      => (int)($a['id'] ?? 0),
+                'performed_by_role' => ($a['role'] ?? null) ?: null,
+                'ip'                => $r->ip(),
+                'user_agent'        => substr((string)($r->userAgent() ?? ''), 0, 512),
+
+                'activity'   => substr($activity, 0, 50),
+                'module'     => substr($module, 0, 100),
+
+                'table_name' => substr($tableName ?: 'unknown', 0, 128),
+                'record_id'  => is_null($recordId) ? null : (int)$recordId,
+
+                'changed_fields' => is_null($changedFields) ? null : json_encode(array_values($changedFields)),
+                'old_values'     => is_null($oldValues) ? null : json_encode($oldValues),
+                'new_values'     => is_null($newValues) ? null : json_encode($newValues),
+
+                'log_note'   => $note,
+
+                'created_at' => Carbon::now(),
+                'updated_at' => Carbon::now(),
+            ]);
+        } catch (\Throwable $e) {
+            // Never break main flow due to logging failure.
+        }
+    }
+
+    private function pickFieldsFromRow($row, array $fields): array
+    {
+        if (!$row) return [];
+        $arr = (array) $row;
+
+        $out = [];
+        foreach ($fields as $f) {
+            if (array_key_exists($f, $arr)) {
+                $out[$f] = $arr[$f];
+            }
+        }
+        return $out;
+    }
+
     protected function toUrl(?string $path): ?string
     {
         $path = trim((string) $path);
@@ -568,13 +625,26 @@ class MasterApprovalController extends Controller
      |============================================================ */
     public function approve(Request $request, string $uuid)
     {
-        try {
-            $uuid = trim($uuid);
+        $uuid = trim($uuid);
+        $hint = $request->input('division_key'); // optional
 
-            $hint = $request->input('division_key'); // optional
+        try {
             $target = $this->resolveTargetByUuid($uuid, $hint);
 
             if (!$target) {
+                // ✅ Log: approve attempt but record not found
+                $this->logActivity(
+                    $request,
+                    'approve',
+                    'master_approval',
+                    'unknown',
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Approve failed: record not found. uuid={$uuid}, hint_division_key=" . ($hint ?: '')
+                );
+
                 return response()->json([
                     'success' => false,
                     'message' => 'Record not found for approval.',
@@ -582,7 +652,8 @@ class MasterApprovalController extends Controller
                 ], 404);
             }
 
-            $table = $target['table'];
+            $table  = $target['table'];
+            $before = $target['row'];
 
             DB::beginTransaction();
 
@@ -600,6 +671,20 @@ class MasterApprovalController extends Controller
 
             if (empty($payload)) {
                 DB::rollBack();
+
+                // ✅ Log: no updatable columns
+                $this->logActivity(
+                    $request,
+                    'approve',
+                    'master_approval',
+                    $table,
+                    isset($before->id) ? (int)$before->id : null,
+                    [],
+                    [],
+                    [],
+                    "Approve blocked: no updatable approval columns. uuid={$uuid}, division_key={$target['division_key']}"
+                );
+
                 return response()->json([
                     'success' => false,
                     'message' => "No updatable approval columns found on table: {$table}",
@@ -612,6 +697,27 @@ class MasterApprovalController extends Controller
 
             DB::commit();
 
+            // ✅ Log AFTER commit (so it always persists on success)
+            $changedFields = array_keys($payload);
+            $oldValues = $this->pickFieldsFromRow($before, $changedFields);
+            $newValues = $this->pickFieldsFromRow($updated, $changedFields);
+
+            $recordId = null;
+            if ($updated && isset($updated->id)) $recordId = (int)$updated->id;
+            elseif ($before && isset($before->id)) $recordId = (int)$before->id;
+
+            $this->logActivity(
+                $request,
+                'approve',
+                'master_approval',
+                $table,
+                $recordId,
+                $changedFields,
+                $oldValues,
+                $newValues,
+                "Approved successfully. uuid={$uuid}, division_key={$target['division_key']}"
+            );
+
             return response()->json([
                 'success' => true,
                 'message' => 'Approved successfully.',
@@ -621,6 +727,20 @@ class MasterApprovalController extends Controller
             ]);
         } catch (\Throwable $e) {
             DB::rollBack();
+
+            // ✅ Log error (outside transaction)
+            $this->logActivity(
+                $request,
+                'approve',
+                'master_approval',
+                $target['table'] ?? 'unknown',
+                isset($target['row']->id) ? (int)$target['row']->id : null,
+                null,
+                null,
+                null,
+                "Approve failed (exception): {$e->getMessage()}. uuid={$uuid}, hint_division_key=" . ($hint ?: '')
+            );
+
             return response()->json([
                 'success' => false,
                 'message' => 'Approve failed: ' . $e->getMessage(),
@@ -633,14 +753,27 @@ class MasterApprovalController extends Controller
      |============================================================ */
     public function reject(Request $request, string $uuid)
     {
-        try {
-            $uuid = trim($uuid);
-            $reason = trim((string)$request->input('reason', ''));
+        $uuid   = trim($uuid);
+        $reason = trim((string)$request->input('reason', ''));
+        $hint   = $request->input('division_key'); // optional
 
-            $hint = $request->input('division_key'); // optional
+        try {
             $target = $this->resolveTargetByUuid($uuid, $hint);
 
             if (!$target) {
+                // ✅ Log: reject attempt but record not found
+                $this->logActivity(
+                    $request,
+                    'reject',
+                    'master_approval',
+                    'unknown',
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Reject failed: record not found. uuid={$uuid}, hint_division_key=" . ($hint ?: '') . ", reason=" . ($reason ?: '')
+                );
+
                 return response()->json([
                     'success' => false,
                     'message' => 'Record not found for rejection.',
@@ -648,7 +781,8 @@ class MasterApprovalController extends Controller
                 ], 404);
             }
 
-            $table = $target['table'];
+            $table  = $target['table'];
+            $before = $target['row'];
 
             DB::beginTransaction();
 
@@ -666,6 +800,20 @@ class MasterApprovalController extends Controller
 
             if (empty($payload)) {
                 DB::rollBack();
+
+                // ✅ Log: no updatable columns
+                $this->logActivity(
+                    $request,
+                    'reject',
+                    'master_approval',
+                    $table,
+                    isset($before->id) ? (int)$before->id : null,
+                    [],
+                    [],
+                    [],
+                    "Reject blocked: no updatable approval columns. uuid={$uuid}, division_key={$target['division_key']}, reason=" . ($reason ?: '')
+                );
+
                 return response()->json([
                     'success' => false,
                     'message' => "No updatable approval columns found on table: {$table}",
@@ -678,6 +826,27 @@ class MasterApprovalController extends Controller
 
             DB::commit();
 
+            // ✅ Log AFTER commit
+            $changedFields = array_keys($payload);
+            $oldValues = $this->pickFieldsFromRow($before, $changedFields);
+            $newValues = $this->pickFieldsFromRow($updated, $changedFields);
+
+            $recordId = null;
+            if ($updated && isset($updated->id)) $recordId = (int)$updated->id;
+            elseif ($before && isset($before->id)) $recordId = (int)$before->id;
+
+            $this->logActivity(
+                $request,
+                'reject',
+                'master_approval',
+                $table,
+                $recordId,
+                $changedFields,
+                $oldValues,
+                $newValues,
+                "Rejected successfully. uuid={$uuid}, division_key={$target['division_key']}, reason=" . ($reason ?: '')
+            );
+
             return response()->json([
                 'success' => true,
                 'message' => 'Rejected successfully.',
@@ -688,6 +857,20 @@ class MasterApprovalController extends Controller
             ]);
         } catch (\Throwable $e) {
             DB::rollBack();
+
+            // ✅ Log error (outside transaction)
+            $this->logActivity(
+                $request,
+                'reject',
+                'master_approval',
+                $target['table'] ?? 'unknown',
+                isset($target['row']->id) ? (int)$target['row']->id : null,
+                null,
+                null,
+                null,
+                "Reject failed (exception): {$e->getMessage()}. uuid={$uuid}, hint_division_key=" . ($hint ?: '') . ", reason=" . ($reason ?: '')
+            );
+
             return response()->json([
                 'success' => false,
                 'message' => 'Reject failed: ' . $e->getMessage(),

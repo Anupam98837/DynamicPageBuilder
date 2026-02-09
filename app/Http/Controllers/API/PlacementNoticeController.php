@@ -25,6 +25,168 @@ class PlacementNoticeController extends Controller
         ];
     }
 
+    /**
+     * Safe activity logger (never breaks main flow).
+     */
+    protected function canLogActivity(): bool
+    {
+        return Schema::hasTable('user_data_activity_log');
+    }
+
+    protected function sanitizeForLog($value, int $depth = 0)
+    {
+        if ($depth > 5) return '[max_depth]';
+
+        if ($value === null) return null;
+
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format('c');
+        }
+
+        if (is_bool($value) || is_int($value) || is_float($value)) {
+            return $value;
+        }
+
+        if (is_string($value)) {
+            // prevent huge logs
+            return mb_strlen($value) > 5000 ? (mb_substr($value, 0, 5000) . '...[truncated]') : $value;
+        }
+
+        if (is_array($value)) {
+            $out = [];
+            foreach ($value as $k => $v) {
+                $out[$k] = $this->sanitizeForLog($v, $depth + 1);
+            }
+            return $out;
+        }
+
+        if (is_object($value)) {
+            if (method_exists($value, '__toString')) {
+                return $this->sanitizeForLog((string) $value, $depth + 1);
+            }
+            // try best-effort convert object -> array
+            try {
+                $arr = json_decode(json_encode($value), true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    return $this->sanitizeForLog($arr, $depth + 1);
+                }
+            } catch (\Throwable $e) {
+                // ignore
+            }
+            return '[object]';
+        }
+
+        return '[unknown]';
+    }
+
+    protected function tryJsonDecode($value)
+    {
+        if (!is_string($value)) return $value;
+        $s = trim($value);
+        if ($s === '') return $value;
+
+        // quick guard (json usually starts with { or [ or quote/number/bool/null)
+        $first = $s[0] ?? '';
+        if (!in_array($first, ['{', '[', '"', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 't', 'f', 'n', '-'], true)) {
+            return $value;
+        }
+
+        $decoded = json_decode($s, true);
+        return (json_last_error() === JSON_ERROR_NONE) ? $decoded : $value;
+    }
+
+    protected function logActivity(
+        Request $request,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        ?array $oldValues = null,
+        ?array $newValues = null,
+        ?string $note = null
+    ): void {
+        if (!$this->canLogActivity()) return;
+
+        try {
+            $actor = $this->actor($request);
+            $now = now();
+
+            // sanitize & json-decode some common json strings for readability
+            $oldValues = $oldValues ? $this->sanitizeForLog($oldValues) : null;
+            $newValues = $newValues ? $this->sanitizeForLog($newValues) : null;
+
+            if (is_array($oldValues)) {
+                foreach ($oldValues as $k => $v) $oldValues[$k] = $this->tryJsonDecode($v);
+            }
+            if (is_array($newValues)) {
+                foreach ($newValues as $k => $v) $newValues[$k] = $this->tryJsonDecode($v);
+            }
+
+            $payload = [
+                'performed_by'       => (int) ($actor['id'] ?: 0),
+                'performed_by_role'  => ($actor['role'] !== '') ? $actor['role'] : null,
+                'ip'                 => $request->ip(),
+                'user_agent'         => mb_substr((string) $request->userAgent(), 0, 512),
+
+                'activity'           => mb_substr($activity, 0, 50),
+                'module'             => mb_substr($module, 0, 100),
+
+                'table_name'         => mb_substr($tableName, 0, 128),
+                'record_id'          => $recordId,
+
+                'changed_fields'     => $changedFields ? json_encode(array_values(array_unique($changedFields))) : null,
+                'old_values'         => $oldValues ? json_encode($oldValues) : null,
+                'new_values'         => $newValues ? json_encode($newValues) : null,
+
+                'log_note'           => $note,
+
+                'created_at'         => $now,
+                'updated_at'         => $now,
+            ];
+
+            DB::table('user_data_activity_log')->insert($payload);
+        } catch (\Throwable $e) {
+            // never break main request flow
+        }
+    }
+
+    protected function diffForLog($beforeRow, array $update): array
+    {
+        // $beforeRow is stdClass from DB
+        $beforeArr = $beforeRow ? (array) $beforeRow : [];
+
+        $changed = [];
+        $old = [];
+        $new = [];
+
+        foreach ($update as $k => $v) {
+            // ignore technical fields unless they’re the only change
+            if (in_array($k, ['updated_at', 'updated_at_ip'], true)) continue;
+
+            $oldVal = $beforeArr[$k] ?? null;
+            $newVal = $v;
+
+            // normalize DateTime to string for comparison
+            if ($oldVal instanceof \DateTimeInterface) $oldVal = $oldVal->format('c');
+            if ($newVal instanceof \DateTimeInterface) $newVal = $newVal->format('c');
+
+            // compare as string for some cases
+            $isDiff = true;
+            if (is_null($oldVal) && is_null($newVal)) $isDiff = false;
+            elseif (is_scalar($oldVal) && is_scalar($newVal)) $isDiff = ((string) $oldVal !== (string) $newVal);
+            else $isDiff = ($oldVal != $newVal);
+
+            if ($isDiff) {
+                $changed[] = $k;
+                $old[$k] = $oldVal;
+                $new[$k] = $newVal;
+            }
+        }
+
+        return [$changed, $old, $new];
+    }
+
     private function normSlug(?string $s): string
     {
         $s = trim((string) $s);
@@ -472,7 +634,7 @@ class PlacementNoticeController extends Controller
         $row = $this->resolvePlacementNotice($request, $identifier, $includeDeleted);
         if (! $row) return response()->json(['message' => 'Placement notice not found'], 404);
 
-        // optional: ?inc_view=1
+        // optional: ?inc_view=1  (GET — not logging as requested)
         if (filter_var($request->query('inc_view', false), FILTER_VALIDATE_BOOLEAN)) {
             DB::table('placement_notices')->where('id', (int) $row->id)->increment('views_count');
             $row->views_count = ((int) ($row->views_count ?? 0)) + 1;
@@ -630,6 +792,19 @@ class PlacementNoticeController extends Controller
 
         $fresh = DB::table('placement_notices')->where('id', $id)->first();
 
+        // ✅ LOG (POST)
+        $this->logActivity(
+            $request,
+            'create',
+            'placement_notices',
+            'placement_notices',
+            (int) $id,
+            array_keys($insert),
+            null,
+            array_merge(['id' => (int) $id], $insert),
+            'Placement notice created'
+        );
+
         $deptMap = $this->departmentsMap(false);
 
         return response()->json([
@@ -656,6 +831,9 @@ class PlacementNoticeController extends Controller
     {
         $row = $this->resolvePlacementNotice($request, $identifier, true);
         if (! $row) return response()->json(['message' => 'Placement notice not found'], 404);
+
+        // fetch clean "before" snapshot from base table for accurate diff/log
+        $beforeRow = DB::table('placement_notices')->where('id', (int) $row->id)->first();
 
         // ✅ normalize department_ids so validation works even if frontend sends JSON string
         $normalizedDeptIds = $this->normalizeDepartmentIds($request->input('department_ids', null));
@@ -799,6 +977,20 @@ class PlacementNoticeController extends Controller
 
         $fresh = DB::table('placement_notices')->where('id', (int) $row->id)->first();
 
+        // ✅ LOG (PUT/PATCH)
+        [$changed, $oldVals, $newVals] = $this->diffForLog($beforeRow, $update);
+        $this->logActivity(
+            $request,
+            'update',
+            'placement_notices',
+            'placement_notices',
+            (int) $row->id,
+            $changed,
+            $oldVals ?: null,
+            $newVals ?: null,
+            'Placement notice updated'
+        );
+
         $deptMap = $this->departmentsMap(false);
 
         return response()->json([
@@ -815,6 +1007,8 @@ class PlacementNoticeController extends Controller
     {
         $row = $this->resolvePlacementNotice($request, $identifier, true);
         if (! $row) return response()->json(['message' => 'Placement notice not found'], 404);
+
+        $beforeRow = DB::table('placement_notices')->where('id', (int) $row->id)->first();
 
         $new = ((int) ($row->is_featured_home ?? 0)) ? 0 : 1;
 
@@ -835,6 +1029,20 @@ class PlacementNoticeController extends Controller
 
         $fresh = DB::table('placement_notices')->where('id', (int) $row->id)->first();
 
+        // ✅ LOG (PATCH)
+        [$changed, $oldVals, $newVals] = $this->diffForLog($beforeRow, $update);
+        $this->logActivity(
+            $request,
+            'toggle_featured',
+            'placement_notices',
+            'placement_notices',
+            (int) $row->id,
+            $changed,
+            $oldVals ?: null,
+            $newVals ?: null,
+            'Placement notice featured flag toggled'
+        );
+
         $deptMap = $this->departmentsMap(false);
 
         return response()->json([
@@ -848,11 +1056,30 @@ class PlacementNoticeController extends Controller
         $row = $this->resolvePlacementNotice($request, $identifier, false);
         if (! $row) return response()->json(['message' => 'Not found or already deleted'], 404);
 
-        DB::table('placement_notices')->where('id', (int) $row->id)->update([
-            'deleted_at'    => now(),
-            'updated_at'    => now(),
+        $beforeRow = DB::table('placement_notices')->where('id', (int) $row->id)->first();
+        $now = now();
+
+        $update = [
+            'deleted_at'    => $now,
+            'updated_at'    => $now,
             'updated_at_ip' => $request->ip(),
-        ]);
+        ];
+
+        DB::table('placement_notices')->where('id', (int) $row->id)->update($update);
+
+        // ✅ LOG (DELETE)
+        [$changed, $oldVals, $newVals] = $this->diffForLog($beforeRow, $update);
+        $this->logActivity(
+            $request,
+            'delete',
+            'placement_notices',
+            'placement_notices',
+            (int) $row->id,
+            $changed,
+            $oldVals ?: null,
+            $newVals ?: null,
+            'Placement notice soft-deleted'
+        );
 
         return response()->json(['success' => true]);
     }
@@ -864,13 +1091,32 @@ class PlacementNoticeController extends Controller
             return response()->json(['message' => 'Not found in bin'], 404);
         }
 
-        DB::table('placement_notices')->where('id', (int) $row->id)->update([
+        $beforeRow = DB::table('placement_notices')->where('id', (int) $row->id)->first();
+        $now = now();
+
+        $update = [
             'deleted_at'    => null,
-            'updated_at'    => now(),
+            'updated_at'    => $now,
             'updated_at_ip' => $request->ip(),
-        ]);
+        ];
+
+        DB::table('placement_notices')->where('id', (int) $row->id)->update($update);
 
         $fresh = DB::table('placement_notices')->where('id', (int) $row->id)->first();
+
+        // ✅ LOG (POST/PATCH)
+        [$changed, $oldVals, $newVals] = $this->diffForLog($beforeRow, $update);
+        $this->logActivity(
+            $request,
+            'restore',
+            'placement_notices',
+            'placement_notices',
+            (int) $row->id,
+            $changed,
+            $oldVals ?: null,
+            $newVals ?: null,
+            'Placement notice restored from bin'
+        );
 
         $deptMap = $this->departmentsMap(false);
 
@@ -885,9 +1131,24 @@ class PlacementNoticeController extends Controller
         $row = $this->resolvePlacementNotice($request, $identifier, true);
         if (! $row) return response()->json(['message' => 'Placement notice not found'], 404);
 
+        $beforeRow = DB::table('placement_notices')->where('id', (int) $row->id)->first();
+
         $this->deletePublicPath($row->banner_image_url ?? null);
 
         DB::table('placement_notices')->where('id', (int) $row->id)->delete();
+
+        // ✅ LOG (DELETE)
+        $this->logActivity(
+            $request,
+            'force_delete',
+            'placement_notices',
+            'placement_notices',
+            (int) $row->id,
+            null,
+            $beforeRow ? (array) $beforeRow : null,
+            null,
+            'Placement notice permanently deleted'
+        );
 
         return response()->json(['success' => true]);
     }
@@ -955,6 +1216,7 @@ class PlacementNoticeController extends Controller
             ? filter_var($request->query('inc_view'), FILTER_VALIDATE_BOOLEAN)
             : true;
 
+        // GET — not logging as requested
         if ($inc) {
             DB::table('placement_notices')->where('id', (int) $row->id)->increment('views_count');
             $row->views_count = ((int) ($row->views_count ?? 0)) + 1;

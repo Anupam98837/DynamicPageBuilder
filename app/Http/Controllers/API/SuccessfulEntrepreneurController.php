@@ -25,6 +25,57 @@ class SuccessfulEntrepreneurController extends Controller
         ];
     }
 
+    private function toJsonOrNull($value): ?string
+    {
+        if ($value === null) return null;
+
+        // normalize objects
+        if (is_object($value)) $value = (array) $value;
+
+        $json = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        return ($json === false) ? null : $json;
+    }
+
+    private function logActivity(
+        Request $request,
+        string $activity,
+        string $module,
+        string $tableName,
+        $recordId = null,
+        ?array $changedFields = null,
+        $oldValues = null,
+        $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            $actor = $this->actor($request);
+
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'       => (int) ($actor['id'] ?? 0),
+                'performed_by_role'  => !empty($actor['role']) ? (string) $actor['role'] : null,
+                'ip'                 => $request->ip(),
+                'user_agent'         => substr((string) $request->userAgent(), 0, 512),
+
+                'activity'           => substr($activity, 0, 50),
+                'module'             => substr($module, 0, 100),
+
+                'table_name'         => substr($tableName, 0, 128),
+                'record_id'          => $recordId !== null ? (int) $recordId : null,
+
+                'changed_fields'     => $this->toJsonOrNull($changedFields),
+                'old_values'         => $this->toJsonOrNull($oldValues),
+                'new_values'         => $this->toJsonOrNull($newValues),
+
+                'log_note'           => $note,
+
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ]);
+        } catch (\Throwable $e) {
+            // never break API flow due to logging
+        }
+    }
+
     private function normSlug(?string $s): string
     {
         $s = trim((string) $s);
@@ -406,6 +457,18 @@ class SuccessfulEntrepreneurController extends Controller
         if ($request->hasFile('photo')) {
             $f = $request->file('photo');
             if (!$f || !$f->isValid()) {
+                $this->logActivity(
+                    $request,
+                    'create',
+                    'successful_entrepreneurs',
+                    'successful_entrepreneurs',
+                    null,
+                    null,
+                    null,
+                    ['name' => $validated['name'] ?? null, 'slug' => $slug],
+                    'Photo upload failed'
+                );
+
                 return response()->json(['success' => false, 'message' => 'Photo upload failed'], 422);
             }
             $meta = $this->uploadFileToPublic($f, $dirRel, $slug . '-photo');
@@ -416,13 +479,25 @@ class SuccessfulEntrepreneurController extends Controller
         if ($request->hasFile('company_logo')) {
             $f = $request->file('company_logo');
             if (!$f || !$f->isValid()) {
+                $this->logActivity(
+                    $request,
+                    'create',
+                    'successful_entrepreneurs',
+                    'successful_entrepreneurs',
+                    null,
+                    null,
+                    null,
+                    ['name' => $validated['name'] ?? null, 'slug' => $slug],
+                    'Company logo upload failed'
+                );
+
                 return response()->json(['success' => false, 'message' => 'Company logo upload failed'], 422);
             }
             $meta = $this->uploadFileToPublic($f, $dirRel, $slug . '-logo');
             $logoPath = $meta['path'];
         }
 
-        $id = DB::table('successful_entrepreneurs')->insertGetId([
+        $insertData = [
             'uuid'                => $uuid,
             'department_id'       => $validated['department_id'] ?? null,
             'user_id'             => $validated['user_id'] ?? null,
@@ -456,9 +531,26 @@ class SuccessfulEntrepreneurController extends Controller
             'created_at_ip'       => $request->ip(),
             'updated_at_ip'       => $request->ip(),
             'metadata'            => $metadata !== null ? json_encode($metadata) : null,
-        ]);
+        ];
+
+        $id = DB::table('successful_entrepreneurs')->insertGetId($insertData);
 
         $row = DB::table('successful_entrepreneurs')->where('id', $id)->first();
+
+        // LOG (POST)
+        $newValues = $insertData;
+        $newValues['id'] = (int) $id;
+        $this->logActivity(
+            $request,
+            'create',
+            'successful_entrepreneurs',
+            'successful_entrepreneurs',
+            $id,
+            array_keys($newValues),
+            null,
+            $newValues,
+            'Created successful entrepreneur'
+        );
 
         return response()->json([
             'success' => true,
@@ -469,7 +561,21 @@ class SuccessfulEntrepreneurController extends Controller
     public function storeForDepartment(Request $request, $department)
     {
         $dept = $this->resolveDepartment($department, false);
-        if (! $dept) return response()->json(['message' => 'Department not found'], 404);
+        if (! $dept) {
+            $this->logActivity(
+                $request,
+                'create',
+                'successful_entrepreneurs',
+                'successful_entrepreneurs',
+                null,
+                null,
+                null,
+                ['department' => (string) $department],
+                'Department not found'
+            );
+
+            return response()->json(['message' => 'Department not found'], 404);
+        }
 
         $request->merge(['department_id' => (int) $dept->id]);
         return $this->store($request);
@@ -478,7 +584,21 @@ class SuccessfulEntrepreneurController extends Controller
     public function update(Request $request, $identifier)
     {
         $row = $this->resolveEntrepreneur($request, $identifier, true);
-        if (! $row) return response()->json(['message' => 'Successful Entrepreneur not found'], 404);
+        if (! $row) {
+            $this->logActivity(
+                $request,
+                'update',
+                'successful_entrepreneurs',
+                'successful_entrepreneurs',
+                null,
+                null,
+                null,
+                ['identifier' => (string) $identifier],
+                'Successful Entrepreneur not found'
+            );
+
+            return response()->json(['message' => 'Successful Entrepreneur not found'], 404);
+        }
 
         $validated = $request->validate([
             'department_id'         => ['nullable', 'integer', 'exists:departments,id'],
@@ -627,6 +747,18 @@ class SuccessfulEntrepreneurController extends Controller
         if ($request->hasFile('photo')) {
             $f = $request->file('photo');
             if (!$f || !$f->isValid()) {
+                $this->logActivity(
+                    $request,
+                    'update',
+                    'successful_entrepreneurs',
+                    'successful_entrepreneurs',
+                    (int) $row->id,
+                    null,
+                    ['photo_url' => $row->photo_url ?? null],
+                    null,
+                    'Photo upload failed'
+                );
+
                 return response()->json(['success' => false, 'message' => 'Photo upload failed'], 422);
             }
             $this->deletePublicPath($row->photo_url ?? null);
@@ -638,6 +770,18 @@ class SuccessfulEntrepreneurController extends Controller
         if ($request->hasFile('company_logo')) {
             $f = $request->file('company_logo');
             if (!$f || !$f->isValid()) {
+                $this->logActivity(
+                    $request,
+                    'update',
+                    'successful_entrepreneurs',
+                    'successful_entrepreneurs',
+                    (int) $row->id,
+                    null,
+                    ['company_logo_url' => $row->company_logo_url ?? null],
+                    null,
+                    'Company logo upload failed'
+                );
+
                 return response()->json(['success' => false, 'message' => 'Company logo upload failed'], 422);
             }
             $this->deletePublicPath($row->company_logo_url ?? null);
@@ -645,9 +789,41 @@ class SuccessfulEntrepreneurController extends Controller
             $update['company_logo_url'] = $meta['path'];
         }
 
+        // compute change snapshot BEFORE writing
+        $changedFields = [];
+        $oldValues = [];
+        $newValues = [];
+        foreach ($update as $k => $v) {
+            if (in_array($k, ['updated_at', 'updated_at_ip'], true)) continue;
+
+            $old = $row->$k ?? null;
+
+            $oldCmp = is_object($old) ? (string) $old : (is_bool($old) ? (int)$old : $old);
+            $newCmp = is_object($v)   ? (string) $v   : (is_bool($v)   ? (int)$v   : $v);
+
+            if ((string) $oldCmp !== (string) $newCmp) {
+                $changedFields[] = $k;
+                $oldValues[$k] = $old;
+                $newValues[$k] = $v;
+            }
+        }
+
         DB::table('successful_entrepreneurs')->where('id', (int) $row->id)->update($update);
 
         $fresh = DB::table('successful_entrepreneurs')->where('id', (int) $row->id)->first();
+
+        // LOG (PUT/PATCH)
+        $this->logActivity(
+            $request,
+            'update',
+            'successful_entrepreneurs',
+            'successful_entrepreneurs',
+            (int) $row->id,
+            $changedFields ?: null,
+            $oldValues ?: null,
+            $newValues ?: null,
+            'Updated successful entrepreneur'
+        );
 
         return response()->json([
             'success' => true,
@@ -658,9 +834,24 @@ class SuccessfulEntrepreneurController extends Controller
     public function toggleFeatured(Request $request, $identifier)
     {
         $row = $this->resolveEntrepreneur($request, $identifier, true);
-        if (! $row) return response()->json(['message' => 'Successful Entrepreneur not found'], 404);
+        if (! $row) {
+            $this->logActivity(
+                $request,
+                'update',
+                'successful_entrepreneurs',
+                'successful_entrepreneurs',
+                null,
+                null,
+                null,
+                ['identifier' => (string) $identifier],
+                'Successful Entrepreneur not found'
+            );
 
-        $new = ((int) ($row->is_featured_home ?? 0)) ? 0 : 1;
+            return response()->json(['message' => 'Successful Entrepreneur not found'], 404);
+        }
+
+        $old = (int) ($row->is_featured_home ?? 0);
+        $new = $old ? 0 : 1;
 
         DB::table('successful_entrepreneurs')->where('id', (int) $row->id)->update([
             'is_featured_home' => $new,
@@ -669,6 +860,19 @@ class SuccessfulEntrepreneurController extends Controller
         ]);
 
         $fresh = DB::table('successful_entrepreneurs')->where('id', (int) $row->id)->first();
+
+        // LOG (PATCH/POST type action)
+        $this->logActivity(
+            $request,
+            'update',
+            'successful_entrepreneurs',
+            'successful_entrepreneurs',
+            (int) $row->id,
+            ['is_featured_home'],
+            ['is_featured_home' => $old],
+            ['is_featured_home' => $new],
+            'Toggled is_featured_home'
+        );
 
         return response()->json([
             'success' => true,
@@ -679,13 +883,43 @@ class SuccessfulEntrepreneurController extends Controller
     public function destroy(Request $request, $identifier)
     {
         $row = $this->resolveEntrepreneur($request, $identifier, false);
-        if (! $row) return response()->json(['message' => 'Not found or already deleted'], 404);
+        if (! $row) {
+            $this->logActivity(
+                $request,
+                'delete',
+                'successful_entrepreneurs',
+                'successful_entrepreneurs',
+                null,
+                null,
+                null,
+                ['identifier' => (string) $identifier],
+                'Not found or already deleted'
+            );
+
+            return response()->json(['message' => 'Not found or already deleted'], 404);
+        }
+
+        $oldDeletedAt = $row->deleted_at ?? null;
+        $newDeletedAt = now();
 
         DB::table('successful_entrepreneurs')->where('id', (int) $row->id)->update([
-            'deleted_at'    => now(),
+            'deleted_at'    => $newDeletedAt,
             'updated_at'    => now(),
             'updated_at_ip' => $request->ip(),
         ]);
+
+        // LOG (DELETE - soft delete)
+        $this->logActivity(
+            $request,
+            'delete',
+            'successful_entrepreneurs',
+            'successful_entrepreneurs',
+            (int) $row->id,
+            ['deleted_at'],
+            ['deleted_at' => $oldDeletedAt],
+            ['deleted_at' => $newDeletedAt],
+            'Soft deleted successful entrepreneur'
+        );
 
         return response()->json(['success' => true]);
     }
@@ -694,8 +928,22 @@ class SuccessfulEntrepreneurController extends Controller
     {
         $row = $this->resolveEntrepreneur($request, $identifier, true);
         if (! $row || $row->deleted_at === null) {
+            $this->logActivity(
+                $request,
+                'restore',
+                'successful_entrepreneurs',
+                'successful_entrepreneurs',
+                $row ? (int) $row->id : null,
+                null,
+                null,
+                ['identifier' => (string) $identifier],
+                'Not found in bin'
+            );
+
             return response()->json(['message' => 'Not found in bin'], 404);
         }
+
+        $oldDeletedAt = $row->deleted_at;
 
         DB::table('successful_entrepreneurs')->where('id', (int) $row->id)->update([
             'deleted_at'    => null,
@@ -704,6 +952,19 @@ class SuccessfulEntrepreneurController extends Controller
         ]);
 
         $fresh = DB::table('successful_entrepreneurs')->where('id', (int) $row->id)->first();
+
+        // LOG (POST restore)
+        $this->logActivity(
+            $request,
+            'restore',
+            'successful_entrepreneurs',
+            'successful_entrepreneurs',
+            (int) $row->id,
+            ['deleted_at'],
+            ['deleted_at' => $oldDeletedAt],
+            ['deleted_at' => null],
+            'Restored successful entrepreneur'
+        );
 
         return response()->json([
             'success' => true,
@@ -714,13 +975,42 @@ class SuccessfulEntrepreneurController extends Controller
     public function forceDelete(Request $request, $identifier)
     {
         $row = $this->resolveEntrepreneur($request, $identifier, true);
-        if (! $row) return response()->json(['message' => 'Successful Entrepreneur not found'], 404);
+        if (! $row) {
+            $this->logActivity(
+                $request,
+                'force_delete',
+                'successful_entrepreneurs',
+                'successful_entrepreneurs',
+                null,
+                null,
+                null,
+                ['identifier' => (string) $identifier],
+                'Successful Entrepreneur not found'
+            );
+
+            return response()->json(['message' => 'Successful Entrepreneur not found'], 404);
+        }
+
+        $before = (array) $row;
 
         // delete local files (only if stored as relative paths)
         $this->deletePublicPath($row->photo_url ?? null);
         $this->deletePublicPath($row->company_logo_url ?? null);
 
         DB::table('successful_entrepreneurs')->where('id', (int) $row->id)->delete();
+
+        // LOG (DELETE - force delete)
+        $this->logActivity(
+            $request,
+            'force_delete',
+            'successful_entrepreneurs',
+            'successful_entrepreneurs',
+            (int) $row->id,
+            null,
+            $before,
+            null,
+            'Force deleted successful entrepreneur'
+        );
 
         return response()->json(['success' => true]);
     }

@@ -70,6 +70,103 @@ class PrivilegeController extends Controller
         return null;
     }
 
+    /* ===========================
+     |  ACTIVITY LOG HELPERS
+     =========================== */
+
+    protected function actorId(Request $request): int
+    {
+        // performed_by is NOT nullable in migration, so fallback to 0 safely
+        return (int) (optional($request->user())->id ?? 0);
+    }
+
+    protected function actorRole(Request $request): ?string
+    {
+        $u = $request->user();
+        if (! $u) return null;
+
+        // Try common fields safely
+        return $u->role
+            ?? $u->user_type
+            ?? $u->type
+            ?? $u->guard_name
+            ?? null;
+    }
+
+    protected function toPlainArray($value): ?array
+    {
+        if ($value === null) return null;
+
+        // stdClass / model / array => normalize to array
+        if (is_array($value)) return $value;
+
+        try {
+            return json_decode(json_encode($value), true);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    protected function jsonOrNull($value): ?string
+    {
+        if ($value === null) return null;
+
+        try {
+            // Ensure proper JSON for DB::table inserts
+            return json_encode($value, JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Write activity log safely (never breaks main flow).
+     */
+    protected function logActivity(
+        Request $request,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        $oldValues = null,
+        $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            $payload = [
+                'performed_by'      => $this->actorId($request),
+                'performed_by_role' => $this->actorRole($request),
+                'ip'                => $request->ip(),
+                'user_agent'        => substr((string) $request->userAgent(), 0, 512),
+
+                'activity'          => $activity,
+                'module'            => $module,
+
+                'table_name'        => $tableName,
+                'record_id'         => $recordId,
+
+                'changed_fields'    => $changedFields ? $this->jsonOrNull(array_values($changedFields)) : null,
+                'old_values'        => $this->jsonOrNull($this->toPlainArray($oldValues)),
+                'new_values'        => $this->jsonOrNull($this->toPlainArray($newValues)),
+
+                'log_note'          => $note,
+
+                'created_at'        => now(),
+                'updated_at'        => now(),
+            ];
+
+            DB::table('user_data_activity_log')->insert($payload);
+        } catch (\Throwable $e) {
+            // never break functionality if logging fails
+            try {
+                Log::error('PrivilegeController activity log failed: '.$e->getMessage());
+            } catch (\Throwable $inner) {
+                // ignore
+            }
+        }
+    }
+
     /**
      * List privileges (filter by module_id optional - accepts module id or uuid)
      */
@@ -394,7 +491,22 @@ class PrivilegeController extends Controller
                         }
 
                         $id = DB::table('privileges')->insertGetId($payload);
-                        $created[] = DB::table('privileges')->where('id', $id)->first();
+                        $record = DB::table('privileges')->where('id', $id)->first();
+                        $created[] = $record;
+
+                        // ✅ LOG: create per created record (bulk)
+                        $this->logActivity(
+                            $request,
+                            'create',
+                            'privileges',
+                            'privileges',
+                            (int) $id,
+                            array_keys($payload),
+                            null,
+                            $record,
+                            'Bulk privilege created'
+                        );
+
                         $seenActions[] = strtolower($action);
                         $seenKeys[]    = $key;
                     }
@@ -513,6 +625,20 @@ class PrivilegeController extends Controller
             });
 
             $priv = DB::table('privileges')->where('id', $id)->first();
+
+            // ✅ LOG: create (single)
+            $this->logActivity(
+                $request,
+                'create',
+                'privileges',
+                'privileges',
+                (int) $id,
+                $priv ? array_keys($this->toPlainArray($priv) ?? []) : null,
+                null,
+                $priv,
+                'Privilege created'
+            );
+
             return response()->json(['privilege' => $priv], 201);
         } catch (Exception $e) {
             return response()->json(['message' => 'Could not create privilege', 'error' => $e->getMessage()], 500);
@@ -673,13 +799,33 @@ class PrivilegeController extends Controller
             return response()->json(['message' => 'Nothing to update'], 400);
         }
 
+        $old = $priv; // snapshot before update
+
         try {
             DB::transaction(function () use ($priv, $update) {
                 DB::table('privileges')->where('id', $priv->id)->update($update);
             });
 
-            $priv = DB::table('privileges')->where('id', $priv->id)->first();
-            return response()->json(['privilege' => $priv]);
+            $new = DB::table('privileges')->where('id', $priv->id)->first();
+
+            // ✅ LOG: update
+            $changed = array_values(array_filter(array_keys($update), fn ($k) => $k !== 'updated_at'));
+            $oldArr = $this->toPlainArray($old) ?? [];
+            $newArr = $this->toPlainArray($new) ?? [];
+
+            $this->logActivity(
+                $request,
+                'update',
+                'privileges',
+                'privileges',
+                (int) $priv->id,
+                $changed,
+                Arr::only($oldArr, $changed),
+                Arr::only($newArr, $changed),
+                'Privilege updated'
+            );
+
+            return response()->json(['privilege' => $new]);
         } catch (Exception $e) {
             return response()->json(['message' => 'Could not update privilege', 'error' => $e->getMessage()], 500);
         }
@@ -687,22 +833,6 @@ class PrivilegeController extends Controller
 
     /**
      * BULK UPDATE privileges.
-     *
-     * Expected payload:
-     * {
-     *   "privileges": [
-     *     {
-     *       "id" : 1 OR "uuid" : "....",
-     *       "module_id": 3 or "module_uuid": "...", // optional, to move module
-     *       "action": "add",                        // optional
-     *       "description": "..."                    // optional
-     *       "key": "fees.collection.collect",       // optional
-     *       "assigned_apis": ["route.name"],        // optional
-     *       "meta": {...}                           // optional
-     *     },
-     *     ...
-     *   ]
-     * }
      */
     public function bulkUpdate(Request $request)
     {
@@ -754,6 +884,8 @@ class PrivilegeController extends Controller
                         ];
                         continue;
                     }
+
+                    $old = $priv;
 
                     // Determine new module id if given, else existing
                     $newModuleId = $priv->module_id;
@@ -896,7 +1028,25 @@ class PrivilegeController extends Controller
                         $seenKeys[] = $newKey;
                     }
 
-                    $updated[] = DB::table('privileges')->where('id', $priv->id)->first();
+                    $new = DB::table('privileges')->where('id', $priv->id)->first();
+                    $updated[] = $new;
+
+                    // ✅ LOG: update per updated record (bulk)
+                    $changed = array_values(array_filter(array_keys($update), fn ($k) => $k !== 'updated_at'));
+                    $oldArr = $this->toPlainArray($old) ?? [];
+                    $newArr = $this->toPlainArray($new) ?? [];
+
+                    $this->logActivity(
+                        $request,
+                        'update',
+                        'privileges',
+                        'privileges',
+                        (int) $priv->id,
+                        $changed,
+                        Arr::only($oldArr, $changed),
+                        Arr::only($newArr, $changed),
+                        'Bulk privilege updated'
+                    );
                 }
             });
 
@@ -924,8 +1074,30 @@ class PrivilegeController extends Controller
             return response()->json(['message' => 'Privilege not found or already deleted'], 404);
         }
 
+        $old = $priv;
+
         try {
             DB::table('privileges')->where('id', $priv->id)->update(['deleted_at' => now(), 'updated_at' => now()]);
+
+            $new = DB::table('privileges')->where('id', $priv->id)->first();
+
+            // ✅ LOG: soft delete
+            $changed = ['deleted_at'];
+            $oldArr = $this->toPlainArray($old) ?? [];
+            $newArr = $this->toPlainArray($new) ?? [];
+
+            $this->logActivity(
+                $request,
+                'delete',
+                'privileges',
+                'privileges',
+                (int) $priv->id,
+                $changed,
+                Arr::only($oldArr, $changed),
+                Arr::only($newArr, $changed),
+                'Privilege soft-deleted'
+            );
+
             return response()->json(['message' => 'Privilege soft-deleted']);
         } catch (Exception $e) {
             return response()->json(['message' => 'Could not delete privilege', 'error' => $e->getMessage()], 500);
@@ -942,10 +1114,30 @@ class PrivilegeController extends Controller
             return response()->json(['message' => 'Privilege not found or not deleted'], 404);
         }
 
+        $old = $priv;
+
         try {
             DB::table('privileges')->where('id', $priv->id)->update(['deleted_at' => null, 'updated_at' => now()]);
-            $priv = DB::table('privileges')->where('id', $priv->id)->first();
-            return response()->json(['privilege' => $priv, 'message' => 'Privilege restored']);
+            $new = DB::table('privileges')->where('id', $priv->id)->first();
+
+            // ✅ LOG: restore
+            $changed = ['deleted_at'];
+            $oldArr = $this->toPlainArray($old) ?? [];
+            $newArr = $this->toPlainArray($new) ?? [];
+
+            $this->logActivity(
+                $request,
+                'restore',
+                'privileges',
+                'privileges',
+                (int) $priv->id,
+                $changed,
+                Arr::only($oldArr, $changed),
+                Arr::only($newArr, $changed),
+                'Privilege restored'
+            );
+
+            return response()->json(['privilege' => $new, 'message' => 'Privilege restored']);
         } catch (Exception $e) {
             return response()->json(['message' => 'Could not restore privilege', 'error' => $e->getMessage()], 500);
         }
@@ -1027,8 +1219,29 @@ class PrivilegeController extends Controller
             return response()->json(['message' => 'Privilege not found'], 404);
         }
 
+        $old = $priv;
+
         try {
             DB::table('privileges')->where('id', $priv->id)->update(['status' => 'archived', 'updated_at' => now()]);
+            $new = DB::table('privileges')->where('id', $priv->id)->first();
+
+            // ✅ LOG: archive
+            $changed = ['status'];
+            $oldArr = $this->toPlainArray($old) ?? [];
+            $newArr = $this->toPlainArray($new) ?? [];
+
+            $this->logActivity(
+                $request,
+                'archive',
+                'privileges',
+                'privileges',
+                (int) $priv->id,
+                $changed,
+                Arr::only($oldArr, $changed),
+                Arr::only($newArr, $changed),
+                'Privilege archived'
+            );
+
             return response()->json(['message' => 'Privilege archived']);
         } catch (Exception $e) {
             return response()->json(['message' => 'Could not archive privilege', 'error' => $e->getMessage()], 500);
@@ -1049,8 +1262,29 @@ class PrivilegeController extends Controller
             return response()->json(['message' => 'Privilege not found'], 404);
         }
 
+        $old = $priv;
+
         try {
             DB::table('privileges')->where('id', $priv->id)->update(['status' => 'draft', 'updated_at' => now()]);
+            $new = DB::table('privileges')->where('id', $priv->id)->first();
+
+            // ✅ LOG: unarchive
+            $changed = ['status'];
+            $oldArr = $this->toPlainArray($old) ?? [];
+            $newArr = $this->toPlainArray($new) ?? [];
+
+            $this->logActivity(
+                $request,
+                'unarchive',
+                'privileges',
+                'privileges',
+                (int) $priv->id,
+                $changed,
+                Arr::only($oldArr, $changed),
+                Arr::only($newArr, $changed),
+                'Privilege unarchived'
+            );
+
             return response()->json(['message' => 'Privilege unarchived']);
         } catch (Exception $e) {
             return response()->json(['message' => 'Could not unarchive privilege', 'error' => $e->getMessage()], 500);
@@ -1067,11 +1301,27 @@ class PrivilegeController extends Controller
             return response()->json(['message' => 'Privilege not found'], 404);
         }
 
+        $old = $priv;
+
         try {
-            DB::transaction(function () use ($priv) {
+            DB::transaction(function () use ($priv, $request, $old) {
                 DB::table('user_privileges')->where('privilege_id', $priv->id)->delete();
                 DB::table('privileges')->where('id', $priv->id)->delete();
+
+                // ✅ LOG: force delete (store old snapshot)
+                $this->logActivity(
+                    $request,
+                    'force_delete',
+                    'privileges',
+                    'privileges',
+                    (int) $priv->id,
+                    ['force_delete'],
+                    $old,
+                    null,
+                    'Privilege permanently deleted (and related user_privileges removed)'
+                );
             });
+
             return response()->json(['message' => 'Privilege permanently deleted']);
         } catch (Exception $e) {
             return response()->json(['message' => 'Could not permanently delete privilege', 'error' => $e->getMessage()], 500);
@@ -1100,16 +1350,34 @@ class PrivilegeController extends Controller
         $ids = $request->input('ids');
 
         try {
-            DB::transaction(function () use ($ids) {
+            DB::transaction(function () use ($ids, $request) {
                 foreach ($ids as $idx => $id) {
+                    $old = DB::table('privileges')->where('id', $id)->first();
+
                     DB::table('privileges')
                         ->where('id', $id)
                         ->update([
                             'order_no'   => $idx,
                             'updated_at' => now(),
                         ]);
+
+                    $new = DB::table('privileges')->where('id', $id)->first();
+
+                    // ✅ LOG: reorder as update (per record)
+                    $this->logActivity(
+                        $request,
+                        'update',
+                        'privileges',
+                        'privileges',
+                        (int) $id,
+                        ['order_no'],
+                        ['order_no' => optional($old)->order_no],
+                        ['order_no' => optional($new)->order_no],
+                        'Privilege order changed (reorder)'
+                    );
                 }
             });
+
             return response()->json(['message' => 'Order updated']);
         } catch (Exception $e) {
             return response()->json(['message' => 'Could not update order', 'error' => $e->getMessage()], 500);

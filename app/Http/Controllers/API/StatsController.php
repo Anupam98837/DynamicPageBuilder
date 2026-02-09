@@ -24,6 +24,61 @@ class StatsController extends Controller
         ];
     }
 
+    private function toJsonOrNull($val): ?string
+    {
+        if ($val === null) return null;
+        $json = json_encode($val, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        return ($json === false) ? null : $json;
+    }
+
+    /**
+     * Safe activity logger (never breaks API flow if logging fails)
+     */
+    private function logActivity(
+        Request $request,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        $oldValues = null,
+        $newValues = null,
+        ?string $note = null
+    ): void {
+        $actor = $this->actor($request);
+
+        $ua = (string) $request->userAgent();
+        if ($ua !== '' && strlen($ua) > 512) {
+            $ua = substr($ua, 0, 512);
+        }
+
+        try {
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'      => (int) ($actor['id'] ?? 0),
+                'performed_by_role' => (($actor['role'] ?? '') !== '') ? (string) $actor['role'] : null,
+                'ip'                => $request->ip(),
+                'user_agent'        => $ua !== '' ? $ua : null,
+
+                'activity'          => $activity,
+                'module'            => $module,
+
+                'table_name'        => $tableName,
+                'record_id'         => $recordId,
+
+                'changed_fields'    => $this->toJsonOrNull($changedFields !== null ? array_values($changedFields) : null),
+                'old_values'        => $this->toJsonOrNull($oldValues),
+                'new_values'        => $this->toJsonOrNull($newValues),
+
+                'log_note'          => $note,
+
+                'created_at'        => now(),
+                'updated_at'        => now(),
+            ]);
+        } catch (\Throwable $e) {
+            // Do nothing - never hurt functionality because of logging.
+        }
+    }
+
     /**
      * ✅ Save uploaded background image into: public/depy_uploads/stats/
      * Returns DB-storable relative path like: depy_uploads/stats/xxxxx.jpg
@@ -314,6 +369,21 @@ class StatsController extends Controller
 
         $row = DB::table('stats')->where('id', (int) $id)->first();
 
+        // ✅ LOG: create
+        if ($row) {
+            $this->logActivity(
+                $request,
+                'create',
+                'stats',
+                'stats',
+                (int) $id,
+                ['uuid','slug','background_image_url','stats_items_json','auto_scroll','scroll_latency_ms','loop','show_arrows','show_dots','status','publish_at','expire_at','views_count','metadata'],
+                null,
+                $this->normalizeRow($row),
+                'Stats created'
+            );
+        }
+
         return response()->json([
             'success' => true,
             'item' => $row ? $this->normalizeRow($row) : null,
@@ -340,6 +410,8 @@ class StatsController extends Controller
     {
         $row = $this->resolveStat($identifier, true);
         if (! $row) return response()->json(['message' => 'Stats not found'], 404);
+
+        $before = $this->normalizeRow($row);
 
         $validated = $request->validate([
             'slug'                 => ['nullable','string','max:160', Rule::unique('stats', 'slug')->ignore((int) $row->id)],
@@ -411,6 +483,21 @@ class StatsController extends Controller
         DB::table('stats')->where('id', (int) $row->id)->update($update);
 
         $fresh = DB::table('stats')->where('id', (int) $row->id)->first();
+        $after = $fresh ? $this->normalizeRow($fresh) : null;
+
+        // ✅ LOG: update
+        $changed = array_values(array_diff(array_keys($update), ['updated_at','updated_at_ip']));
+        $this->logActivity(
+            $request,
+            'update',
+            'stats',
+            'stats',
+            (int) $row->id,
+            $changed ?: null,
+            $before,
+            $after,
+            'Stats updated'
+        );
 
         return response()->json([
             'success' => true,
@@ -424,11 +511,29 @@ class StatsController extends Controller
         $row = $this->resolveStat($identifier, false);
         if (! $row) return response()->json(['message' => 'Not found or already deleted'], 404);
 
+        $before = $this->normalizeRow($row);
+
         DB::table('stats')->where('id', (int) $row->id)->update([
             'deleted_at'    => now(),
             'updated_at'    => now(),
             'updated_at_ip' => $request->ip(),
         ]);
+
+        $fresh = DB::table('stats')->where('id', (int) $row->id)->first();
+        $after = $fresh ? $this->normalizeRow($fresh) : null;
+
+        // ✅ LOG: soft delete
+        $this->logActivity(
+            $request,
+            'delete',
+            'stats',
+            'stats',
+            (int) $row->id,
+            ['deleted_at'],
+            $before,
+            $after,
+            'Stats soft deleted'
+        );
 
         return response()->json(['success' => true]);
     }
@@ -441,6 +546,8 @@ class StatsController extends Controller
             return response()->json(['message' => 'Not found in bin'], 404);
         }
 
+        $before = $this->normalizeRow($row);
+
         DB::table('stats')->where('id', (int) $row->id)->update([
             'deleted_at'    => null,
             'updated_at'    => now(),
@@ -448,6 +555,20 @@ class StatsController extends Controller
         ]);
 
         $fresh = DB::table('stats')->where('id', (int) $row->id)->first();
+        $after = $fresh ? $this->normalizeRow($fresh) : null;
+
+        // ✅ LOG: restore
+        $this->logActivity(
+            $request,
+            'restore',
+            'stats',
+            'stats',
+            (int) $row->id,
+            ['deleted_at'],
+            $before,
+            $after,
+            'Stats restored from trash'
+        );
 
         return response()->json([
             'success' => true,
@@ -461,7 +582,22 @@ class StatsController extends Controller
         $row = $this->resolveStat($identifier, true);
         if (! $row) return response()->json(['message' => 'Stats not found'], 404);
 
+        $before = $this->normalizeRow($row);
+
         DB::table('stats')->where('id', (int) $row->id)->delete();
+
+        // ✅ LOG: force delete (permanent)
+        $this->logActivity(
+            $request,
+            'force_delete',
+            'stats',
+            'stats',
+            (int) $row->id,
+            null,
+            $before,
+            null,
+            'Stats permanently deleted'
+        );
 
         return response()->json(['success' => true]);
     }

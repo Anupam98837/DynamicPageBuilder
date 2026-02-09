@@ -14,6 +14,7 @@ use Carbon\Carbon;
 class UserSocialMediaController extends Controller
 {
     private string $table = 'user_social_media';
+    private ?bool $hasActivityLogTable = null;
 
     /* =========================
      * Auth helpers
@@ -92,6 +93,82 @@ class UserSocialMediaController extends Controller
         if ($actor['id'] === $userId) return true;
 
         return $this->isHighRole($actor['role']);
+    }
+
+    /* =========================
+     * Activity Log helpers (DB)
+     * ========================= */
+
+    private function activityLogTableExists(): bool
+    {
+        if ($this->hasActivityLogTable !== null) return $this->hasActivityLogTable;
+        $this->hasActivityLogTable = Schema::hasTable('user_data_activity_log');
+        return $this->hasActivityLogTable;
+    }
+
+    private function safeJson($value): ?string
+    {
+        if ($value === null) return null;
+
+        try {
+            $json = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            if (json_last_error() !== JSON_ERROR_NONE) return null;
+            return $json;
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Insert into user_data_activity_log.
+     * Never breaks API flow if logging fails.
+     */
+    private function writeActivityLog(
+        Request $r,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        $oldValues = null,
+        $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            if (!$this->activityLogTableExists()) return;
+
+            $a   = $this->actor($r);
+            $now = Carbon::now();
+
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'      => (int) ($a['id'] ?? 0),
+                'performed_by_role' => $a['role'] ?? null,
+                'ip'                => $r->ip(),
+                'user_agent'        => substr((string) $r->userAgent(), 0, 512),
+
+                'activity'          => substr($activity, 0, 50),
+                'module'            => substr($module, 0, 100),
+                'table_name'        => substr($tableName, 0, 128),
+                'record_id'         => $recordId,
+
+                'changed_fields'    => $this->safeJson($changedFields),
+                'old_values'        => $this->safeJson($oldValues),
+                'new_values'        => $this->safeJson($newValues),
+
+                'log_note'          => $note,
+
+                'created_at'        => $now,
+                'updated_at'        => $now,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('user_data_activity_log.insert_failed', [
+                'error'     => $e->getMessage(),
+                'activity'  => $activity,
+                'module'    => $module,
+                'table'     => $tableName,
+                'record_id' => $recordId,
+            ]);
+        }
     }
 
     /* =========================
@@ -204,14 +281,23 @@ class UserSocialMediaController extends Controller
      */
     public function store(Request $request, ?string $user_uuid = null)
     {
+        $module = 'user_social_media';
+
         if ($resp = $this->requireRole($request, [
             'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
-        ])) return $resp;
+        ])) {
+            $this->writeActivityLog($request, 'create_denied', $module, $this->table, null, null, null, null, 'Unauthorized role access');
+            return $resp;
+        }
 
         $user = $this->resolveTargetUser($request, $user_uuid);
-        if (!$user) return response()->json(['success'=>false,'error'=>'User not found'],404);
+        if (!$user) {
+            $this->writeActivityLog($request, 'create_failed', $module, $this->table, null, null, null, null, 'User not found');
+            return response()->json(['success'=>false,'error'=>'User not found'],404);
+        }
 
         if (!$this->canAccess($request, (int)$user->id)) {
+            $this->writeActivityLog($request, 'create_denied', $module, $this->table, null, null, null, null, 'Unauthorized Access (target user restriction)');
             return response()->json(['success'=>false,'error'=>'Unauthorized Access'],403);
         }
 
@@ -224,28 +310,54 @@ class UserSocialMediaController extends Controller
             // metadata handled separately to allow JSON string
         ]);
 
-        if ($v->fails()) return response()->json(['success'=>false,'errors'=>$v->errors()],422);
+        if ($v->fails()) {
+            $this->writeActivityLog(
+                $request,
+                'create_failed',
+                $module,
+                $this->table,
+                null,
+                null,
+                null,
+                ['errors' => $v->errors()->toArray()],
+                'Validation failed'
+            );
+            return response()->json(['success'=>false,'errors'=>$v->errors()],422);
+        }
 
         [$metaPresent, $metaValue, $metaErr] = $this->readMetadataFromRequest($request);
-        if ($metaErr) return response()->json(['success' => false, 'error' => $metaErr], 422);
+        if ($metaErr) {
+            $this->writeActivityLog(
+                $request,
+                'create_failed',
+                $module,
+                $this->table,
+                null,
+                null,
+                null,
+                ['error' => $metaErr],
+                'Metadata validation failed'
+            );
+            return response()->json(['success' => false, 'error' => $metaErr], 422);
+        }
 
         $data  = $v->validated();
         $actor = $this->actor($request);
         $now   = Carbon::now();
 
         $insert = [
-            'uuid'         => (string) Str::uuid(),
-            'user_id'      => (int)$user->id,
-            'platform'     => $data['platform'],
-            'icon'         => $data['icon'] ?? null,
-            'link'         => $data['link'],
-            'sort_order'   => $data['sort_order'] ?? 0,
-            'active'       => array_key_exists('active',$data) ? (bool)$data['active'] : true,
-            'metadata'     => $metaPresent ? ($metaValue !== null ? json_encode($metaValue) : null) : null,
-            'created_by'   => $actor['id'] ?: null,
-            'created_at_ip'=> $request->ip(),
-            'created_at'   => $now,
-            'updated_at'   => $now,
+            'uuid'          => (string) Str::uuid(),
+            'user_id'       => (int) $user->id,
+            'platform'      => $data['platform'],
+            'icon'          => $data['icon'] ?? null,
+            'link'          => $data['link'],
+            'sort_order'    => $data['sort_order'] ?? 0,
+            'active'        => array_key_exists('active',$data) ? (bool)$data['active'] : true,
+            'metadata'      => $metaPresent ? ($metaValue !== null ? json_encode($metaValue) : null) : null,
+            'created_by'    => $actor['id'] ?: null,
+            'created_at_ip' => $request->ip(),
+            'created_at'    => $now,
+            'updated_at'    => $now,
         ];
 
         // only set if columns exist
@@ -255,14 +367,38 @@ class UserSocialMediaController extends Controller
         $id = DB::table($this->table)->insertGetId($insert);
 
         $row = DB::table($this->table)->where('id',$id)->first();
-        $row = $this->decodeMetadataRow($row);
+        $rowDecoded = $this->decodeMetadataRow($row);
 
         $this->logWithActor('user_social_media.store.success', $request, [
             'id' => $id,
             'user_id' => (int)$user->id,
         ]);
 
-        return response()->json(['success'=>true,'data'=>$row],201);
+        // DB activity log
+        $this->writeActivityLog(
+            $request,
+            'create',
+            $module,
+            $this->table,
+            (int) $id,
+            ['platform','icon','link','sort_order','active','metadata'],
+            null,
+            [
+                'id' => $row->id ?? $id,
+                'uuid' => $row->uuid ?? ($insert['uuid'] ?? null),
+                'user_id' => (int) $user->id,
+                'platform' => $row->platform ?? ($insert['platform'] ?? null),
+                'icon' => $row->icon ?? ($insert['icon'] ?? null),
+                'link' => $row->link ?? ($insert['link'] ?? null),
+                'sort_order' => $row->sort_order ?? ($insert['sort_order'] ?? null),
+                'active' => $row->active ?? ($insert['active'] ?? null),
+                'metadata' => $rowDecoded->metadata ?? null,
+                'created_at' => $row->created_at ?? null,
+            ],
+            'Created social media link'
+        );
+
+        return response()->json(['success'=>true,'data'=>$rowDecoded],201);
     }
 
     /**
@@ -275,14 +411,23 @@ class UserSocialMediaController extends Controller
      */
     public function update(Request $request, ?string $user_uuid = null, string $uuid = '')
     {
+        $module = 'user_social_media';
+
         if ($resp = $this->requireRole($request, [
             'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
-        ])) return $resp;
+        ])) {
+            $this->writeActivityLog($request, 'update_denied', $module, $this->table, null, null, null, null, 'Unauthorized role access');
+            return $resp;
+        }
 
         $user = $this->resolveTargetUser($request, $user_uuid);
-        if (!$user) return response()->json(['success'=>false,'error'=>'User not found'],404);
+        if (!$user) {
+            $this->writeActivityLog($request, 'update_failed', $module, $this->table, null, null, null, null, 'User not found');
+            return response()->json(['success'=>false,'error'=>'User not found'],404);
+        }
 
         if (!$this->canAccess($request, (int)$user->id)) {
+            $this->writeActivityLog($request, 'update_denied', $module, $this->table, null, null, null, null, 'Unauthorized Access (target user restriction)');
             return response()->json(['success'=>false,'error'=>'Unauthorized Access'],403);
         }
 
@@ -292,7 +437,12 @@ class UserSocialMediaController extends Controller
             ->whereNull('deleted_at')
             ->first();
 
-        if (!$row) return response()->json(['success'=>false,'error'=>'Record not found'],404);
+        if (!$row) {
+            $this->writeActivityLog($request, 'update_failed', $module, $this->table, null, null, null, null, 'Record not found');
+            return response()->json(['success'=>false,'error'=>'Record not found'],404);
+        }
+
+        $oldRowArr = (array) $row;
 
         $v = Validator::make($request->all(), [
             'platform'   => ['sometimes','required','string','max:100'],
@@ -303,30 +453,73 @@ class UserSocialMediaController extends Controller
             // metadata handled separately
         ]);
 
-        if ($v->fails()) return response()->json(['success'=>false,'errors'=>$v->errors()],422);
+        if ($v->fails()) {
+            $this->writeActivityLog(
+                $request,
+                'update_failed',
+                $module,
+                $this->table,
+                (int) $row->id,
+                null,
+                $oldRowArr,
+                ['errors' => $v->errors()->toArray()],
+                'Validation failed'
+            );
+            return response()->json(['success'=>false,'errors'=>$v->errors()],422);
+        }
 
         [$metaPresent, $metaValue, $metaErr] = $this->readMetadataFromRequest($request);
-        if ($metaErr) return response()->json(['success' => false, 'error' => $metaErr], 422);
+        if ($metaErr) {
+            $this->writeActivityLog(
+                $request,
+                'update_failed',
+                $module,
+                $this->table,
+                (int) $row->id,
+                null,
+                $oldRowArr,
+                ['error' => $metaErr],
+                'Metadata validation failed'
+            );
+            return response()->json(['success' => false, 'error' => $metaErr], 422);
+        }
 
         $data  = $v->validated();
         $actor = $this->actor($request);
 
         $upd = [];
+        $changed = [];
 
         foreach (['platform','icon','link','sort_order'] as $f) {
-            if (array_key_exists($f,$data)) $upd[$f] = $data[$f];
+            if (array_key_exists($f,$data)) {
+                $upd[$f] = $data[$f];
+                $changed[] = $f;
+            }
         }
 
         if (array_key_exists('active',$data)) {
             // if null sent, treat as true (same as your prior logic)
             $upd['active'] = $data['active'] === null ? true : (bool)$data['active'];
+            $changed[] = 'active';
         }
 
         if ($metaPresent) {
             $upd['metadata'] = $metaValue !== null ? json_encode($metaValue) : null;
+            $changed[] = 'metadata';
         }
 
         if (empty($upd)) {
+            $this->writeActivityLog(
+                $request,
+                'update_no_change',
+                $module,
+                $this->table,
+                (int) $row->id,
+                [],
+                $oldRowArr,
+                $oldRowArr,
+                'No fields provided to update'
+            );
             return response()->json(['success' => true, 'data' => $this->decodeMetadataRow($row)]);
         }
 
@@ -339,14 +532,26 @@ class UserSocialMediaController extends Controller
         DB::table($this->table)->where('id',$row->id)->update($upd);
 
         $fresh = DB::table($this->table)->where('id',$row->id)->first();
-        $fresh = $this->decodeMetadataRow($fresh);
+        $freshDecoded = $this->decodeMetadataRow($fresh);
 
         $this->logWithActor('user_social_media.update.success', $request, [
             'id' => $row->id,
             'user_id' => (int)$user->id,
         ]);
 
-        return response()->json(['success'=>true,'data'=>$fresh]);
+        $this->writeActivityLog(
+            $request,
+            'update',
+            $module,
+            $this->table,
+            (int) $row->id,
+            $changed,
+            $oldRowArr,
+            (array) $fresh,
+            'Updated social media link'
+        );
+
+        return response()->json(['success'=>true,'data'=>$freshDecoded]);
     }
 
     /**
@@ -355,14 +560,23 @@ class UserSocialMediaController extends Controller
      */
     public function destroy(Request $request, ?string $user_uuid = null, string $uuid = '')
     {
+        $module = 'user_social_media';
+
         if ($resp = $this->requireRole($request, [
             'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
-        ])) return $resp;
+        ])) {
+            $this->writeActivityLog($request, 'delete_denied', $module, $this->table, null, null, null, null, 'Unauthorized role access');
+            return $resp;
+        }
 
         $user = $this->resolveTargetUser($request, $user_uuid);
-        if (!$user) return response()->json(['success'=>false,'error'=>'User not found'],404);
+        if (!$user) {
+            $this->writeActivityLog($request, 'delete_failed', $module, $this->table, null, null, null, null, 'User not found');
+            return response()->json(['success'=>false,'error'=>'User not found'],404);
+        }
 
         if (!$this->canAccess($request, (int)$user->id)) {
+            $this->writeActivityLog($request, 'delete_denied', $module, $this->table, null, null, null, null, 'Unauthorized Access (target user restriction)');
             return response()->json(['success'=>false,'error'=>'Unauthorized Access'],403);
         }
 
@@ -372,7 +586,12 @@ class UserSocialMediaController extends Controller
             ->whereNull('deleted_at')
             ->first();
 
-        if (!$row) return response()->json(['success'=>false,'error'=>'Record not found'],404);
+        if (!$row) {
+            $this->writeActivityLog($request, 'delete_failed', $module, $this->table, null, null, null, null, 'Record not found');
+            return response()->json(['success'=>false,'error'=>'Record not found'],404);
+        }
+
+        $oldRowArr = (array) $row;
 
         $actor = $this->actor($request);
         $now   = Carbon::now();
@@ -390,10 +609,24 @@ class UserSocialMediaController extends Controller
             ->where('id',$row->id)
             ->update($upd);
 
+        $fresh = DB::table($this->table)->where('id',$row->id)->first();
+
         $this->logWithActor('user_social_media.destroy', $request, [
             'id' => $row->id,
             'user_id' => (int)$user->id,
         ]);
+
+        $this->writeActivityLog(
+            $request,
+            'delete',
+            $module,
+            $this->table,
+            (int) $row->id,
+            ['deleted_at'],
+            $oldRowArr,
+            (array) $fresh,
+            'Soft deleted social media link'
+        );
 
         return response()->json(['success'=>true,'message'=>'Social link deleted']);
     }
@@ -437,14 +670,23 @@ class UserSocialMediaController extends Controller
      */
     public function restore(Request $request, ?string $user_uuid = null, string $uuid = '')
     {
+        $module = 'user_social_media';
+
         if ($resp = $this->requireRole($request, [
             'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
-        ])) return $resp;
+        ])) {
+            $this->writeActivityLog($request, 'restore_denied', $module, $this->table, null, null, null, null, 'Unauthorized role access');
+            return $resp;
+        }
 
         $user = $this->resolveTargetUser($request, $user_uuid);
-        if (!$user) return response()->json(['success'=>false,'error'=>'User not found'],404);
+        if (!$user) {
+            $this->writeActivityLog($request, 'restore_failed', $module, $this->table, null, null, null, null, 'User not found');
+            return response()->json(['success'=>false,'error'=>'User not found'],404);
+        }
 
         if (!$this->canAccess($request, (int)$user->id)) {
+            $this->writeActivityLog($request, 'restore_denied', $module, $this->table, null, null, null, null, 'Unauthorized Access (target user restriction)');
             return response()->json(['success'=>false,'error'=>'Unauthorized Access'],403);
         }
 
@@ -454,7 +696,12 @@ class UserSocialMediaController extends Controller
             ->whereNotNull('deleted_at')
             ->first();
 
-        if (!$row) return response()->json(['success'=>false,'error'=>'Record not found in Bin'],404);
+        if (!$row) {
+            $this->writeActivityLog($request, 'restore_failed', $module, $this->table, null, null, null, null, 'Record not found in Bin');
+            return response()->json(['success'=>false,'error'=>'Record not found in Bin'],404);
+        }
+
+        $oldRowArr = (array) $row;
 
         $actor = $this->actor($request);
         $now = Carbon::now();
@@ -470,14 +717,26 @@ class UserSocialMediaController extends Controller
         DB::table($this->table)->where('id',$row->id)->update($upd);
 
         $fresh = DB::table($this->table)->where('id',$row->id)->first();
-        $fresh = $this->decodeMetadataRow($fresh);
+        $freshDecoded = $this->decodeMetadataRow($fresh);
 
         $this->logWithActor('user_social_media.restore', $request, [
             'id' => $row->id,
             'user_id' => (int)$user->id,
         ]);
 
-        return response()->json(['success'=>true,'data'=>$fresh,'message'=>'Restored']);
+        $this->writeActivityLog(
+            $request,
+            'restore',
+            $module,
+            $this->table,
+            (int) $row->id,
+            ['deleted_at'],
+            $oldRowArr,
+            (array) $fresh,
+            'Restored social media link from Bin'
+        );
+
+        return response()->json(['success'=>true,'data'=>$freshDecoded,'message'=>'Restored']);
     }
 
     /**
@@ -486,14 +745,23 @@ class UserSocialMediaController extends Controller
      */
     public function forceDelete(Request $request, ?string $user_uuid = null, string $uuid = '')
     {
+        $module = 'user_social_media';
+
         if ($resp = $this->requireRole($request, [
             'admin','director','principal','hod'
-        ])) return $resp;
+        ])) {
+            $this->writeActivityLog($request, 'force_delete_denied', $module, $this->table, null, null, null, null, 'Unauthorized role access');
+            return $resp;
+        }
 
         $user = $this->resolveTargetUser($request, $user_uuid);
-        if (!$user) return response()->json(['success'=>false,'error'=>'User not found'],404);
+        if (!$user) {
+            $this->writeActivityLog($request, 'force_delete_failed', $module, $this->table, null, null, null, null, 'User not found');
+            return response()->json(['success'=>false,'error'=>'User not found'],404);
+        }
 
         if (!$this->canAccess($request, (int)$user->id)) {
+            $this->writeActivityLog($request, 'force_delete_denied', $module, $this->table, null, null, null, null, 'Unauthorized Access (target user restriction)');
             return response()->json(['success'=>false,'error'=>'Unauthorized Access'],403);
         }
 
@@ -503,7 +771,12 @@ class UserSocialMediaController extends Controller
             ->whereNotNull('deleted_at')
             ->first();
 
-        if (!$row) return response()->json(['success'=>false,'error'=>'Record not found in Bin'],404);
+        if (!$row) {
+            $this->writeActivityLog($request, 'force_delete_failed', $module, $this->table, null, null, null, null, 'Record not found in Bin');
+            return response()->json(['success'=>false,'error'=>'Record not found in Bin'],404);
+        }
+
+        $oldRowArr = (array) $row;
 
         DB::table($this->table)->where('id',$row->id)->delete();
 
@@ -511,6 +784,18 @@ class UserSocialMediaController extends Controller
             'id' => $row->id,
             'user_id' => (int)$user->id,
         ]);
+
+        $this->writeActivityLog(
+            $request,
+            'force_delete',
+            $module,
+            $this->table,
+            (int) $row->id,
+            [],
+            $oldRowArr,
+            null,
+            'Force deleted permanently'
+        );
 
         return response()->json(['success'=>true,'message'=>'Deleted permanently']);
     }
@@ -521,16 +806,38 @@ class UserSocialMediaController extends Controller
      */
     public function forceDeleteAllDeleted(Request $request, ?string $user_uuid = null)
     {
+        $module = 'user_social_media';
+
         if ($resp = $this->requireRole($request, [
             'admin','director','principal','hod'
-        ])) return $resp;
+        ])) {
+            $this->writeActivityLog($request, 'force_delete_all_denied', $module, $this->table, null, null, null, null, 'Unauthorized role access');
+            return $resp;
+        }
 
         $user = $this->resolveTargetUser($request, $user_uuid);
-        if (!$user) return response()->json(['success'=>false,'error'=>'User not found'],404);
+        if (!$user) {
+            $this->writeActivityLog($request, 'force_delete_all_failed', $module, $this->table, null, null, null, null, 'User not found');
+            return response()->json(['success'=>false,'error'=>'User not found'],404);
+        }
 
         if (!$this->canAccess($request, (int)$user->id)) {
+            $this->writeActivityLog($request, 'force_delete_all_denied', $module, $this->table, null, null, null, null, 'Unauthorized Access (target user restriction)');
             return response()->json(['success'=>false,'error'=>'Unauthorized Access'],403);
         }
+
+        // For logging: capture a sample (avoid huge payload)
+        $sample = DB::table($this->table)
+            ->select('id','uuid')
+            ->where('user_id', $user->id)
+            ->whereNotNull('deleted_at')
+            ->orderBy('id','asc')
+            ->limit(200)
+            ->get()
+            ->map(function ($r) {
+                return ['id' => (int)$r->id, 'uuid' => (string)$r->uuid];
+            })
+            ->toArray();
 
         $count = DB::table($this->table)
             ->where('user_id', $user->id)
@@ -541,6 +848,22 @@ class UserSocialMediaController extends Controller
             'user_id' => (int)$user->id,
             'count' => $count,
         ]);
+
+        $note = 'Bin emptied';
+        if ($count > 200) $note .= " (sampled first 200 of {$count})";
+        else $note .= " ({$count} deleted)";
+
+        $this->writeActivityLog(
+            $request,
+            'force_delete_all',
+            $module,
+            $this->table,
+            null,
+            [],
+            ['sample' => $sample],
+            ['deleted_count' => (int) $count],
+            $note
+        );
 
         return response()->json(['success'=>true,'message'=>'Bin emptied','deleted_count'=>$count]);
     }

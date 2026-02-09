@@ -27,6 +27,95 @@ class ModuleController extends Controller
     }
 
     /**
+     * Safe JSON encoding for log payloads (keeps logging from breaking requests)
+     */
+    private function jsonOrNull($value): ?string
+    {
+        if ($value === null) return null;
+
+        // If empty array/object -> null (keeps table cleaner)
+        if (is_array($value) && empty($value)) return null;
+
+        try {
+            return json_encode(
+                $value,
+                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | (defined('JSON_INVALID_UTF8_SUBSTITUTE') ? JSON_INVALID_UTF8_SUBSTITUTE : 0)
+            );
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Snapshot module row for old/new values (keeps logs compact)
+     */
+    private function moduleSnapshot($row): array
+    {
+        if (! $row) return [];
+
+        $arr = (array) $row;
+        $keep = [
+            'id','uuid','name','description','status','href','slug','order_no',
+            'deleted_at','created_by','updated_by','created_at','updated_at',
+            'created_at_ip'
+        ];
+
+        $out = [];
+        foreach ($keep as $k) {
+            if (array_key_exists($k, $arr)) $out[$k] = $arr[$k];
+        }
+        return $out;
+    }
+
+    /**
+     * Insert into user_data_activity_log (best-effort; never breaks the API response)
+     */
+    private function logActivity(
+        Request $r,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        $oldValues = null,
+        $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            $actor = $this->actor($r);
+
+            $ua = (string) ($r->userAgent() ?? '');
+            if ($ua !== '') {
+                $ua = mb_substr($ua, 0, 512);
+            }
+
+            $note = $note !== null ? mb_substr((string) $note, 0, 5000) : null;
+
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'      => (int) ($actor['id'] ?? 0),
+                'performed_by_role' => ($actor['role'] ?? '') !== '' ? (string) $actor['role'] : null,
+                'ip'                => $r->ip(),
+                'user_agent'        => $ua !== '' ? $ua : null,
+
+                'activity'          => $activity,
+                'module'            => $module,
+                'table_name'        => $tableName,
+                'record_id'         => $recordId,
+
+                'changed_fields'    => $this->jsonOrNull($changedFields),
+                'old_values'        => $this->jsonOrNull($oldValues),
+                'new_values'        => $this->jsonOrNull($newValues),
+
+                'log_note'          => $note,
+                'created_at'        => now(),
+                'updated_at'        => now(),
+            ]);
+        } catch (\Throwable $e) {
+            // swallow (logging must never impact functionality)
+        }
+    }
+
+    /**
      * Normalize an incoming href for storage:
      * - strip leading slashes
      * - strip a leading 'admin' or 'admin/module' prefix (case-insensitive)
@@ -246,6 +335,18 @@ class ModuleController extends Controller
         ]);
 
         if ($v->fails()) {
+            $this->logActivity(
+                $request,
+                'create_failed',
+                'modules',
+                'modules',
+                null,
+                array_keys($request->all() ?? []),
+                null,
+                ['errors' => $v->errors()->toArray(), 'input' => $request->only(['name','description','status','href'])],
+                'Validation failed while creating module'
+            );
+
             return response()->json(['errors' => $v->errors()], 422);
         }
 
@@ -286,12 +387,41 @@ class ModuleController extends Controller
             });
 
             $module = DB::table('modules')->where('id', $id)->first();
+
+            // LOG (success)
+            $changed = ['name','description','status'];
+            if (Schema::hasColumn('modules', 'href')) $changed[] = 'href';
+            $this->logActivity(
+                $request,
+                'create',
+                'modules',
+                'modules',
+                (int) $id,
+                $changed,
+                null,
+                $this->moduleSnapshot($module),
+                'Module created'
+            );
+
             // normalize href for response
             if (isset($module->href)) {
                 $module->href = $this->normalizeHrefForResponse($module->href);
             }
+
             return response()->json(['module' => $module], 201);
         } catch (Exception $e) {
+            $this->logActivity(
+                $request,
+                'create_failed',
+                'modules',
+                'modules',
+                null,
+                array_keys($request->all() ?? []),
+                null,
+                ['input' => $request->only(['name','description','status','href'])],
+                'Could not create module: ' . $e->getMessage()
+            );
+
             return response()->json(['message' => 'Could not create module', 'error' => $e->getMessage()], 500);
         }
     }
@@ -346,7 +476,20 @@ class ModuleController extends Controller
     public function update(Request $request, $identifier)
     {
         $module = $this->resolveModule($identifier, false);
-        if (! $module) return response()->json(['message' => 'Module not found'], 404);
+        if (! $module) {
+            $this->logActivity(
+                $request,
+                'update_failed',
+                'modules',
+                'modules',
+                null,
+                array_keys($request->all() ?? []),
+                null,
+                ['identifier' => (string) $identifier, 'input' => $request->only(['name','description','status','href'])],
+                'Module not found while updating'
+            );
+            return response()->json(['message' => 'Module not found'], 404);
+        }
 
         $v = Validator::make($request->all(), [
             'name' => [
@@ -358,7 +501,20 @@ class ModuleController extends Controller
             'href' => 'sometimes|nullable|string|max:255',
         ]);
 
-        if ($v->fails()) return response()->json(['errors' => $v->errors()], 422);
+        if ($v->fails()) {
+            $this->logActivity(
+                $request,
+                'update_failed',
+                'modules',
+                'modules',
+                (int) $module->id,
+                array_keys($request->all() ?? []),
+                $this->moduleSnapshot($module),
+                ['errors' => $v->errors()->toArray(), 'input' => $request->only(['name','description','status','href'])],
+                'Validation failed while updating module'
+            );
+            return response()->json(['errors' => $v->errors()], 422);
+        }
 
         $actor = $this->actor($request);
 
@@ -388,20 +544,63 @@ class ModuleController extends Controller
         }
 
         if (empty($update) || (count($update) === 1 && array_key_exists('updated_at', $update))) {
+            $this->logActivity(
+                $request,
+                'update_failed',
+                'modules',
+                'modules',
+                (int) $module->id,
+                [],
+                $this->moduleSnapshot($module),
+                null,
+                'Nothing to update'
+            );
             return response()->json(['message' => 'Nothing to update'], 400);
         }
+
+        $old = $this->moduleSnapshot($module);
 
         try {
             DB::transaction(function () use ($module, $update) {
                 DB::table('modules')->where('id', $module->id)->update($update);
             });
+
             $module = DB::table('modules')->where('id', $module->id)->first();
+
+            // LOG (success)
+            $changed = [];
+            foreach (['name','description','status','href'] as $k) {
+                if ($request->has($k)) $changed[] = $k;
+            }
+            $this->logActivity(
+                $request,
+                'update',
+                'modules',
+                'modules',
+                (int) $module->id,
+                $changed,
+                $old,
+                $this->moduleSnapshot($module),
+                'Module updated'
+            );
+
             // normalize href for response
             if (isset($module->href)) {
                 $module->href = $this->normalizeHrefForResponse($module->href);
             }
             return response()->json(['module' => $module]);
         } catch (Exception $e) {
+            $this->logActivity(
+                $request,
+                'update_failed',
+                'modules',
+                'modules',
+                (int) $module->id,
+                array_keys($update),
+                $old,
+                null,
+                'Could not update module: ' . $e->getMessage()
+            );
             return response()->json(['message' => 'Could not update module', 'error' => $e->getMessage()], 500);
         }
     }
@@ -412,12 +611,52 @@ class ModuleController extends Controller
     public function archive(Request $request, $identifier)
     {
         $module = $this->resolveModule($identifier, false);
-        if (! $module) return response()->json(['message' => 'Module not found'], 404);
+        if (! $module) {
+            $this->logActivity(
+                $request,
+                'archive_failed',
+                'modules',
+                'modules',
+                null,
+                ['status'],
+                null,
+                ['identifier' => (string) $identifier],
+                'Module not found while archiving'
+            );
+            return response()->json(['message' => 'Module not found'], 404);
+        }
+
+        $old = $this->moduleSnapshot($module);
 
         try {
             DB::table('modules')->where('id', $module->id)->update(['status' => 'archived', 'updated_at' => now()]);
+
+            $newRow = DB::table('modules')->where('id', $module->id)->first();
+            $this->logActivity(
+                $request,
+                'archive',
+                'modules',
+                'modules',
+                (int) $module->id,
+                ['status'],
+                $old,
+                $this->moduleSnapshot($newRow),
+                'Module archived'
+            );
+
             return response()->json(['message' => 'Module archived']);
         } catch (Exception $e) {
+            $this->logActivity(
+                $request,
+                'archive_failed',
+                'modules',
+                'modules',
+                (int) $module->id,
+                ['status'],
+                $old,
+                null,
+                'Could not archive: ' . $e->getMessage()
+            );
             return response()->json(['message' => 'Could not archive', 'error' => $e->getMessage()], 500);
         }
     }
@@ -428,12 +667,53 @@ class ModuleController extends Controller
     public function unarchive(Request $request, $identifier)
     {
         $module = $this->resolveModule($identifier, false);
-        if (! $module) return response()->json(['message' => 'Module not found'], 404);
+        if (! $module) {
+            $this->logActivity(
+                $request,
+                'unarchive_failed',
+                'modules',
+                'modules',
+                null,
+                ['status'],
+                null,
+                ['identifier' => (string) $identifier],
+                'Module not found while unarchiving'
+            );
+            return response()->json(['message' => 'Module not found'], 404);
+        }
+
+        $old = $this->moduleSnapshot($module);
 
         try {
             DB::table('modules')->where('id', $module->id)->update(['status' => 'Active', 'updated_at' => now()]);
+
+            $newRow = DB::table('modules')->where('id', $module->id)->first();
+            $this->logActivity(
+                $request,
+                'unarchive',
+                'modules',
+                'modules',
+                (int) $module->id,
+                ['status'],
+                $old,
+                $this->moduleSnapshot($newRow),
+                'Module unarchived'
+            );
+
             return response()->json(['message' => 'Module unarchived']);
         } catch (Exception $e) {
+            $this->logActivity(
+                $request,
+                'unarchive_failed',
+                'modules',
+                'modules',
+                (int) $module->id,
+                ['status'],
+                $old,
+                null,
+                'Could not unarchive: ' . $e->getMessage()
+            );
+
             return response()->json(['message' => 'Could not unarchive', 'error' => $e->getMessage()], 500);
         }
     }
@@ -444,9 +724,23 @@ class ModuleController extends Controller
     public function destroy(Request $request, $identifier)
     {
         $module = $this->resolveModule($identifier, false);
-        if (! $module) return response()->json(['message' => 'Module not found or already deleted'], 404);
+        if (! $module) {
+            $this->logActivity(
+                $request,
+                'delete_failed',
+                'modules',
+                'modules',
+                null,
+                ['deleted_at'],
+                null,
+                ['identifier' => (string) $identifier],
+                'Module not found or already deleted while soft-deleting'
+            );
+            return response()->json(['message' => 'Module not found or already deleted'], 404);
+        }
 
         $actor = $this->actor($request);
+        $old = $this->moduleSnapshot($module);
 
         try {
             DB::transaction(function () use ($module, $actor) {
@@ -463,8 +757,34 @@ class ModuleController extends Controller
                 DB::table('privileges')->where('module_id', $module->id)->whereNull('deleted_at')->update($privUpdate);
             });
 
+            $newRow = DB::table('modules')->where('id', $module->id)->first();
+
+            $this->logActivity(
+                $request,
+                'delete',
+                'modules',
+                'modules',
+                (int) $module->id,
+                ['deleted_at'],
+                $old,
+                $this->moduleSnapshot($newRow),
+                'Module soft-deleted (privileges soft-deleted too)'
+            );
+
             return response()->json(['message' => 'Module soft-deleted']);
         } catch (Exception $e) {
+            $this->logActivity(
+                $request,
+                'delete_failed',
+                'modules',
+                'modules',
+                (int) $module->id,
+                ['deleted_at'],
+                $old,
+                null,
+                'Could not delete module: ' . $e->getMessage()
+            );
+
             return response()->json(['message' => 'Could not delete module', 'error' => $e->getMessage()], 500);
         }
     }
@@ -475,9 +795,23 @@ class ModuleController extends Controller
     public function restore(Request $request, $identifier)
     {
         $module = $this->resolveModule($identifier, true);
-        if (! $module || $module->deleted_at === null) return response()->json(['message' => 'Module not found or not deleted'], 404);
+        if (! $module || $module->deleted_at === null) {
+            $this->logActivity(
+                $request,
+                'restore_failed',
+                'modules',
+                'modules',
+                $module ? (int) $module->id : null,
+                ['deleted_at'],
+                $module ? $this->moduleSnapshot($module) : null,
+                ['identifier' => (string) $identifier],
+                'Module not found or not deleted while restoring'
+            );
+            return response()->json(['message' => 'Module not found or not deleted'], 404);
+        }
 
         $actor = $this->actor($request);
+        $old = $this->moduleSnapshot($module);
 
         try {
             DB::transaction(function () use ($module, $actor) {
@@ -495,12 +829,37 @@ class ModuleController extends Controller
             });
 
             $module = DB::table('modules')->where('id', $module->id)->first();
+
+            $this->logActivity(
+                $request,
+                'restore',
+                'modules',
+                'modules',
+                (int) $module->id,
+                ['deleted_at'],
+                $old,
+                $this->moduleSnapshot($module),
+                'Module restored (privileges restored too)'
+            );
+
             // normalize href for response
             if (isset($module->href)) {
                 $module->href = $this->normalizeHrefForResponse($module->href);
             }
             return response()->json(['module' => $module, 'message' => 'Module restored']);
         } catch (Exception $e) {
+            $this->logActivity(
+                $request,
+                'restore_failed',
+                'modules',
+                'modules',
+                (int) $module->id,
+                ['deleted_at'],
+                $old,
+                null,
+                'Could not restore: ' . $e->getMessage()
+            );
+
             return response()->json(['message' => 'Could not restore', 'error' => $e->getMessage()], 500);
         }
     }
@@ -511,15 +870,58 @@ class ModuleController extends Controller
     public function forceDelete(Request $request, $identifier)
     {
         $module = $this->resolveModule($identifier, true);
-        if (! $module) return response()->json(['message' => 'Module not found'], 404);
+        if (! $module) {
+            $this->logActivity(
+                $request,
+                'force_delete_failed',
+                'modules',
+                'modules',
+                null,
+                [],
+                null,
+                ['identifier' => (string) $identifier],
+                'Module not found while permanently deleting'
+            );
+            return response()->json(['message' => 'Module not found'], 404);
+        }
+
+        $old = $this->moduleSnapshot($module);
+        $privCount = 0;
 
         try {
+            $privCount = (int) DB::table('privileges')->where('module_id', $module->id)->count();
+
             DB::transaction(function () use ($module) {
                 DB::table('privileges')->where('module_id', $module->id)->delete();
                 DB::table('modules')->where('id', $module->id)->delete();
             });
+
+            $this->logActivity(
+                $request,
+                'force_delete',
+                'modules',
+                'modules',
+                (int) $module->id,
+                [],
+                $old,
+                ['deleted' => true, 'privileges_deleted' => $privCount],
+                'Module permanently deleted'
+            );
+
             return response()->json(['message' => 'Module permanently deleted']);
         } catch (Exception $e) {
+            $this->logActivity(
+                $request,
+                'force_delete_failed',
+                'modules',
+                'modules',
+                (int) $module->id,
+                [],
+                $old,
+                ['privileges_count' => $privCount],
+                'Could not permanently delete: ' . $e->getMessage()
+            );
+
             return response()->json(['message' => 'Could not permanently delete', 'error' => $e->getMessage()], 500);
         }
     }
@@ -537,7 +939,21 @@ class ModuleController extends Controller
             'ids' => 'required|array|min:1',
             'ids.*' => 'integer|min:1',
         ]);
-        if ($v->fails()) return response()->json(['errors' => $v->errors()], 422);
+
+        if ($v->fails()) {
+            $this->logActivity(
+                $request,
+                'reorder_failed',
+                'modules',
+                'modules',
+                null,
+                ['order_no','ids'],
+                null,
+                ['errors' => $v->errors()->toArray(), 'input' => $request->only(['ids'])],
+                'Validation failed while reordering modules'
+            );
+            return response()->json(['errors' => $v->errors()], 422);
+        }
 
         $ids = $request->input('ids');
 
@@ -550,8 +966,35 @@ class ModuleController extends Controller
                     }
                 }
             });
+
+            $this->logActivity(
+                $request,
+                'reorder',
+                'modules',
+                'modules',
+                null,
+                [Schema::hasColumn('modules', 'order_no') ? 'order_no' : 'ids'],
+                null,
+                ['ids' => $ids],
+                Schema::hasColumn('modules', 'order_no')
+                    ? 'Modules reordered (order_no updated)'
+                    : 'Reorder requested but order_no column not found (no DB changes)'
+            );
+
             return response()->json(['message' => 'Order updated']);
         } catch (Exception $e) {
+            $this->logActivity(
+                $request,
+                'reorder_failed',
+                'modules',
+                'modules',
+                null,
+                ['order_no','ids'],
+                null,
+                ['ids' => $ids],
+                'Could not update order: ' . $e->getMessage()
+            );
+
             return response()->json(['message' => 'Could not update order', 'error' => $e->getMessage()], 500);
         }
     }

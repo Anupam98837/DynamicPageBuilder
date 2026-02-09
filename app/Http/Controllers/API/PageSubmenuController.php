@@ -16,6 +16,9 @@ class PageSubmenuController extends Controller
     /** Table name (your migration log shows `pages_submenu`) */
     private string $table = 'pages_submenu';
 
+    /** Activity log module name */
+    private string $logModule = 'page_submenus';
+
     /* ============================================
      | Helpers
      |============================================ */
@@ -27,6 +30,96 @@ class PageSubmenuController extends Controller
             'type' => $request->attributes->get('auth_tokenable_type'),
             'id'   => (int) ($request->attributes->get('auth_tokenable_id') ?? 0),
         ];
+    }
+
+    private function trackedFields(): array
+    {
+        return [
+            'id', 'uuid',
+            'page_id', 'department_id', 'header_menu_id',
+            'parent_id',
+            'title', 'description',
+            'slug', 'shortcode',
+            'page_slug', 'page_shortcode',
+            'includable_path', 'page_url',
+            'position', 'active',
+            'deleted_at',
+        ];
+    }
+
+    private function pickFields($row, array $keys): array
+    {
+        $arr = is_array($row) ? $row : (array) $row;
+        $out = [];
+        foreach ($keys as $k) {
+            if (array_key_exists($k, $arr)) {
+                $out[$k] = $arr[$k];
+            }
+        }
+        return $out;
+    }
+
+    private function computeChangedFields(array $old, array $new, array $keys): array
+    {
+        $changed = [];
+        foreach ($keys as $k) {
+            $ov = $old[$k] ?? null;
+            $nv = $new[$k] ?? null;
+
+            // non-strict comparison avoids noise from DB string/int casts
+            if ($ov != $nv) {
+                $changed[] = $k;
+            }
+        }
+        return $changed;
+    }
+
+    private function toJsonOrNull($v): ?string
+    {
+        if ($v === null) return null;
+        if (is_string($v)) return $v; // already JSON
+        try {
+            return json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Insert activity log row (never breaks primary flow).
+     */
+    private function logActivity(
+        Request $r,
+        string $activity,
+        ?string $note = null,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        $oldValues = null,
+        $newValues = null,
+        ?string $tableName = null
+    ): void {
+        try {
+            $actor = $this->actor($r);
+
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'      => (int) ($actor['id'] ?: 0),
+                'performed_by_role' => $actor['role'] ?: null,
+                'ip'                => $r->ip(),
+                'user_agent'        => mb_substr((string) ($r->userAgent() ?? ''), 0, 512),
+                'activity'          => mb_substr($activity, 0, 50),
+                'module'            => mb_substr($this->logModule, 0, 100),
+                'table_name'        => mb_substr((string) ($tableName ?: $this->table), 0, 128),
+                'record_id'         => $recordId,
+                'changed_fields'    => $changedFields ? $this->toJsonOrNull(array_values($changedFields)) : null,
+                'old_values'        => $oldValues !== null ? $this->toJsonOrNull($oldValues) : null,
+                'new_values'        => $newValues !== null ? $this->toJsonOrNull($newValues) : null,
+                'log_note'          => $note,
+                'created_at'        => now(),
+                'updated_at'        => now(),
+            ]);
+        } catch (\Throwable $e) {
+            // swallow to avoid breaking any existing functionality
+        }
     }
 
     private function normSlug(?string $s): string
@@ -217,11 +310,10 @@ class PageSubmenuController extends Controller
     }
 
     /** Resolve header_menu_id from query param */
-private function resolveHeaderMenuIdFromRequest(Request $r): int
-{
-    return (int) $r->query('header_menu_id', 0);
-}
-
+    private function resolveHeaderMenuIdFromRequest(Request $r): int
+    {
+        return (int) $r->query('header_menu_id', 0);
+    }
 
     /**
      * Enforce that ONLY ONE destination option is set:
@@ -424,93 +516,92 @@ private function resolveHeaderMenuIdFromRequest(Request $r): int
      * - page_id=123 OR page_slug=about-us
      * - only_active=1
      */
-public function tree(Request $r)
-{
-    $onlyActive = (int) $r->query('only_active', 0) === 1;
+    public function tree(Request $r)
+    {
+        $onlyActive = (int) $r->query('only_active', 0) === 1;
 
-    $pageId = $this->resolvePageIdFromRequest($r);         // optional now
-    $headerMenuId = $this->resolveHeaderMenuIdFromRequest($r); // ✅ NEW MAIN
+        $pageId = $this->resolvePageIdFromRequest($r);         // optional now
+        $headerMenuId = $this->resolveHeaderMenuIdFromRequest($r); // ✅ NEW MAIN
 
-    // ✅ NEW: allow header_menu_id as main scope
-    if ($pageId <= 0 && $headerMenuId <= 0) {
+        // ✅ NEW: allow header_menu_id as main scope
+        if ($pageId <= 0 && $headerMenuId <= 0) {
+            return response()->json([
+                'error' => 'Missing header_menu_id OR page_id/page_slug'
+            ], 422);
+        }
+
+        if ($pageId > 0) {
+            $this->validatePage($pageId);
+        }
+
+        if (Schema::hasColumn($this->table, 'header_menu_id') && $headerMenuId > 0) {
+            $this->validateHeaderMenu($headerMenuId);
+        } else {
+            $headerMenuId = 0;
+        }
+
+        $q = DB::table($this->table)
+            ->whereNull('deleted_at');
+
+        if ($onlyActive) {
+            $q->where('active', true);
+        }
+
+        /**
+         * ✅ NEW SCOPING RULE:
+         * If header_menu_id exists => scope by header menu
+         * Page ID is optional (if present, allow both page-specific + global(page_id NULL))
+         */
+        if ($headerMenuId > 0 && Schema::hasColumn($this->table, 'header_menu_id')) {
+
+            $q->where('header_menu_id', $headerMenuId);
+
+            if ($pageId > 0) {
+                $q->where(function ($x) use ($pageId) {
+                    $x->where('page_id', $pageId)
+                      ->orWhereNull('page_id');
+                });
+            } else {
+                $q->whereNull('page_id');
+            }
+
+        } else {
+            // fallback: old behavior
+            if ($pageId > 0) {
+                $q->where('page_id', $pageId);
+            } else {
+                $q->whereNull('page_id');
+            }
+        }
+
+        $rows = $q->orderBy('position', 'asc')
+                  ->orderBy('id', 'asc')
+                  ->get();
+
+        // build tree
+        $byParent = [];
+        foreach ($rows as $row) {
+            $pid = $row->parent_id ?? 0;
+            $byParent[$pid][] = $row;
+        }
+
+        $make = function ($pid) use (&$make, &$byParent) {
+            $nodes = $byParent[$pid] ?? [];
+            foreach ($nodes as $n) {
+                $n->children = $make($n->id);
+            }
+            return $nodes;
+        };
+
         return response()->json([
-            'error' => 'Missing header_menu_id OR page_id/page_slug'
-        ], 422);
+            'success' => true,
+            'scope'   => [
+                'page_id' => $pageId ?: null,
+                'header_menu_id' => $headerMenuId ?: null,
+            ],
+            'data' => $make(0),
+        ]);
     }
-
-    if ($pageId > 0) {
-        $this->validatePage($pageId);
-    }
-
-    if (Schema::hasColumn($this->table, 'header_menu_id') && $headerMenuId > 0) {
-        $this->validateHeaderMenu($headerMenuId);
-    } else {
-        $headerMenuId = 0;
-    }
-
-    $q = DB::table($this->table)
-        ->whereNull('deleted_at');
-
-    if ($onlyActive) {
-        $q->where('active', true);
-    }
-
-    /**
-     * ✅ NEW SCOPING RULE:
-     * If header_menu_id exists => scope by header menu
-     * Page ID is optional (if present, allow both page-specific + global(page_id NULL))
-     */
-    if ($headerMenuId > 0 && Schema::hasColumn($this->table, 'header_menu_id')) {
-
-        $q->where('header_menu_id', $headerMenuId);
-
-        if ($pageId > 0) {
-            $q->where(function ($x) use ($pageId) {
-                $x->where('page_id', $pageId)
-                  ->orWhereNull('page_id');
-            });
-        } else {
-            $q->whereNull('page_id');
-        }
-
-    } else {
-        // fallback: old behavior
-        if ($pageId > 0) {
-            $q->where('page_id', $pageId);
-        } else {
-            $q->whereNull('page_id');
-        }
-    }
-
-    $rows = $q->orderBy('position', 'asc')
-              ->orderBy('id', 'asc')
-              ->get();
-
-    // build tree
-    $byParent = [];
-    foreach ($rows as $row) {
-        $pid = $row->parent_id ?? 0;
-        $byParent[$pid][] = $row;
-    }
-
-    $make = function ($pid) use (&$make, &$byParent) {
-        $nodes = $byParent[$pid] ?? [];
-        foreach ($nodes as $n) {
-            $n->children = $make($n->id);
-        }
-        return $nodes;
-    };
-
-    return response()->json([
-        'success' => true,
-        'scope'   => [
-            'page_id' => $pageId ?: null,
-            'header_menu_id' => $headerMenuId ?: null,
-        ],
-        'data' => $make(0),
-    ]);
-}
-
 
     /**
      * Resolve submenu slug (same logic as header menus):
@@ -631,6 +722,11 @@ public function tree(Request $r)
         }
 
         if ($deptId !== null && $pageDeptId !== null && $deptId !== $pageDeptId) {
+            $this->logActivity($r, 'create_failed', 'department_id must match page.department_id', null, ['department_id'], null, [
+                'page_id' => $pageId,
+                'department_id' => $deptId,
+                'page_department_id' => $pageDeptId,
+            ]);
             return response()->json(['error' => 'department_id must match page.department_id'], 422);
         }
 
@@ -645,6 +741,7 @@ public function tree(Request $r)
 
         $slug = $this->normSlug($data['slug'] ?? $data['title'] ?? '');
         if ($slug === '') {
+            $this->logActivity($r, 'create_failed', 'Unable to generate slug', null, ['slug'], null, $data);
             return response()->json(['error' => 'Unable to generate slug'], 422);
         }
 
@@ -662,6 +759,16 @@ public function tree(Request $r)
         $existing = $existingQ->first();
 
         if ($existing) {
+            $this->logActivity(
+                $r,
+                'create',
+                'Submenu already exists; not created again.',
+                (int) $existing->id,
+                null,
+                null,
+                $this->pickFields($existing, $this->trackedFields())
+            );
+
             return response()->json([
                 'success'         => true,
                 'data'            => $existing,
@@ -679,6 +786,7 @@ public function tree(Request $r)
                 ->exists();
 
             if ($shortExists) {
+                $this->logActivity($r, 'create_failed', 'Submenu shortcode already exists', null, ['shortcode'], null, ['shortcode' => $submenuShortcode]);
                 return response()->json(['error' => 'Submenu shortcode already exists'], 422);
             }
         } else {
@@ -706,7 +814,10 @@ public function tree(Request $r)
             : null;
 
         $singleDestErr = $this->enforceSingleDestination($pageUrl, $pageSlug, $pageShortcode, $includablePath);
-        if ($singleDestErr) return $singleDestErr;
+        if ($singleDestErr) {
+            $this->logActivity($r, 'create_failed', 'Multiple destination fields provided', null, ['page_url','page_slug','page_shortcode','includable_path'], null, $data);
+            return $singleDestErr;
+        }
 
         if ($pageShortcode) {
             $existsPageShort = DB::table($this->table)
@@ -715,6 +826,7 @@ public function tree(Request $r)
                 ->exists();
 
             if ($existsPageShort) {
+                $this->logActivity($r, 'create_failed', 'Page shortcode already exists', null, ['page_shortcode'], null, ['page_shortcode' => $pageShortcode]);
                 return response()->json(['error' => 'Page shortcode already exists'], 422);
             }
         }
@@ -744,6 +856,8 @@ public function tree(Request $r)
             : true;
 
         if ($trashed) {
+            $oldSnap = $this->pickFields($trashed, $this->trackedFields());
+
             DB::table($this->table)
                 ->where('id', $trashed->id)
                 ->update([
@@ -768,6 +882,18 @@ public function tree(Request $r)
                 ]);
 
             $row = DB::table($this->table)->where('id', $trashed->id)->first();
+            $newSnap = $row ? $this->pickFields($row, $this->trackedFields()) : null;
+            $changed = $row ? $this->computeChangedFields($oldSnap, (array)$newSnap, array_keys($oldSnap)) : null;
+
+            $this->logActivity(
+                $r,
+                'restore',
+                'Restored from bin during create (slug matched trashed item).',
+                (int) $trashed->id,
+                $changed ?: null,
+                $oldSnap,
+                $newSnap
+            );
 
             return response()->json([
                 'success'  => true,
@@ -802,6 +928,16 @@ public function tree(Request $r)
 
         $row = DB::table($this->table)->where('id', $id)->first();
 
+        $this->logActivity(
+            $r,
+            'create',
+            'Created submenu.',
+            (int) $id,
+            $row ? array_keys($this->pickFields($row, $this->trackedFields())) : null,
+            null,
+            $row ? $this->pickFields($row, $this->trackedFields()) : null
+        );
+
         return response()->json(['success' => true, 'data' => $row], 201);
     }
 
@@ -813,6 +949,7 @@ public function tree(Request $r)
             ->first();
 
         if (!$row) {
+            $this->logActivity($r, 'update_failed', 'Not found', (int)$id, null, null, null);
             return response()->json(['error' => 'Not found'], 404);
         }
 
@@ -838,6 +975,8 @@ public function tree(Request $r)
             'includable_path'  => 'sometimes|nullable|string|max:255',
         ]);
 
+        $oldSnap = $this->pickFields($row, $this->trackedFields());
+
         // ✅ CHANGED: nullable page_id handling
         $currentPageId = $row->page_id === null ? null : (int) $row->page_id;
         $pageId = $currentPageId;
@@ -847,6 +986,7 @@ public function tree(Request $r)
 
             // ✅ allow setting page_id only if currently null, else block change
             if ($currentPageId !== null && $incoming !== $currentPageId) {
+                $this->logActivity($r, 'update_failed', 'Changing page_id is not allowed', (int)$row->id, ['page_id'], $oldSnap, ['page_id' => $incoming]);
                 return response()->json(['error' => 'Changing page_id is not allowed'], 422);
             }
 
@@ -884,6 +1024,10 @@ public function tree(Request $r)
         }
 
         if ($deptId !== null && $pageDeptId !== null && $deptId !== $pageDeptId) {
+            $this->logActivity($r, 'update_failed', 'department_id must match page.department_id', (int)$row->id, ['department_id'], $oldSnap, [
+                'department_id' => $deptId,
+                'page_department_id' => $pageDeptId
+            ]);
             return response()->json(['error' => 'department_id must match page.department_id'], 422);
         }
 
@@ -914,6 +1058,7 @@ public function tree(Request $r)
             }
 
             if ($slug === '') {
+                $this->logActivity($r, 'update_failed', 'Unable to generate slug', (int)$row->id, ['slug'], $oldSnap, $data);
                 return response()->json(['error' => 'Unable to generate slug'], 422);
             }
 
@@ -932,6 +1077,7 @@ public function tree(Request $r)
             $existsSlug = $existsSlugQ->exists();
 
             if ($existsSlug) {
+                $this->logActivity($r, 'update_failed', 'Slug already in use for this scope', (int)$row->id, ['slug'], $oldSnap, ['slug' => $slug]);
                 return response()->json(['error' => 'Slug already in use for this scope'], 422);
             }
         }
@@ -949,18 +1095,18 @@ public function tree(Request $r)
                     ->whereNull('deleted_at')
                     ->exists();
                 if ($existsShort) {
+                    $this->logActivity($r, 'update_failed', 'Submenu shortcode already in use', (int)$row->id, ['shortcode'], $oldSnap, ['shortcode' => $val]);
                     return response()->json(['error' => 'Submenu shortcode already in use'], 422);
                 }
                 $submenuShortcode = $val;
             }
         }
 
-$pageSlug = $row->page_slug ?? null;
-if (array_key_exists('page_slug', $data)) {
-    $norm = $this->normSlug($data['page_slug']);
-    $pageSlug = $norm !== '' ? $norm : null; // ✅ allow duplicates now
-}
-
+        $pageSlug = $row->page_slug ?? null;
+        if (array_key_exists('page_slug', $data)) {
+            $norm = $this->normSlug($data['page_slug']);
+            $pageSlug = $norm !== '' ? $norm : null; // ✅ allow duplicates now
+        }
 
         $pageShortcode = $row->page_shortcode ?? null;
         if (array_key_exists('page_shortcode', $data)) {
@@ -974,6 +1120,7 @@ if (array_key_exists('page_slug', $data)) {
                     ->whereNull('deleted_at')
                     ->exists();
                 if ($existsPageShort) {
+                    $this->logActivity($r, 'update_failed', 'Page shortcode already in use', (int)$row->id, ['page_shortcode'], $oldSnap, ['page_shortcode' => $pageShortcode]);
                     return response()->json(['error' => 'Page shortcode already in use'], 422);
                 }
             }
@@ -988,7 +1135,10 @@ if (array_key_exists('page_slug', $data)) {
             : ($row->includable_path ?? null);
 
         $singleDestErr = $this->enforceSingleDestination($pageUrl, $pageSlug, $pageShortcode, $includablePath);
-        if ($singleDestErr) return $singleDestErr;
+        if ($singleDestErr) {
+            $this->logActivity($r, 'update_failed', 'Multiple destination fields provided', (int)$row->id, ['page_url','page_slug','page_shortcode','includable_path'], $oldSnap, $data);
+            return $singleDestErr;
+        }
 
         $upd = [
             // ✅ CHANGED: persist nullable page_id
@@ -1020,19 +1170,35 @@ if (array_key_exists('page_slug', $data)) {
             ->where('id', $row->id)
             ->first();
 
+        $newSnap = $fresh ? $this->pickFields($fresh, $this->trackedFields()) : null;
+        $changed = ($fresh && $newSnap) ? $this->computeChangedFields($oldSnap, $newSnap, array_keys($newSnap)) : null;
+
+        $this->logActivity(
+            $r,
+            'update',
+            $changed && count($changed) ? ('Updated fields: ' . implode(', ', $changed)) : 'Updated submenu.',
+            (int) $row->id,
+            $changed ?: null,
+            $oldSnap,
+            $newSnap
+        );
+
         return response()->json(['success' => true, 'data' => $fresh]);
     }
 
     public function destroy(Request $r, $id)
     {
-        $exists = DB::table($this->table)
+        $row = DB::table($this->table)
             ->where('id', (int) $id)
             ->whereNull('deleted_at')
-            ->exists();
+            ->first();
 
-        if (!$exists) {
+        if (!$row) {
+            $this->logActivity($r, 'delete_failed', 'Not found', (int)$id, null, null, null);
             return response()->json(['error' => 'Not found'], 404);
         }
+
+        $oldSnap = $this->pickFields($row, $this->trackedFields());
 
         DB::table($this->table)
             ->where('id', (int) $id)
@@ -1043,19 +1209,35 @@ if (array_key_exists('page_slug', $data)) {
                 'updated_at_ip' => $r->ip(),
             ]);
 
+        $fresh = DB::table($this->table)->where('id', (int) $id)->first();
+        $newSnap = $fresh ? $this->pickFields($fresh, $this->trackedFields()) : null;
+
+        $this->logActivity(
+            $r,
+            'delete',
+            'Moved submenu to bin (soft delete).',
+            (int) $id,
+            ['deleted_at'],
+            $oldSnap,
+            $newSnap
+        );
+
         return response()->json(['success' => true, 'message' => 'Moved to bin']);
     }
 
     public function restore(Request $r, $id)
     {
-        $ok = DB::table($this->table)
+        $row = DB::table($this->table)
             ->where('id', (int) $id)
             ->whereNotNull('deleted_at')
-            ->exists();
+            ->first();
 
-        if (!$ok) {
+        if (!$row) {
+            $this->logActivity($r, 'restore_failed', 'Not found in bin', (int)$id, null, null, null);
             return response()->json(['error' => 'Not found in bin'], 404);
         }
+
+        $oldSnap = $this->pickFields($row, $this->trackedFields());
 
         DB::table($this->table)
             ->where('id', (int) $id)
@@ -1066,22 +1248,48 @@ if (array_key_exists('page_slug', $data)) {
                 'updated_at_ip' => $r->ip(),
             ]);
 
+        $fresh = DB::table($this->table)->where('id', (int) $id)->first();
+        $newSnap = $fresh ? $this->pickFields($fresh, $this->trackedFields()) : null;
+
+        $this->logActivity(
+            $r,
+            'restore',
+            'Restored submenu from bin.',
+            (int) $id,
+            ['deleted_at'],
+            $oldSnap,
+            $newSnap
+        );
+
         return response()->json(['success' => true, 'message' => 'Restored']);
     }
 
     public function forceDelete(Request $r, $id)
     {
-        $exists = DB::table($this->table)
+        $row = DB::table($this->table)
             ->where('id', (int) $id)
-            ->exists();
+            ->first();
 
-        if (!$exists) {
+        if (!$row) {
+            $this->logActivity($r, 'force_delete_failed', 'Not found', (int)$id, null, null, null);
             return response()->json(['error' => 'Not found'], 404);
         }
+
+        $oldSnap = $this->pickFields($row, $this->trackedFields());
 
         DB::table($this->table)
             ->where('id', (int) $id)
             ->delete();
+
+        $this->logActivity(
+            $r,
+            'force_delete',
+            'Deleted submenu permanently.',
+            (int) $id,
+            null,
+            $oldSnap,
+            null
+        );
 
         return response()->json(['success' => true, 'message' => 'Deleted permanently']);
     }
@@ -1094,17 +1302,34 @@ if (array_key_exists('page_slug', $data)) {
             ->first();
 
         if (!$row) {
+            $this->logActivity($r, 'toggle_failed', 'Not found', (int)$id, null, null, null);
             return response()->json(['error' => 'Not found'], 404);
         }
+
+        $oldSnap = $this->pickFields($row, $this->trackedFields());
+        $newActive = !$row->active;
 
         DB::table($this->table)
             ->where('id', (int) $id)
             ->update([
-                'active'        => !$row->active,
+                'active'        => $newActive,
                 'updated_at'    => now(),
                 'updated_by'    => $this->actor($r)['id'] ?: null,
                 'updated_at_ip' => $r->ip(),
             ]);
+
+        $fresh = DB::table($this->table)->where('id', (int) $id)->first();
+        $newSnap = $fresh ? $this->pickFields($fresh, $this->trackedFields()) : null;
+
+        $this->logActivity(
+            $r,
+            'toggle_active',
+            $newActive ? 'Activated submenu.' : 'Deactivated submenu.',
+            (int) $id,
+            ['active'],
+            $oldSnap,
+            $newSnap
+        );
 
         return response()->json(['success' => true, 'message' => 'Status updated']);
     }
@@ -1117,6 +1342,8 @@ if (array_key_exists('page_slug', $data)) {
             'orders.*.position'  => 'required|integer|min:0',
             'orders.*.parent_id' => 'nullable|integer',
         ]);
+
+        $changesToLog = []; // collect per-id old/new for logs after commit
 
         DB::beginTransaction();
 
@@ -1144,6 +1371,19 @@ if (array_key_exists('page_slug', $data)) {
                     throw new \RuntimeException("Parent change not allowed for id {$id}");
                 }
 
+                // store for logging
+                $changesToLog[] = [
+                    'id' => $id,
+                    'old' => [
+                        'position' => (int) $row->position,
+                        'parent_id' => $currentPid,
+                    ],
+                    'new' => [
+                        'position' => $pos,
+                        'parent_id' => $currentPid,
+                    ],
+                ];
+
                 DB::table($this->table)
                     ->where('id', $id)
                     ->update([
@@ -1157,244 +1397,188 @@ if (array_key_exists('page_slug', $data)) {
             DB::commit();
         } catch (\Throwable $e) {
             DB::rollBack();
+
+            $this->logActivity(
+                $r,
+                'reorder_failed',
+                'Reorder failed: ' . $e->getMessage(),
+                null,
+                ['orders'],
+                null,
+                ['orders' => $payload['orders']]
+            );
+
             return response()->json([
                 'error'   => 'Reorder failed',
                 'details' => $e->getMessage(),
             ], 422);
         }
 
+        // logs after commit (so reorder logs remain even if some other later code fails)
+        foreach ($changesToLog as $c) {
+            $changed = ['position']; // parent is not allowed to change here
+            $this->logActivity(
+                $r,
+                'reorder',
+                'Reordered submenu position.',
+                (int) $c['id'],
+                $changed,
+                $c['old'],
+                $c['new']
+            );
+        }
+
         return response()->json(['success' => true, 'message' => 'Order updated']);
     }
 
-// public function publicTree(Request $r)
-// {
-//     $onlyTopLevel = (int) $r->query('top_level', 0) === 1;
+    // public function publicTree(Request $r)
+    // {
+    //     ...
+    // }
+    public function publicTree(Request $r)
+    {
+        $onlyTopLevel = (int) $r->query('top_level', 0) === 1;
 
-//     $pageId = $this->resolvePageIdFromRequest($r);
-//     $headerMenuId = $this->resolveHeaderMenuIdFromRequest($r);
+        $pageId = $this->resolvePageIdFromRequest($r);
+        $requestedHeaderMenuId = $this->resolveHeaderMenuIdFromRequest($r);
 
-//     // ✅ NEW: allow header_menu_id as main scope
-//     if ($pageId <= 0 && $headerMenuId <= 0) {
-//         return response()->json([
-//             'error' => 'Missing page_id/page_slug OR header_menu_id'
-//         ], 422);
-//     }
+        // ✅ NEW: allow header_menu_id as main scope
+        if ($pageId <= 0 && $requestedHeaderMenuId <= 0) {
+            return response()->json([
+                'error' => 'Missing page_id/page_slug OR header_menu_id'
+            ], 422);
+        }
 
-//     if ($pageId > 0) {
-//         $this->validatePage($pageId);
-//     }
-
-//     if (Schema::hasColumn($this->table, 'header_menu_id') && $headerMenuId > 0) {
-//         $this->validateHeaderMenu($headerMenuId);
-//     } else {
-//         $headerMenuId = 0;
-//     }
-
-//     $q = DB::table($this->table)
-//         ->whereNull('deleted_at')
-//         ->where('active', true);
-
-//     // ✅ MAIN SCOPE: header_menu_id
-//     if ($headerMenuId > 0 && Schema::hasColumn($this->table, 'header_menu_id')) {
-//         $q->where('header_menu_id', $headerMenuId);
-
-//         // ✅ If pageId exists -> allow both page-level + header-level (page_id NULL)
-//         if ($pageId > 0) {
-//             $q->where(function ($x) use ($pageId) {
-//                 $x->where('page_id', $pageId)
-//                   ->orWhereNull('page_id');
-//             });
-//         } else {
-//             // header-only scope
-//             $q->whereNull('page_id');
-//         }
-//     }
-//     else {
-//         // ✅ fallback: page scope only (old behavior)
-//         if ($pageId > 0) {
-//             $q->where('page_id', $pageId);
-//         } else {
-//             $q->whereNull('page_id');
-//         }
-//     }
-
-//     if ($onlyTopLevel) {
-//         $q->whereNull('parent_id');
-//     }
-
-//     $rows = $q->orderBy('position', 'asc')
-//               ->orderBy('id', 'asc')
-//               ->get();
-
-//     // build tree
-//     $byParent = [];
-//     foreach ($rows as $row) {
-//         $pid = $row->parent_id ?? 0;
-//         $byParent[$pid][] = $row;
-//     }
-
-//     $make = function ($pid) use (&$make, &$byParent) {
-//         $nodes = $byParent[$pid] ?? [];
-//         foreach ($nodes as $n) {
-//             $n->children = $make($n->id);
-//         }
-//         return $nodes;
-//     };
-
-//     return response()->json([
-//         'success' => true,
-//         'scope'   => [
-//             'page_id' => $pageId ?: null,
-//             'header_menu_id' => $headerMenuId ?: null,
-//         ],
-//         'data' => $make(0),
-//     ]);
-// }
-public function publicTree(Request $r)
-{
-    $onlyTopLevel = (int) $r->query('top_level', 0) === 1;
-
-    $pageId = $this->resolvePageIdFromRequest($r);
-    $requestedHeaderMenuId = $this->resolveHeaderMenuIdFromRequest($r);
-
-    // ✅ NEW: allow header_menu_id as main scope
-    if ($pageId <= 0 && $requestedHeaderMenuId <= 0) {
-        return response()->json([
-            'error' => 'Missing page_id/page_slug OR header_menu_id'
-        ], 422);
-    }
-
-    if ($pageId > 0) {
-        $this->validatePage($pageId);
-    }
-
-    $hasHeaderCol = Schema::hasColumn($this->table, 'header_menu_id');
-
-    $headerMenuId = $requestedHeaderMenuId;
-    if ($hasHeaderCol && $headerMenuId > 0) {
-        $this->validateHeaderMenu($headerMenuId);
-    } else {
-        $headerMenuId = 0;
-    }
-
-    /**
-     * Helper: build the exact query for a given header_menu_id (and current pageId rules)
-     * Keeps behavior same as current code.
-     */
-    $buildQueryForHeader = function (int $hmId) use ($pageId, $onlyTopLevel) {
-        $q = DB::table($this->table)
-            ->whereNull('deleted_at')
-            ->where('active', true)
-            ->where('header_menu_id', $hmId);
-
-        // ✅ If pageId exists -> allow both page-level + header-level (page_id NULL)
         if ($pageId > 0) {
-            $q->where(function ($x) use ($pageId) {
-                $x->where('page_id', $pageId)
-                  ->orWhereNull('page_id');
-            });
+            $this->validatePage($pageId);
+        }
+
+        $hasHeaderCol = Schema::hasColumn($this->table, 'header_menu_id');
+
+        $headerMenuId = $requestedHeaderMenuId;
+        if ($hasHeaderCol && $headerMenuId > 0) {
+            $this->validateHeaderMenu($headerMenuId);
         } else {
-            // header-only scope
-            $q->whereNull('page_id');
+            $headerMenuId = 0;
         }
 
-        if ($onlyTopLevel) {
-            $q->whereNull('parent_id');
-        }
+        /**
+         * Helper: build the exact query for a given header_menu_id (and current pageId rules)
+         * Keeps behavior same as current code.
+         */
+        $buildQueryForHeader = function (int $hmId) use ($pageId, $onlyTopLevel) {
+            $q = DB::table($this->table)
+                ->whereNull('deleted_at')
+                ->where('active', true)
+                ->where('header_menu_id', $hmId);
 
-        return $q->orderBy('position', 'asc')
-                 ->orderBy('id', 'asc');
-    };
-
-    $rows = collect();
-    $resolvedHeaderMenuId = $headerMenuId;
-
-    /**
-     * ✅ NEW: header_menu_id fallback chain
-     * If current header_menu_id has NO submenus (in the same scope),
-     * try parent header_menu_id, then grand-parent, etc.
-     */
-    if ($hasHeaderCol && $headerMenuId > 0) {
-
-        $visited = [];
-        $hmId = $headerMenuId;
-
-        while ($hmId > 0 && !isset($visited[$hmId])) {
-            $visited[$hmId] = true;
-
-            $candidate = $buildQueryForHeader($hmId)->get();
-
-            if ($candidate->count() > 0) {
-                $rows = $candidate;
-                $resolvedHeaderMenuId = $hmId;
-                break;
+            // ✅ If pageId exists -> allow both page-level + header-level (page_id NULL)
+            if ($pageId > 0) {
+                $q->where(function ($x) use ($pageId) {
+                    $x->where('page_id', $pageId)
+                      ->orWhereNull('page_id');
+                });
+            } else {
+                // header-only scope
+                $q->whereNull('page_id');
             }
 
-            // move to parent header menu
-            $parentId = DB::table('header_menus')
-                ->where('id', $hmId)
-                ->whereNull('deleted_at')
-                ->value('parent_id');
+            if ($onlyTopLevel) {
+                $q->whereNull('parent_id');
+            }
 
-            $hmId = $parentId ? (int) $parentId : 0;
-        }
+            return $q->orderBy('position', 'asc')
+                     ->orderBy('id', 'asc');
+        };
 
-        // If nothing found up the chain, keep empty rows and resolvedHeaderMenuId = original headerMenuId
-        if ($rows->count() === 0) {
-            $resolvedHeaderMenuId = $headerMenuId;
-        }
+        $rows = collect();
+        $resolvedHeaderMenuId = $headerMenuId;
 
-    } else {
-        // ✅ fallback: page scope only (old behavior)
-        $q = DB::table($this->table)
-            ->whereNull('deleted_at')
-            ->where('active', true);
+        /**
+         * ✅ NEW: header_menu_id fallback chain
+         * If current header_menu_id has NO submenus (in the same scope),
+         * try parent header_menu_id, then grand-parent, etc.
+         */
+        if ($hasHeaderCol && $headerMenuId > 0) {
 
-        if ($pageId > 0) {
-            $q->where('page_id', $pageId);
+            $visited = [];
+            $hmId = $headerMenuId;
+
+            while ($hmId > 0 && !isset($visited[$hmId])) {
+                $visited[$hmId] = true;
+
+                $candidate = $buildQueryForHeader($hmId)->get();
+
+                if ($candidate->count() > 0) {
+                    $rows = $candidate;
+                    $resolvedHeaderMenuId = $hmId;
+                    break;
+                }
+
+                // move to parent header menu
+                $parentId = DB::table('header_menus')
+                    ->where('id', $hmId)
+                    ->whereNull('deleted_at')
+                    ->value('parent_id');
+
+                $hmId = $parentId ? (int) $parentId : 0;
+            }
+
+            // If nothing found up the chain, keep empty rows and resolvedHeaderMenuId = original headerMenuId
+            if ($rows->count() === 0) {
+                $resolvedHeaderMenuId = $headerMenuId;
+            }
+
         } else {
-            $q->whereNull('page_id');
+            // ✅ fallback: page scope only (old behavior)
+            $q = DB::table($this->table)
+                ->whereNull('deleted_at')
+                ->where('active', true);
+
+            if ($pageId > 0) {
+                $q->where('page_id', $pageId);
+            } else {
+                $q->whereNull('page_id');
+            }
+
+            if ($onlyTopLevel) {
+                $q->whereNull('parent_id');
+            }
+
+            $rows = $q->orderBy('position', 'asc')
+                      ->orderBy('id', 'asc')
+                      ->get();
+
+            $resolvedHeaderMenuId = 0;
         }
 
-        if ($onlyTopLevel) {
-            $q->whereNull('parent_id');
+        // build tree
+        $byParent = [];
+        foreach ($rows as $row) {
+            $pid = $row->parent_id ?? 0;
+            $byParent[$pid][] = $row;
         }
 
-        $rows = $q->orderBy('position', 'asc')
-                  ->orderBy('id', 'asc')
-                  ->get();
+        $make = function ($pid) use (&$make, &$byParent) {
+            $nodes = $byParent[$pid] ?? [];
+            foreach ($nodes as $n) {
+                $n->children = $make($n->id);
+            }
+            return $nodes;
+        };
 
-        $resolvedHeaderMenuId = 0;
+        return response()->json([
+            'success' => true,
+            'scope'   => [
+                'page_id' => $pageId ?: null,
+                // keep backward compat key (now shows the header actually used for response)
+                'header_menu_id' => $resolvedHeaderMenuId ?: null,
+                // helpful debug (doesn't break existing key)
+                'requested_header_menu_id' => $requestedHeaderMenuId ?: null,
+            ],
+            'data' => $make(0),
+        ]);
     }
-
-    // build tree
-    $byParent = [];
-    foreach ($rows as $row) {
-        $pid = $row->parent_id ?? 0;
-        $byParent[$pid][] = $row;
-    }
-
-    $make = function ($pid) use (&$make, &$byParent) {
-        $nodes = $byParent[$pid] ?? [];
-        foreach ($nodes as $n) {
-            $n->children = $make($n->id);
-        }
-        return $nodes;
-    };
-
-    return response()->json([
-        'success' => true,
-        'scope'   => [
-            'page_id' => $pageId ?: null,
-            // keep backward compat key (now shows the header actually used for response)
-            'header_menu_id' => $resolvedHeaderMenuId ?: null,
-            // helpful debug (doesn't break existing key)
-            'requested_header_menu_id' => $requestedHeaderMenuId ?: null,
-        ],
-        'data' => $make(0),
-    ]);
-}
-
 
     public function pages(Request $r)
     {
@@ -1507,244 +1691,242 @@ public function publicTree(Request $r)
         ]);
     }
 
-public function renderPublic(Request $r)
-{
-    $slug = $this->normSlug($r->query('slug', ''));
-    if ($slug === '') {
-        return response()->json(['success' => false, 'error' => 'Missing slug'], 422);
-    }
+    public function renderPublic(Request $r)
+    {
+        $slug = $this->normSlug($r->query('slug', ''));
+        if ($slug === '') {
+            return response()->json(['success' => false, 'error' => 'Missing slug'], 422);
+        }
 
-    $pageId = $this->resolvePageIdFromRequest($r);
+        $pageId = $this->resolvePageIdFromRequest($r);
 
-    // ✅ NEW: header_menu_id supported
-    $headerMenuId = (int) $r->query('header_menu_id', 0);
+        // ✅ NEW: header_menu_id supported
+        $headerMenuId = (int) $r->query('header_menu_id', 0);
 
-    $q = DB::table($this->table)
-        ->where('slug', $slug)
-        ->whereNull('deleted_at')
-        ->where('active', true);
+        $q = DB::table($this->table)
+            ->where('slug', $slug)
+            ->whereNull('deleted_at')
+            ->where('active', true);
 
-    /**
-     * ✅ FIXED SCOPING LOGIC
-     *
-     * If header_menu_id exists:
-     * - Scope by header_menu_id
-     * - And page_id can be:
-     *      ✅ page-specific OR
-     *      ✅ global under that header (page_id NULL)
-     *
-     * Else fallback to old behavior:
-     * - Scope only by page_id if present
-     */
+        /**
+         * ✅ FIXED SCOPING LOGIC
+         *
+         * If header_menu_id exists:
+         * - Scope by header_menu_id
+         * - And page_id can be:
+         *      ✅ page-specific OR
+         *      ✅ global under that header (page_id NULL)
+         *
+         * Else fallback to old behavior:
+         * - Scope only by page_id if present
+         */
 
-    if (Schema::hasColumn($this->table, 'header_menu_id') && $headerMenuId > 0) {
+        if (Schema::hasColumn($this->table, 'header_menu_id') && $headerMenuId > 0) {
 
-        $q->where('header_menu_id', $headerMenuId);
+            $q->where('header_menu_id', $headerMenuId);
 
-        if ($pageId > 0) {
-            // ✅ allow both pageId + null pageId within same header scope
-            $q->where(function ($x) use ($pageId) {
-                $x->where('page_id', $pageId)
-                  ->orWhereNull('page_id');
-            });
+            if ($pageId > 0) {
+                // ✅ allow both pageId + null pageId within same header scope
+                $q->where(function ($x) use ($pageId) {
+                    $x->where('page_id', $pageId)
+                      ->orWhereNull('page_id');
+                });
+            } else {
+                // ✅ header-only submenu scope (page_id is NULL)
+                $q->whereNull('page_id');
+            }
+
         } else {
-            // ✅ header-only submenu scope (page_id is NULL)
-            $q->whereNull('page_id');
+            // ✅ fallback: old logic
+            if ($pageId > 0) {
+                $q->where('page_id', $pageId);
+            }
         }
 
-    } else {
-        // ✅ fallback: old logic
-        if ($pageId > 0) {
-            $q->where('page_id', $pageId);
-        }
-    }
-
-    $menu = $q->first();
-    if (!$menu) {
-        return response()->json([
-            'success' => false,
-            'error'   => 'Submenu not found',
-            'debug'   => [
-                'slug' => $slug,
-                'page_id' => $pageId ?: null,
-                'header_menu_id' => $headerMenuId ?: null,
-            ]
-        ], 404);
-    }
-
-    $pageUrl        = trim((string)($menu->page_url ?? ''));
-    $pageSlug       = trim((string)($menu->page_slug ?? ''));
-    $pageShortcode  = trim((string)($menu->page_shortcode ?? ''));
-    $includablePath = trim((string)($menu->includable_path ?? ''));
-
-    $sameOrigin = function (string $u) use ($r): bool {
-        $u = trim($u);
-        if ($u === '') return false;
-        if (!preg_match('/^https?:\/\//i', $u)) return true;
-
-        $host = parse_url($u, PHP_URL_HOST);
-        if (!$host) return false;
-
-        return strtolower($host) === strtolower($r->getHost());
-    };
-
-    if ($includablePath !== '') {
-
-        if (!Str::startsWith($includablePath, 'modules.')) {
+        $menu = $q->first();
+        if (!$menu) {
             return response()->json([
                 'success' => false,
-                'error'   => 'Invalid includable_path (only modules.* allowed)'
-            ], 422);
-        }
-
-        if (!View::exists($includablePath)) {
-            return response()->json([
-                'success' => false,
-                'error'   => 'Blade view not found',
-                'path'    => $includablePath
+                'error'   => 'Submenu not found',
+                'debug'   => [
+                    'slug' => $slug,
+                    'page_id' => $pageId ?: null,
+                    'header_menu_id' => $headerMenuId ?: null,
+                ]
             ], 404);
         }
 
-        try {
-            $vf = app('view');
+        $pageUrl        = trim((string)($menu->page_url ?? ''));
+        $pageSlug       = trim((string)($menu->page_slug ?? ''));
+        $pageShortcode  = trim((string)($menu->page_shortcode ?? ''));
+        $includablePath = trim((string)($menu->includable_path ?? ''));
 
-            if (method_exists($vf, 'flushState')) {
-                $vf->flushState();
+        $sameOrigin = function (string $u) use ($r): bool {
+            $u = trim($u);
+            if ($u === '') return false;
+            if (!preg_match('/^https?:\/\//i', $u)) return true;
+
+            $host = parse_url($u, PHP_URL_HOST);
+            if (!$host) return false;
+
+            return strtolower($host) === strtolower($r->getHost());
+        };
+
+        if ($includablePath !== '') {
+
+            if (!Str::startsWith($includablePath, 'modules.')) {
+                return response()->json([
+                    'success' => false,
+                    'error'   => 'Invalid includable_path (only modules.* allowed)'
+                ], 422);
             }
 
-            $viewObj = view($includablePath);
-            $html = $viewObj->render();
+            if (!View::exists($includablePath)) {
+                return response()->json([
+                    'success' => false,
+                    'error'   => 'Blade view not found',
+                    'path'    => $includablePath
+                ], 404);
+            }
 
-            $styles  = method_exists($vf, 'yieldPushContent') ? $vf->yieldPushContent('styles')  : '';
-            $scripts = method_exists($vf, 'yieldPushContent') ? $vf->yieldPushContent('scripts') : '';
+            try {
+                $vf = app('view');
 
-            $pickedSection = null;
-            $sections = [];
-
-            $looksEmpty = trim(strip_tags((string)$html)) === '';
-            $looksLikeFullLayout =
-                stripos((string)$html, '<html') !== false ||
-                stripos((string)$html, '<body') !== false;
-
-            if ($looksEmpty || $looksLikeFullLayout) {
                 if (method_exists($vf, 'flushState')) {
                     $vf->flushState();
                 }
 
-                $sections = $viewObj->renderSections();
+                $viewObj = view($includablePath);
+                $html = $viewObj->render();
 
-                $candidates = ['content', 'page-content', 'main', 'body'];
+                $styles  = method_exists($vf, 'yieldPushContent') ? $vf->yieldPushContent('styles')  : '';
+                $scripts = method_exists($vf, 'yieldPushContent') ? $vf->yieldPushContent('scripts') : '';
 
-                foreach ($candidates as $sec) {
-                    $candidateHtml = $sections[$sec] ?? '';
-                    if (trim(strip_tags((string)$candidateHtml)) !== '') {
-                        $html = $candidateHtml;
-                        $pickedSection = $sec;
-                        break;
+                $pickedSection = null;
+                $sections = [];
+
+                $looksEmpty = trim(strip_tags((string)$html)) === '';
+                $looksLikeFullLayout =
+                    stripos((string)$html, '<html') !== false ||
+                    stripos((string)$html, '<body') !== false;
+
+                if ($looksEmpty || $looksLikeFullLayout) {
+                    if (method_exists($vf, 'flushState')) {
+                        $vf->flushState();
+                    }
+
+                    $sections = $viewObj->renderSections();
+
+                    $candidates = ['content', 'page-content', 'main', 'body'];
+
+                    foreach ($candidates as $sec) {
+                        $candidateHtml = $sections[$sec] ?? '';
+                        if (trim(strip_tags((string)$candidateHtml)) !== '') {
+                            $html = $candidateHtml;
+                            $pickedSection = $sec;
+                            break;
+                        }
+                    }
+
+                    $styles  = method_exists($vf, 'yieldPushContent') ? $vf->yieldPushContent('styles')  : $styles;
+                    $scripts = method_exists($vf, 'yieldPushContent') ? $vf->yieldPushContent('scripts') : $scripts;
+
+                    if (isset($sections['scripts']) && trim((string)$sections['scripts']) !== '') {
+                        $scripts = (string)$scripts . "\n" . (string)$sections['scripts'];
+                    }
+                    if (isset($sections['styles']) && trim((string)$sections['styles']) !== '') {
+                        $styles = (string)$styles . "\n" . (string)$sections['styles'];
                     }
                 }
 
-                $styles  = method_exists($vf, 'yieldPushContent') ? $vf->yieldPushContent('styles')  : $styles;
-                $scripts = method_exists($vf, 'yieldPushContent') ? $vf->yieldPushContent('scripts') : $scripts;
+                return response()->json([
+                    'success' => true,
+                    'type'    => 'includable',
+                    'title'   => $menu->title ?? 'Submenu',
+                    'meta'    => [
+                        'submenu_slug'     => $menu->slug ?? null,
+                        'submenu_id'       => $menu->id ?? null,
+                        'header_menu_id'   => $menu->header_menu_id ?? null, // ✅ NEW
+                        'page_id'          => $menu->page_id ?? null,        // ✅ NEW
+                        'includable'       => $includablePath,
+                        'section_used'     => $pickedSection,
+                        'render_was_empty' => $looksEmpty,
+                    ],
+                    'assets'  => [
+                        'styles'  => $styles ?: '',
+                        'scripts' => $scripts ?: '',
+                    ],
+                    'html'    => (string)($html ?: ''),
+                ]);
 
-                if (isset($sections['scripts']) && trim((string)$sections['scripts']) !== '') {
-                    $scripts = (string)$scripts . "\n" . (string)$sections['scripts'];
-                }
-                if (isset($sections['styles']) && trim((string)$sections['styles']) !== '') {
-                    $styles = (string)$styles . "\n" . (string)$sections['styles'];
-                }
+            } catch (\Throwable $e) {
+                return response()->json([
+                    'success' => false,
+                    'error'   => 'Failed to render includable view',
+                    'details' => $e->getMessage(),
+                ], 422);
             }
+        }
+
+        if ($pageSlug !== '' || $pageShortcode !== '') {
+            $p = DB::table('pages')->whereNull('deleted_at');
+
+            if ($pageSlug !== '') {
+                $p->where('slug', $this->normSlug($pageSlug));
+            } else {
+                $p->where('shortcode', $pageShortcode);
+            }
+
+            $page = $p->first();
+
+            if (!$page) {
+                return response()->json(['success' => false, 'error' => 'Target page not found'], 404);
+            }
+
+            $html = $page->content_html ?? '';
 
             return response()->json([
                 'success' => true,
-                'type'    => 'includable',
-                'title'   => $menu->title ?? 'Submenu',
+                'type'    => 'page',
+                'title'   => $page->title ?? ($menu->title ?? 'Page'),
                 'meta'    => [
-                    'submenu_slug'     => $menu->slug ?? null,
-                    'submenu_id'       => $menu->id ?? null,
-                    'header_menu_id'   => $menu->header_menu_id ?? null, // ✅ NEW
-                    'page_id'          => $menu->page_id ?? null,        // ✅ NEW
-                    'includable'       => $includablePath,
-                    'section_used'     => $pickedSection,
-                    'render_was_empty' => $looksEmpty,
+                    'submenu_slug'    => $menu->slug ?? null,
+                    'submenu_id'      => $menu->id ?? null,
+                    'header_menu_id'  => $menu->header_menu_id ?? null, // ✅ NEW
+                    'page_id'         => $page->id ?? null,
+                    'page_slug'       => $page->slug ?? null,
+                    'shortcode'       => $page->shortcode ?? null,
                 ],
-                'assets'  => [
-                    'styles'  => $styles ?: '',
-                    'scripts' => $scripts ?: '',
-                ],
-                'html'    => (string)($html ?: ''),
+                'html' => (string)$html,
             ]);
+        }
 
-        } catch (\Throwable $e) {
+        if ($pageUrl !== '') {
             return response()->json([
-                'success' => false,
-                'error'   => 'Failed to render includable view',
-                'details' => $e->getMessage(),
-            ], 422);
+                'success'     => true,
+                'type'        => 'url',
+                'title'       => $menu->title ?? 'Link',
+                'meta'        => [
+                    'submenu_slug'   => $menu->slug ?? null,
+                    'submenu_id'     => $menu->id ?? null,
+                    'header_menu_id' => $menu->header_menu_id ?? null, // ✅ NEW
+                ],
+                'url'         => $pageUrl,
+                'same_origin' => $sameOrigin($pageUrl),
+            ]);
         }
-    }
-
-    if ($pageSlug !== '' || $pageShortcode !== '') {
-        $p = DB::table('pages')->whereNull('deleted_at');
-
-        if ($pageSlug !== '') {
-            $p->where('slug', $this->normSlug($pageSlug));
-        } else {
-            $p->where('shortcode', $pageShortcode);
-        }
-
-        $page = $p->first();
-
-        if (!$page) {
-            return response()->json(['success' => false, 'error' => 'Target page not found'], 404);
-        }
-
-        $html = $page->content_html ?? '';
 
         return response()->json([
             'success' => true,
-            'type'    => 'page',
-            'title'   => $page->title ?? ($menu->title ?? 'Page'),
+            'type'    => 'coming_soon',
+            'title'   => $menu->title ?? 'Coming Soon',
+            'message' => trim((string)($menu->description ?? '')) ?: 'This section will be available soon.',
             'meta'    => [
-                'submenu_slug'    => $menu->slug ?? null,
-                'submenu_id'      => $menu->id ?? null,
-                'header_menu_id'  => $menu->header_menu_id ?? null, // ✅ NEW
-                'page_id'         => $page->id ?? null,
-                'page_slug'       => $page->slug ?? null,
-                'shortcode'       => $page->shortcode ?? null,
-            ],
-            'html' => (string)$html,
-        ]);
-    }
-
-    if ($pageUrl !== '') {
-        return response()->json([
-            'success'     => true,
-            'type'        => 'url',
-            'title'       => $menu->title ?? 'Link',
-            'meta'        => [
                 'submenu_slug'   => $menu->slug ?? null,
                 'submenu_id'     => $menu->id ?? null,
-                'header_menu_id' => $menu->header_menu_id ?? null, // ✅ NEW
+                'header_menu_id' => $menu->header_menu_id ?? null,
+                'page_id'        => $menu->page_id ?? null,
             ],
-            'url'         => $pageUrl,
-            'same_origin' => $sameOrigin($pageUrl),
-        ]);
+        ], 200);
     }
-
-    return response()->json([
-    'success' => true,
-    'type'    => 'coming_soon',
-    'title'   => $menu->title ?? 'Coming Soon',
-    'message' => trim((string)($menu->description ?? '')) ?: 'This section will be available soon.',
-    'meta'    => [
-        'submenu_slug'   => $menu->slug ?? null,
-        'submenu_id'     => $menu->id ?? null,
-        'header_menu_id' => $menu->header_menu_id ?? null,
-        'page_id'        => $menu->page_id ?? null,
-    ],
-], 200);
-
-}
-
 }

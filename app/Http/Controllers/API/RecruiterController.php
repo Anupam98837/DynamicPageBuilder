@@ -23,6 +23,49 @@ class RecruiterController extends Controller
         ];
     }
 
+    /**
+     * Central logger (best-effort; never breaks main flow)
+     */
+    private function logActivity(
+        Request $request,
+        string $activity,
+        string $module,
+        string $tableName,
+        $recordId = null,
+        ?array $changedFields = null,
+        ?array $oldValues = null,
+        ?array $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            $actor = $this->actor($request);
+
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'       => (int) ($actor['id'] ?: 0),
+                'performed_by_role'  => ($actor['role'] !== '') ? $actor['role'] : null,
+                'ip'                 => $request->ip(),
+                'user_agent'         => substr((string) $request->userAgent(), 0, 512),
+
+                'activity'           => $activity,
+                'module'             => $module,
+
+                'table_name'         => $tableName,
+                'record_id'          => $recordId !== null ? (int) $recordId : null,
+
+                'changed_fields'     => $changedFields !== null ? json_encode($changedFields) : null,
+                'old_values'         => $oldValues !== null ? json_encode($oldValues) : null,
+                'new_values'         => $newValues !== null ? json_encode($newValues) : null,
+
+                'log_note'           => $note,
+
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ]);
+        } catch (\Throwable $e) {
+            // swallow (must never affect API functionality)
+        }
+    }
+
     private function normSlug(?string $s): string
     {
         $s = trim((string) $s);
@@ -345,6 +388,18 @@ class RecruiterController extends Controller
         if ($request->hasFile('logo')) {
             $f = $request->file('logo');
             if (!$f || !$f->isValid()) {
+                $this->logActivity(
+                    $request,
+                    'create_failed',
+                    'recruiters',
+                    'recruiters',
+                    null,
+                    null,
+                    null,
+                    null,
+                    'Logo upload failed while creating recruiter'
+                );
+
                 return response()->json(['success' => false, 'message' => 'Logo upload failed'], 422);
             }
             $meta = $this->uploadFileToPublic($f, $dirRel, $slug . '-logo');
@@ -354,7 +409,7 @@ class RecruiterController extends Controller
         $jobRoles = $this->normalizeJsonInput($request->input('job_roles_json', null));
         $metadata = $this->normalizeJsonInput($request->input('metadata', null));
 
-        $id = DB::table('recruiters')->insertGetId([
+        $insertData = [
             'uuid'             => $uuid,
             'department_id'    => $validated['department_id'] ?? null,
             'slug'             => $slug,
@@ -371,9 +426,24 @@ class RecruiterController extends Controller
             'created_at_ip'    => $request->ip(),
             'updated_at_ip'    => $request->ip(),
             'metadata'         => $metadata !== null ? json_encode($metadata) : null,
-        ]);
+        ];
+
+        $id = DB::table('recruiters')->insertGetId($insertData);
 
         $row = DB::table('recruiters')->where('id', $id)->first();
+
+        // LOG: create
+        $this->logActivity(
+            $request,
+            'create',
+            'recruiters',
+            'recruiters',
+            $id,
+            array_keys($insertData),
+            null,
+            $row ? $this->normalizeRow($row) : ['id' => $id],
+            'Recruiter created'
+        );
 
         return response()->json([
             'success' => true,
@@ -384,7 +454,21 @@ class RecruiterController extends Controller
     public function storeForDepartment(Request $request, $department)
     {
         $dept = $this->resolveDepartment($department, false);
-        if (! $dept) return response()->json(['message' => 'Department not found'], 404);
+        if (! $dept) {
+            $this->logActivity(
+                $request,
+                'create_failed',
+                'recruiters',
+                'recruiters',
+                null,
+                null,
+                null,
+                null,
+                'Department not found while creating recruiter for department identifier: ' . (string) $department
+            );
+
+            return response()->json(['message' => 'Department not found'], 404);
+        }
 
         $request->merge(['department_id' => (int) $dept->id]);
         return $this->store($request);
@@ -393,7 +477,23 @@ class RecruiterController extends Controller
     public function update(Request $request, $identifier)
     {
         $row = $this->resolveRecruiter($request, $identifier, true);
-        if (! $row) return response()->json(['message' => 'Recruiter not found'], 404);
+        if (! $row) {
+            $this->logActivity(
+                $request,
+                'update_failed',
+                'recruiters',
+                'recruiters',
+                null,
+                null,
+                null,
+                null,
+                'Recruiter not found for update identifier: ' . (string) $identifier
+            );
+
+            return response()->json(['message' => 'Recruiter not found'], 404);
+        }
+
+        $oldSnapshot = (array) $row;
 
         $validated = $request->validate([
             'department_id'     => ['nullable', 'integer', 'exists:departments,id'],
@@ -469,6 +569,18 @@ class RecruiterController extends Controller
         if ($request->hasFile('logo')) {
             $f = $request->file('logo');
             if (!$f || !$f->isValid()) {
+                $this->logActivity(
+                    $request,
+                    'update_failed',
+                    'recruiters',
+                    'recruiters',
+                    (int) $row->id,
+                    null,
+                    null,
+                    null,
+                    'Logo upload failed while updating recruiter'
+                );
+
                 return response()->json(['success' => false, 'message' => 'Logo upload failed'], 422);
             }
 
@@ -486,6 +598,35 @@ class RecruiterController extends Controller
 
         $fresh = DB::table('recruiters')->where('id', (int) $row->id)->first();
 
+        // LOG: update (only meaningful fields; exclude updated_at & updated_at_ip from diff)
+        $meaningful = $update;
+        unset($meaningful['updated_at'], $meaningful['updated_at_ip']);
+
+        $changedFields = [];
+        $oldValues = [];
+        $newValues = [];
+
+        foreach ($meaningful as $k => $v) {
+            $old = $oldSnapshot[$k] ?? null;
+            if ($old != $v) {
+                $changedFields[] = $k;
+                $oldValues[$k] = $old;
+                $newValues[$k] = $v;
+            }
+        }
+
+        $this->logActivity(
+            $request,
+            'update',
+            'recruiters',
+            'recruiters',
+            (int) $row->id,
+            $changedFields ?: null,
+            $oldValues ?: null,
+            $newValues ?: ($fresh ? $this->normalizeRow($fresh) : null),
+            $changedFields ? 'Recruiter updated' : 'Recruiter update called (no meaningful field changed)'
+        );
+
         return response()->json([
             'success' => true,
             'data'    => $fresh ? $this->normalizeRow($fresh) : null,
@@ -495,9 +636,24 @@ class RecruiterController extends Controller
     public function toggleFeatured(Request $request, $identifier)
     {
         $row = $this->resolveRecruiter($request, $identifier, true);
-        if (! $row) return response()->json(['message' => 'Recruiter not found'], 404);
+        if (! $row) {
+            $this->logActivity(
+                $request,
+                'toggle_featured_failed',
+                'recruiters',
+                'recruiters',
+                null,
+                null,
+                null,
+                null,
+                'Recruiter not found for toggleFeatured identifier: ' . (string) $identifier
+            );
 
-        $new = ((int) ($row->is_featured_home ?? 0)) ? 0 : 1;
+            return response()->json(['message' => 'Recruiter not found'], 404);
+        }
+
+        $old = (int) ($row->is_featured_home ?? 0);
+        $new = $old ? 0 : 1;
 
         DB::table('recruiters')->where('id', (int) $row->id)->update([
             'is_featured_home' => $new,
@@ -506,6 +662,19 @@ class RecruiterController extends Controller
         ]);
 
         $fresh = DB::table('recruiters')->where('id', (int) $row->id)->first();
+
+        // LOG: toggle featured
+        $this->logActivity(
+            $request,
+            'toggle_featured',
+            'recruiters',
+            'recruiters',
+            (int) $row->id,
+            ['is_featured_home'],
+            ['is_featured_home' => $old],
+            ['is_featured_home' => $new],
+            'Recruiter featured toggled'
+        );
 
         return response()->json([
             'success' => true,
@@ -516,13 +685,40 @@ class RecruiterController extends Controller
     public function destroy(Request $request, $identifier)
     {
         $row = $this->resolveRecruiter($request, $identifier, false);
-        if (! $row) return response()->json(['message' => 'Not found or already deleted'], 404);
+        if (! $row) {
+            $this->logActivity(
+                $request,
+                'delete_failed',
+                'recruiters',
+                'recruiters',
+                null,
+                null,
+                null,
+                null,
+                'Not found or already deleted for destroy identifier: ' . (string) $identifier
+            );
+
+            return response()->json(['message' => 'Not found or already deleted'], 404);
+        }
 
         DB::table('recruiters')->where('id', (int) $row->id)->update([
             'deleted_at'    => now(),
             'updated_at'    => now(),
             'updated_at_ip' => $request->ip(),
         ]);
+
+        // LOG: soft delete
+        $this->logActivity(
+            $request,
+            'delete',
+            'recruiters',
+            'recruiters',
+            (int) $row->id,
+            ['deleted_at'],
+            ['deleted_at' => $row->deleted_at],
+            ['deleted_at' => 'NOW()'],
+            'Recruiter soft-deleted'
+        );
 
         return response()->json(['success' => true]);
     }
@@ -531,8 +727,22 @@ class RecruiterController extends Controller
     {
         $row = $this->resolveRecruiter($request, $identifier, true);
         if (! $row || $row->deleted_at === null) {
+            $this->logActivity(
+                $request,
+                'restore_failed',
+                'recruiters',
+                'recruiters',
+                $row ? (int) $row->id : null,
+                null,
+                null,
+                null,
+                'Not found in bin for restore identifier: ' . (string) $identifier
+            );
+
             return response()->json(['message' => 'Not found in bin'], 404);
         }
+
+        $oldDeletedAt = $row->deleted_at;
 
         DB::table('recruiters')->where('id', (int) $row->id)->update([
             'deleted_at'    => null,
@@ -541,6 +751,19 @@ class RecruiterController extends Controller
         ]);
 
         $fresh = DB::table('recruiters')->where('id', (int) $row->id)->first();
+
+        // LOG: restore
+        $this->logActivity(
+            $request,
+            'restore',
+            'recruiters',
+            'recruiters',
+            (int) $row->id,
+            ['deleted_at'],
+            ['deleted_at' => $oldDeletedAt],
+            ['deleted_at' => null],
+            'Recruiter restored from bin'
+        );
 
         return response()->json([
             'success' => true,
@@ -551,12 +774,41 @@ class RecruiterController extends Controller
     public function forceDelete(Request $request, $identifier)
     {
         $row = $this->resolveRecruiter($request, $identifier, true);
-        if (! $row) return response()->json(['message' => 'Recruiter not found'], 404);
+        if (! $row) {
+            $this->logActivity(
+                $request,
+                'force_delete_failed',
+                'recruiters',
+                'recruiters',
+                null,
+                null,
+                null,
+                null,
+                'Recruiter not found for forceDelete identifier: ' . (string) $identifier
+            );
+
+            return response()->json(['message' => 'Recruiter not found'], 404);
+        }
+
+        $oldSnapshot = $this->normalizeRow($row);
 
         // delete local logo file if applicable
         $this->deletePublicPath($row->logo_url ?? null);
 
         DB::table('recruiters')->where('id', (int) $row->id)->delete();
+
+        // LOG: force delete
+        $this->logActivity(
+            $request,
+            'force_delete',
+            'recruiters',
+            'recruiters',
+            (int) $row->id,
+            null,
+            $oldSnapshot,
+            null,
+            'Recruiter permanently deleted'
+        );
 
         return response()->json(['success' => true]);
     }

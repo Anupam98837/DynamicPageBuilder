@@ -26,6 +26,106 @@ class TopHeaderMenuController extends Controller
         ];
     }
 
+    /* =======================
+     | Activity Log Helpers
+     |======================= */
+
+    private function logTable(): string
+    {
+        return 'user_data_activity_log';
+    }
+
+    private function rowToArray($row): ?array
+    {
+        if (!$row) return null;
+        return json_decode(json_encode($row), true);
+    }
+
+    private function jsonOrNull($val): ?string
+    {
+        if ($val === null) return null;
+
+        // Empty arrays should still be stored if meaningful
+        if ($val === [] || $val === '') return null;
+
+        // Already a JSON string? keep it
+        if (is_string($val)) {
+            $t = trim($val);
+            if ($t === '') return null;
+            // if it looks like json, keep it; else encode
+            if ((Str::startsWith($t, '{') && Str::endsWith($t, '}')) || (Str::startsWith($t, '[') && Str::endsWith($t, ']'))) {
+                return $t;
+            }
+            return json_encode($val, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
+
+        if (is_scalar($val)) {
+            return json_encode($val, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
+
+        return json_encode($val, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    private function diffKeys(?array $before, ?array $after, ?array $limitKeys = null): array
+    {
+        $before = $before ?? [];
+        $after  = $after ?? [];
+
+        $keys = $limitKeys ?: array_values(array_unique(array_merge(array_keys($before), array_keys($after))));
+        $changed = [];
+
+        foreach ($keys as $k) {
+            $bv = $before[$k] ?? null;
+            $av = $after[$k] ?? null;
+
+            // normalize for comparison
+            if (is_bool($bv)) $bv = $bv ? 1 : 0;
+            if (is_bool($av)) $av = $av ? 1 : 0;
+
+            if ($bv !== $av) $changed[] = $k;
+        }
+
+        return array_values(array_unique($changed));
+    }
+
+    private function logActivity(
+        Request $r,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        $oldValues = null,
+        $newValues = null,
+        ?string $note = null
+    ): void {
+        // Never break the main API if logs fail / table missing
+        try {
+            if (!Schema::hasTable($this->logTable())) return;
+
+            $actor = $this->actor($r);
+
+            DB::table($this->logTable())->insert([
+                'performed_by'       => (int) ($actor['id'] ?? 0),
+                'performed_by_role'  => $actor['role'] ?? null,
+                'ip'                 => $r->ip(),
+                'user_agent'         => (string) ($r->userAgent() ?? ''),
+                'activity'           => $activity,
+                'module'             => $module,
+                'table_name'         => $tableName,
+                'record_id'          => $recordId,
+                'changed_fields'     => $this->jsonOrNull($changedFields),
+                'old_values'         => $this->jsonOrNull($oldValues),
+                'new_values'         => $this->jsonOrNull($newValues),
+                'log_note'           => $note,
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ]);
+        } catch (\Throwable $e) {
+            // swallow
+        }
+    }
+
     /** Contact info table name differs across projects: contact_info vs contact_infos */
     private function contactInfoTable(): string
     {
@@ -350,8 +450,34 @@ class TopHeaderMenuController extends Controller
         if ($existingAny && $existingAny->deleted_at === null) {
             // ✅ only idempotent-return if it is a MENU item
             if (($existingAny->item_type ?? 'menu') !== 'menu') {
+                // log attempt (POST)
+                $this->logActivity(
+                    $r,
+                    'create',
+                    'top_header_menus',
+                    $this->table,
+                    (int) ($existingAny->id ?? 0) ?: null,
+                    ['result'],
+                    null,
+                    null,
+                    'Create blocked: slug already in use by a non-menu item.'
+                );
+
                 return response()->json(['error' => 'Slug already in use', 'field' => 'slug'], 422);
             }
+
+            // log idempotent return (POST)
+            $this->logActivity(
+                $r,
+                'create',
+                'top_header_menus',
+                $this->table,
+                (int) ($existingAny->id ?? 0) ?: null,
+                ['already_existed'],
+                null,
+                $this->rowToArray($existingAny),
+                'Idempotent create: menu already exists; not created again.'
+            );
 
             return response()->json([
                 'success' => true,
@@ -365,7 +491,21 @@ class TopHeaderMenuController extends Controller
         if (!empty($data['shortcode'])) {
             $shortcode = strtoupper(trim((string) $data['shortcode']));
             $conf = $this->findUniqueConflict('shortcode', $shortcode, null);
-            if ($conf) return response()->json(['error' => 'Shortcode already exists', 'field' => 'shortcode'], 422);
+            if ($conf) {
+                $this->logActivity(
+                    $r,
+                    'create',
+                    'top_header_menus',
+                    $this->table,
+                    null,
+                    ['shortcode'],
+                    null,
+                    ['shortcode' => $shortcode],
+                    'Create blocked: shortcode already exists.'
+                );
+
+                return response()->json(['error' => 'Shortcode already exists', 'field' => 'shortcode'], 422);
+            }
         } else {
             $shortcode = $this->generateMenuShortcode(null);
         }
@@ -378,12 +518,11 @@ class TopHeaderMenuController extends Controller
             $pageUrl = trim((string) $data['page_url']) ?: null;
         }
 
-$pageSlug = null;
-if (array_key_exists('page_slug', $data)) {
-    $norm = $this->normSlug($data['page_slug']);
-    $pageSlug = $norm !== '' ? $norm : null; // ✅ allow duplicates now
-}
-
+        $pageSlug = null;
+        if (array_key_exists('page_slug', $data)) {
+            $norm = $this->normSlug($data['page_slug']);
+            $pageSlug = $norm !== '' ? $norm : null; // ✅ allow duplicates now
+        }
 
         $pageShortcode = null;
         if (array_key_exists('page_shortcode', $data)) {
@@ -391,7 +530,21 @@ if (array_key_exists('page_slug', $data)) {
             $pageShortcode = $val !== '' ? $val : null;
             if ($pageShortcode) {
                 $conf = $this->findUniqueConflict('page_shortcode', $pageShortcode, null);
-                if ($conf) return response()->json(['error' => 'Page shortcode already exists', 'field' => 'page_shortcode'], 422);
+                if ($conf) {
+                    $this->logActivity(
+                        $r,
+                        'create',
+                        'top_header_menus',
+                        $this->table,
+                        null,
+                        ['page_shortcode'],
+                        null,
+                        ['page_shortcode' => $pageShortcode],
+                        'Create blocked: page_shortcode already exists.'
+                    );
+
+                    return response()->json(['error' => 'Page shortcode already exists', 'field' => 'page_shortcode'], 422);
+                }
             }
         }
 
@@ -414,11 +567,25 @@ if (array_key_exists('page_slug', $data)) {
 
         if ($trashed) {
             if (($trashed->item_type ?? 'menu') !== 'menu') {
+                $this->logActivity(
+                    $r,
+                    'restore',
+                    'top_header_menus',
+                    $this->table,
+                    (int) ($trashed->id ?? 0) ?: null,
+                    ['result'],
+                    $this->rowToArray($trashed),
+                    null,
+                    'Restore blocked: slug exists in trash for a non-menu item.'
+                );
+
                 return response()->json([
                     'error' => 'Slug already exists in trash for a non-menu item. Clear/force delete it to reuse.',
                     'field' => 'slug',
                 ], 422);
             }
+
+            $before = $this->rowToArray($trashed);
 
             try {
                 DB::table($this->table)->where('id', $trashed->id)->update([
@@ -451,6 +618,21 @@ if (array_key_exists('page_slug', $data)) {
             $row = DB::table($this->table)->where('id', $trashed->id)->first();
             $rows = [$row];
             $this->attachContactInfosToRows($rows);
+
+            $after = $this->rowToArray($rows[0]);
+            $changed = $this->diffKeys($before, $after);
+
+            $this->logActivity(
+                $r,
+                'restore',
+                'top_header_menus',
+                $this->table,
+                (int) $trashed->id,
+                $changed,
+                $before,
+                $after,
+                'Menu restored from bin via store().'
+            );
 
             return response()->json(['success' => true, 'data' => $rows[0], 'restored' => true], 200);
         }
@@ -491,6 +673,20 @@ if (array_key_exists('page_slug', $data)) {
         $rows = [$row];
         $this->attachContactInfosToRows($rows);
 
+        $after = $this->rowToArray($rows[0]);
+
+        $this->logActivity(
+            $r,
+            'create',
+            'top_header_menus',
+            $this->table,
+            (int) $id,
+            array_keys($after ?? []),
+            null,
+            $after,
+            'Menu created.'
+        );
+
         return response()->json(['success' => true, 'data' => $rows[0]], 201);
     }
 
@@ -502,7 +698,22 @@ if (array_key_exists('page_slug', $data)) {
             ->where('item_type', 'menu') // ✅ menu only
             ->first();
 
-        if (!$row) return response()->json(['error' => 'Not found'], 404);
+        if (!$row) {
+            $this->logActivity(
+                $r,
+                'update',
+                'top_header_menus',
+                $this->table,
+                (int) $id,
+                ['result'],
+                null,
+                null,
+                'Update failed: not found.'
+            );
+            return response()->json(['error' => 'Not found'], 404);
+        }
+
+        $before = $this->rowToArray($row);
 
         $data = $r->validate([
             'department_id'  => 'sometimes|nullable|integer',
@@ -552,12 +763,37 @@ if (array_key_exists('page_slug', $data)) {
             $conflict = $this->findUniqueConflict('slug', $slug, (int) $row->id);
             if ($conflict) {
                 if ($conflict->deleted_at !== null) {
+                    $this->logActivity(
+                        $r,
+                        'update',
+                        'top_header_menus',
+                        $this->table,
+                        (int) $row->id,
+                        ['slug'],
+                        $before,
+                        ['slug' => $slug],
+                        'Update blocked: slug exists in trash.'
+                    );
+
                     return response()->json([
                         'error' => 'Slug already exists in trash. Restore/permanently delete that item to reuse this slug.',
                         'field' => 'slug',
                         'conflict' => ['id' => $conflict->id, 'title' => $conflict->title],
                     ], 422);
                 }
+
+                $this->logActivity(
+                    $r,
+                    'update',
+                    'top_header_menus',
+                    $this->table,
+                    (int) $row->id,
+                    ['slug'],
+                    $before,
+                    ['slug' => $slug],
+                    'Update blocked: slug already in use.'
+                );
+
                 return response()->json(['error' => 'Slug already in use', 'field' => 'slug'], 422);
             }
         }
@@ -571,7 +807,21 @@ if (array_key_exists('page_slug', $data)) {
             } else {
                 $val = strtoupper($val);
                 $conflict = $this->findUniqueConflict('shortcode', $val, (int) $row->id);
-                if ($conflict) return response()->json(['error' => 'Shortcode already in use', 'field' => 'shortcode'], 422);
+                if ($conflict) {
+                    $this->logActivity(
+                        $r,
+                        'update',
+                        'top_header_menus',
+                        $this->table,
+                        (int) $row->id,
+                        ['shortcode'],
+                        $before,
+                        ['shortcode' => $val],
+                        'Update blocked: shortcode already in use.'
+                    );
+
+                    return response()->json(['error' => 'Shortcode already in use', 'field' => 'shortcode'], 422);
+                }
                 $shortcode = $val;
             }
         }
@@ -584,12 +834,11 @@ if (array_key_exists('page_slug', $data)) {
             $pageUrl = trim((string) $data['page_url']) ?: null;
         }
 
-$pageSlug = $row->page_slug ?? null;
-if (array_key_exists('page_slug', $data)) {
-    $norm = $this->normSlug($data['page_slug']);
-    $pageSlug = $norm !== '' ? $norm : null; // ✅ allow duplicates now
-}
-
+        $pageSlug = $row->page_slug ?? null;
+        if (array_key_exists('page_slug', $data)) {
+            $norm = $this->normSlug($data['page_slug']);
+            $pageSlug = $norm !== '' ? $norm : null; // ✅ allow duplicates now
+        }
 
         $pageShortcode = $row->page_shortcode ?? null;
         if (array_key_exists('page_shortcode', $data)) {
@@ -597,7 +846,21 @@ if (array_key_exists('page_slug', $data)) {
             $pageShortcode = $val !== '' ? $val : null;
             if ($pageShortcode) {
                 $conflict = $this->findUniqueConflict('page_shortcode', $pageShortcode, (int) $row->id);
-                if ($conflict) return response()->json(['error' => 'Page shortcode already in use', 'field' => 'page_shortcode'], 422);
+                if ($conflict) {
+                    $this->logActivity(
+                        $r,
+                        'update',
+                        'top_header_menus',
+                        $this->table,
+                        (int) $row->id,
+                        ['page_shortcode'],
+                        $before,
+                        ['page_shortcode' => $pageShortcode],
+                        'Update blocked: page_shortcode already in use.'
+                    );
+
+                    return response()->json(['error' => 'Page shortcode already in use', 'field' => 'page_shortcode'], 422);
+                }
             }
         }
 
@@ -644,18 +907,48 @@ if (array_key_exists('page_slug', $data)) {
         $rows = [$fresh];
         $this->attachContactInfosToRows($rows);
 
+        $after = $this->rowToArray($rows[0]);
+        $changed = $this->diffKeys($before, $after);
+
+        $this->logActivity(
+            $r,
+            'update',
+            'top_header_menus',
+            $this->table,
+            (int) $row->id,
+            $changed,
+            $before,
+            $after,
+            'Menu updated.'
+        );
+
         return response()->json(['success' => true, 'data' => $rows[0]]);
     }
 
     public function destroy(Request $r, $id)
     {
-        $ok = DB::table($this->table)
+        $row = DB::table($this->table)
             ->where('id', (int) $id)
             ->where('item_type', 'menu')
             ->whereNull('deleted_at')
-            ->exists();
+            ->first();
 
-        if (!$ok) return response()->json(['error' => 'Not found'], 404);
+        if (!$row) {
+            $this->logActivity(
+                $r,
+                'delete',
+                'top_header_menus',
+                $this->table,
+                (int) $id,
+                ['result'],
+                null,
+                null,
+                'Delete failed: not found.'
+            );
+            return response()->json(['error' => 'Not found'], 404);
+        }
+
+        $before = $this->rowToArray($row);
 
         DB::table($this->table)->where('id', (int) $id)->update([
             'deleted_at'    => now(),
@@ -664,18 +957,49 @@ if (array_key_exists('page_slug', $data)) {
             'updated_at_ip' => $r->ip(),
         ]);
 
+        $fresh = DB::table($this->table)->where('id', (int) $id)->first();
+        $after = $this->rowToArray($fresh);
+        $changed = $this->diffKeys($before, $after);
+
+        $this->logActivity(
+            $r,
+            'delete',
+            'top_header_menus',
+            $this->table,
+            (int) $id,
+            $changed,
+            $before,
+            $after,
+            'Menu moved to bin (soft delete).'
+        );
+
         return response()->json(['success' => true, 'message' => 'Moved to bin']);
     }
 
     public function restore(Request $r, $id)
     {
-        $ok = DB::table($this->table)
+        $row = DB::table($this->table)
             ->where('id', (int) $id)
             ->where('item_type', 'menu')
             ->whereNotNull('deleted_at')
-            ->exists();
+            ->first();
 
-        if (!$ok) return response()->json(['error' => 'Not found in bin'], 404);
+        if (!$row) {
+            $this->logActivity(
+                $r,
+                'restore',
+                'top_header_menus',
+                $this->table,
+                (int) $id,
+                ['result'],
+                null,
+                null,
+                'Restore failed: not found in bin.'
+            );
+            return response()->json(['error' => 'Not found in bin'], 404);
+        }
+
+        $before = $this->rowToArray($row);
 
         DB::table($this->table)->where('id', (int) $id)->update([
             'deleted_at'    => null,
@@ -684,19 +1008,62 @@ if (array_key_exists('page_slug', $data)) {
             'updated_at_ip' => $r->ip(),
         ]);
 
+        $fresh = DB::table($this->table)->where('id', (int) $id)->first();
+        $after = $this->rowToArray($fresh);
+        $changed = $this->diffKeys($before, $after);
+
+        $this->logActivity(
+            $r,
+            'restore',
+            'top_header_menus',
+            $this->table,
+            (int) $id,
+            $changed,
+            $before,
+            $after,
+            'Menu restored from bin.'
+        );
+
         return response()->json(['success' => true, 'message' => 'Restored']);
     }
 
     public function forceDelete(Request $r, $id)
     {
-        $exists = DB::table($this->table)
+        $row = DB::table($this->table)
             ->where('id', (int) $id)
             ->where('item_type', 'menu')
-            ->exists();
+            ->first();
 
-        if (!$exists) return response()->json(['error' => 'Not found'], 404);
+        if (!$row) {
+            $this->logActivity(
+                $r,
+                'force_delete',
+                'top_header_menus',
+                $this->table,
+                (int) $id,
+                ['result'],
+                null,
+                null,
+                'Force delete failed: not found.'
+            );
+            return response()->json(['error' => 'Not found'], 404);
+        }
+
+        $before = $this->rowToArray($row);
 
         DB::table($this->table)->where('id', (int) $id)->delete();
+
+        $this->logActivity(
+            $r,
+            'force_delete',
+            'top_header_menus',
+            $this->table,
+            (int) $id,
+            ['deleted_permanently'],
+            $before,
+            null,
+            'Menu deleted permanently.'
+        );
 
         return response()->json(['success' => true, 'message' => 'Deleted permanently']);
     }
@@ -709,7 +1076,22 @@ if (array_key_exists('page_slug', $data)) {
             ->whereNull('deleted_at')
             ->first();
 
-        if (!$row) return response()->json(['error' => 'Not found'], 404);
+        if (!$row) {
+            $this->logActivity(
+                $r,
+                'toggle_active',
+                'top_header_menus',
+                $this->table,
+                (int) $id,
+                ['result'],
+                null,
+                null,
+                'Toggle failed: not found.'
+            );
+            return response()->json(['error' => 'Not found'], 404);
+        }
+
+        $before = $this->rowToArray($row);
 
         DB::table($this->table)->where('id', (int) $id)->update([
             'active'        => !$row->active,
@@ -717,6 +1099,21 @@ if (array_key_exists('page_slug', $data)) {
             'updated_by'    => $this->actor($r)['id'] ?: null,
             'updated_at_ip' => $r->ip(),
         ]);
+
+        $fresh = DB::table($this->table)->where('id', (int) $id)->first();
+        $after = $this->rowToArray($fresh);
+
+        $this->logActivity(
+            $r,
+            'toggle_active',
+            'top_header_menus',
+            $this->table,
+            (int) $id,
+            ['active'],
+            ['active' => (bool) ($before['active'] ?? null)],
+            ['active' => (bool) ($after['active'] ?? null)],
+            'Menu active status toggled.'
+        );
 
         return response()->json(['success' => true, 'message' => 'Status updated']);
     }
@@ -728,6 +1125,23 @@ if (array_key_exists('page_slug', $data)) {
             'orders.*.id'       => 'required|integer',
             'orders.*.position' => 'required|integer|min:0',
         ]);
+
+        $ids = [];
+        foreach ($payload['orders'] as $o) $ids[] = (int) $o['id'];
+        $ids = array_values(array_unique(array_filter($ids)));
+
+        // capture before snapshot (bulk)
+        $beforeRows = $ids
+            ? DB::table($this->table)
+                ->select('id', 'position')
+                ->whereIn('id', $ids)
+                ->where('item_type', 'menu')
+                ->whereNull('deleted_at')
+                ->get()
+            : collect([]);
+
+        $beforeMap = [];
+        foreach ($beforeRows as $br) $beforeMap[(int) $br->id] = (int) $br->position;
 
         DB::beginTransaction();
         try {
@@ -749,8 +1163,46 @@ if (array_key_exists('page_slug', $data)) {
             DB::commit();
         } catch (\Throwable $e) {
             DB::rollBack();
+
+            $this->logActivity(
+                $r,
+                'reorder',
+                'top_header_menus',
+                $this->table,
+                null,
+                ['result', 'orders'],
+                ['orders' => $payload['orders'], 'before_positions' => $beforeMap],
+                null,
+                'Reorder failed: ' . $e->getMessage()
+            );
+
             return response()->json(['error' => 'Reorder failed', 'details' => $e->getMessage()], 422);
         }
+
+        // capture after snapshot (bulk)
+        $afterRows = $ids
+            ? DB::table($this->table)
+                ->select('id', 'position')
+                ->whereIn('id', $ids)
+                ->where('item_type', 'menu')
+                ->whereNull('deleted_at')
+                ->get()
+            : collect([]);
+
+        $afterMap = [];
+        foreach ($afterRows as $ar) $afterMap[(int) $ar->id] = (int) $ar->position;
+
+        $this->logActivity(
+            $r,
+            'reorder',
+            'top_header_menus',
+            $this->table,
+            null,
+            ['orders', 'position'],
+            ['before_positions' => $beforeMap],
+            ['after_positions' => $afterMap, 'orders' => $payload['orders']],
+            'Menu order updated.'
+        );
 
         return response()->json(['success' => true, 'message' => 'Order updated']);
     }
@@ -873,7 +1325,33 @@ if (array_key_exists('page_slug', $data)) {
         if (!is_array($ids)) $ids = [];
         $ids = array_values(array_unique(array_map('intval', $ids)));
 
+        // snapshot BEFORE (PUT)
+        $beforeRows = DB::table($this->table)
+            ->whereNull('deleted_at')
+            ->where('item_type', 'contact')
+            ->orderBy('position', 'asc')
+            ->orderBy('id', 'asc')
+            ->get();
+
+        $beforeIds = [];
+        foreach ($beforeRows as $br) {
+            if (!empty($br->contact_info_id)) $beforeIds[] = (int) $br->contact_info_id;
+        }
+        $beforeIds = array_slice(array_values(array_unique($beforeIds)), 0, 2);
+
         if (count($ids) !== 2) {
+            $this->logActivity(
+                $r,
+                'contact_selection_update',
+                'top_header_menus',
+                $this->table,
+                null,
+                ['contact_info_ids', 'result'],
+                ['before' => $beforeIds],
+                ['attempt' => $ids],
+                'Contact selection update blocked: must select exactly 2.'
+            );
+
             return response()->json(['error' => 'Select exactly 2 contact infos.'], 422);
         }
 
@@ -884,6 +1362,18 @@ if (array_key_exists('page_slug', $data)) {
         $cis = $q->get()->keyBy('id');
 
         if ($cis->count() !== 2) {
+            $this->logActivity(
+                $r,
+                'contact_selection_update',
+                'top_header_menus',
+                $this->table,
+                null,
+                ['contact_info_ids', 'result'],
+                ['before' => $beforeIds],
+                ['attempt' => $ids],
+                'Contact selection update blocked: invalid contact_info_ids.'
+            );
+
             return response()->json(['error' => 'Invalid contact_info_ids'], 422);
         }
 
@@ -999,6 +1489,32 @@ if (array_key_exists('page_slug', $data)) {
             throw $e;
         }
 
+        // snapshot AFTER (PUT)
+        $afterRows = DB::table($this->table)
+            ->whereNull('deleted_at')
+            ->where('item_type', 'contact')
+            ->orderBy('position', 'asc')
+            ->orderBy('id', 'asc')
+            ->get();
+
+        $afterIds = [];
+        foreach ($afterRows as $ar) {
+            if (!empty($ar->contact_info_id)) $afterIds[] = (int) $ar->contact_info_id;
+        }
+        $afterIds = array_slice(array_values(array_unique($afterIds)), 0, 2);
+
+        $this->logActivity(
+            $r,
+            'contact_selection_update',
+            'top_header_menus',
+            $this->table,
+            null,
+            ['contact_info_ids'],
+            ['before' => $beforeIds],
+            ['after' => $afterIds],
+            'Contact selection updated.'
+        );
+
         return response()->json(['success' => true, 'message' => 'Contact infos saved']);
     }
 
@@ -1006,6 +1522,20 @@ if (array_key_exists('page_slug', $data)) {
     {
         $actor = $this->actor($r);
         $now = now();
+
+        // snapshot BEFORE (DELETE)
+        $beforeRows = DB::table($this->table)
+            ->whereNull('deleted_at')
+            ->where('item_type', 'contact')
+            ->orderBy('position', 'asc')
+            ->orderBy('id', 'asc')
+            ->get();
+
+        $beforeIds = [];
+        foreach ($beforeRows as $br) {
+            if (!empty($br->contact_info_id)) $beforeIds[] = (int) $br->contact_info_id;
+        }
+        $beforeIds = array_slice(array_values(array_unique($beforeIds)), 0, 2);
 
         DB::table($this->table)
             ->where('item_type', 'contact')
@@ -1016,6 +1546,32 @@ if (array_key_exists('page_slug', $data)) {
                 'updated_by'    => $actor['id'] ?: null,
                 'updated_at_ip' => $r->ip(),
             ]);
+
+        // snapshot AFTER (DELETE)
+        $afterRows = DB::table($this->table)
+            ->whereNull('deleted_at')
+            ->where('item_type', 'contact')
+            ->orderBy('position', 'asc')
+            ->orderBy('id', 'asc')
+            ->get();
+
+        $afterIds = [];
+        foreach ($afterRows as $ar) {
+            if (!empty($ar->contact_info_id)) $afterIds[] = (int) $ar->contact_info_id;
+        }
+        $afterIds = array_slice(array_values(array_unique($afterIds)), 0, 2);
+
+        $this->logActivity(
+            $r,
+            'contact_selection_clear',
+            'top_header_menus',
+            $this->table,
+            null,
+            ['contact_info_ids', 'deleted_at'],
+            ['before' => $beforeIds],
+            ['after' => $afterIds],
+            'Contact selection cleared (soft delete all contact rows).'
+        );
 
         return response()->json(['success' => true, 'message' => 'Contact selection cleared']);
     }

@@ -23,6 +23,100 @@ class StickyButtonController extends Controller
         ];
     }
 
+    /**
+     * Safe activity logger (never breaks core flow).
+     */
+    private function logActivity(
+        Request $request,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        ?array $oldValues = null,
+        ?array $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            $actor = $this->actor($request);
+
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'       => (int) ($actor['id'] ?? 0),
+                'performed_by_role'  => (string) ($actor['role'] ?? ''),
+                'ip'                 => $request->ip(),
+                'user_agent'         => substr((string) $request->userAgent(), 0, 512),
+
+                'activity'           => $activity,
+                'module'             => $module,
+
+                'table_name'         => $tableName,
+                'record_id'          => $recordId,
+
+                'changed_fields'     => $changedFields !== null ? json_encode(array_values($changedFields)) : null,
+                'old_values'         => $oldValues !== null ? json_encode($oldValues) : null,
+                'new_values'         => $newValues !== null ? json_encode($newValues) : null,
+
+                'log_note'           => $note,
+
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ]);
+        } catch (\Throwable $e) {
+            // Intentionally swallow logging failures to avoid breaking any functionality.
+        }
+    }
+
+    /**
+     * Snapshot sticky_buttons row (decoded json for readability).
+     */
+    private function snapshotSticky($row): ?array
+    {
+        if (!$row) return null;
+
+        $arr = (array) $row;
+
+        $keep = [
+            'id', 'uuid', 'status',
+            'buttons_json', 'metadata',
+            'deleted_at',
+            'created_by', 'created_at', 'updated_at',
+            'created_at_ip', 'updated_at_ip',
+        ];
+
+        $out = [];
+        foreach ($keep as $k) {
+            if (array_key_exists($k, $arr)) $out[$k] = $arr[$k];
+        }
+
+        $out['buttons_json'] = $this->decodeIfJson($out['buttons_json'] ?? null);
+        $out['metadata']     = $this->decodeIfJson($out['metadata'] ?? null);
+
+        return $out;
+    }
+
+    /**
+     * Diff only meaningful fields (so logs don't get noisy).
+     */
+    private function diffStickySnapshots(?array $old, ?array $new): array
+    {
+        $fields = ['status', 'buttons_json', 'metadata', 'deleted_at'];
+        $changed = [];
+
+        foreach ($fields as $f) {
+            $ov = $old[$f] ?? null;
+            $nv = $new[$f] ?? null;
+
+            // Normalize arrays for stable compare
+            if (is_array($ov) || is_array($nv)) {
+                if (json_encode($ov) !== json_encode($nv)) $changed[] = $f;
+            } else {
+                if ($ov !== $nv) $changed[] = $f;
+            }
+        }
+
+        return $changed;
+    }
+
     protected function toUrl(?string $path): ?string
     {
         $path = trim((string) $path);
@@ -351,6 +445,20 @@ class StickyButtonController extends Controller
 
         $row = DB::table('sticky_buttons')->where('id', (int) $id)->first();
 
+        // LOG: create
+        $newSnap = $this->snapshotSticky($row);
+        $this->logActivity(
+            $request,
+            'create',
+            'sticky_buttons',
+            'sticky_buttons',
+            (int) $id,
+            ['uuid', 'buttons_json', 'status', 'metadata'],
+            null,
+            $newSnap,
+            'StickyButtonController@store'
+        );
+
         return response()->json([
             'success' => true,
             'data'    => $row ? $this->normalizeRow($row) : null,
@@ -405,6 +513,8 @@ class StickyButtonController extends Controller
             ->first();
 
         if ($latest) {
+            $oldSnap = $this->snapshotSticky($latest);
+
             DB::table('sticky_buttons')->where('id', (int)$latest->id)->update([
                 'buttons_json'  => json_encode($buttons),
                 'status'        => (string) ($validated['status'] ?? ($latest->status ?? 'active')),
@@ -414,6 +524,21 @@ class StickyButtonController extends Controller
             ]);
 
             $fresh = DB::table('sticky_buttons')->where('id', (int)$latest->id)->first();
+            $newSnap = $this->snapshotSticky($fresh);
+            $changed = $this->diffStickySnapshots($oldSnap, $newSnap);
+
+            // LOG: update (upsert)
+            $this->logActivity(
+                $request,
+                'update',
+                'sticky_buttons',
+                'sticky_buttons',
+                (int) $latest->id,
+                $changed,
+                $oldSnap,
+                $newSnap,
+                'StickyButtonController@upsertCurrent (update)'
+            );
 
             return response()->json([
                 'success' => true,
@@ -438,6 +563,20 @@ class StickyButtonController extends Controller
 
         $row = DB::table('sticky_buttons')->where('id', (int)$id)->first();
 
+        // LOG: create (upsert)
+        $newSnap = $this->snapshotSticky($row);
+        $this->logActivity(
+            $request,
+            'create',
+            'sticky_buttons',
+            'sticky_buttons',
+            (int) $id,
+            ['uuid', 'buttons_json', 'status', 'metadata'],
+            null,
+            $newSnap,
+            'StickyButtonController@upsertCurrent (create)'
+        );
+
         return response()->json([
             'success' => true,
             'data'    => $row ? $this->normalizeRow($row) : null,
@@ -448,6 +587,8 @@ class StickyButtonController extends Controller
     {
         $row = $this->resolveSticky($identifier, true);
         if (!$row) return response()->json(['message' => 'Sticky buttons not found'], 404);
+
+        $oldSnap = $this->snapshotSticky($row);
 
         $validated = $request->validate([
             'buttons_json'       => ['nullable'],
@@ -494,6 +635,21 @@ class StickyButtonController extends Controller
 
         $fresh = DB::table('sticky_buttons')->where('id', (int) $row->id)->first();
 
+        // LOG: update
+        $newSnap = $this->snapshotSticky($fresh);
+        $changed = $this->diffStickySnapshots($oldSnap, $newSnap);
+        $this->logActivity(
+            $request,
+            'update',
+            'sticky_buttons',
+            'sticky_buttons',
+            (int) $row->id,
+            $changed,
+            $oldSnap,
+            $newSnap,
+            'StickyButtonController@update'
+        );
+
         return response()->json([
             'success' => true,
             'data'    => $fresh ? $this->normalizeRow($fresh) : null,
@@ -505,6 +661,8 @@ class StickyButtonController extends Controller
         $row = $this->resolveSticky($identifier, true);
         if (!$row) return response()->json(['message' => 'Sticky buttons not found'], 404);
 
+        $oldSnap = $this->snapshotSticky($row);
+
         $new = (($row->status ?? 'active') === 'active') ? 'inactive' : 'active';
 
         DB::table('sticky_buttons')->where('id', (int) $row->id)->update([
@@ -514,6 +672,21 @@ class StickyButtonController extends Controller
         ]);
 
         $fresh = DB::table('sticky_buttons')->where('id', (int) $row->id)->first();
+
+        // LOG: update (toggle)
+        $newSnap = $this->snapshotSticky($fresh);
+        $changed = $this->diffStickySnapshots($oldSnap, $newSnap);
+        $this->logActivity(
+            $request,
+            'update',
+            'sticky_buttons',
+            'sticky_buttons',
+            (int) $row->id,
+            $changed,
+            $oldSnap,
+            $newSnap,
+            'StickyButtonController@toggleStatus'
+        );
 
         return response()->json([
             'success' => true,
@@ -526,11 +699,30 @@ class StickyButtonController extends Controller
         $row = $this->resolveSticky($identifier, false);
         if (!$row) return response()->json(['message' => 'Not found or already deleted'], 404);
 
+        $oldSnap = $this->snapshotSticky($row);
+
         DB::table('sticky_buttons')->where('id', (int) $row->id)->update([
             'deleted_at'    => now(),
             'updated_at'    => now(),
             'updated_at_ip' => $request->ip(),
         ]);
+
+        $fresh = DB::table('sticky_buttons')->where('id', (int) $row->id)->first();
+
+        // LOG: delete (soft)
+        $newSnap = $this->snapshotSticky($fresh);
+        $changed = $this->diffStickySnapshots($oldSnap, $newSnap);
+        $this->logActivity(
+            $request,
+            'delete',
+            'sticky_buttons',
+            'sticky_buttons',
+            (int) $row->id,
+            $changed,
+            $oldSnap,
+            $newSnap,
+            'StickyButtonController@destroy (soft delete)'
+        );
 
         return response()->json(['success' => true]);
     }
@@ -542,6 +734,8 @@ class StickyButtonController extends Controller
             return response()->json(['message' => 'Not found in bin'], 404);
         }
 
+        $oldSnap = $this->snapshotSticky($row);
+
         DB::table('sticky_buttons')->where('id', (int) $row->id)->update([
             'deleted_at'    => null,
             'updated_at'    => now(),
@@ -549,6 +743,21 @@ class StickyButtonController extends Controller
         ]);
 
         $fresh = DB::table('sticky_buttons')->where('id', (int) $row->id)->first();
+
+        // LOG: restore
+        $newSnap = $this->snapshotSticky($fresh);
+        $changed = $this->diffStickySnapshots($oldSnap, $newSnap);
+        $this->logActivity(
+            $request,
+            'restore',
+            'sticky_buttons',
+            'sticky_buttons',
+            (int) $row->id,
+            $changed,
+            $oldSnap,
+            $newSnap,
+            'StickyButtonController@restore'
+        );
 
         return response()->json([
             'success' => true,
@@ -561,7 +770,22 @@ class StickyButtonController extends Controller
         $row = $this->resolveSticky($identifier, true);
         if (!$row) return response()->json(['message' => 'Sticky buttons not found'], 404);
 
+        $oldSnap = $this->snapshotSticky($row);
+
         DB::table('sticky_buttons')->where('id', (int) $row->id)->delete();
+
+        // LOG: delete (force)
+        $this->logActivity(
+            $request,
+            'delete',
+            'sticky_buttons',
+            'sticky_buttons',
+            (int) $row->id,
+            ['force_delete'],
+            $oldSnap,
+            null,
+            'StickyButtonController@forceDelete (force delete)'
+        );
 
         return response()->json(['success' => true]);
     }

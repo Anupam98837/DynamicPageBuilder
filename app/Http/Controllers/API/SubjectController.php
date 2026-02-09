@@ -17,6 +17,9 @@ class SubjectController extends Controller
     /** cache schema checks */
     protected array $colCache = [];
 
+    /** cache log table existence */
+    protected ?bool $logTableExistsCache = null;
+
     private function actor(Request $r): array
     {
         return [
@@ -31,6 +34,104 @@ class SubjectController extends Controller
     {
         $ip = $r->ip();
         return $ip ? (string) $ip : null;
+    }
+
+    private function safeStr($v, int $max): ?string
+    {
+        if ($v === null) return null;
+        $s = (string)$v;
+        if ($s === '') return $s;
+        if (function_exists('mb_substr')) return mb_substr($s, 0, $max);
+        return substr($s, 0, $max);
+    }
+
+    private function canLog(): bool
+    {
+        if ($this->logTableExistsCache !== null) return $this->logTableExistsCache;
+        try {
+            return $this->logTableExistsCache = Schema::hasTable('user_data_activity_log');
+        } catch (\Throwable $e) {
+            return $this->logTableExistsCache = false;
+        }
+    }
+
+    /**
+     * Build diff for logging based on a payload applied on an existing row.
+     * Returns: [changedFields[], oldValuesAssoc, newValuesAssoc]
+     */
+    private function diffForLog($beforeRow, array $payload, array $ignoreKeys = []): array
+    {
+        $before = is_object($beforeRow) ? (array)$beforeRow : (array)$beforeRow;
+
+        $changed = [];
+        $oldVals = [];
+        $newVals = [];
+
+        foreach ($payload as $k => $v) {
+            if (in_array($k, $ignoreKeys, true)) continue;
+
+            $old = $before[$k] ?? null;
+
+            // normalize DateTime-ish
+            if ($old instanceof \DateTimeInterface) $old = $old->format('Y-m-d H:i:s');
+            if ($v instanceof \DateTimeInterface) $v = $v->format('Y-m-d H:i:s');
+
+            // compare loosely (keeps behavior safe with numeric/string/db casts)
+            if ($old != $v) {
+                $changed[]   = $k;
+                $oldVals[$k] = $old;
+                $newVals[$k] = $v;
+            }
+        }
+
+        return [$changed, $oldVals, $newVals];
+    }
+
+    /**
+     * Safe activity logger (never breaks API flow).
+     * Note: JSON columns are stored as JSON strings (Query Builder safe).
+     */
+    private function logActivity(
+        Request $r,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        ?array $oldValues = null,
+        ?array $newValues = null,
+        ?string $logNote = null
+    ): void {
+        try {
+            if (!$this->canLog()) return;
+
+            $actor = $this->actor($r);
+
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'      => (int)($actor['id'] ?? 0),
+                'performed_by_role' => $this->safeStr(($actor['role'] ?? null) ?: null, 50),
+                'ip'                => $this->safeStr($this->ip($r), 45),
+                'user_agent'        => $this->safeStr($r->header('User-Agent'), 512),
+
+                'activity'          => $this->safeStr($activity, 50) ?? 'unknown',
+                'module'            => $this->safeStr($module, 100) ?? 'unknown',
+
+                'table_name'        => $this->safeStr($tableName, 128) ?? '',
+                'record_id'         => $recordId,
+
+                'changed_fields'    => $changedFields ? json_encode(array_values($changedFields)) : null,
+                'old_values'        => $oldValues ? json_encode($oldValues) : null,
+                'new_values'        => $newValues ? json_encode($newValues) : null,
+
+                'log_note'          => $logNote,
+
+                'created_at'        => now(),
+                'updated_at'        => now(),
+            ]);
+        } catch (\Throwable $e) {
+            // swallow errors intentionally (do not affect API)
+            return;
+        }
     }
 
     private function hasCol(string $table, string $col): bool
@@ -541,7 +642,20 @@ class SubjectController extends Controller
         $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? $actor['id'] ?? 0);
         $ac = $this->accessControl($actorId);
 
-        if ($deny = $this->denyWriteForNoneOrNotAllowed($ac)) return $deny;
+        if ($deny = $this->denyWriteForNoneOrNotAllowed($ac)) {
+            $this->logActivity(
+                $r,
+                'forbidden',
+                'subjects',
+                'subjects',
+                null,
+                null,
+                null,
+                null,
+                'Access denied (store). method='.$r->method().' path='.$r->path()
+            );
+            return $deny;
+        }
 
         $r->validate([
             'department_id'   => ['nullable','integer','exists:departments,id'],
@@ -590,6 +704,17 @@ class SubjectController extends Controller
         if ($ac['mode'] === 'department') {
             $forced = (int)$ac['department_id'];
             if ($deptId !== null && $deptId !== $forced) {
+                $this->logActivity(
+                    $r,
+                    'forbidden',
+                    'subjects',
+                    'subjects',
+                    null,
+                    ['department_id'],
+                    ['department_id' => $deptId],
+                    ['department_id' => $forced],
+                    'Department mismatch (store). method='.$r->method().' path='.$r->path()
+                );
                 return response()->json(['error' => 'Not allowed'], 403);
             }
             $deptId = $forced; // default/force to actor dept
@@ -605,6 +730,19 @@ class SubjectController extends Controller
             ->value('id');
 
         if ($exists) {
+            // optional: log conflict
+            $this->logActivity(
+                $r,
+                'conflict',
+                'subjects',
+                'subjects',
+                (int)$exists,
+                ['subject_code'],
+                null,
+                ['subject_code' => $code, 'department_id' => $deptId],
+                'Duplicate subject_code for department (store). method='.$r->method().' path='.$r->path()
+            );
+
             return response()->json([
                 'success' => false,
                 'message' => 'Subject code already exists for this department.',
@@ -656,6 +794,21 @@ class SubjectController extends Controller
 
         $id = DB::table('subjects')->insertGetId($payload);
 
+        // ✅ LOG (create)
+        $newValues = $payload;
+        $newValues['id'] = (int)$id;
+        $this->logActivity(
+            $r,
+            'create',
+            'subjects',
+            'subjects',
+            (int)$id,
+            array_keys($payload),
+            null,
+            $newValues,
+            'Created subject. method='.$r->method().' path='.$r->path()
+        );
+
         return response()->json([
             'success' => true,
             'message' => 'Created',
@@ -675,17 +828,54 @@ class SubjectController extends Controller
         $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? $actor['id'] ?? 0);
         $ac = $this->accessControl($actorId);
 
-        if ($deny = $this->denyWriteForNoneOrNotAllowed($ac)) return $deny;
+        if ($deny = $this->denyWriteForNoneOrNotAllowed($ac)) {
+            $this->logActivity(
+                $r,
+                'forbidden',
+                'subjects',
+                'subjects',
+                null,
+                null,
+                null,
+                ['target' => $idOrUuid],
+                'Access denied (update). method='.$r->method().' path='.$r->path()
+            );
+            return $deny;
+        }
 
         $w = $this->normalizeIdentifier($idOrUuid, null);
 
         $exists = DB::table('subjects')->where($w['raw_col'], $w['val'])->first();
-        if (!$exists) return response()->json(['success'=>false,'message'=>'Not found'], 404);
+        if (!$exists) {
+            $this->logActivity(
+                $r,
+                'not_found',
+                'subjects',
+                'subjects',
+                null,
+                null,
+                null,
+                ['target' => $idOrUuid],
+                'Target not found (update). method='.$r->method().' path='.$r->path()
+            );
+            return response()->json(['success'=>false,'message'=>'Not found'], 404);
+        }
 
         // ✅ department mode: can only touch rows in their department
         if ($ac['mode'] === 'department') {
             $rowDept = $exists->department_id !== null ? (int)$exists->department_id : null;
             if ($rowDept !== (int)$ac['department_id']) {
+                $this->logActivity(
+                    $r,
+                    'forbidden',
+                    'subjects',
+                    'subjects',
+                    (int)$exists->id,
+                    ['department_id'],
+                    ['department_id' => $rowDept],
+                    ['department_id' => (int)$ac['department_id']],
+                    'Department mismatch (update). method='.$r->method().' path='.$r->path()
+                );
                 return response()->json(['error' => 'Not allowed'], 403);
             }
         }
@@ -773,6 +963,17 @@ class SubjectController extends Controller
             if (array_key_exists('department_id', $payload)) {
                 $newDept = $payload['department_id'] !== null ? (int)$payload['department_id'] : null;
                 if ($newDept !== $forced) {
+                    $this->logActivity(
+                        $r,
+                        'forbidden',
+                        'subjects',
+                        'subjects',
+                        (int)$exists->id,
+                        ['department_id'],
+                        ['department_id' => (int)($exists->department_id ?? null)],
+                        ['department_id' => $newDept],
+                        'Department change not allowed (update). method='.$r->method().' path='.$r->path()
+                    );
                     return response()->json(['error' => 'Not allowed'], 403);
                 }
             } else {
@@ -799,6 +1000,18 @@ class SubjectController extends Controller
                 ->value('id');
 
             if ($dup) {
+                $this->logActivity(
+                    $r,
+                    'conflict',
+                    'subjects',
+                    'subjects',
+                    (int)$exists->id,
+                    ['subject_code','department_id'],
+                    null,
+                    ['subject_code' => $code, 'department_id' => $deptId, 'conflict_id' => (int)$dup],
+                    'Duplicate subject_code for department (update). method='.$r->method().' path='.$r->path()
+                );
+
                 return response()->json([
                     'success' => false,
                     'message' => 'Subject code already exists for this department.',
@@ -806,7 +1019,27 @@ class SubjectController extends Controller
             }
         }
 
+        // ✅ compute diff before update (for audit)
+        [$changedFields, $oldValues, $newValues] = $this->diffForLog(
+            $exists,
+            $payload,
+            ['updated_at', 'updated_at_ip'] // ignore routine fields in diff
+        );
+
         DB::table('subjects')->where($w['raw_col'], $w['val'])->update($payload);
+
+        // ✅ LOG (update) only if something meaningful changed
+        $this->logActivity(
+            $r,
+            'update',
+            'subjects',
+            'subjects',
+            (int)$exists->id,
+            $changedFields ?: [],
+            $oldValues ?: [],
+            $newValues ?: [],
+            'Updated subject. method='.$r->method().' path='.$r->path()
+        );
 
         return response()->json([
             'success' => true,
@@ -826,30 +1059,102 @@ class SubjectController extends Controller
         $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? $actor['id'] ?? 0);
         $ac = $this->accessControl($actorId);
 
-        if ($deny = $this->denyWriteForNoneOrNotAllowed($ac)) return $deny;
+        if ($deny = $this->denyWriteForNoneOrNotAllowed($ac)) {
+            $this->logActivity(
+                $r,
+                'forbidden',
+                'subjects',
+                'subjects',
+                null,
+                null,
+                null,
+                ['target' => $idOrUuid],
+                'Access denied (destroy). method='.$r->method().' path='.$r->path()
+            );
+            return $deny;
+        }
 
         $w = $this->normalizeIdentifier($idOrUuid, null);
 
         $row = DB::table('subjects')->where($w['raw_col'], $w['val'])->first();
-        if (!$row) return response()->json(['success'=>false,'message'=>'Not found'], 404);
+        if (!$row) {
+            $this->logActivity(
+                $r,
+                'not_found',
+                'subjects',
+                'subjects',
+                null,
+                null,
+                null,
+                ['target' => $idOrUuid],
+                'Target not found (destroy). method='.$r->method().' path='.$r->path()
+            );
+            return response()->json(['success'=>false,'message'=>'Not found'], 404);
+        }
 
         // ✅ department mode: can only touch rows in their department
         if ($ac['mode'] === 'department') {
             $rowDept = $row->department_id !== null ? (int)$row->department_id : null;
             if ($rowDept !== (int)$ac['department_id']) {
+                $this->logActivity(
+                    $r,
+                    'forbidden',
+                    'subjects',
+                    'subjects',
+                    (int)$row->id,
+                    ['department_id'],
+                    ['department_id' => $rowDept],
+                    ['department_id' => (int)$ac['department_id']],
+                    'Department mismatch (destroy). method='.$r->method().' path='.$r->path()
+                );
                 return response()->json(['error' => 'Not allowed'], 403);
             }
         }
 
         if ($row->deleted_at) {
+            // ✅ LOG (already soft-deleted)
+            $this->logActivity(
+                $r,
+                'soft_delete',
+                'subjects',
+                'subjects',
+                (int)$row->id,
+                [],
+                [],
+                [],
+                'Already in trash (destroy). method='.$r->method().' path='.$r->path()
+            );
+
             return response()->json(['success'=>true,'message'=>'Already in trash']);
         }
 
-        DB::table('subjects')->where('id', $row->id)->update([
+        $payload = [
             'deleted_at'    => now(),
             'updated_at'    => now(),
             'updated_at_ip' => $this->ip($r),
-        ]);
+        ];
+
+        // diff (only deleted_at is meaningful)
+        [$changedFields, $oldValues, $newValues] = $this->diffForLog(
+            $row,
+            $payload,
+            ['updated_at', 'updated_at_ip']
+        );
+
+        DB::table('subjects')->where('id', $row->id)->update($payload);
+
+        // ✅ LOG (soft delete)
+        $this->logActivity(
+            $r,
+            'soft_delete',
+            'subjects',
+            'subjects',
+            (int)$row->id,
+            $changedFields ?: [],
+            $oldValues ?: [],
+            $newValues ?: [],
+            'Moved to trash. method='.$r->method().' path='.$r->path()
+        );
 
         return response()->json(['success'=>true,'message'=>'Moved to trash']);
     }
@@ -866,26 +1171,84 @@ class SubjectController extends Controller
         $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? $actor['id'] ?? 0);
         $ac = $this->accessControl($actorId);
 
-        if ($deny = $this->denyWriteForNoneOrNotAllowed($ac)) return $deny;
+        if ($deny = $this->denyWriteForNoneOrNotAllowed($ac)) {
+            $this->logActivity(
+                $r,
+                'forbidden',
+                'subjects',
+                'subjects',
+                null,
+                null,
+                null,
+                ['target' => $idOrUuid],
+                'Access denied (restore). method='.$r->method().' path='.$r->path()
+            );
+            return $deny;
+        }
 
         $w = $this->normalizeIdentifier($idOrUuid, null);
 
         $row = DB::table('subjects')->where($w['raw_col'], $w['val'])->first();
-        if (!$row) return response()->json(['success'=>false,'message'=>'Not found'], 404);
+        if (!$row) {
+            $this->logActivity(
+                $r,
+                'not_found',
+                'subjects',
+                'subjects',
+                null,
+                null,
+                null,
+                ['target' => $idOrUuid],
+                'Target not found (restore). method='.$r->method().' path='.$r->path()
+            );
+            return response()->json(['success'=>false,'message'=>'Not found'], 404);
+        }
 
         // ✅ department mode: can only touch rows in their department
         if ($ac['mode'] === 'department') {
             $rowDept = $row->department_id !== null ? (int)$row->department_id : null;
             if ($rowDept !== (int)$ac['department_id']) {
+                $this->logActivity(
+                    $r,
+                    'forbidden',
+                    'subjects',
+                    'subjects',
+                    (int)$row->id,
+                    ['department_id'],
+                    ['department_id' => $rowDept],
+                    ['department_id' => (int)$ac['department_id']],
+                    'Department mismatch (restore). method='.$r->method().' path='.$r->path()
+                );
                 return response()->json(['error' => 'Not allowed'], 403);
             }
         }
 
-        DB::table('subjects')->where('id', $row->id)->update([
+        $payload = [
             'deleted_at'    => null,
             'updated_at'    => now(),
             'updated_at_ip' => $this->ip($r),
-        ]);
+        ];
+
+        [$changedFields, $oldValues, $newValues] = $this->diffForLog(
+            $row,
+            $payload,
+            ['updated_at', 'updated_at_ip']
+        );
+
+        DB::table('subjects')->where('id', $row->id)->update($payload);
+
+        // ✅ LOG (restore)
+        $this->logActivity(
+            $r,
+            'restore',
+            'subjects',
+            'subjects',
+            (int)$row->id,
+            $changedFields ?: [],
+            $oldValues ?: [],
+            $newValues ?: [],
+            'Restored subject. method='.$r->method().' path='.$r->path()
+        );
 
         return response()->json(['success'=>true,'message'=>'Restored']);
     }
@@ -902,22 +1265,75 @@ class SubjectController extends Controller
         $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? $actor['id'] ?? 0);
         $ac = $this->accessControl($actorId);
 
-        if ($deny = $this->denyWriteForNoneOrNotAllowed($ac)) return $deny;
+        if ($deny = $this->denyWriteForNoneOrNotAllowed($ac)) {
+            $this->logActivity(
+                $r,
+                'forbidden',
+                'subjects',
+                'subjects',
+                null,
+                null,
+                null,
+                ['target' => $idOrUuid],
+                'Access denied (forceDelete). method='.$r->method().' path='.$r->path()
+            );
+            return $deny;
+        }
 
         $w = $this->normalizeIdentifier($idOrUuid, null);
 
         $row = DB::table('subjects')->where($w['raw_col'], $w['val'])->first();
-        if (!$row) return response()->json(['success'=>false,'message'=>'Not found'], 404);
+        if (!$row) {
+            $this->logActivity(
+                $r,
+                'not_found',
+                'subjects',
+                'subjects',
+                null,
+                null,
+                null,
+                ['target' => $idOrUuid],
+                'Target not found (forceDelete). method='.$r->method().' path='.$r->path()
+            );
+            return response()->json(['success'=>false,'message'=>'Not found'], 404);
+        }
 
         // ✅ department mode: can only touch rows in their department
         if ($ac['mode'] === 'department') {
             $rowDept = $row->department_id !== null ? (int)$row->department_id : null;
             if ($rowDept !== (int)$ac['department_id']) {
+                $this->logActivity(
+                    $r,
+                    'forbidden',
+                    'subjects',
+                    'subjects',
+                    (int)$row->id,
+                    ['department_id'],
+                    ['department_id' => $rowDept],
+                    ['department_id' => (int)$ac['department_id']],
+                    'Department mismatch (forceDelete). method='.$r->method().' path='.$r->path()
+                );
                 return response()->json(['error' => 'Not allowed'], 403);
             }
         }
 
+        // capture old values for audit before delete
+        $oldValues = (array)$row;
+
         DB::table('subjects')->where('id', $row->id)->delete();
+
+        // ✅ LOG (force delete)
+        $this->logActivity(
+            $r,
+            'force_delete',
+            'subjects',
+            'subjects',
+            (int)$row->id,
+            null,
+            $oldValues,
+            null,
+            'Deleted permanently. method='.$r->method().' path='.$r->path()
+        );
 
         return response()->json(['success'=>true,'message'=>'Deleted permanently']);
     }

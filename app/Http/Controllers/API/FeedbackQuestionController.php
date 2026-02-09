@@ -94,6 +94,69 @@ class FeedbackQuestionController extends Controller
         return $meta;
     }
 
+    private function rowToArray($row): ?array
+    {
+        if ($row === null) return null;
+        if (is_array($row)) return $row;
+        if (is_object($row)) return json_decode(json_encode($row), true);
+        return ['value' => $row];
+    }
+
+    private function toJsonOrNull($v): ?string
+    {
+        if ($v === null) return null;
+        if (is_string($v)) return $v;
+
+        try {
+            return json_encode($v, JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Best-effort activity logger (never throws; never breaks main flow)
+     */
+    private function logActivity(
+        Request $r,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        $changedFields = null,
+        $oldValues = null,
+        $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            $actor = $this->actor($r);
+
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'      => (int)($actor['id'] ?? 0),
+                'performed_by_role' => (string)($actor['role'] ?? '') ?: null,
+                'ip'                => $this->ip($r),
+                'user_agent'        => $r->userAgent() ? (string)$r->userAgent() : null,
+
+                'activity'   => $activity,
+                'module'     => $module,
+
+                'table_name' => $tableName,
+                'record_id'  => $recordId,
+
+                'changed_fields' => $this->toJsonOrNull($changedFields),
+                'old_values'     => $this->toJsonOrNull($oldValues),
+                'new_values'     => $this->toJsonOrNull($newValues),
+
+                'log_note'   => $note,
+
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        } catch (\Throwable $e) {
+            // swallow (logging should never affect business logic)
+        }
+    }
+
     protected function baseQuery(bool $includeDeleted = false)
     {
         $q = DB::table(self::TABLE . ' as fq')
@@ -264,26 +327,26 @@ class FeedbackQuestionController extends Controller
     }
 
     /* =========================================================
- | GROUP TITLES ONLY
- | GET /api/feedback-questions/group-titles
- |========================================================= */
-public function groupTitles(Request $r)
-{
-    // returns only distinct, trimmed, non-empty group_title values
-    $titles = DB::table(self::TABLE . ' as fq')
-        ->whereNull('fq.deleted_at')
-        ->whereNotNull('fq.group_title')
-        ->whereRaw("TRIM(fq.group_title) <> ''")
-        ->selectRaw("DISTINCT TRIM(fq.group_title) as group_title")
-        ->orderBy('group_title', 'asc')
-        ->pluck('group_title')
-        ->values();
+     | GROUP TITLES ONLY
+     | GET /api/feedback-questions/group-titles
+     |========================================================= */
+    public function groupTitles(Request $r)
+    {
+        // returns only distinct, trimmed, non-empty group_title values
+        $titles = DB::table(self::TABLE . ' as fq')
+            ->whereNull('fq.deleted_at')
+            ->whereNotNull('fq.group_title')
+            ->whereRaw("TRIM(fq.group_title) <> ''")
+            ->selectRaw("DISTINCT TRIM(fq.group_title) as group_title")
+            ->orderBy('group_title', 'asc')
+            ->pluck('group_title')
+            ->values();
 
-    return response()->json([
-        'success' => true,
-        'data'    => $titles,
-    ]);
-}
+        return response()->json([
+            'success' => true,
+            'data'    => $titles,
+        ]);
+    }
 
     /* =========================================================
      | SHOW
@@ -336,34 +399,63 @@ public function groupTitles(Request $r)
             if (json_last_error() !== JSON_ERROR_NONE) $meta = null;
         }
 
-        $id = DB::table(self::TABLE)->insertGetId([
-            'uuid'        => (string) Str::uuid(),
+        try {
+            $id = DB::table(self::TABLE)->insertGetId([
+                'uuid'        => (string) Str::uuid(),
 
-            'group_title' => (string) $r->input('group_title'),
-            'title'       => (string) $r->input('title'),
-            'hint'        => $r->filled('hint') ? (string)$r->input('hint') : null,
-            'description' => $r->input('description'),
+                'group_title' => (string) $r->input('group_title'),
+                'title'       => (string) $r->input('title'),
+                'hint'        => $r->filled('hint') ? (string)$r->input('hint') : null,
+                'description' => $r->input('description'),
 
-            'sort_order'  => (int)($r->input('sort_order', 0) ?? 0),
-            'status'      => $status,
-            'publish_at'  => $r->filled('publish_at') ? $r->input('publish_at') : null,
-            'expire_at'   => $r->filled('expire_at') ? $r->input('expire_at') : null,
+                'sort_order'  => (int)($r->input('sort_order', 0) ?? 0),
+                'status'      => $status,
+                'publish_at'  => $r->filled('publish_at') ? $r->input('publish_at') : null,
+                'expire_at'   => $r->filled('expire_at') ? $r->input('expire_at') : null,
 
-            'created_by'    => $actor['id'] ?: null,
-            'created_at_ip' => $this->ip($r),
-            'updated_at_ip' => $this->ip($r),
+                'created_by'    => $actor['id'] ?: null,
+                'created_at_ip' => $this->ip($r),
+                'updated_at_ip' => $this->ip($r),
 
-            'metadata'   => $meta,
-            'created_at' => now(),
-            'updated_at' => now(),
-            'deleted_at' => null,
-        ]);
+                'metadata'   => $meta,
+                'created_at' => now(),
+                'updated_at' => now(),
+                'deleted_at' => null,
+            ]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Created',
-            'data'    => DB::table(self::TABLE)->where('id', $id)->first(),
-        ], 201);
+            $newRow = DB::table(self::TABLE)->where('id', $id)->first();
+
+            $this->logActivity(
+                $r,
+                'create',
+                'feedback_questions',
+                self::TABLE,
+                (int)$id,
+                array_keys($this->rowToArray($newRow) ?? []),
+                null,
+                $this->rowToArray($newRow),
+                'Created feedback question'
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Created',
+                'data'    => $newRow,
+            ], 201);
+        } catch (\Throwable $e) {
+            $this->logActivity(
+                $r,
+                'create',
+                'feedback_questions',
+                self::TABLE,
+                null,
+                null,
+                null,
+                null,
+                'Create failed: ' . $e->getMessage()
+            );
+            throw $e;
+        }
     }
 
     /* =========================================================
@@ -424,9 +516,61 @@ public function groupTitles(Request $r)
         if ($r->has('sort_order')) $payload['sort_order'] = (int)($r->input('sort_order', 0) ?? 0);
         if ($r->has('metadata'))   $payload['metadata']   = $metaToStore;
 
-        DB::table(self::TABLE)->where($w['raw_col'], $w['val'])->update($payload);
+        try {
+            $oldRow = DB::table(self::TABLE)->where($w['raw_col'], $w['val'])->first();
 
-        return response()->json(['success' => true, 'message' => 'Updated']);
+            DB::table(self::TABLE)->where($w['raw_col'], $w['val'])->update($payload);
+
+            $newRow = DB::table(self::TABLE)->where('id', (int)$exists->id)->first();
+
+            $oldArr = $this->rowToArray($oldRow) ?? [];
+            $newArr = $this->rowToArray($newRow) ?? [];
+
+            $changed = [];
+            foreach ($payload as $k => $v) {
+                // avoid noisy auto fields in changed_fields (still preserved in row snapshots if needed)
+                if (in_array($k, ['updated_at','updated_at_ip'], true)) continue;
+
+                $oldVal = $oldArr[$k] ?? null;
+                $newVal = $newArr[$k] ?? $v;
+
+                if ((string)$oldVal !== (string)$newVal) $changed[] = $k;
+            }
+
+            $oldSnap = [];
+            $newSnap = [];
+            foreach ($changed as $k) {
+                $oldSnap[$k] = $oldArr[$k] ?? null;
+                $newSnap[$k] = $newArr[$k] ?? null;
+            }
+
+            $this->logActivity(
+                $r,
+                'update',
+                'feedback_questions',
+                self::TABLE,
+                (int)$exists->id,
+                $changed,
+                $oldSnap ?: null,
+                $newSnap ?: null,
+                'Updated feedback question'
+            );
+
+            return response()->json(['success' => true, 'message' => 'Updated']);
+        } catch (\Throwable $e) {
+            $this->logActivity(
+                $r,
+                'update',
+                'feedback_questions',
+                self::TABLE,
+                (int)$exists->id,
+                null,
+                null,
+                null,
+                'Update failed: ' . $e->getMessage()
+            );
+            throw $e;
+        }
     }
 
     /* =========================================================
@@ -442,13 +586,51 @@ public function groupTitles(Request $r)
 
         if ($row->deleted_at) return response()->json(['success'=>true,'message'=>'Already in trash']);
 
-        DB::table(self::TABLE)->where('id', $row->id)->update([
-            'deleted_at'    => now(),
-            'updated_at'    => now(),
-            'updated_at_ip' => $this->ip($r),
-        ]);
+        try {
+            $oldRow = $row;
 
-        return response()->json(['success'=>true,'message'=>'Moved to trash']);
+            DB::table(self::TABLE)->where('id', $row->id)->update([
+                'deleted_at'    => now(),
+                'updated_at'    => now(),
+                'updated_at_ip' => $this->ip($r),
+            ]);
+
+            $newRow = DB::table(self::TABLE)->where('id', $row->id)->first();
+
+            $oldArr = $this->rowToArray($oldRow) ?? [];
+            $newArr = $this->rowToArray($newRow) ?? [];
+
+            $changed = ['deleted_at'];
+            $oldSnap = ['deleted_at' => $oldArr['deleted_at'] ?? null];
+            $newSnap = ['deleted_at' => $newArr['deleted_at'] ?? null];
+
+            $this->logActivity(
+                $r,
+                'delete',
+                'feedback_questions',
+                self::TABLE,
+                (int)$row->id,
+                $changed,
+                $oldSnap,
+                $newSnap,
+                'Moved feedback question to trash'
+            );
+
+            return response()->json(['success'=>true,'message'=>'Moved to trash']);
+        } catch (\Throwable $e) {
+            $this->logActivity(
+                $r,
+                'delete',
+                'feedback_questions',
+                self::TABLE,
+                (int)$row->id,
+                null,
+                null,
+                null,
+                'Soft delete failed: ' . $e->getMessage()
+            );
+            throw $e;
+        }
     }
 
     /* =========================================================
@@ -462,13 +644,51 @@ public function groupTitles(Request $r)
         $row = DB::table(self::TABLE)->where($w['raw_col'], $w['val'])->first();
         if (!$row) return response()->json(['success'=>false,'message'=>'Not found'], 404);
 
-        DB::table(self::TABLE)->where('id', $row->id)->update([
-            'deleted_at'    => null,
-            'updated_at'    => now(),
-            'updated_at_ip' => $this->ip($r),
-        ]);
+        try {
+            $oldRow = $row;
 
-        return response()->json(['success'=>true,'message'=>'Restored']);
+            DB::table(self::TABLE)->where('id', $row->id)->update([
+                'deleted_at'    => null,
+                'updated_at'    => now(),
+                'updated_at_ip' => $this->ip($r),
+            ]);
+
+            $newRow = DB::table(self::TABLE)->where('id', $row->id)->first();
+
+            $oldArr = $this->rowToArray($oldRow) ?? [];
+            $newArr = $this->rowToArray($newRow) ?? [];
+
+            $changed = ['deleted_at'];
+            $oldSnap = ['deleted_at' => $oldArr['deleted_at'] ?? null];
+            $newSnap = ['deleted_at' => $newArr['deleted_at'] ?? null];
+
+            $this->logActivity(
+                $r,
+                'restore',
+                'feedback_questions',
+                self::TABLE,
+                (int)$row->id,
+                $changed,
+                $oldSnap,
+                $newSnap,
+                'Restored feedback question from trash'
+            );
+
+            return response()->json(['success'=>true,'message'=>'Restored']);
+        } catch (\Throwable $e) {
+            $this->logActivity(
+                $r,
+                'restore',
+                'feedback_questions',
+                self::TABLE,
+                (int)$row->id,
+                null,
+                null,
+                null,
+                'Restore failed: ' . $e->getMessage()
+            );
+            throw $e;
+        }
     }
 
     /* =========================================================
@@ -482,8 +702,37 @@ public function groupTitles(Request $r)
         $row = DB::table(self::TABLE)->where($w['raw_col'], $w['val'])->first();
         if (!$row) return response()->json(['success'=>false,'message'=>'Not found'], 404);
 
-        DB::table(self::TABLE)->where('id', $row->id)->delete();
+        try {
+            $oldRow = $row;
 
-        return response()->json(['success'=>true,'message'=>'Deleted permanently']);
+            DB::table(self::TABLE)->where('id', $row->id)->delete();
+
+            $this->logActivity(
+                $r,
+                'force_delete',
+                'feedback_questions',
+                self::TABLE,
+                (int)$row->id,
+                ['__force_deleted'],
+                $this->rowToArray($oldRow),
+                null,
+                'Deleted feedback question permanently'
+            );
+
+            return response()->json(['success'=>true,'message'=>'Deleted permanently']);
+        } catch (\Throwable $e) {
+            $this->logActivity(
+                $r,
+                'force_delete',
+                'feedback_questions',
+                self::TABLE,
+                (int)$row->id,
+                null,
+                null,
+                null,
+                'Force delete failed: ' . $e->getMessage()
+            );
+            throw $e;
+        }
     }
 }

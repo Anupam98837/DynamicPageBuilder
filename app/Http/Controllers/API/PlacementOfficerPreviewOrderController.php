@@ -14,6 +14,7 @@ use Carbon\Carbon;
 class PlacementOfficerPreviewOrderController extends Controller
 {
     private const TABLE = 'placement_officer_preview_orders';
+    private const ACTIVITY_LOG_TABLE = 'user_data_activity_log';
 
     // Exclude these roles when loading dept users (same pattern)
     private const EXCLUDED_ROLES = ['super_admin', 'admin', 'director', 'student', 'students'];
@@ -59,6 +60,66 @@ class PlacementOfficerPreviewOrderController extends Controller
     private function tableReady(): bool
     {
         return Schema::hasTable(self::TABLE);
+    }
+
+    // =========================
+    // DB Activity Log helpers
+    // =========================
+    private function activityLogReady(): bool
+    {
+        return Schema::hasTable(self::ACTIVITY_LOG_TABLE);
+    }
+
+    /**
+     * Insert activity row safely (never throws, never breaks API).
+     */
+    private function writeActivityLog(
+        Request $request,
+        string $activity,
+        string $module,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        ?array $oldValues = null,
+        ?array $newValues = null,
+        ?string $note = null
+    ): void {
+        try {
+            if (!$this->activityLogReady()) return;
+
+            $a = $this->actor($request);
+            $now = Carbon::now();
+
+            $payload = [
+                'performed_by'      => (int)($a['id'] ?? 0), // non-nullable in migration
+                'performed_by_role' => $a['role'] ? (string)$a['role'] : null,
+                'ip'                => $request->ip(),
+                'user_agent'        => (string)($request->userAgent() ?? ''),
+
+                'activity'          => (string)$activity,
+                'module'            => (string)$module,
+
+                'table_name'        => (string)$tableName,
+                'record_id'         => $recordId ? (int)$recordId : null,
+
+                'changed_fields'    => $changedFields ? json_encode(array_values($changedFields)) : null,
+                'old_values'        => $oldValues ? json_encode($oldValues) : null,
+                'new_values'        => $newValues ? json_encode($newValues) : null,
+
+                'log_note'          => $note,
+
+                'created_at'        => $now,
+                'updated_at'        => $now,
+            ];
+
+            DB::table(self::ACTIVITY_LOG_TABLE)->insert($payload);
+        } catch (\Throwable $e) {
+            // do not break anything if logging fails
+            Log::warning('msit.activity_log.insert_failed', [
+                'table' => self::ACTIVITY_LOG_TABLE,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
@@ -428,12 +489,21 @@ class PlacementOfficerPreviewOrderController extends Controller
         $now     = Carbon::now();
         $actor   = $this->actor($request);
 
+        // Snapshot BEFORE (for activity log)
+        $beforeRow = DB::table(self::TABLE)
+            ->where('department_id', (int)$dept->id)
+            ->whereNull('deleted_at')
+            ->first();
+
+        $beforeValues = [
+            'department_id' => (int)$dept->id,
+            'placement_officer_ids' => $beforeRow ? $this->normalizeIds($this->toArray($beforeRow->{$jsonCol} ?? null)) : [],
+            'active' => ($activeCol && $beforeRow) ? (int)$this->normalizeActive($beforeRow->{$activeCol} ?? null) : null,
+        ];
+
         DB::beginTransaction();
         try {
-            $existing = DB::table(self::TABLE)
-                ->where('department_id', (int)$dept->id)
-                ->whereNull('deleted_at')
-                ->first();
+            $existing = $beforeRow;
 
             $payload = [
                 $jsonCol      => json_encode($final),
@@ -452,10 +522,13 @@ class PlacementOfficerPreviewOrderController extends Controller
                 $payload['updated_by'] = $actor['id'] ?: null;
             }
 
+            $activityType = 'update';
             if ($existing) {
                 DB::table(self::TABLE)->where('id', $existing->id)->update($payload);
                 $rowId = (int)$existing->id;
             } else {
+                $activityType = 'create';
+
                 $insert = array_merge([
                     'department_id' => (int)$dept->id,
                     'created_at'    => $now,
@@ -477,6 +550,29 @@ class PlacementOfficerPreviewOrderController extends Controller
 
             DB::commit();
 
+            // Snapshot AFTER + compute changes (for activity log)
+            $afterValues = [
+                'department_id' => (int)$dept->id,
+                'placement_officer_ids' => $final,
+                'active' => $activeCol ? (int)($activeInt ?? 1) : null,
+            ];
+
+            $changed = [];
+            if ($beforeValues['placement_officer_ids'] !== $afterValues['placement_officer_ids']) $changed[] = 'placement_officer_ids';
+            if ($activeCol && ($beforeValues['active'] !== $afterValues['active'])) $changed[] = 'active';
+
+            $this->writeActivityLog(
+                $request,
+                $activityType,
+                'placement_officer_preview_orders',
+                self::TABLE,
+                $rowId,
+                $changed ?: null,
+                $beforeValues,
+                $afterValues,
+                'Placement officer preview order saved'
+            );
+
             $this->logWithActor('msit.placement_officer_preview_order.save', $request, [
                 'department_id' => (int)$dept->id,
                 'row_id' => $rowId,
@@ -496,6 +592,23 @@ class PlacementOfficerPreviewOrderController extends Controller
 
         } catch (\Throwable $e) {
             DB::rollBack();
+
+            // failure activity log (safe)
+            $this->writeActivityLog(
+                $request,
+                'error',
+                'placement_officer_preview_orders',
+                self::TABLE,
+                $beforeRow ? (int)$beforeRow->id : null,
+                null,
+                $beforeValues,
+                [
+                    'department_id' => (int)$dept->id,
+                    'placement_officer_ids' => $final,
+                    'active' => $activeCol ? (int)($activeInt ?? 1) : null,
+                ],
+                'Failed to save order: ' . $e->getMessage()
+            );
 
             $this->logWithActor('msit.placement_officer_preview_order.save_failed', $request, [
                 'department_id' => (int)$dept->id,
@@ -547,34 +660,100 @@ class PlacementOfficerPreviewOrderController extends Controller
 
         $now = Carbon::now();
 
-        if (!$existing) {
-            $insert = [
-                'department_id' => (int)$dept->id,
-                $this->placementOfficerJsonCol() => json_encode([]),
-                $activeCol => $this->activeDbValue($activeCol, $val),
-                'created_at' => $now,
-                'updated_at' => $now,
-            ];
-            if (Schema::hasColumn(self::TABLE, 'uuid')) $insert['uuid'] = (string) Str::uuid();
-            if (Schema::hasColumn(self::TABLE, 'created_at_ip')) $insert['created_at_ip'] = $request->ip();
-            if (Schema::hasColumn(self::TABLE, 'updated_at_ip')) $insert['updated_at_ip'] = $request->ip();
-            DB::table(self::TABLE)->insert($insert);
-        } else {
-            $upd = [
-                $activeCol => $this->activeDbValue($activeCol, $val),
-                'updated_at' => $now,
-            ];
-            if (Schema::hasColumn(self::TABLE, 'updated_at_ip')) $upd['updated_at_ip'] = $request->ip();
-
-            DB::table(self::TABLE)->where('id', $existing->id)->update($upd);
-        }
-
-        $this->logWithActor('msit.placement_officer_preview_order.toggle_active', $request, [
+        // Snapshot BEFORE (for activity log)
+        $beforeValues = [
             'department_id' => (int)$dept->id,
-            'active' => $val,
-        ]);
+            'active' => $existing ? (int)$this->normalizeActive($existing->{$activeCol} ?? null) : null,
+        ];
 
-        return response()->json(['success' => true, 'active' => $val]);
+        try {
+            if (!$existing) {
+                $insert = [
+                    'department_id' => (int)$dept->id,
+                    $this->placementOfficerJsonCol() => json_encode([]),
+                    $activeCol => $this->activeDbValue($activeCol, $val),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+                if (Schema::hasColumn(self::TABLE, 'uuid')) $insert['uuid'] = (string) Str::uuid();
+                if (Schema::hasColumn(self::TABLE, 'created_at_ip')) $insert['created_at_ip'] = $request->ip();
+                if (Schema::hasColumn(self::TABLE, 'updated_at_ip')) $insert['updated_at_ip'] = $request->ip();
+
+                $rowId = (int) DB::table(self::TABLE)->insertGetId($insert);
+
+                $afterValues = [
+                    'department_id' => (int)$dept->id,
+                    'active' => (int)$val,
+                ];
+
+                $this->writeActivityLog(
+                    $request,
+                    'create',
+                    'placement_officer_preview_orders',
+                    self::TABLE,
+                    $rowId,
+                    ['active'],
+                    $beforeValues,
+                    $afterValues,
+                    'Toggle active created row'
+                );
+            } else {
+                $upd = [
+                    $activeCol => $this->activeDbValue($activeCol, $val),
+                    'updated_at' => $now,
+                ];
+                if (Schema::hasColumn(self::TABLE, 'updated_at_ip')) $upd['updated_at_ip'] = $request->ip();
+
+                DB::table(self::TABLE)->where('id', $existing->id)->update($upd);
+
+                $afterValues = [
+                    'department_id' => (int)$dept->id,
+                    'active' => (int)$val,
+                ];
+
+                $changed = [];
+                if ($beforeValues['active'] !== $afterValues['active']) $changed[] = 'active';
+
+                $this->writeActivityLog(
+                    $request,
+                    'update',
+                    'placement_officer_preview_orders',
+                    self::TABLE,
+                    (int)$existing->id,
+                    $changed ?: null,
+                    $beforeValues,
+                    $afterValues,
+                    'Toggle active updated row'
+                );
+            }
+
+            $this->logWithActor('msit.placement_officer_preview_order.toggle_active', $request, [
+                'department_id' => (int)$dept->id,
+                'active' => $val,
+            ]);
+
+            return response()->json(['success' => true, 'active' => $val]);
+
+        } catch (\Throwable $e) {
+            $this->writeActivityLog(
+                $request,
+                'error',
+                'placement_officer_preview_orders',
+                self::TABLE,
+                $existing ? (int)$existing->id : null,
+                null,
+                $beforeValues,
+                ['department_id' => (int)$dept->id, 'active' => (int)$val],
+                'Failed to toggle active: ' . $e->getMessage()
+            );
+
+            $this->logWithActor('msit.placement_officer_preview_order.toggle_active_failed', $request, [
+                'department_id' => (int)$dept->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json(['success' => false, 'error' => 'Failed to toggle active'], 500);
+        }
     }
 
     /**
@@ -602,25 +781,88 @@ class PlacementOfficerPreviewOrderController extends Controller
         }
 
         $now = Carbon::now();
+        $jsonCol = $this->placementOfficerJsonCol();
+        $activeCol = $this->activeCol();
 
-        if (Schema::hasColumn(self::TABLE, 'deleted_at')) {
-            $upd = [
-                'deleted_at' => $now,
-                'updated_at' => $now,
-            ];
-            if (Schema::hasColumn(self::TABLE, 'updated_at_ip')) $upd['updated_at_ip'] = $request->ip();
-
-            DB::table(self::TABLE)->where('id', $row->id)->update($upd);
-        } else {
-            DB::table(self::TABLE)->where('id', $row->id)->delete();
-        }
-
-        $this->logWithActor('msit.placement_officer_preview_order.destroy', $request, [
+        // Snapshot BEFORE (for activity log)
+        $beforeValues = [
             'department_id' => (int)$dept->id,
-            'row_id' => (int)$row->id,
-        ]);
+            'placement_officer_ids' => $this->normalizeIds($this->toArray($row->{$jsonCol} ?? null)),
+            'active' => $activeCol ? (int)$this->normalizeActive($row->{$activeCol} ?? null) : null,
+            'deleted_at' => null,
+        ];
 
-        return response()->json(['success' => true, 'message' => 'Order record removed']);
+        try {
+            if (Schema::hasColumn(self::TABLE, 'deleted_at')) {
+                $upd = [
+                    'deleted_at' => $now,
+                    'updated_at' => $now,
+                ];
+                if (Schema::hasColumn(self::TABLE, 'updated_at_ip')) $upd['updated_at_ip'] = $request->ip();
+
+                DB::table(self::TABLE)->where('id', $row->id)->update($upd);
+
+                $afterValues = $beforeValues;
+                $afterValues['deleted_at'] = (string)$now;
+
+                $this->writeActivityLog(
+                    $request,
+                    'delete',
+                    'placement_officer_preview_orders',
+                    self::TABLE,
+                    (int)$row->id,
+                    ['deleted_at'],
+                    $beforeValues,
+                    $afterValues,
+                    'Order record soft deleted'
+                );
+            } else {
+                DB::table(self::TABLE)->where('id', $row->id)->delete();
+
+                $afterValues = $beforeValues;
+                $afterValues['deleted_at'] = (string)$now;
+
+                $this->writeActivityLog(
+                    $request,
+                    'delete',
+                    'placement_officer_preview_orders',
+                    self::TABLE,
+                    (int)$row->id,
+                    ['deleted'],
+                    $beforeValues,
+                    $afterValues,
+                    'Order record hard deleted'
+                );
+            }
+
+            $this->logWithActor('msit.placement_officer_preview_order.destroy', $request, [
+                'department_id' => (int)$dept->id,
+                'row_id' => (int)$row->id,
+            ]);
+
+            return response()->json(['success' => true, 'message' => 'Order record removed']);
+
+        } catch (\Throwable $e) {
+            $this->writeActivityLog(
+                $request,
+                'error',
+                'placement_officer_preview_orders',
+                self::TABLE,
+                (int)$row->id,
+                null,
+                $beforeValues,
+                null,
+                'Failed to delete order: ' . $e->getMessage()
+            );
+
+            $this->logWithActor('msit.placement_officer_preview_order.destroy_failed', $request, [
+                'department_id' => (int)$dept->id,
+                'row_id' => (int)$row->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json(['success' => false, 'error' => 'Failed to remove order record'], 500);
+        }
     }
 
     // =====================================================
