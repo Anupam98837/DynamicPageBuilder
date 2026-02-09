@@ -486,3 +486,8 @@ Route::get('/student-subject-attendance', function () {
 
 // Activity Logs
 Route::get('/activity-logs', fn () => view('pages.users.pages.userActivityLogs.userActivityLogsView'));
+
+ 
+Route::get('/meta-tags/manage', function () {
+    return view('pages.users.pages.metaTags.manageMetaTags');
+});
