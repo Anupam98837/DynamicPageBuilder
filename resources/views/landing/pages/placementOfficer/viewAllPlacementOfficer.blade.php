@@ -1,3 +1,8 @@
+<head>
+    {{-- ✅ Server-side meta tags (SEO + share friendly) --}}
+    @include('landing.components.metaTags')
+</head>
+
 {{-- Top Header --}}
 @include('landing.components.topHeaderMenu')
 

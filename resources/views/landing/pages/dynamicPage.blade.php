@@ -2,6 +2,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    {{-- ✅ Server-side meta tags (SEO + share friendly) --}}
+    @include('landing.components.metaTags')
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', 'Dynamic Page')</title>

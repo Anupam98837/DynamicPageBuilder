@@ -574,6 +574,11 @@
       </div>
       <a href="/feedback/submit" class="w3-link"><i class="fa-solid fa-comment-dots"></i><span> Feedback</span></a>
 
+      <!-- Meta Tags -->
+<a href="/meta-tags/manage" class="w3-link">
+  <i class="fa-solid fa-tags"></i><span>Meta Tags</span>
+</a>
+
       <a href="/settings/general" class="w3-link">
         <i class="fa-solid fa-gear"></i>
         <span>Settings</span>

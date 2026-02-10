@@ -24,7 +24,17 @@
   .mtg-formrow{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
   .mtg-formrow .fg{min-width:240px;flex:1}
   .mtg-formrow label{font-weight:900;font-size:12px;color:var(--muted-color);margin-bottom:6px}
-  .mtg-formrow input, .mtg-formrow select{
+  .mtg-formrow input, .mtg-formrow select{width:100%;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);border-radius:12px;padding:10px 12px;outline:none;}
+  .mtg-formrow input:focus, .mtg-formrow select:focus{box-shadow:0 0 0 .2rem rgba(201,75,80,.35);border-color:color-mix(in oklab, var(--primary-color) 45%, var(--line-strong));}
+
+  .mtg-table-wrap{border:1px solid var(--line-soft);border-radius:14px;overflow:auto;max-width:100%}
+  .mtg-table{width:100%;min-width:1080px;margin:0}
+  .mtg-table thead th{position:sticky;top:0;background:var(--surface);z-index:3;border-bottom:1px solid var(--line-strong);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+  .mtg-table th,.mtg-table td{vertical-align:top;padding:12px 12px;border-bottom:1px solid var(--line-soft)}
+  .mtg-table tbody tr:hover{background:var(--page-hover)}
+
+  /* ✅ give table inputs/selects the same UI */
+  .mtg-table select, .mtg-table input{
     width:100%;
     border:1px solid var(--line-strong);
     background:var(--surface);
@@ -33,50 +43,20 @@
     padding:10px 12px;
     outline:none;
   }
-  .mtg-formrow input:focus, .mtg-formrow select:focus{
+  .mtg-table select:focus, .mtg-table input:focus{
     box-shadow:0 0 0 .2rem rgba(201,75,80,.35);
     border-color:color-mix(in oklab, var(--primary-color) 45%, var(--line-strong));
   }
 
-  .mtg-table-wrap{border:1px solid var(--line-soft);border-radius:14px;overflow:auto;max-width:100%}
-  .mtg-table{width:100%;min-width:1080px;margin:0}
-  .mtg-table thead th{position:sticky;top:0;background:var(--surface);z-index:3;border-bottom:1px solid var(--line-strong);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
-  .mtg-table th,.mtg-table td{vertical-align:top;padding:12px 12px;border-bottom:1px solid var(--line-soft)}
-  .mtg-table tbody tr:hover{background:var(--page-hover)}
-
   .mtg-row-actions{display:flex;gap:8px;align-items:center;justify-content:flex-end}
-  .icon-btn{
-    display:inline-flex;align-items:center;justify-content:center;
-    width:38px;height:38px;border-radius:12px;
-    border:1px solid var(--line-strong);
-    background:var(--surface);
-    color:var(--ink);
-    box-shadow:var(--shadow-sm);
-    cursor:pointer;
-    transition:transform .15s ease, box-shadow .15s ease, background-color .15s ease, border-color .15s ease, color .15s ease;
-  }
+  .icon-btn{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:12px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);box-shadow:var(--shadow-sm);cursor:pointer;transition:transform .15s ease, box-shadow .15s ease, background-color .15s ease, border-color .15s ease, color .15s ease;}
   .icon-btn:hover{transform:translateY(-1px)}
   .icon-btn.danger{border-color:rgba(239,68,68,.45)}
   .icon-btn.danger:hover{box-shadow:0 10px 22px rgba(239,68,68,.10)}
 
-  .code-pill{
-    display:inline-flex;align-items:center;gap:8px;
-    border:1px dashed var(--line-soft);
-    border-radius:12px;
-    padding:8px 10px;
-    background:color-mix(in oklab, var(--primary-color) 6%, var(--surface));
-  }
-  .code-pill code{
-    font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    font-size:12px; color:var(--ink);
-    white-space:nowrap;
-  }
-  .code-copy{
-    width:30px;height:30px;border-radius:10px;
-    border:1px solid var(--line-strong);
-    background:var(--surface);
-    cursor:pointer;
-  }
+  .code-pill{display:inline-flex;align-items:center;gap:8px;border:1px dashed var(--line-soft);border-radius:12px;padding:8px 10px;background:color-mix(in oklab, var(--primary-color) 6%, var(--surface));}
+  .code-pill code{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-size:12px; color:var(--ink);white-space:nowrap;}
+  .code-copy{width:30px;height:30px;border-radius:10px;border:1px solid var(--line-strong);background:var(--surface);cursor:pointer;}
 
   .empty-state{text-align:center;padding:42px 20px}
   .empty-state i{font-size:48px;color:var(--muted-color);margin-bottom:16px;opacity:.6}
@@ -87,13 +67,13 @@
   .row-error td{border-bottom-color: rgba(239,68,68,.30) !important;}
   .row-error .mtg-err{color:#b91c1c;font-weight:900;font-size:12px;margin-top:6px}
 
-  .id-badge{
-    display:inline-flex;align-items:center;gap:6px;
-    padding:5px 10px;border-radius:999px;
-    background:rgba(16,185,129,.14);
-    color:#059669;border:1px solid rgba(16,185,129,.35);
-    font-weight:900;font-size:12px;white-space:nowrap;
-  }
+  .id-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:rgba(16,185,129,.14);color:#059669;border:1px solid rgba(16,185,129,.35);font-weight:900;font-size:12px;white-space:nowrap;}
+
+  /* ✅ Tabs minor polish (keeps bootstrap working, does not override global theme) */
+  .mtg-tabs .nav-link{border-radius:999px;font-weight:900}
+  .mtg-tabs .nav-link.active{background:var(--primary-color);color:#fff}
+  .mtg-tabs .nav-link:not(.active){background:color-mix(in oklab, var(--primary-color) 8%, var(--surface));color:var(--ink);border:1px solid var(--line-soft)}
+  .mtg-tabpane{margin-top:12px}
 
   @media (max-width: 768px){
     .mtg-formrow .fg{min-width: 100%;}
@@ -106,97 +86,123 @@
 @php
   $mtUid = 'mtg_' . \Illuminate\Support\Str::random(8);
 
-  /**
-   * ✅ Update these API endpoints to match your MetaTagController routes
-   * (kept centralized so you only edit here).
-   */
-  $apiMetaTypes        = url('/api/meta-tags/types');              // GET  -> list of types + attributes (optional)
-  $apiMetaList         = url('/api/meta-tags');                    // GET  -> expects ?page_link=
-  $apiMetaBulkSave     = url('/api/meta-tags/bulk');               // POST -> { page_link, tags: [...] }
-  $apiMetaDeleteById   = url('/api/meta-tags');                    // DELETE -> /api/meta-tags/{id}
+  $apiMetaTypes        = url('/api/meta-tags/types');
+  $apiMetaList         = url('/api/meta-tags');
+  $apiMetaBulkSave     = url('/api/meta-tags/bulk');
+  $apiMetaDeleteById   = url('/api/meta-tags');
 @endphp
 
 <div class="mtg-wrap" id="{{ $mtUid }}">
 
-  <div id="globalLoading" class="loading-overlay">
-    @include('partials.overlay')
-  </div>
+  {{-- ✅ Tabs --}}
+  <ul class="nav nav-pills mtg-tabs mb-3" id="{{ $mtUid }}_tabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="{{ $mtUid }}_tabbtn_meta" data-bs-toggle="tab"
+              data-bs-target="#{{ $mtUid }}_tab_meta" type="button" role="tab"
+              aria-controls="{{ $mtUid }}_tab_meta" aria-selected="true">
+        <i class="fa fa-tags me-1"></i> Meta Tags
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="{{ $mtUid }}_tabbtn_media" data-bs-toggle="tab"
+              data-bs-target="#{{ $mtUid }}_tab_media" type="button" role="tab"
+              aria-controls="{{ $mtUid }}_tab_media" aria-selected="false">
+        <i class="fa fa-photo-film me-1"></i> Media
+      </button>
+    </li>
+  </ul>
 
-  <div class="mtg-panel mb-3">
-    <div class="mtg-toolbar">
-      <div class="left">
-        <div class="fw-semibold"><i class="fa fa-tags me-2"></i>Meta Tags Manager</div>
-        <span class="count-badge" id="tagBadge">—</span>
-      </div>
-      <div class="right">
-        <button id="btnLoad" class="btn btn-light">
-          <i class="fa fa-download me-1"></i>Load
-        </button>
-        <button id="btnAddRow" class="btn btn-light">
-          <i class="fa fa-plus me-1"></i>Add tag
-        </button>
-        <button id="btnSaveAll" class="btn btn-primary">
-          <i class="fa fa-floppy-disk me-1"></i>Save all
-        </button>
-      </div>
-    </div>
+  <div class="tab-content">
+    {{-- ===================== TAB 1: META TAGS ===================== --}}
+    <div class="tab-pane fade show active mtg-tabpane" id="{{ $mtUid }}_tab_meta" role="tabpanel" aria-labelledby="{{ $mtUid }}_tabbtn_meta">
 
-    <div class="mtg-formrow mt-3">
-      <div class="fg">
-        <label>Page link</label>
-        <input id="pageLink" type="text" placeholder="e.g. / , /home , /courses/123 , https://yourdomain.com/page" />
-        <div class="text-mini mt-2">
-          Tip: Enter a page link → click <b>Load</b> to fetch existing tags → add/edit multiple tags → <b>Save all</b>.
+      <div id="globalLoading" class="loading-overlay">
+        @include('partials.overlay')
+      </div>
+
+      <div class="mtg-panel mb-3">
+        <div class="mtg-toolbar">
+          <div class="left">
+            <div class="fw-semibold"><i class="fa fa-tags me-2"></i>Meta Tags Manager</div>
+            <span class="count-badge" id="tagBadge">—</span>
+          </div>
+          <div class="right">
+            <button id="btnLoad" class="btn btn-light">
+              <i class="fa fa-download me-1"></i>Load
+            </button>
+            <button id="btnAddRow" class="btn btn-light">
+              <i class="fa fa-plus me-1"></i>Add tag
+            </button>
+            <button id="btnSaveAll" class="btn btn-primary">
+              <i class="fa fa-floppy-disk me-1"></i>Save all
+            </button>
+          </div>
+        </div>
+
+        <div class="mtg-formrow mt-3">
+          <div class="fg">
+            <label>Page link</label>
+            <input id="pageLink" type="text" placeholder="e.g. / , /home , /courses/123 , https://yourdomain.com/page" />
+            <div class="text-mini mt-2">
+              Tip: Enter a page link → click <b>Load</b> to fetch existing tags → add/edit multiple tags → <b>Save all</b>.
+            </div>
+          </div>
+
+          <div class="fg" style="min-width:260px;max-width:360px;">
+            <label>Quick presets</label>
+            <select id="presetSelect">
+              <option value="">— Select preset to add —</option>
+              <option value="seo_basic">SEO Basic (description + robots)</option>
+              <option value="social_basic">Social Basic (og:title/desc + twitter card)</option>
+              <option value="charset_viewport">Charset + Viewport</option>
+            </select>
+            <div class="text-mini mt-2">Adds multiple tags at once for this page link.</div>
+          </div>
+        </div>
+
+        <div class="text-mini mt-3" id="summaryText">—</div>
+      </div>
+
+      <div class="card mtg-card">
+        <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <div class="fw-semibold"><i class="fa fa-layer-group me-2"></i>Tags for this Page</div>
+          <div class="small text-muted">Meta Tag Type → Attribute → Content. Charset disables Attribute and defaults Content to UTF-8 (editable).</div>
+        </div>
+
+        <div class="card-body">
+          <div id="emptyState" class="empty-state">
+            <i class="fa fa-circle-info"></i>
+            <div class="title">No tags loaded</div>
+            <div class="subtitle">Enter a page link and click <b>Load</b>, or click <b>Add tag</b> to start.</div>
+          </div>
+
+          <div id="tableWrap" class="mtg-table-wrap" style="display:none;">
+            <table class="table mtg-table">
+              <thead>
+                <tr>
+                  <th style="width:200px;">Meta Tag Type</th>
+                  <th style="width:260px;">Attribute</th>
+                  <th>Content</th>
+                  <th style="width:360px;">Preview</th>
+                  <th style="width:170px;text-align:right;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyRows"></tbody>
+            </table>
+          </div>
+
+          <div class="text-mini mt-3">
+            <i class="fa fa-shield-halved me-1" style="opacity:.8"></i>
+            Saved tags are stored against the <b>page link</b>. You can add/update multiple tags at once.
+          </div>
         </div>
       </div>
 
-      <div class="fg" style="min-width:260px;max-width:360px;">
-        <label>Quick presets</label>
-        <select id="presetSelect">
-          <option value="">— Select preset to add —</option>
-          <option value="seo_basic">SEO Basic (description + robots)</option>
-          <option value="social_basic">Social Basic (og:title/desc + twitter card)</option>
-          <option value="charset_viewport">Charset + Viewport</option>
-        </select>
-        <div class="text-mini mt-2">Adds multiple tags at once for this page link.</div>
-      </div>
     </div>
 
-    <div class="text-mini mt-3" id="summaryText">—</div>
-  </div>
-
-  <div class="card mtg-card">
-    <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
-      <div class="fw-semibold"><i class="fa fa-layer-group me-2"></i>Tags for this Page</div>
-      <div class="small text-muted">Meta Tag Type → Attribute → Content. Charset disables Attribute and defaults Content to UTF-8 (editable).</div>
-    </div>
-
-    <div class="card-body">
-      <div id="emptyState" class="empty-state">
-        <i class="fa fa-circle-info"></i>
-        <div class="title">No tags loaded</div>
-        <div class="subtitle">Enter a page link and click <b>Load</b>, or click <b>Add tag</b> to start.</div>
-      </div>
-
-      <div id="tableWrap" class="mtg-table-wrap" style="display:none;">
-        <table class="table mtg-table">
-          <thead>
-            <tr>
-              <th style="width:200px;">Meta Tag Type</th>
-              <th style="width:260px;">Attribute</th>
-              <th>Content</th>
-              <th style="width:360px;">Preview</th>
-              <th style="width:170px;text-align:right;">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="tbodyRows"></tbody>
-        </table>
-      </div>
-
-      <div class="text-mini mt-3">
-        <i class="fa fa-shield-halved me-1" style="opacity:.8"></i>
-        Saved tags are stored against the <b>page link</b>. You can add/update multiple tags at once.
-      </div>
+    {{-- ===================== TAB 2: MEDIA ===================== --}}
+    <div class="tab-pane fade mtg-tabpane" id="{{ $mtUid }}_tab_media" role="tabpanel" aria-labelledby="{{ $mtUid }}_tabbtn_media">
+      @include('modules.media.manageMedia')
     </div>
   </div>
 
@@ -241,6 +247,9 @@
       '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
     }[s]));
   }
+  function cleanStr(v){
+    return (v === null || v === undefined) ? '' : String(v).trim();
+  }
   function pickArray(v){
     if (Array.isArray(v)) return v;
     if (v === null || v === undefined) return [];
@@ -251,6 +260,7 @@
     if (!js) return [];
     if (Array.isArray(js)) return js;
     if (Array.isArray(js.data)) return js.data;
+    if (Array.isArray(js.types)) return js.types; // ✅
     if (js.data && Array.isArray(js.data.data)) return js.data.data;
     if (Array.isArray(js.items)) return js.items;
     if (Array.isArray(js.tags)) return js.tags;
@@ -277,29 +287,70 @@
   const ok  = (m) => { $('toastSuccessText').textContent = m || 'Done'; toastOk && toastOk.show(); };
   const err = (m) => { $('toastErrorText').textContent = m || 'Something went wrong'; toastErr && toastErr.show(); };
 
-  /* =========================================================
-   * ✅ Types + Attributes (fallback if API not provided)
-   * - "typeKey" is what user selects
-   * - "attrName" is meta attribute name (name / property / http-equiv / charset)
-   * - "attributes" are allowed values for the attribute dropdown
-   * ========================================================= */
+  // ✅ UPDATED: feature image properties + lots of commonly used meta tags/properties
   const FALLBACK_TYPE_DEFS = [
     { typeKey:'charset',   label:'Charset',                attrName:'charset',   attributes:[] },
 
     { typeKey:'standard',  label:'Standard (name)',        attrName:'name',      attributes:[
-      'description','keywords','author','robots','viewport','theme-color','application-name','generator'
+      'description','keywords','robots','googlebot','bingbot',
+      'viewport','theme-color','color-scheme','referrer','format-detection',
+      'application-name','generator',
+      'apple-mobile-web-app-title','apple-mobile-web-app-capable','apple-mobile-web-app-status-bar-style',
+      'mobile-web-app-capable',
+      'google-site-verification','msvalidate.01','yandex-verification','baidu-site-verification',
+      'facebook-domain-verification','p:domain_verify','norton-safeweb-site-verification',
+      'author','publisher','copyright','rating','distribution','revisit-after','language',
+      'HandheldFriendly','MobileOptimized',
+      'msapplication-TileColor','msapplication-config','msapplication-navbutton-color','msapplication-starturl'
     ]},
 
     { typeKey:'opengraph', label:'Open Graph (property)',  attrName:'property',  attributes:[
-      'og:title','og:description','og:image','og:url','og:type','og:site_name','og:locale'
+      'og:title','og:description','og:url','og:type','og:site_name','og:locale',
+      'og:locale:alternate','og:determiner','og:updated_time','og:see_also',
+
+      // ✅ Feature Image (OG)
+      'og:image','og:image:secure_url','og:image:url',
+      'og:image:type','og:image:width','og:image:height','og:image:alt',
+
+      // Audio / Video
+      'og:video','og:video:secure_url','og:video:type','og:video:width','og:video:height',
+      'og:audio','og:audio:secure_url','og:audio:type',
+
+      // Facebook
+      'fb:app_id','fb:admins',
+
+      // Article
+      'article:published_time','article:modified_time','article:expiration_time',
+      'article:author','article:section','article:tag',
+
+      // Product
+      'product:price:amount','product:price:currency'
     ]},
 
     { typeKey:'twitter',   label:'Twitter (name)',         attrName:'name',      attributes:[
-      'twitter:card','twitter:title','twitter:description','twitter:image','twitter:site','twitter:creator'
+      'twitter:card','twitter:title','twitter:description','twitter:site','twitter:creator',
+
+      // ✅ Feature Image (Twitter)
+      'twitter:image','twitter:image:alt',
+
+      // URL helpers
+      'twitter:url','twitter:domain',
+
+      // Player
+      'twitter:player','twitter:player:width','twitter:player:height',
+
+      // App cards
+      'twitter:app:name:iphone','twitter:app:id:iphone','twitter:app:url:iphone',
+      'twitter:app:name:ipad','twitter:app:id:ipad','twitter:app:url:ipad',
+      'twitter:app:name:googleplay','twitter:app:id:googleplay','twitter:app:url:googleplay',
+
+      // Summary labels
+      'twitter:label1','twitter:data1','twitter:label2','twitter:data2'
     ]},
 
     { typeKey:'http',      label:'HTTP-Equiv',             attrName:'http-equiv',attributes:[
-      'refresh','content-security-policy','x-ua-compatible'
+      'refresh','content-security-policy','x-ua-compatible',
+      'cache-control','expires','pragma','default-style'
     ]},
   ];
 
@@ -318,13 +369,34 @@
     return state.typeDefs.find(t => String(t.typeKey) === String(typeKey)) || null;
   }
 
+  // ✅ map older server styles -> UI typeKey
+  function normalizeTypeKey(rawType, rawAttr){
+    const t = cleanStr(rawType).toLowerCase();
+    const a = cleanStr(rawAttr).toLowerCase();
+
+    if (t === 'charset' || a === 'charset') return 'charset';
+    if (t === 'standard') return 'standard';
+    if (t === 'opengraph' || t === 'open_graph' || t === 'og') return 'opengraph';
+    if (t === 'twitter') return 'twitter';
+    if (t === 'http' || t === 'http-equiv' || t === 'http_equiv') return 'http';
+
+    // old style storing meta attribute name as type
+    if (t === 'name') return (a.startsWith('twitter:') ? 'twitter' : 'standard');
+    if (t === 'property') return 'opengraph';
+
+    // infer from attribute prefix
+    if (a.startsWith('og:') || a.startsWith('fb:') || a.startsWith('article:') || a.startsWith('product:')) return 'opengraph';
+    if (a.startsWith('twitter:')) return 'twitter';
+
+    return t || 'standard';
+  }
+
   function buildMetaPreview(row){
     const def = getTypeDef(row.typeKey);
     if (!def) return '';
 
     const content = (row.content ?? '').toString().trim();
 
-    // Charset special
     if (def.attrName === 'charset' || row.typeKey === 'charset'){
       const cs = content || 'UTF-8';
       return `<meta charset="${esc(cs)}">`;
@@ -333,7 +405,6 @@
     const attrVal = (row.attribute ?? '').toString().trim();
     if (!attrVal) return '';
 
-    // Standard, OG, Twitter, HTTP-Equiv
     return `<meta ${def.attrName}="${esc(attrVal)}" content="${esc(content)}">`;
   }
 
@@ -367,13 +438,53 @@
     state.rows.forEach(r => r._err = '');
   }
 
+  // ✅ Track last focused content input so media URL can be inserted (optional helper)
+  let lastContentInput = null;
+  document.addEventListener('focusin', (e) => {
+    const inp = e.target?.closest?.('input.js-content[data-k]');
+    if (inp) lastContentInput = inp;
+  });
+
+  // ✅ Global helper: Media module (or any script) can call:
+  // window.__MTG_INSERT_MEDIA_URL('https://.../image.jpg')
+  window.__MTG_INSERT_MEDIA_URL = function(url){
+    const u = (url ?? '').toString().trim();
+    if (!u) return;
+
+    // ensure meta tab visible (optional)
+    try{
+      const metaBtn = document.getElementById(@json($mtUid . '_tabbtn_meta'));
+      if (metaBtn && metaBtn.classList && !metaBtn.classList.contains('active')){
+        metaBtn.click();
+      }
+    }catch(_){}
+
+    const target = lastContentInput || document.querySelector(`#${CSS.escape(rootId)} input.js-content[data-k]`);
+    if (target){
+      target.focus();
+      target.value = u;
+      target.dispatchEvent(new Event('input', { bubbles:true }));
+      ok('Inserted media URL');
+    } else {
+      ok('Copied URL (paste into Content)');
+    }
+  };
+
   function renderRows(){
     const tb = $('tbodyRows');
-    tb.innerHTML = state.rows.map((row, idx) => {
+    tb.innerHTML = state.rows.map((row) => {
       const def = getTypeDef(row.typeKey);
       const isCharset = (row.typeKey === 'charset' || def?.attrName === 'charset');
       const attrs = def ? (def.attributes || []) : [];
       const preview = buildMetaPreview(row);
+
+      const rowAttr = cleanStr(row.attribute);
+      const hasAttrInList = rowAttr && attrs.includes(rowAttr);
+
+      // ✅ if attribute exists but not in list, inject it so dropdown shows selected
+      const customOpt = (!isCharset && rowAttr && !hasAttrInList)
+        ? `<option value="${esc(rowAttr)}" selected>${esc(rowAttr)}</option>`
+        : '';
 
       const errMsg = row._err ? `<div class="mtg-err"><i class="fa fa-triangle-exclamation me-1"></i>${esc(row._err)}</div>` : '';
 
@@ -391,7 +502,8 @@
           <td>
             <select class="js-attr" data-k="${esc(row._k)}" ${isCharset ? 'disabled' : ''}>
               <option value="">— Select attribute —</option>
-              ${attrs.map(a => `<option value="${esc(a)}" ${String(a)===String(row.attribute) ? 'selected' : ''}>${esc(a)}</option>`).join('')}
+              ${customOpt}
+              ${attrs.map(a => `<option value="${esc(a)}" ${String(a)===String(rowAttr) ? 'selected' : ''}>${esc(a)}</option>`).join('')}
             </select>
             ${isCharset ? `<div class="text-mini mt-2"><i class="fa fa-circle-info me-1"></i>Charset has no attribute dropdown.</div>` : ``}
           </td>
@@ -445,7 +557,6 @@
   function addRow(partial={}){
     const k = randKey();
 
-    // default: Standard -> description
     const row = Object.assign({
       _k: k,
       id: null,
@@ -455,8 +566,7 @@
       _err: '',
     }, partial);
 
-    // charset rule: disable attribute, set content default if empty
-    if (row.typeKey === 'charset' && !String(row.content || '').trim()){
+    if (row.typeKey === 'charset' && !cleanStr(row.content)){
       row.content = 'UTF-8';
       row.attribute = '';
     }
@@ -469,7 +579,7 @@
     const r = state.rows.find(x => x._k === k);
     if (!r) return;
     addRow({
-      id: null, // duplicated row is new
+      id: null,
       typeKey: r.typeKey,
       attribute: r.attribute,
       content: r.content,
@@ -482,14 +592,14 @@
   }
 
   function setPageLink(v){
-    state.pageLink = (v ?? '').toString().trim();
+    state.pageLink = cleanStr(v);
     updateTopSummary();
   }
 
   function validateAll(){
     clearAllErrors();
 
-    const link = (state.pageLink || '').trim();
+    const link = cleanStr(state.pageLink);
     if (!link){
       err('Page link is required.');
       return false;
@@ -505,8 +615,8 @@
       const def = getTypeDef(r.typeKey);
       const isCharset = (r.typeKey === 'charset' || def?.attrName === 'charset');
 
-      const content = (r.content ?? '').toString().trim();
-      const attrVal = (r.attribute ?? '').toString().trim();
+      const content = cleanStr(r.content);
+      const attrVal = cleanStr(r.attribute);
 
       if (isCharset){
         if (!content){
@@ -541,22 +651,19 @@
   }
 
   function buildPayload(){
-    const link = (state.pageLink || '').trim();
-
-    // send in a generic structure (easy for backend to map)
+    const link = cleanStr(state.pageLink);
     return {
       page_link: link,
       tags: state.rows.map(r => ({
         id: r.id || null,
-        tag_type: r.typeKey,         // e.g. charset / standard / opengraph / twitter / http
-        attribute: (r.attribute ?? '').toString().trim(), // attribute value (e.g. description, og:title)
-        content: (r.content ?? '').toString().trim(),     // content or charset value
+        tag_type: cleanStr(r.typeKey),
+        attribute: cleanStr(r.attribute),
+        content: cleanStr(r.content),
       }))
     };
   }
 
   async function loadTypes(){
-    // Try API, fallback if not available / fails
     try{
       const res = await fetchWithTimeout(API.types(), { headers: authHeaders() }, 15000);
       if (res.status === 401){ window.location.href='/'; return; }
@@ -564,13 +671,8 @@
       const js = await res.json().catch(()=> ({}));
       if (!res.ok) throw new Error(js?.message || 'Failed to load meta types');
 
-      // Expected (any one of these):
-      // 1) { types:[ { typeKey,label,attrName,attributes:[] } ] }
-      // 2) { data:[ ... ] }
-      // 3) [ ... ]
       const list = normalizeList(js);
       if (Array.isArray(list) && list.length){
-        // sanitize minimal shape
         state.typeDefs = list.map(t => ({
           typeKey: t.typeKey ?? t.key ?? t.type ?? t.tag_type ?? 'standard',
           label: t.label ?? t.name ?? 'Type',
@@ -585,13 +687,44 @@
     }
   }
 
+  // ✅ FIXED: maps BOTH UI keys (attribute/content) AND DB keys (tag_attribute/tag_attribute_value)
   function mapServerTagToRow(t){
+    const rawAttr =
+      cleanStr(t.attribute ?? t.tag_attribute ?? t.attr_value ?? t.key ?? '');
+
+    const rawType =
+      cleanStr(t.tag_type ?? t.type ?? t.meta_tag_type ?? t.typeKey ?? t.key ?? '');
+
+    const typeKey = normalizeTypeKey(rawType, rawAttr);
+
+    let attribute =
+      cleanStr(t.attribute ?? t.tag_attribute ?? t.attr_value ?? t.key ?? '');
+
+    let content =
+      cleanStr(t.content ?? t.tag_attribute_value ?? t.value ?? t.charset ?? '');
+
+    // heuristic: if attribute empty but content looks like an attribute value
+    if (!attribute && content){
+      const def = getTypeDef(typeKey);
+      const allowed = def?.attributes || [];
+      if (allowed.includes(content)){
+        attribute = content;
+        content = '';
+      }
+    }
+
+    // charset rule
+    if (typeKey === 'charset'){
+      attribute = '';
+      if (!content) content = 'UTF-8';
+    }
+
     return {
       _k: randKey(),
       id: t.id ?? t.meta_tag_id ?? null,
-      typeKey: t.tag_type ?? t.type ?? t.meta_tag_type ?? 'standard',
-      attribute: t.attribute ?? t.attr_value ?? t.key ?? '',
-      content: t.content ?? t.value ?? t.charset ?? '',
+      typeKey: typeKey || 'standard',
+      attribute,
+      content,
       _err: '',
     };
   }
@@ -610,14 +743,7 @@
       const list = normalizeList(js);
 
       state.rows = (list || []).map(mapServerTagToRow);
-
-      // if empty, keep state.rows empty
       state.loadedOnce = true;
-
-      // If any charset row is missing content, default to UTF-8
-      state.rows.forEach(r => {
-        if (r.typeKey === 'charset' && !String(r.content||'').trim()) r.content = 'UTF-8';
-      });
 
       renderRows();
       ok('Loaded');
@@ -649,8 +775,6 @@
       }
 
       ok('Saved');
-
-      // reload to refresh IDs / server formatting
       await loadTagsForLink(state.pageLink);
 
     }catch(ex){
@@ -676,7 +800,6 @@
       if (!res.ok || js?.success === false) throw new Error(js?.message || 'Delete failed');
 
       ok('Deleted');
-      // remove row locally
       state.rows = state.rows.filter(x => x._k !== k);
       renderRows();
 
@@ -687,19 +810,8 @@
     }
   }
 
-  function applyCharsetRule(k){
-    const r = state.rows.find(x => x._k === k);
-    if (!r) return;
-
-    if (r.typeKey === 'charset'){
-      // Disable attribute; set content default to UTF-8 if blank
-      r.attribute = '';
-      if (!String(r.content || '').trim()) r.content = 'UTF-8';
-    }
-  }
-
   function applyPreset(preset){
-    const link = (state.pageLink || '').trim();
+    const link = cleanStr(state.pageLink);
     if (!link){
       err('Enter page link first.');
       $('presetSelect').value = '';
@@ -732,7 +844,6 @@
       navigator.clipboard.writeText(t).then(()=> ok('Copied')).catch(()=> err('Copy failed'));
       return;
     }
-    // fallback
     const ta = document.createElement('textarea');
     ta.value = t;
     document.body.appendChild(ta);
@@ -742,20 +853,16 @@
     finally{ document.body.removeChild(ta); }
   }
 
-  // =========================
-  // Bindings
-  // =========================
   function bindUI(){
     $('pageLink').addEventListener('input', (e) => setPageLink(e.target.value));
 
     $('btnLoad').addEventListener('click', async () => {
-      const link = (state.pageLink || '').trim();
+      const link = cleanStr(state.pageLink);
       if (!link){ err('Page link is required.'); return; }
       await loadTagsForLink(link);
     });
 
     $('btnAddRow').addEventListener('click', () => addRow());
-
     $('btnSaveAll').addEventListener('click', saveAll);
 
     $('presetSelect').addEventListener('change', (e) => {
@@ -764,7 +871,6 @@
       applyPreset(v);
     });
 
-    // Delegated events
     document.addEventListener('change', (e) => {
       const selType = e.target.closest('select.js-type[data-k]');
       if (selType){
@@ -774,16 +880,16 @@
 
         r.typeKey = selType.value;
 
-        // set a sensible default attribute per type
         const def = getTypeDef(r.typeKey);
         const isCharset = (r.typeKey === 'charset' || def?.attrName === 'charset');
 
         if (isCharset){
           r.attribute = '';
-          if (!String(r.content || '').trim()) r.content = 'UTF-8';
+          if (!cleanStr(r.content)) r.content = 'UTF-8';
         } else {
           const list = def?.attributes || [];
-          r.attribute = list.includes(r.attribute) ? r.attribute : (list[0] || '');
+          const cur = cleanStr(r.attribute);
+          r.attribute = list.includes(cur) ? cur : (list[0] || '');
         }
 
         r._err = '';
@@ -812,15 +918,11 @@
 
       r.content = inp.value;
 
-      // keep charset rule (but editable)
       if (r.typeKey === 'charset'){
-        // no special restriction; just keep attribute empty
         r.attribute = '';
       }
 
-      // clear row error as user types
       r._err = '';
-      // lightweight update: just re-render preview text inside the row
       const code = document.querySelector(`#${CSS.escape(rootId)} code.js-preview[data-k="${CSS.escape(k)}"]`);
       if (code){
         const pv = buildMetaPreview(r);
@@ -857,11 +959,10 @@
       }
     });
 
-    // Enter key on page link -> load
     $('pageLink').addEventListener('keydown', async (e) => {
       if (e.key === 'Enter'){
         e.preventDefault();
-        const link = (state.pageLink || '').trim();
+        const link = cleanStr(state.pageLink);
         if (!link){ err('Page link is required.'); return; }
         await loadTagsForLink(link);
       }

@@ -2208,6 +2208,8 @@ Route::middleware('checkRole')->group(function () {
 Route::middleware('checkRole:admin,super_admin,director')->group(function () {
     Route::post('/meta-tags', [MetaTagController::class, 'store']);
 
+    Route::post('/meta-tags/bulk', [MetaTagController::class, 'bulk']);
+
     Route::match(['put','patch'], '/meta-tags/{identifier}', [MetaTagController::class, 'update'])
         ->where('identifier', '[0-9]+|[0-9a-fA-F\-]{36}');
 

@@ -502,4 +502,155 @@ class MetaTagController extends Controller
             ],
         ]);
     }
+
+    // ✅ Add this method inside MetaTagController
+public function bulk(Request $request)
+{
+    $actor = $this->actor($request);
+
+    $validated = $request->validate([
+        'page_link'         => ['required', 'string', 'max:255'],
+        'tags'              => ['required', 'array', 'min:1', 'max:500'],
+        'tags.*.id'         => ['nullable'],
+        'tags.*.tag_type'   => ['required', 'string', 'max:255'], // charset/standard/opengraph/twitter/http (from UI)
+        'tags.*.attribute'  => ['nullable', 'string', 'max:255'], // description, og:title, etc
+        'tags.*.content'    => ['required', 'string', 'max:255'], // meta content (or charset value)
+    ]);
+
+    $pageLink = trim((string) $validated['page_link']);
+    $tagsIn   = $validated['tags'];
+
+    $keepIds = [];
+
+    DB::beginTransaction();
+    try {
+        foreach ($tagsIn as $t) {
+            $id      = $t['id'] ?? null;
+            $tagType = trim((string) $t['tag_type']);
+            $attr    = array_key_exists('attribute', $t) ? $t['attribute'] : null;
+            $attr    = ($attr === null) ? null : trim((string) $attr);
+            $content = trim((string) ($t['content'] ?? ''));
+
+            // charset rule
+            if ($tagType === 'charset') {
+                $attr = null;
+                if ($content === '') $content = 'UTF-8';
+            }
+
+            $now = now();
+
+            // Update if valid numeric ID exists, else insert
+            if ($id !== null && ctype_digit((string) $id)) {
+                $existing = DB::table('meta_tags')->where('id', (int) $id)->first();
+
+                if ($existing) {
+                    DB::table('meta_tags')->where('id', (int) $id)->update([
+                        'tag_type'            => $tagType,
+                        'tag_attribute'       => $attr,
+                        'tag_attribute_value' => $content,
+                        'page_link'           => $pageLink,
+
+                        // keep record active (in case it was soft-deleted)
+                        'deleted_at'          => null,
+
+                        'updated_at'          => $now,
+                        'updated_at_ip'       => $request->ip(),
+                    ]);
+
+                    $keepIds[] = (int) $id;
+                    continue;
+                }
+                // if ID provided but not found → fallthrough to insert
+            }
+
+            $newId = DB::table('meta_tags')->insertGetId([
+                'uuid'                => (string) Str::uuid(),
+                'tag_type'            => $tagType,
+                'tag_attribute'       => $attr,
+                'tag_attribute_value' => $content,
+                'page_link'           => $pageLink,
+
+                'metadata'            => null,
+
+                'created_by'          => ($actor['id'] ?? 0) ? (int) $actor['id'] : null,
+                'created_at_ip'       => $request->ip(),
+                'updated_at_ip'       => $request->ip(),
+
+                'created_at'          => $now,
+                'updated_at'          => $now,
+                'deleted_at'          => null,
+            ]);
+
+            $keepIds[] = (int) $newId;
+        }
+
+        // ✅ Sync behavior: remove tags that are no longer in UI list
+        $delQ = DB::table('meta_tags')
+            ->where('page_link', $pageLink)
+            ->whereNull('deleted_at');
+
+        if (count($keepIds)) {
+            $delQ->whereNotIn('id', $keepIds);
+        }
+
+        $delQ->update([
+            'deleted_at'    => now(),
+            'updated_at'    => now(),
+            'updated_at_ip' => $request->ip(),
+        ]);
+
+        DB::commit();
+    } catch (\Throwable $e) {
+        DB::rollBack();
+
+        $this->logActivity(
+            $request,
+            'bulk_save_failed',
+            'meta_tags',
+            'meta_tags',
+            null,
+            null,
+            null,
+            null,
+            'Bulk save failed'
+        );
+
+        return response()->json(['success' => false, 'message' => 'Bulk save failed'], 500);
+    }
+
+    // Return rows for this page_link (UI-friendly keys: attribute/content)
+    $rows = DB::table('meta_tags')
+        ->where('page_link', $pageLink)
+        ->whereNull('deleted_at')
+        ->orderBy('id', 'asc')
+        ->get();
+
+    $data = array_map(function ($r) {
+        $arr = $this->normalizeRow($r);
+
+        // ✅ UI expects these keys
+        $arr['attribute'] = $arr['tag_attribute'] ?? null;
+        $arr['content']   = $arr['tag_attribute_value'] ?? null;
+
+        return $arr;
+    }, $rows->all());
+
+    $this->logActivity(
+        $request,
+        'bulk_save',
+        'meta_tags',
+        'meta_tags',
+        null,
+        ['bulk'],
+        null,
+        ['page_link' => $pageLink, 'kept_ids' => $keepIds],
+        'Bulk meta tags saved'
+    );
+
+    return response()->json([
+        'success' => true,
+        'data'    => $data,
+    ]);
+}
+
 }
