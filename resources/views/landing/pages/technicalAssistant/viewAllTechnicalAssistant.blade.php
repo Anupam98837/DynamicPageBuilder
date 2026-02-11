@@ -1,4 +1,7 @@
 <head>
+
+<link rel="icon" type="image/png" sizes="32x32" href="{{ asset('assets/media/images/favicon/msit_logo.jpg') }}">
+
     {{-- ✅ Server-side meta tags (SEO + share friendly) --}}
     @include('landing.components.metaTags')
 </head>

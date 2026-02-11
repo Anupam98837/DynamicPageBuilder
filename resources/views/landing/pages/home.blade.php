@@ -9,6 +9,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>{{ config('app.name','College Portal') }} — Home</title>
 
+<link rel="icon" type="image/png" sizes="32x32" href="{{ asset('assets/media/images/favicon/msit_logo.jpg') }}">
+
 {{-- Bootstrap + Icons --}}
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet"/>

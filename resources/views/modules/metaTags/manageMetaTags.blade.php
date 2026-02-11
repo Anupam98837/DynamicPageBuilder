@@ -33,8 +33,8 @@
   .mtg-table th,.mtg-table td{vertical-align:top;padding:12px 12px;border-bottom:1px solid var(--line-soft)}
   .mtg-table tbody tr:hover{background:var(--page-hover)}
 
-  /* ✅ give table inputs/selects the same UI */
-  .mtg-table select, .mtg-table input{
+  /* ✅ give table inputs/selects/textarea the same UI */
+  .mtg-table select, .mtg-table input, .mtg-table textarea{
     width:100%;
     border:1px solid var(--line-strong);
     background:var(--surface);
@@ -43,20 +43,40 @@
     padding:10px 12px;
     outline:none;
   }
-  .mtg-table select:focus, .mtg-table input:focus{
+  .mtg-table select:focus, .mtg-table input:focus, .mtg-table textarea:focus{
     box-shadow:0 0 0 .2rem rgba(201,75,80,.35);
     border-color:color-mix(in oklab, var(--primary-color) 45%, var(--line-strong));
   }
+
+  /* ✅ bigger content editor + never "shrinks" while typing */
+  .mtg-table textarea.js-content{
+    min-height:110px;
+    height:110px;           /* stable base height */
+    resize:vertical;        /* user can make it bigger */
+    line-height:1.35;
+    white-space:pre-wrap;
+    overflow-wrap:anywhere;
+  }
+
+  /* ✅ keep preview column from stretching and affecting content space */
+  .code-pill{display:flex;align-items:center;gap:8px;border:1px dashed var(--line-soft);border-radius:12px;padding:8px 10px;background:color-mix(in oklab, var(--primary-color) 6%, var(--surface));max-width:100%;}
+  .code-pill code{
+    font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size:12px;
+    color:var(--ink);
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    flex:1;
+    min-width:0;
+  }
+  .code-copy{width:30px;height:30px;border-radius:10px;border:1px solid var(--line-strong);background:var(--surface);cursor:pointer;flex:0 0 auto;}
 
   .mtg-row-actions{display:flex;gap:8px;align-items:center;justify-content:flex-end}
   .icon-btn{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:12px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);box-shadow:var(--shadow-sm);cursor:pointer;transition:transform .15s ease, box-shadow .15s ease, background-color .15s ease, border-color .15s ease, color .15s ease;}
   .icon-btn:hover{transform:translateY(-1px)}
   .icon-btn.danger{border-color:rgba(239,68,68,.45)}
   .icon-btn.danger:hover{box-shadow:0 10px 22px rgba(239,68,68,.10)}
-
-  .code-pill{display:inline-flex;align-items:center;gap:8px;border:1px dashed var(--line-soft);border-radius:12px;padding:8px 10px;background:color-mix(in oklab, var(--primary-color) 6%, var(--surface));}
-  .code-pill code{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-size:12px; color:var(--ink);white-space:nowrap;}
-  .code-copy{width:30px;height:30px;border-radius:10px;border:1px solid var(--line-strong);background:var(--surface);cursor:pointer;}
 
   .empty-state{text-align:center;padding:42px 20px}
   .empty-state i{font-size:48px;color:var(--muted-color);margin-bottom:16px;opacity:.6}
@@ -127,9 +147,7 @@
             <span class="count-badge" id="tagBadge">—</span>
           </div>
           <div class="right">
-            <button id="btnLoad" class="btn btn-light">
-              <i class="fa fa-download me-1"></i>Load
-            </button>
+            {{-- ✅ Load button removed (auto-load enabled) --}}
             <button id="btnAddRow" class="btn btn-light">
               <i class="fa fa-plus me-1"></i>Add tag
             </button>
@@ -144,7 +162,7 @@
             <label>Page link</label>
             <input id="pageLink" type="text" placeholder="e.g. / , /home , /courses/123 , https://yourdomain.com/page" />
             <div class="text-mini mt-2">
-              Tip: Enter a page link → click <b>Load</b> to fetch existing tags → add/edit multiple tags → <b>Save all</b>.
+              Tip: Enter a page link → tags auto-load from DB (after a short pause or press <b>Enter</b>) → add/edit → <b>Save all</b>.
             </div>
           </div>
 
@@ -173,7 +191,7 @@
           <div id="emptyState" class="empty-state">
             <i class="fa fa-circle-info"></i>
             <div class="title">No tags loaded</div>
-            <div class="subtitle">Enter a page link and click <b>Load</b>, or click <b>Add tag</b> to start.</div>
+            <div class="subtitle">Enter a page link (auto-load), or click <b>Add tag</b> to start.</div>
           </div>
 
           <div id="tableWrap" class="mtg-table-wrap" style="display:none;">
@@ -182,7 +200,7 @@
                 <tr>
                   <th style="width:200px;">Meta Tag Type</th>
                   <th style="width:260px;">Attribute</th>
-                  <th>Content</th>
+                  <th style="min-width:440px;">Content</th>
                   <th style="width:360px;">Preview</th>
                   <th style="width:170px;text-align:right;">Actions</th>
                 </tr>
@@ -231,6 +249,8 @@
   const PAGE_KEY = "__META_TAGS_PAGE_V1__";
   if (window[PAGE_KEY]) return;
   window[PAGE_KEY] = true;
+
+  const LAST_LINK_KEY = "__META_TAGS_LAST_LINK__";
 
   const $ = (id) => document.getElementById(id);
   const rootId = @json($mtUid);
@@ -414,7 +434,7 @@
     $('tagBadge').textContent = (cnt ? `Tags: ${cnt}` : '—');
 
     if (!link){
-      $('summaryText').textContent = 'Enter a page link to manage its meta tags.';
+      $('summaryText').textContent = 'Enter a page link to manage its meta tags (auto-load from DB).';
       return;
     }
 
@@ -438,10 +458,10 @@
     state.rows.forEach(r => r._err = '');
   }
 
-  // ✅ Track last focused content input so media URL can be inserted (optional helper)
+  // ✅ Track last focused content textarea so media URL can be inserted (optional helper)
   let lastContentInput = null;
   document.addEventListener('focusin', (e) => {
-    const inp = e.target?.closest?.('input.js-content[data-k]');
+    const inp = e.target?.closest?.('textarea.js-content[data-k]');
     if (inp) lastContentInput = inp;
   });
 
@@ -459,7 +479,7 @@
       }
     }catch(_){}
 
-    const target = lastContentInput || document.querySelector(`#${CSS.escape(rootId)} input.js-content[data-k]`);
+    const target = lastContentInput || document.querySelector(`#${CSS.escape(rootId)} textarea.js-content[data-k]`);
     if (target){
       target.focus();
       target.value = u;
@@ -509,10 +529,10 @@
           </td>
 
           <td>
-            <input class="js-content" data-k="${esc(row._k)}" type="text"
+            <textarea class="js-content" data-k="${esc(row._k)}"
               placeholder="${isCharset ? 'UTF-8' : 'Enter content'}"
-              value="${esc(row.content ?? '')}"
-            />
+              rows="4"
+            >${esc(row.content ?? '')}</textarea>
             ${isCharset ? `<div class="text-mini mt-2"><i class="fa fa-wand-magic-sparkles me-1"></i>Auto set to UTF-8 (editable).</div>` : ``}
             ${errMsg}
           </td>
@@ -729,28 +749,50 @@
     };
   }
 
-  async function loadTagsForLink(link){
-    if (!link){ err('Page link is required.'); return; }
+  // ✅ Auto-load safety: ignore outdated responses
+  let loadNonce = 0;
+  let lastLoadedLink = '';
+
+  async function loadTagsForLink(link, opts={}){
+    const silent = !!opts.silent;
+    const l = cleanStr(link);
+
+    if (!l){
+      state.rows = [];
+      state.loadedOnce = false;
+      lastLoadedLink = '';
+      renderRows();
+      return;
+    }
+
+    const myNonce = ++loadNonce;
 
     showLoading(true);
     try{
-      const res = await fetchWithTimeout(API.list(link), { headers: authHeaders() }, 20000);
+      const res = await fetchWithTimeout(API.list(l), { headers: authHeaders() }, 20000);
       if (res.status === 401){ window.location.href='/'; return; }
 
       const js = await res.json().catch(()=> ({}));
       if (!res.ok) throw new Error(js?.message || 'Failed to load tags');
 
+      // ✅ if another load started after this one, ignore this response
+      if (myNonce !== loadNonce) return;
+
       const list = normalizeList(js);
 
       state.rows = (list || []).map(mapServerTagToRow);
       state.loadedOnce = true;
+      lastLoadedLink = l;
 
       renderRows();
-      ok('Loaded');
+      if (!silent) ok('Loaded');
     }catch(ex){
-      err(ex?.name === 'AbortError' ? 'Request timed out' : (ex?.message || 'Load failed'));
+      if (!silent){
+        err(ex?.name === 'AbortError' ? 'Request timed out' : (ex?.message || 'Load failed'));
+      }
     }finally{
-      showLoading(false);
+      // ✅ only hide loading if this is the latest request
+      if (myNonce === loadNonce) showLoading(false);
     }
   }
 
@@ -775,7 +817,7 @@
       }
 
       ok('Saved');
-      await loadTagsForLink(state.pageLink);
+      await loadTagsForLink(state.pageLink, { silent:true });
 
     }catch(ex){
       err(ex?.name === 'AbortError' ? 'Request timed out' : (ex?.message || 'Save failed'));
@@ -853,13 +895,48 @@
     finally{ document.body.removeChild(ta); }
   }
 
-  function bindUI(){
-    $('pageLink').addEventListener('input', (e) => setPageLink(e.target.value));
+  // ✅ Auto-load (debounced) when page link changes (no Load button)
+  let autoLoadTimer = null;
+  function scheduleAutoLoad(){
+    clearTimeout(autoLoadTimer);
 
-    $('btnLoad').addEventListener('click', async () => {
+    const link = cleanStr(state.pageLink);
+    localStorage.setItem(LAST_LINK_KEY, link);
+
+    if (!link){
+      // clear view if link removed
+      loadTagsForLink('', { silent:true });
+      return;
+    }
+
+    autoLoadTimer = setTimeout(async () => {
+      const l = cleanStr(state.pageLink);
+      if (!l) return;
+      if (l === lastLoadedLink) return; // already loaded for this link
+      await loadTagsForLink(l, { silent:true });
+    }, 650);
+  }
+
+  function bindUI(){
+    $('pageLink').addEventListener('input', (e) => {
+      setPageLink(e.target.value);
+      scheduleAutoLoad();
+    });
+
+    $('pageLink').addEventListener('blur', async () => {
       const link = cleanStr(state.pageLink);
-      if (!link){ err('Page link is required.'); return; }
-      await loadTagsForLink(link);
+      if (!link) return;
+      if (link === lastLoadedLink) return;
+      await loadTagsForLink(link, { silent:true });
+    });
+
+    $('pageLink').addEventListener('keydown', async (e) => {
+      if (e.key === 'Enter'){
+        e.preventDefault();
+        const link = cleanStr(state.pageLink);
+        if (!link){ err('Page link is required.'); return; }
+        await loadTagsForLink(link, { silent:true });
+      }
     });
 
     $('btnAddRow').addEventListener('click', () => addRow());
@@ -910,7 +987,7 @@
     });
 
     document.addEventListener('input', (e) => {
-      const inp = e.target.closest('input.js-content[data-k]');
+      const inp = e.target.closest('textarea.js-content[data-k]');
       if (!inp) return;
       const k = inp.dataset.k;
       const r = state.rows.find(x => x._k === k);
@@ -958,15 +1035,6 @@
         return;
       }
     });
-
-    $('pageLink').addEventListener('keydown', async (e) => {
-      if (e.key === 'Enter'){
-        e.preventDefault();
-        const link = cleanStr(state.pageLink);
-        if (!link){ err('Page link is required.'); return; }
-        await loadTagsForLink(link);
-      }
-    });
   }
 
   document.addEventListener('DOMContentLoaded', async () => {
@@ -978,6 +1046,15 @@
       bindUI();
       updateTopSummary();
       syncEmptyState();
+
+      // ✅ restore last page link + auto load
+      const saved = cleanStr(localStorage.getItem(LAST_LINK_KEY) || '');
+      if (saved){
+        $('pageLink').value = saved;
+        setPageLink(saved);
+        await loadTagsForLink(saved, { silent:true });
+      }
+
     }catch(ex){
       err(ex?.message || 'Initialization failed');
     }finally{

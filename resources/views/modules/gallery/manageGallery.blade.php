@@ -6,31 +6,14 @@
 <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}">
 
 <style>
-/* =========================
-   Gallery module styling
-   (structure inspired by your reference, not copied)
-   ========================= */
-
 /* Wrapper */
 .gl-wrap{max-width:1140px;margin:16px auto 44px;overflow:visible}
-.gl-panel{
-  background:var(--surface);
-  border:1px solid var(--line-strong);
-  border-radius:16px;
-  box-shadow:var(--shadow-2);
-  padding:14px;
-}
+.gl-panel{background:var(--surface);border:1px solid var(--line-strong);border-radius:16px;box-shadow:var(--shadow-2);padding:14px;}
 
 /* Dropdowns inside table (✅ align with reference behavior) */
 .table-responsive .dropdown{position:relative} /* ✅ important: inside overflow container */
 .gl-dd-toggle{border-radius:10px}
-.dropdown-menu{
-  border-radius:12px;
-  border:1px solid var(--line-strong);
-  box-shadow:var(--shadow-2);
-  min-width:230px;
-  z-index:99999; /* ✅ higher like reference to avoid being behind */
-}
+.dropdown-menu{border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:230px;z-index:99999; /* ✅ higher like reference to avoid being behind */}
 .dropdown-menu.show{display:block !important}
 .dropdown-item{display:flex;align-items:center;gap:.6rem}
 .dropdown-item i{width:16px;text-align:center}
@@ -39,120 +22,45 @@
 /* Tabs */
 .nav.nav-tabs{border-color:var(--line-strong)}
 .nav-tabs .nav-link{color:var(--ink)}
-.nav-tabs .nav-link.active{
-  background:var(--surface);
-  border-color:var(--line-strong) var(--line-strong) var(--surface)
-}
+.nav-tabs .nav-link.active{background:var(--surface);border-color:var(--line-strong) var(--line-strong) var(--surface)}
 .tab-content,.tab-pane{overflow:visible}
 
 /* Table card */
-.table-wrap.card{
-  position:relative;
-  border:1px solid var(--line-strong);
-  border-radius:16px;
-  background:var(--surface);
-  box-shadow:var(--shadow-2);
-  overflow:visible;
-}
+.table-wrap.card{position:relative;border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);overflow:visible;}
 .table-wrap .card-body{overflow:visible}
 .table{--bs-table-bg:transparent}
-.table thead th{
-  font-weight:600;
-  color:var(--muted-color);
-  font-size:13px;
-  border-bottom:1px solid var(--line-strong);
-  background:var(--surface)
-}
+.table thead th{font-weight:600;color:var(--muted-color);font-size:13px;border-bottom:1px solid var(--line-strong);background:var(--surface)}
 .table thead.sticky-top{z-index:3}
 .table tbody tr{border-top:1px solid var(--line-soft)}
 .table tbody tr:hover{background:var(--page-hover)}
 .small{font-size:12.5px}
 
 /* Responsive horizontal scroll */
-.table-responsive{
-  display:block;
-  width:100%;
-  max-width:100%;
-  overflow-x:auto !important;
-  overflow-y:visible !important;
-  -webkit-overflow-scrolling:touch;
-  position:relative;
-}
-.table-responsive > .table{
-  width:max-content;
-  min-width:1220px;
-}
+.table-responsive{display:block;width:100%;max-width:100%;overflow-x:auto !important;overflow-y:visible !important;-webkit-overflow-scrolling:touch;position:relative;}
+.table-responsive > .table{width:max-content;min-width:1220px;}
 .table-responsive th,
-.table-responsive td{
-  white-space:nowrap;
-}
+.table-responsive td{white-space:nowrap;}
 
 /* Thumb */
-.g-thumb{
-  width:44px;height:34px;
-  border-radius:10px;
-  object-fit:cover;
-  border:1px solid var(--line-soft);
-  background:#fff;
-}
+.g-thumb{width:44px;height:34px;border-radius:10px;object-fit:cover;border:1px solid var(--line-soft);background:#fff;}
 .g-title{font-weight:700;color:var(--ink)}
 .g-sub{font-size:12px;color:var(--muted-color)}
 
 /* Badges */
-.badge-soft-primary{
-  background:color-mix(in oklab, var(--primary-color) 12%, transparent);
-  color:var(--primary-color)
-}
-.badge-soft-success{
-  background:color-mix(in oklab, var(--success-color) 12%, transparent);
-  color:var(--success-color)
-}
-.badge-soft-muted{
-  background:color-mix(in oklab, var(--muted-color) 10%, transparent);
-  color:var(--muted-color)
-}
-.badge-soft-warning{
-  background:color-mix(in oklab, var(--warning-color, #f59e0b) 14%, transparent);
-  color:var(--warning-color, #f59e0b)
-}
+.badge-soft-primary{background:color-mix(in oklab, var(--primary-color) 12%, transparent);color:var(--primary-color)}
+.badge-soft-success{background:color-mix(in oklab, var(--success-color) 12%, transparent);color:var(--success-color)}
+.badge-soft-muted{background:color-mix(in oklab, var(--muted-color) 10%, transparent);color:var(--muted-color)}
+.badge-soft-warning{background:color-mix(in oklab, var(--warning-color, #f59e0b) 14%, transparent);color:var(--warning-color, #f59e0b)}
 
 /* Loading overlay */
-.loading-overlay{
-  position:fixed; inset:0;
-  background:rgba(0,0,0,.45);
-  display:flex; align-items:center; justify-content:center;
-  z-index:9999;
-  backdrop-filter:blur(2px);
-}
-.loading-spinner{
-  background:var(--surface);
-  padding:20px 22px;
-  border-radius:14px;
-  display:flex; flex-direction:column;
-  align-items:center; gap:10px;
-  box-shadow:0 10px 26px rgba(0,0,0,.3);
-}
-.spinner{
-  width:40px;height:40px;border-radius:50%;
-  border:4px solid rgba(148,163,184,.3);
-  border-top:4px solid var(--primary-color);
-  animation:spin 1s linear infinite;
-}
+.loading-overlay{position:fixed; inset:0;background:rgba(0,0,0,.45);display:flex; align-items:center; justify-content:center;z-index:9999;backdrop-filter:blur(2px);}
+.loading-spinner{background:var(--surface);padding:20px 22px;border-radius:14px;display:flex; flex-direction:column;align-items:center; gap:10px;box-shadow:0 10px 26px rgba(0,0,0,.3);}
+.spinner{width:40px;height:40px;border-radius:50%;border:4px solid rgba(148,163,184,.3);border-top:4px solid var(--primary-color);animation:spin 1s linear infinite;}
 @keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
 
 /* Button loading */
 .btn-loading{position:relative;color:transparent !important}
-.btn-loading::after{
-  content:'';
-  position:absolute;
-  width:16px;height:16px;
-  top:50%;left:50%;
-  margin:-8px 0 0 -8px;
-  border:2px solid transparent;
-  border-top:2px solid currentColor;
-  border-radius:50%;
-  animation:spin 1s linear infinite;
-}
+.btn-loading::after{content:'';position:absolute;width:16px;height:16px;top:50%;left:50%;margin:-8px 0 0 -8px;border:2px solid transparent;border-top:2px solid currentColor;border-radius:50%;animation:spin 1s linear infinite;}
 
 /* Toolbar responsiveness */
 @media (max-width: 768px){
@@ -163,39 +71,15 @@
 }
 
 /* Preview box */
-.preview-box{
-  border:1px solid var(--line-strong);
-  border-radius:14px;
-  overflow:hidden;
-  background:var(--bg-soft, color-mix(in oklab, var(--surface) 88%, var(--bg-body)));
-}
-.preview-box .top{
-  display:flex;align-items:center;justify-content:space-between;
-  gap:10px;padding:10px 12px;
-  border-bottom:1px solid var(--line-soft);
-}
+.preview-box{border:1px solid var(--line-strong);border-radius:14px;overflow:hidden;background:var(--bg-soft, color-mix(in oklab, var(--surface) 88%, var(--bg-body)));}
+.preview-box .top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line-soft);}
 .preview-box .body{padding:12px;}
-.preview-box img{
-  width:100%;max-height:300px;object-fit:cover;
-  border-radius:12px;border:1px solid var(--line-soft);
-  background:#fff;
-}
+.preview-box img{width:100%;max-height:300px;object-fit:cover;border-radius:12px;border:1px solid var(--line-soft);background:#fff;}
 .preview-meta{font-size:12.5px;color:var(--muted-color);margin-top:10px}
 
 /* Inactive selector chip */
-.chip{
-  display:inline-flex;align-items:center;gap:8px;
-  border:1px solid var(--line-strong);
-  border-radius:999px;
-  padding:6px 10px;
-  background:color-mix(in oklab, var(--surface) 92%, transparent);
-}
-.chip select{
-  border:0;background:transparent;
-  outline:none;
-  color:var(--ink);
-  font-weight:600;
-}
+.chip{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line-strong);border-radius:999px;padding:6px 10px;background:color-mix(in oklab, var(--surface) 92%, transparent);}
+.chip select{border:0;background:transparent;outline:none;color:var(--ink);font-weight:600;}
 </style>
 @endpush
 
@@ -717,17 +601,29 @@
 
     const inactiveStatusSel = $('inactiveStatus');
 
+    // ✅ Modal backdrop cleanup (fixes stuck backdrop after applying filters)
+    function cleanupBackdropsIfNoModal(){
+      // if any modal is still open, don't touch body/backdrop
+      if (document.querySelector('.modal.show')) return;
+
+      document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+      document.body.classList.remove('modal-open');
+      document.body.style.removeProperty('overflow');
+      document.body.style.removeProperty('padding-right');
+    }
+
     // Filter modal
     const filterModalEl = $('filterModal');
-    const filterModal = filterModalEl ? new bootstrap.Modal(filterModalEl) : null;
-    const modalSort = $('modal_sort');
-    const modalFeatured = $('modal_featured');
-    const modalDepartment = $('modal_department');
-    const modalVisibleNow = $('modal_visible_now');
+    const filterModal = filterModalEl ? bootstrap.Modal.getOrCreateInstance(filterModalEl) : null;
+
+    // ensure cleanup runs even if bootstrap backdrop gets stuck
+    filterModalEl?.addEventListener('hidden.bs.modal', () => {
+      cleanupBackdropsIfNoModal();
+    });
 
     // Item modal
     const itemModalEl = $('itemModal');
-    const itemModal = itemModalEl ? new bootstrap.Modal(itemModalEl) : null;
+    const itemModal = itemModalEl ? bootstrap.Modal.getOrCreateInstance(itemModalEl) : null;
     const itemModalTitle = $('itemModalTitle');
     const itemForm = $('itemForm');
     const saveBtn = $('saveBtn');
@@ -1068,12 +964,21 @@
       if (modalVisibleNow) modalVisibleNow.value = (state.filters.visible_now ?? '');
     });
 
+    const modalSort = $('modal_sort');
+    const modalFeatured = $('modal_featured');
+    const modalDepartment = $('modal_department');
+    const modalVisibleNow = $('modal_visible_now');
+
     btnApplyFilters?.addEventListener('click', () => {
       state.filters.sort = modalSort?.value || '-created_at';
       state.filters.featured = (modalFeatured?.value ?? '');
       state.filters.department = (modalDepartment?.value ?? '');
       state.filters.visible_now = (modalVisibleNow?.value ?? '');
+
+      // ✅ FIX: hide via the same instance + force-clean leftover backdrop
       filterModal && filterModal.hide();
+      setTimeout(() => cleanupBackdropsIfNoModal(), 0);
+
       reloadAll();
     });
 

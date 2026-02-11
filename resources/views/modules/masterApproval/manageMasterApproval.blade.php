@@ -6,36 +6,16 @@
 <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}">
 
 <style>
-  /* =========================
-   * Master Approval - Admin UI
-   * (Same theme system as Achievements reference)
-   * ========================= */
-
   /* Tabs */
   .map-tabs.nav-tabs{border-color:var(--line-strong)}
   .map-tabs .nav-link{color:var(--ink)}
-  .map-tabs .nav-link.active{
-    background:var(--surface);
-    border-color:var(--line-strong) var(--line-strong) var(--surface);
-  }
+  .map-tabs .nav-link.active{background:var(--surface);border-color:var(--line-strong) var(--line-strong) var(--surface);}
 
   /* Card/Table */
-  .map-card{
-    border:1px solid var(--line-strong);
-    border-radius:16px;
-    background:var(--surface);
-    box-shadow:var(--shadow-2);
-    overflow:visible;
-  }
+  .map-card{border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);overflow:visible;}
   .map-card .card-body{overflow:visible}
   .map-table{--bs-table-bg:transparent}
-  .map-table thead th{
-    font-weight:650;
-    color:var(--muted-color);
-    font-size:13px;
-    border-bottom:1px solid var(--line-strong);
-    background:var(--surface);
-  }
+  .map-table thead th{font-weight:650;color:var(--muted-color);font-size:13px;border-bottom:1px solid var(--line-strong);background:var(--surface);}
   .map-table thead.sticky-top{z-index:3}
   .map-table tbody tr{border-top:1px solid var(--line-soft)}
   .map-table tbody tr:hover{background:var(--page-hover)}
@@ -43,100 +23,38 @@
   .map-small{font-size:12.5px}
 
   /* Horizontal scroll */
-  .table-responsive{
-    display:block;
-    width:100%;
-    max-width:100%;
-    overflow-x:auto !important;
-    overflow-y:visible !important;
-    -webkit-overflow-scrolling:touch;
-    position:relative;
-  }
+  .table-responsive{display:block;width:100%;max-width:100%;overflow-x:auto !important;overflow-y:visible !important;-webkit-overflow-scrolling:touch;position:relative;}
   .table-responsive > table{width:max-content; min-width:1280px;}
   .table-responsive th,.table-responsive td{white-space:nowrap;}
 
   /* Dropdown - keep high z-index */
   .table-responsive .dropdown{position:relative}
   .map-dd-toggle{border-radius:10px}
-  .dropdown-menu{
-    border-radius:12px;
-    border:1px solid var(--line-strong);
-    box-shadow:var(--shadow-2);
-    min-width:240px;
-    z-index:99999;
-  }
+  .dropdown-menu{border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:240px;z-index:99999;}
   .dropdown-menu.show{display:block !important}
   .dropdown-item{display:flex;align-items:center;gap:.6rem}
   .dropdown-item i{width:16px;text-align:center}
   .dropdown-item.text-danger{color:var(--danger-color) !important}
 
   /* Soft badges */
-  .badge-soft{
-    display:inline-flex;align-items:center;gap:6px;
-    padding:.35rem .55rem;border-radius:999px;font-size:12px;font-weight:600
-  }
-  .badge-soft-primary{
-    background:color-mix(in oklab, var(--primary-color) 12%, transparent);
-    color:var(--primary-color)
-  }
-  .badge-soft-success{
-    background:color-mix(in oklab, var(--success-color, #16a34a) 12%, transparent);
-    color:var(--success-color, #16a34a)
-  }
-  .badge-soft-warning{
-    background:color-mix(in oklab, var(--warning-color, #f59e0b) 14%, transparent);
-    color:var(--warning-color, #f59e0b)
-  }
-  .badge-soft-muted{
-    background:color-mix(in oklab, var(--muted-color) 10%, transparent);
-    color:var(--muted-color)
-  }
-  .badge-soft-danger{
-    background:color-mix(in oklab, var(--danger-color) 14%, transparent);
-    color:var(--danger-color)
-  }
+  .badge-soft{display:inline-flex;align-items:center;gap:6px;padding:.35rem .55rem;border-radius:999px;font-size:12px;font-weight:600}
+  .badge-soft-primary{background:color-mix(in oklab, var(--primary-color) 12%, transparent);color:var(--primary-color)}
+  .badge-soft-success{background:color-mix(in oklab, var(--success-color, #16a34a) 12%, transparent);color:var(--success-color, #16a34a)}
+  .badge-soft-warning{background:color-mix(in oklab, var(--warning-color, #f59e0b) 14%, transparent);color:var(--warning-color, #f59e0b)}
+  .badge-soft-muted{background:color-mix(in oklab, var(--muted-color) 10%, transparent);color:var(--muted-color)}
+  .badge-soft-danger{background:color-mix(in oklab, var(--danger-color) 14%, transparent);color:var(--danger-color)}
 
   /* Loading overlay */
-  .map-loading{
-    position:fixed; inset:0;
-    background:rgba(0,0,0,.45);
-    display:none;
-    align-items:center;
-    justify-content:center;
-    z-index:9999;
-    backdrop-filter:blur(2px);
-  }
-  .map-loading .box{
-    background:var(--surface);
-    padding:18px 20px;
-    border-radius:14px;
-    display:flex;
-    align-items:center;
-    gap:12px;
-    box-shadow:0 10px 26px rgba(0,0,0,.3);
-  }
-  .map-spin{
-    width:38px;height:38px;border-radius:50%;
-    border:4px solid rgba(148,163,184,.3);
-    border-top:4px solid var(--primary-color);
-    animation:mapSpin 1s linear infinite;
-  }
+  .map-loading{position:fixed; inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:9999;backdrop-filter:blur(2px);}
+  .map-loading .box{background:var(--surface);padding:18px 20px;border-radius:14px;display:flex;align-items:center;gap:12px;box-shadow:0 10px 26px rgba(0,0,0,.3);}
+  .map-spin{width:38px;height:38px;border-radius:50%;border:4px solid rgba(148,163,184,.3);border-top:4px solid var(--primary-color);animation:mapSpin 1s linear infinite;}
   @keyframes mapSpin{to{transform:rotate(360deg)}}
 
   /* Toolbar */
-  .map-toolbar{
-    border:1px solid var(--line-strong);
-    border-radius:16px;
-    background:var(--surface);
-    box-shadow:var(--shadow-2);
-    padding:12px 12px;
-  }
+  .map-toolbar{border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);padding:12px 12px;}
   .map-toolbar .map-search{min-width:280px; position:relative;}
   .map-toolbar .map-search input{padding-left:40px;}
-  .map-toolbar .map-search i{
-    position:absolute; left:12px; top:50%;
-    transform:translateY(-50%); opacity:.6;
-  }
+  .map-toolbar .map-search i{position:absolute; left:12px; top:50%;transform:translateY(-50%); opacity:.6;}
   @media (max-width: 768px){
     .map-toolbar .map-row{flex-direction:column; align-items:stretch !important;}
     .map-toolbar .map-search{min-width:100%;}
@@ -145,19 +63,7 @@
   }
 
   /* View modal payload preview */
-  .map-json{
-    border:1px solid var(--line-strong);
-    border-radius:14px;
-    background:color-mix(in oklab, var(--surface) 92%, transparent);
-    padding:12px;
-    font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    font-size:12.5px;
-    line-height:1.45;
-    white-space:pre-wrap;
-    word-break:break-word;
-    max-height:360px;
-    overflow:auto;
-  }
+  .map-json{border:1px solid var(--line-strong);border-radius:14px;background:color-mix(in oklab, var(--surface) 92%, transparent);padding:12px;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-size:12.5px;line-height:1.45;white-space:pre-wrap;word-break:break-word;max-height:360px;overflow:auto;}
 </style>
 @endpush
 
@@ -801,6 +707,19 @@
     const filterModalEl = $('mapFilterModal');
     const filterModal = filterModalEl ? new bootstrap.Modal(filterModalEl) : null;
 
+    // ✅ FIX (YOUR ISSUE): hard cleanup if bootstrap backdrop gets stuck
+    function cleanupStuckBackdrop(){
+      // only clean if NO modal is actually open
+      if (document.querySelector('.modal.show')) return;
+
+      document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+      document.body.classList.remove('modal-open');
+      document.body.style.removeProperty('overflow');
+      document.body.style.removeProperty('paddingRight');
+      document.body.style.removeProperty('padding-right');
+    }
+    filterModalEl?.addEventListener('hidden.bs.modal', cleanupStuckBackdrop);
+
     const tbP = $('mapTbodyPending');
     const tbA = $('mapTbodyApproved');
     const tbR = $('mapTbodyRejected');
@@ -1159,6 +1078,7 @@
       if (modalDir) modalDir.value = state.filters.direction || 'desc';
     });
 
+    // ✅ CHANGED: close modal first (robust), then reload AFTER it is actually closed (prevents stuck backdrop)
     btnApplyFilters?.addEventListener('click', () => {
       state.filters.department = (modalDept?.value || '').trim();
       state.filters.module = (modalModule?.value || '').trim();
@@ -1168,8 +1088,32 @@
 
       Object.keys(state.tabs).forEach(k => state.tabs[k].page = 1);
 
-      filterModal && filterModal.hide();
-      loadTab(getTabKey());
+      const activeTab = getTabKey();
+
+      let fired = false;
+      const done = () => {
+        if (fired) return;
+        fired = true;
+        cleanupStuckBackdrop();
+        loadTab(activeTab);
+      };
+
+      if (filterModalEl){
+        // run after hide completes (best path)
+        filterModalEl.addEventListener('hidden.bs.modal', done, { once: true });
+
+        // trigger hide (works whether opened by data-api or programmatically)
+        try{
+          bootstrap.Modal.getOrCreateInstance(filterModalEl).hide();
+        }catch(_){
+          done();
+        }
+
+        // fallback: if hidden event doesn't fire (edge cases), force cleanup + reload
+        setTimeout(done, 550);
+      } else {
+        done();
+      }
     });
 
     btnReset?.addEventListener('click', () => {

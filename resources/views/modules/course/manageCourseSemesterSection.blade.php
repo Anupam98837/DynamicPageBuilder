@@ -909,7 +909,9 @@ td.col-uuid{overflow:hidden}
     const infoTrash = $('resultsInfo-trash');
 
     const filterModalEl = $('filterModal');
-    const filterModal = filterModalEl ? new bootstrap.Modal(filterModalEl) : null;
+    // ✅ FIX: use getOrCreateInstance (prevents duplicate instances/backdrops)
+    const filterModal = filterModalEl ? bootstrap.Modal.getOrCreateInstance(filterModalEl) : null;
+
     const modalStatus = $('modal_status');
     const modalSort = $('modal_sort');
     const modalDepartment = $('modal_department');
@@ -917,7 +919,9 @@ td.col-uuid{overflow:hidden}
     const modalSemester = $('modal_semester');
 
     const itemModalEl = $('itemModal');
-    const itemModal = itemModalEl ? new bootstrap.Modal(itemModalEl) : null;
+    // ✅ FIX: use getOrCreateInstance (prevents duplicate instances/backdrops)
+    const itemModal = itemModalEl ? bootstrap.Modal.getOrCreateInstance(itemModalEl) : null;
+
     const itemModalTitle = $('itemModalTitle');
     const itemForm = $('itemForm');
     const saveBtn = $('saveBtn');
@@ -937,6 +941,17 @@ td.col-uuid{overflow:hidden}
     const metaPreview = $('meta_preview');
     const metaText = $('metadata');
     const btnFormatMeta = $('btnFormatMeta');
+
+    // ✅ FIX: cleanup stray backdrops/body lock (only when no modal is open)
+    function cleanupModalArtifacts(){
+      if (document.querySelector('.modal.show')) return; // another modal still open
+      document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+      document.body.classList.remove('modal-open');
+      document.body.style.removeProperty('padding-right');
+      document.body.style.removeProperty('overflow');
+    }
+    filterModalEl?.addEventListener('hidden.bs.modal', cleanupModalArtifacts);
+    itemModalEl?.addEventListener('hidden.bs.modal', cleanupModalArtifacts);
 
     // ---------- permissions ----------
     const ACTOR = { role: '' };
@@ -1354,7 +1369,11 @@ td.col-uuid{overflow:hidden}
       state.filters.course_id = modalCourse?.value || '';
       state.filters.semester_id = modalSemester?.value || '';
       state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
+
       filterModal && filterModal.hide();
+      // ✅ FIX: in rare cases, force cleanup after transition
+      setTimeout(cleanupModalArtifacts, 300);
+
       reloadCurrent();
     });
 
@@ -2086,6 +2105,8 @@ td.col-uuid{overflow:hidden}
         saving = false;
         setBtnLoading(saveBtn, false);
         showLoading(false);
+        // ✅ extra safety (if anything left behind)
+        setTimeout(cleanupModalArtifacts, 0);
       }
     });
 

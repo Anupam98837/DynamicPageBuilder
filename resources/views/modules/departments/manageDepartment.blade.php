@@ -28,20 +28,10 @@
 .table-wrap .card-body{overflow:visible}
 
 /* ✅ SCROLLER FIX */
-.table-responsive{
-  overflow-x:auto;
-  overflow-y:visible;
-  -webkit-overflow-scrolling:touch;
-}
+.table-responsive{overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;}
 .table-responsive::-webkit-scrollbar{height:8px}
-.table-responsive::-webkit-scrollbar-thumb{
-  background:color-mix(in oklab, var(--muted-color) 25%, transparent);
-  border-radius:999px
-}
-.table-responsive::-webkit-scrollbar-track{
-  background:color-mix(in oklab, var(--muted-color) 8%, transparent);
-  border-radius:999px
-}
+.table-responsive::-webkit-scrollbar-thumb{background:color-mix(in oklab, var(--muted-color) 25%, transparent);border-radius:999px}
+.table-responsive::-webkit-scrollbar-track{background:color-mix(in oklab, var(--muted-color) 8%, transparent);border-radius:999px}
 
 .table{--bs-table-bg:transparent; min-width:1080px;}
 .table thead th{font-weight:600;color:var(--muted-color);font-size:13px;border-bottom:1px solid var(--line-strong);background:var(--surface)}
@@ -57,46 +47,14 @@ td .fw-semibold{color:var(--ink)}
    - UUID fully visible (no wrap/truncation)
    - Copy button ALWAYS beside UUID (no below)
 */
-.uuid-cell{
-  display:flex;
-  align-items:center;
-  gap:8px;
-  flex-wrap:nowrap;              /* ✅ no wrap -> copy stays beside */
-  justify-content:flex-start;
-}
-.uuid-pill{
-  font-size:12px;
-  padding:3px 8px;
-  border-radius:999px;
-  border:1px solid var(--line-strong);
-  background:color-mix(in oklab, var(--muted-color) 10%, transparent);
-  color:var(--ink);
-  white-space:nowrap;            /* ✅ full UUID on one line */
-  flex:0 0 auto;                 /* ✅ don’t shrink/truncate */
-}
-.uuid-copy-btn{
-  height:28px;
-  border-radius:10px;
-  padding:0 10px;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  border:1px solid var(--line-strong);
-  background:var(--surface);
-  flex:0 0 auto;
-}
+.uuid-cell{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;              /* ✅ no wrap -> copy stays beside */justify-content:flex-start;}
+.uuid-pill{font-size:12px;padding:3px 8px;border-radius:999px;border:1px solid var(--line-strong);background:color-mix(in oklab, var(--muted-color) 10%, transparent);color:var(--ink);white-space:nowrap;            /* ✅ full UUID on one line */flex:0 0 auto;                 /* ✅ don’t shrink/truncate */}
+.uuid-copy-btn{height:28px;border-radius:10px;padding:0 10px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line-strong);background:var(--surface);flex:0 0 auto;}
 .uuid-copy-btn i{font-size:13px;opacity:.9}
 .uuid-copy-btn:hover{background:var(--page-hover)}
 
 /* ✅ Description clamp */
-.dep-desc{
-  max-width:420px;
-  display:-webkit-box;
-  -webkit-line-clamp:2;
-  -webkit-box-orient:vertical;
-  overflow:hidden;
-  line-height:1.25rem;
-}
+.dep-desc{max-width:420px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.25rem;}
 
 /* Badges */
 .table .badge.badge-success{background:var(--success-color)!important;color:#fff!important}
@@ -121,13 +79,7 @@ tr.is-deleted td{background:color-mix(in oklab, var(--danger-color) 6%, transpar
 .dep-dd-toggle{border-radius:10px}
 
 /* ✅ UPDATED: higher z-index + show must win (like reference module) */
-.table-wrap .dropdown-menu{
-  border-radius:12px;
-  border:1px solid var(--line-strong);
-  box-shadow:var(--shadow-2);
-  min-width:220px;
-  z-index:99999; /* ✅ higher to avoid being behind / clipped feeling */
-}
+.table-wrap .dropdown-menu{border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:220px;z-index:99999; /* ✅ higher to avoid being behind / clipped feeling */}
 .dropdown-menu.show{display:block !important}
 
 .dropdown-item{display:flex;align-items:center;gap:.6rem}
@@ -157,18 +109,9 @@ html.theme-dark .uuid-pill{background:rgba(148,163,184,.08)}
 html.theme-dark .uuid-copy-btn{background:#0f172a}
 
 /* Loading overlay */
-.dep-loading-overlay{
-  position:fixed;inset:0;width:100%;height:100%;
-  background:rgba(0,0,0,.42);
-  display:none;justify-content:center;align-items:center;
-  z-index:9999;backdrop-filter:blur(2px)
-}
+.dep-loading-overlay{position:fixed;inset:0;width:100%;height:100%;background:rgba(0,0,0,.42);display:none;justify-content:center;align-items:center;z-index:9999;backdrop-filter:blur(2px)}
 .dep-loading-overlay.is-visible{display:flex}
-.dep-loading{
-  background:var(--surface);padding:22px 24px;border-radius:14px;
-  box-shadow:0 12px 30px rgba(0,0,0,.25);
-  display:flex;flex-direction:column;align-items:center;gap:10px;min-width:220px
-}
+.dep-loading{background:var(--surface);padding:22px 24px;border-radius:14px;box-shadow:0 12px 30px rgba(0,0,0,.25);display:flex;flex-direction:column;align-items:center;gap:10px;min-width:220px}
 .dep-ring{width:44px;height:44px;border:4px solid #e5e7eb;border-top-color:var(--primary-color);border-radius:50%;animation:dep-spin 1s linear infinite}
 @keyframes dep-spin{to{transform:rotate(360deg)}}
 
@@ -183,11 +126,7 @@ html.theme-dark .uuid-copy-btn{background:#0f172a}
 /* Button loading state */
 .btn-loading{position:relative;pointer-events:none}
 .btn-loading .btn-label{visibility:hidden}
-.btn-loading::after{
-  content:'';position:absolute;width:16px;height:16px;top:50%;left:50%;
-  margin-left:-8px;margin-top:-8px;border:2px solid rgba(255,255,255,.3);
-  border-top-color:#fff;border-radius:50%;animation:dep-spin 1s linear infinite
-}
+.btn-loading::after{content:'';position:absolute;width:16px;height:16px;top:50%;left:50%;margin-left:-8px;margin-top:-8px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:dep-spin 1s linear infinite}
 
 /* Inputs & buttons polish */
 .form-label{font-weight:500;margin-bottom:8px}
@@ -587,6 +526,24 @@ html.theme-dark .uuid-copy-btn{background:#0f172a}
   const deptModalEl  = document.getElementById('departmentModal');
   const deptModal    = new bootstrap.Modal(deptModalEl);
   const viewModal    = new bootstrap.Modal(document.getElementById('viewDepartmentModal'));
+
+  // ✅ NEW (FIX): get a stable instance + cleanup leftover backdrop after Filter modal closes
+  const filterModalEl = document.getElementById('dep_filterModal');
+  const filterModal   = filterModalEl ? bootstrap.Modal.getOrCreateInstance(filterModalEl) : null;
+
+  // ✅ NEW (FIX): cleanup helper (only when no other modal is open)
+  function cleanupModalArtifactsIfSafe(){
+    if (document.querySelector('.modal.show')) return; // another modal is still open
+    document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+    document.body.classList.remove('modal-open');
+    document.body.style.removeProperty('padding-right');
+  }
+
+  if (filterModalEl){
+    filterModalEl.addEventListener('hidden.bs.modal', () => {
+      cleanupModalArtifactsIfSafe();
+    });
+  }
 
   deptModalEl.addEventListener('hidden.bs.modal', () => {
     document.querySelectorAll('.modal-backdrop.show').forEach(el => el.remove());
@@ -1030,7 +987,12 @@ html.theme-dark .uuid-copy-btn{background:#0f172a}
   document.getElementById('dep_btnApplyFilters').addEventListener('click', ()=>{
     sort = document.getElementById('dep_modal_sort').value || '-created_at';
     state.active.page = 1;
-    bootstrap.Modal.getInstance(document.getElementById('dep_filterModal'))?.hide();
+
+    // ✅ FIX: hide using stable instance + ensure stray backdrop is cleared
+    if (filterModal) filterModal.hide();
+    else bootstrap.Modal.getOrCreateInstance(document.getElementById('dep_filterModal'))?.hide();
+    setTimeout(cleanupModalArtifactsIfSafe, 350);
+
     load('active');
   });
 

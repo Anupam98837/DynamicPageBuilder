@@ -6,20 +6,10 @@
 <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}">
 
 <style>
-/* =========================
- * Subjects (Manage) – UI/UX same as Course Semester Sections
- * ========================= */
-
 /* Dropdowns inside table */
 .table-wrap .dropdown{position:relative}
 .dropdown .dd-toggle{border-radius:10px}
-.dropdown-menu{
-  border-radius:12px;
-  border:1px solid var(--line-strong);
-  box-shadow:var(--shadow-2);
-  min-width:230px;
-  z-index:5000
-}
+.dropdown-menu{border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:230px;z-index:5000}
 .dropdown-menu.show{display:block !important}
 .dropdown-item{display:flex;align-items:center;gap:.6rem}
 .dropdown-item i{width:16px;text-align:center}
@@ -28,42 +18,20 @@
 /* Tabs */
 .nav.nav-tabs{border-color:var(--line-strong)}
 .nav-tabs .nav-link{color:var(--ink)}
-.nav-tabs .nav-link.active{
-  background:var(--surface);
-  border-color:var(--line-strong) var(--line-strong) var(--surface)
-}
+.nav-tabs .nav-link.active{background:var(--surface);border-color:var(--line-strong) var(--line-strong) var(--surface)}
 .tab-content,.tab-pane{overflow:visible}
 
 /* Shell */
 .subj-wrap{padding:14px 4px}
 
 /* Toolbar panel */
-.subj-toolbar.panel{
-  background:var(--surface);
-  border:1px solid var(--line-strong);
-  border-radius:16px;
-  box-shadow:var(--shadow-2);
-  padding:12px;
-}
+.subj-toolbar.panel{background:var(--surface);border:1px solid var(--line-strong);border-radius:16px;box-shadow:var(--shadow-2);padding:12px;}
 
 /* Table Card */
-.table-wrap.card{
-  position:relative;
-  border:1px solid var(--line-strong);
-  border-radius:16px;
-  background:var(--surface);
-  box-shadow:var(--shadow-2);
-  overflow:visible;
-}
+.table-wrap.card{position:relative;border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);overflow:visible;}
 .table-wrap .card-body{overflow:visible}
 .table{--bs-table-bg:transparent}
-.table thead th{
-  font-weight:600;
-  color:var(--muted-color);
-  font-size:13px;
-  border-bottom:1px solid var(--line-strong);
-  background:var(--surface)
-}
+.table thead th{font-weight:600;color:var(--muted-color);font-size:13px;border-bottom:1px solid var(--line-strong);background:var(--surface)}
 .table thead.sticky-top{z-index:3}
 .table tbody tr{border-top:1px solid var(--line-soft)}
 .table tbody tr:hover{background:var(--page-hover)}
@@ -75,46 +43,18 @@ th.col-code, td.col-code{width:170px;max-width:170px}
 th.col-type, td.col-type{width:170px;max-width:170px}
 th.col-sem,  td.col-sem{width:260px;max-width:260px}
 td.col-sem{overflow:hidden}
-td.col-sem .sem-sub{
-  display:block;font-size:12.5px;color:var(--muted-color);
-  max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap
-}
+td.col-sem .sem-sub{display:block;font-size:12.5px;color:var(--muted-color);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* Badges */
-.badge-soft-primary{
-  background:color-mix(in oklab, var(--primary-color) 12%, transparent);
-  color:var(--primary-color)
-}
-.badge-soft-success{
-  background:color-mix(in oklab, var(--success-color) 12%, transparent);
-  color:var(--success-color)
-}
-.badge-soft-muted{
-  background:color-mix(in oklab, var(--muted-color) 10%, transparent);
-  color:var(--muted-color)
-}
-.badge-soft-warning{
-  background:color-mix(in oklab, var(--warning-color, #f59e0b) 14%, transparent);
-  color:var(--warning-color, #f59e0b)
-}
-.badge-soft-danger{
-  background:color-mix(in oklab, var(--danger-color) 12%, transparent);
-  color:var(--danger-color)
-}
+.badge-soft-primary{background:color-mix(in oklab, var(--primary-color) 12%, transparent);color:var(--primary-color)}
+.badge-soft-success{background:color-mix(in oklab, var(--success-color) 12%, transparent);color:var(--success-color)}
+.badge-soft-muted{background:color-mix(in oklab, var(--muted-color) 10%, transparent);color:var(--muted-color)}
+.badge-soft-warning{background:color-mix(in oklab, var(--warning-color, #f59e0b) 14%, transparent);color:var(--warning-color, #f59e0b)}
+.badge-soft-danger{background:color-mix(in oklab, var(--danger-color) 12%, transparent);color:var(--danger-color)}
 
 /* Button loading state */
 .btn-loading{position:relative;color:transparent !important}
-.btn-loading::after{
-  content:'';
-  position:absolute;
-  width:16px;height:16px;
-  top:50%;left:50%;
-  margin:-8px 0 0 -8px;
-  border:2px solid transparent;
-  border-top:2px solid currentColor;
-  border-radius:50%;
-  animation:spin 1s linear infinite
-}
+.btn-loading::after{content:'';position:absolute;width:16px;height:16px;top:50%;left:50%;margin:-8px 0 0 -8px;border:2px solid transparent;border-top:2px solid currentColor;border-radius:50%;animation:spin 1s linear infinite}
 @keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
 
 /* Responsive toolbar */
@@ -124,14 +64,9 @@ td.col-sem .sem-sub{
 }
 
 /* Horizontal scroll */
-.table-responsive > .table{
-  width:max-content;
-  min-width:1280px;
-}
+.table-responsive > .table{width:max-content;min-width:1280px;}
 .table-responsive th,
-.table-responsive td{
-  white-space:nowrap;
-}
+.table-responsive td{white-space:nowrap;}
 @media (max-width: 576px){
   .table-responsive > .table{ min-width:1220px; }
 }
@@ -480,7 +415,6 @@ td.col-sem .sem-sub{
                     <option value="__other__">Other…</option>
                   </select>
 
-
                 <div class="form-text">Choose Other to type custom value.</div>
               </div>
 
@@ -725,6 +659,32 @@ td.col-sem .sem-sub{
 
     const filterModalEl = $('filterModal');
     const filterModal = filterModalEl ? new bootstrap.Modal(filterModalEl) : null;
+
+    // ✅ FIX: hard cleanup for stuck modal backdrop (only when no modal is open)
+    function cleanupBootstrapModalArtifacts(){
+      const anyOpen = !!document.querySelector('.modal.show');
+      const backdrops = document.querySelectorAll('.modal-backdrop');
+      if (!anyOpen){
+        backdrops.forEach(b => b.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('padding-right');
+        document.body.style.removeProperty('overflow');
+      } else {
+        // if something else is open, only remove extras (rare)
+        if (backdrops.length > 1){
+          for (let i = 1; i < backdrops.length; i++) backdrops[i].remove();
+        }
+      }
+    }
+
+    function safeHideModal(modalInstance){
+      try{ modalInstance?.hide(); }catch(_){}
+      // allow bootstrap fade transition to end, then cleanup any orphan backdrop
+      setTimeout(cleanupBootstrapModalArtifacts, 350);
+    }
+
+    // ensure backdrop never stays after closing Filter modal (including close button / ESC)
+    filterModalEl?.addEventListener('hidden.bs.modal', cleanupBootstrapModalArtifacts);
 
     const modalStatus = $('modal_status');
     const modalSort = $('modal_sort');
@@ -1209,7 +1169,10 @@ td.col-sem .sem-sub{
       state.filters.subject_type = (modalType?.value || '').trim();
 
       state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
-      filterModal && filterModal.hide();
+
+      // ✅ FIX: close modal safely + cleanup stuck backdrop
+      safeHideModal(filterModal);
+
       reloadCurrent();
     });
 

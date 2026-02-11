@@ -785,14 +785,14 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
     const infoBin        = $('resultsInfo-bin');
 
     const filterModalEl = $('filterModal');
-    const filterModal = filterModalEl ? new bootstrap.Modal(filterModalEl) : null;
+    const filterModal = filterModalEl ? bootstrap.Modal.getOrCreateInstance(filterModalEl) : null; // ✅ keep single instance
     const modalStatus = $('modal_status'); // optional: used to jump to a tab
     const modalSort = $('modal_sort');
     const modalDepartment = $('modal_department');
     const modalLevel = $('modal_level');
 
     const itemModalEl = $('itemModal');
-    const itemModal = itemModalEl ? new bootstrap.Modal(itemModalEl) : null;
+    const itemModal = itemModalEl ? bootstrap.Modal.getOrCreateInstance(itemModalEl) : null; // ✅ keep single instance
     const itemModalTitle = $('itemModalTitle');
     const itemForm = $('itemForm');
     const saveBtn = $('saveBtn');
@@ -817,6 +817,24 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
     const coverEmpty = $('coverEmpty');
     const coverMeta = $('coverMeta');
     const btnOpenCover = $('btnOpenCover');
+
+    // =========================
+    // ✅ FIX: remove any leftover modal backdrop after closing Filter modal
+    // (without affecting other modals)
+    // =========================
+    function cleanupDanglingModalBackdrops(){
+      // if any modal is still open, do nothing
+      if (document.querySelector('.modal.show')) return;
+
+      document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+      document.body.classList.remove('modal-open');
+
+      // restore body styles bootstrap may leave behind when close is interrupted
+      document.body.style.removeProperty('padding-right');
+      document.body.style.removeProperty('overflow');
+    }
+
+    filterModalEl?.addEventListener('hidden.bs.modal', cleanupDanglingModalBackdrops);
 
     // ---------- permissions ----------
     const ACTOR = { role: '' };
@@ -1313,6 +1331,9 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
       state.tabs.published.page = state.tabs.draft.page = state.tabs.archived.page = state.tabs.bin.page = 1;
 
       filterModal && filterModal.hide();
+
+      // ✅ FIX: if backdrop gets stuck (edge cases), clean it after modal finishes closing
+      setTimeout(cleanupDanglingModalBackdrops, 250);
 
       if (jump && ['published','draft','archived'].includes(jump)){
         showTab(jump);
