@@ -167,10 +167,11 @@ td.col-slug code{
   -webkit-overflow-scrolling:touch;
   position:relative;
 }
-.table-responsive > .table{width:max-content;min-width:1180px}
+/* ✅ one extra column added (Featured) */
+.table-responsive > .table{width:max-content;min-width:1260px}
 .table-responsive th,.table-responsive td{white-space:nowrap}
 @media (max-width: 576px){
-  .table-responsive > .table{min-width:1120px}
+  .table-responsive > .table{min-width:1200px}
 }
 
 /* =========================
@@ -354,6 +355,8 @@ td.col-slug code{
                   <th style="width:140px;">Type</th>
                   <th style="width:140px;">Amount</th>
                   <th style="width:120px;">Status</th>
+                  {{-- ✅ NEW --}}
+                  <th style="width:130px;">Featured</th>
                   <th style="width:150px;">Publish At</th>
                   <th style="width:110px;">Sort</th>
                   <th style="width:170px;">Updated</th>
@@ -361,7 +364,7 @@ td.col-slug code{
                 </tr>
               </thead>
               <tbody id="tbody-active">
-                <tr><td colspan="9" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+                <tr><td colspan="10" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -392,6 +395,8 @@ td.col-slug code{
                   <th style="width:140px;">Type</th>
                   <th style="width:140px;">Amount</th>
                   <th style="width:120px;">Status</th>
+                  {{-- ✅ NEW --}}
+                  <th style="width:130px;">Featured</th>
                   <th style="width:150px;">Publish At</th>
                   <th style="width:110px;">Sort</th>
                   <th style="width:170px;">Updated</th>
@@ -399,7 +404,7 @@ td.col-slug code{
                 </tr>
               </thead>
               <tbody id="tbody-inactive">
-                <tr><td colspan="9" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+                <tr><td colspan="10" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -428,13 +433,15 @@ td.col-slug code{
                   <th>Title</th>
                   <th class="col-slug">Slug</th>
                   <th style="width:140px;">Amount</th>
+                  {{-- ✅ NEW --}}
+                  <th style="width:130px;">Featured</th>
                   <th style="width:160px;">Deleted</th>
                   <th style="width:110px;">Sort</th>
                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
               </thead>
               <tbody id="tbody-trash">
-                <tr><td colspan="6" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+                <tr><td colspan="7" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -547,7 +554,6 @@ td.col-slug code{
                 <input class="form-control" id="title" required maxlength="255" placeholder="e.g., TFW Scholarship (2026)">
               </div>
 
-
               <div class="col-md-8">
                 <label class="form-label">Slug (optional)</label>
                 <input class="form-control" id="slug" maxlength="160" placeholder="tfw-scholarship-2026">
@@ -558,15 +564,15 @@ td.col-slug code{
                 <label class="form-label">Sort Order</label>
                 <input type="number" class="form-control" id="sort_order" min="0" max="1000000" value="0">
               </div>
-              {{-- Department --}}
-<div class="col-12" id="deptFieldWrap">
-  <label class="form-label">Department</label>
-  <select class="form-select" id="department_id">
-    <option value="">Loading departments…</option>
-  </select>
-  <div class="form-text">Select the department this scholarship belongs to.</div>
-</div>
 
+              {{-- Department --}}
+              <div class="col-12" id="deptFieldWrap">
+                <label class="form-label">Department</label>
+                <select class="form-select" id="department_id">
+                  <option value="">Loading departments…</option>
+                </select>
+                <div class="form-text">Select the department this scholarship belongs to.</div>
+              </div>
 
               <div class="col-md-6">
                 <label class="form-label">Type</label>
@@ -599,6 +605,16 @@ td.col-slug code{
                   <option value="0">No</option>
                 </select>
                 <div class="form-text">Controls whether it appears in Active/Inactive tab.</div>
+              </div>
+
+              {{-- ✅ NEW: Featured on Home --}}
+              <div class="col-md-6">
+                <label class="form-label">Featured on Home</label>
+                <select class="form-select" id="is_featured_home">
+                  <option value="0" selected>No</option>
+                  <option value="1">Yes</option>
+                </select>
+                <div class="form-text">If Yes, this item can be shown in the homepage featured section.</div>
               </div>
 
               <div class="col-md-6">
@@ -867,6 +883,9 @@ td.col-slug code{
     const coverInput = $('cover_image');
     const attachmentsInput = $('attachments');
 
+    // ✅ NEW
+    const featuredSel = $('is_featured_home');
+
     const currentAttachmentsInfo = $('currentAttachmentsInfo');
     const currentAttachmentsText = $('currentAttachmentsText');
 
@@ -874,137 +893,131 @@ td.col-slug code{
     const coverEmpty = $('coverEmpty');
     const coverMeta = $('coverMeta');
     const btnOpenCover = $('btnOpenCover');
+
     // ✅ Department field
-const deptWrap   = $('deptFieldWrap');
-const deptSelect = $('department_id');
+    const deptWrap   = $('deptFieldWrap');
+    const deptSelect = $('department_id');
 
     // Permissions (same role style as your other modules)
-const ACTOR = { role: '' };
-let canCreate=false, canEdit=false, canDelete=false, canPublish=false;
+    const ACTOR = { role: '' };
+    let canCreate=false, canEdit=false, canDelete=false, canPublish=false;
 
-function computePermissions(){
-  const r = (ACTOR.role || '').toLowerCase();
-  const createDeleteRoles = ['admin','super_admin','director','principal'];
-  const writeRoles = ['admin','super_admin','director','principal','hod','faculty','technical_assistant','it_person'];
-  canCreate = createDeleteRoles.includes(r);
-  canDelete = createDeleteRoles.includes(r);
-  canEdit   = writeRoles.includes(r);
-  canPublish = createDeleteRoles.includes(r);
-  if (writeControls) writeControls.style.display = canCreate ? 'flex' : 'none';
-  
-  // Update publish option visibility
-  updatePublishOption();
-}
-function updatePublishOption(){
-  if (!statusSel) return;
-
-  const publishOption = statusSel.querySelector('option[value="published"]');
-  if (publishOption){
-    publishOption.style.display = canPublish ? '' : 'none';
-
-    // If current value is published but user can't publish, force to draft
-    if (!canPublish && statusSel.value === 'published'){
-      statusSel.value = 'draft';
+    function computePermissions(){
+      const r = (ACTOR.role || '').toLowerCase();
+      const createDeleteRoles = ['admin','super_admin','director','principal'];
+      const writeRoles = ['admin','super_admin','director','principal','hod','faculty','technical_assistant','it_person'];
+      canCreate = createDeleteRoles.includes(r);
+      canDelete = createDeleteRoles.includes(r);
+      canEdit   = writeRoles.includes(r);
+      canPublish = createDeleteRoles.includes(r);
+      if (writeControls) writeControls.style.display = canCreate ? 'flex' : 'none';
+      updatePublishOption();
     }
-  }
-}
+    function updatePublishOption(){
+      if (!statusSel) return;
 
-async function fetchMe(){
-  try{
-    const res = await fetchWithTimeout(API_ME, { headers: authHeaders() }, 8000);
-    if (res.ok){
-      const js = await res.json().catch(()=> ({}));
-
-      const role = js?.data?.role || js?.role;
-      if (role) ACTOR.role = String(role).toLowerCase();
-
-      // ✅ department id (common keys)
-      const dep =
-        js?.data?.department_id ??
-        js?.data?.dept_id ??
-        js?.department_id ??
-        js?.dept_id ??
-        '';
-      if (dep !== null && dep !== undefined) ACTOR.department_id = String(dep);
+      const publishOption = statusSel.querySelector('option[value="published"]');
+      if (publishOption){
+        publishOption.style.display = canPublish ? '' : 'none';
+        if (!canPublish && statusSel.value === 'published'){
+          statusSel.value = 'draft';
+        }
+      }
     }
-  }catch(_){}
 
-  if (!ACTOR.role){
-    ACTOR.role = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
-  }
-  if (!ACTOR.department_id){
-    ACTOR.department_id = (sessionStorage.getItem('department_id') || localStorage.getItem('department_id') || '');
-  }
+    async function fetchMe(){
+      try{
+        const res = await fetchWithTimeout(API_ME, { headers: authHeaders() }, 8000);
+        if (res.ok){
+          const js = await res.json().catch(()=> ({}));
 
-  computePermissions();
-}
-// ✅ Departments cache
-let __DEPTS_LOADED__ = false;
+          const role = js?.data?.role || js?.role;
+          if (role) ACTOR.role = String(role).toLowerCase();
 
-function lockDepartmentFieldIfNeeded(){
-  if (!deptSelect) return;
+          // ✅ department id (common keys)
+          const dep =
+            js?.data?.department_id ??
+            js?.data?.dept_id ??
+            js?.department_id ??
+            js?.dept_id ??
+            '';
+          if (dep !== null && dep !== undefined) ACTOR.department_id = String(dep);
+        }
+      }catch(_){}
 
-  const r = (ACTOR.role || '').toLowerCase();
-  const superRoles = ['admin','super_admin','director','principal'];
+      if (!ACTOR.role){
+        ACTOR.role = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
+      }
+      if (!ACTOR.department_id){
+        ACTOR.department_id = (sessionStorage.getItem('department_id') || localStorage.getItem('department_id') || '');
+      }
 
-  if (!superRoles.includes(r)){
-    if (ACTOR.department_id){
-      deptSelect.value = String(ACTOR.department_id);
+      computePermissions();
     }
-    deptSelect.disabled = true;
-    if (deptWrap) deptWrap.style.opacity = '0.95';
-  } else {
-    deptSelect.disabled = false;
-  }
-}
 
-async function loadDepartments(){
-  if (!deptSelect) return;
-  if (__DEPTS_LOADED__) { lockDepartmentFieldIfNeeded(); return; }
+    // ✅ Departments cache
+    let __DEPTS_LOADED__ = false;
 
-  deptSelect.innerHTML = `<option value="">Loading departments…</option>`;
+    function lockDepartmentFieldIfNeeded(){
+      if (!deptSelect) return;
 
-  // ✅ Use your correct endpoint here if you already have one
-  const endpoints = [
-    '/api/departments'
-  ];
+      const r = (ACTOR.role || '').toLowerCase();
+      const superRoles = ['admin','super_admin','director','principal'];
 
-  let list = null;
+      if (!superRoles.includes(r)){
+        if (ACTOR.department_id){
+          deptSelect.value = String(ACTOR.department_id);
+        }
+        deptSelect.disabled = true;
+        if (deptWrap) deptWrap.style.opacity = '0.95';
+      } else {
+        deptSelect.disabled = false;
+      }
+    }
 
-  for (const url of endpoints){
-    try{
-      const res = await fetchWithTimeout(url, { headers: authHeaders() }, 12000);
-      if (!res.ok) continue;
+    async function loadDepartments(){
+      if (!deptSelect) return;
+      if (__DEPTS_LOADED__) { lockDepartmentFieldIfNeeded(); return; }
 
-      const js = await res.json().catch(()=> ({}));
-      list = js?.data || js?.departments || null;
+      deptSelect.innerHTML = `<option value="">Loading departments…</option>`;
 
-      if (Array.isArray(list)) break;
-    }catch(_){}
-  }
+      const endpoints = [
+        '/api/departments'
+      ];
 
-  if (!Array.isArray(list)) list = [];
+      let list = null;
 
-  // render options
-  let html = `<option value="">No Department (optional)</option>`;
-  list.forEach(d => {
-    const id   = d.id ?? d.department_id ?? d.uuid ?? '';
-    const name = d.name ?? d.title ?? d.department_name ?? d.dept_name ?? (`Department ${id}`);
-    if (!id) return;
-    html += `<option value="${esc(String(id))}">${esc(String(name))}</option>`;
-  });
+      for (const url of endpoints){
+        try{
+          const res = await fetchWithTimeout(url, { headers: authHeaders() }, 12000);
+          if (!res.ok) continue;
 
-  // fallback: if API not returning list but actor has dept_id
-  if (!list.length && ACTOR.department_id){
-    html = `<option value="${esc(String(ACTOR.department_id))}">My Department</option>`;
-  }
+          const js = await res.json().catch(()=> ({}));
+          list = js?.data || js?.departments || null;
 
-  deptSelect.innerHTML = html;
-  __DEPTS_LOADED__ = true;
+          if (Array.isArray(list)) break;
+        }catch(_){}
+      }
 
-  lockDepartmentFieldIfNeeded();
-}
+      if (!Array.isArray(list)) list = [];
 
+      let html = `<option value="">No Department (optional)</option>`;
+      list.forEach(d => {
+        const id   = d.id ?? d.department_id ?? d.uuid ?? '';
+        const name = d.name ?? d.title ?? d.department_name ?? d.dept_name ?? (`Department ${id}`);
+        if (!id) return;
+        html += `<option value="${esc(String(id))}">${esc(String(name))}</option>`;
+      });
+
+      if (!list.length && ACTOR.department_id){
+        html = `<option value="${esc(String(ACTOR.department_id))}">My Department</option>`;
+      }
+
+      deptSelect.innerHTML = html;
+      __DEPTS_LOADED__ = true;
+
+      lockDepartmentFieldIfNeeded();
+    }
 
     // State
     const state = {
@@ -1071,6 +1084,13 @@ async function loadDepartments(){
       return `<span class="badge badge-soft-muted">${esc(t)}</span>`;
     }
 
+    // ✅ NEW
+    function featuredBadge(v){
+      const on = Number(v || 0) ? 1 : 0;
+      if (!on) return `<span class="badge badge-soft-muted">—</span>`;
+      return `<span class="badge badge-soft-primary"><i class="fa fa-star me-1"></i>Home</span>`;
+    }
+
     function money(v){
       if (v === null || v === undefined || v === '') return '—';
       const n = Number(v);
@@ -1126,6 +1146,9 @@ async function loadDepartments(){
         const deleted = r.deleted_at || '—';
         const sortOrder = (r.sort_order ?? 0);
 
+        // ✅ NEW
+        const featuredHome = (r.is_featured_home ?? r.featured_home ?? 0);
+
         // ✅ FIX (like reference): render action toggle WITHOUT data-bs-toggle; we will manually control it
         let actions = `
           <div class="dropdown text-end">
@@ -1139,11 +1162,10 @@ async function loadDepartments(){
 
         if (canEdit && tabKey !== 'trash'){
           actions += `<li><button type="button" class="dropdown-item" data-action="edit"><i class="fa fa-pen-to-square"></i> Edit</button></li>`;
-       const statusLower = status.toString().toLowerCase();
-  if (canPublish && statusLower !== 'published'){
-    actions += `<li><button type="button" class="dropdown-item" data-action="make-publish"><i class="fa fa-circle-check"></i> Make Published</button></li>`;
-  }
-
+          const statusLower = status.toString().toLowerCase();
+          if (canPublish && statusLower !== 'published'){
+            actions += `<li><button type="button" class="dropdown-item" data-action="make-publish"><i class="fa fa-circle-check"></i> Make Published</button></li>`;
+          }
         }
 
         if (tabKey !== 'trash'){
@@ -1167,6 +1189,7 @@ async function loadDepartments(){
               <td class="fw-semibold">${esc(title)}</td>
               <td class="col-slug"><code>${esc(slug)}</code></td>
               <td>${esc(money(amount))}</td>
+              <td>${featuredBadge(featuredHome)}</td>
               <td>${esc(String(deleted))}</td>
               <td>${esc(String(sortOrder))}</td>
               <td class="text-end">${actions}</td>
@@ -1180,6 +1203,7 @@ async function loadDepartments(){
             <td>${typeBadge(type)}</td>
             <td>${esc(money(amount))}</td>
             <td>${statusBadge(status)}</td>
+            <td>${featuredBadge(featuredHome)}</td>
             <td>${esc(String(publishAt))}</td>
             <td>${esc(String(sortOrder))}</td>
             <td>${esc(String(updated))}</td>
@@ -1193,7 +1217,8 @@ async function loadDepartments(){
     async function loadTab(tabKey){
       const tbody = tabKey==='active' ? tbodyActive : (tabKey==='inactive' ? tbodyInactive : tbodyTrash);
       if (tbody){
-        const cols = (tabKey==='trash') ? 6 : 9;
+        // ✅ NEW: active/inactive now 10 cols, trash now 7 cols
+        const cols = (tabKey==='trash') ? 7 : 10;
         tbody.innerHTML = `<tr><td colspan="${cols}" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>`;
       }
 
@@ -1293,9 +1318,7 @@ async function loadDepartments(){
     document.querySelector('a[href="#tab-inactive"]')?.addEventListener('shown.bs.tab', () => loadTab('inactive'));
     document.querySelector('a[href="#tab-trash"]')?.addEventListener('shown.bs.tab', () => loadTab('trash'));
 
-    // ---------- ✅ ACTION DROPDOWN FIX (same idea as reference contact page) ----------
-    // Reason: tables sit inside overflow containers; dropdown may "open" but be clipped or not appear.
-    // We manually toggle Bootstrap Dropdown with Popper strategy "fixed" so it renders above overflow.
+    // ---------- ✅ ACTION DROPDOWN FIX ----------
     function closeAllDropdownsExcept(exceptToggle){
       document.querySelectorAll('.sc-dd-toggle').forEach(t => {
         if (t === exceptToggle) return;
@@ -1330,13 +1353,11 @@ async function loadDepartments(){
       }catch(_){}
     });
 
-    // click outside -> close
     document.addEventListener('click', (e) => {
       if (e.target.closest('.dropdown')) return;
       closeAllDropdownsExcept(null);
     });
 
-    // optional: close on scroll (helps inside table scroll)
     document.addEventListener('scroll', () => closeAllDropdownsExcept(null), true);
 
     // ---------- RTE ----------
@@ -1578,11 +1599,15 @@ async function loadDepartments(){
       itemForm?.reset();
       itemUuid.value = '';
       itemId.value = '';
+
       // ✅ Department reset
-if (deptSelect){
-  deptSelect.value = '';
-  deptSelect.disabled = false;
-}
+      if (deptSelect){
+        deptSelect.value = '';
+        deptSelect.disabled = false;
+      }
+
+      // ✅ NEW default
+      if (featuredSel) featuredSel.value = '0';
 
       slugDirty = false;
       settingSlug = false;
@@ -1604,7 +1629,7 @@ if (deptSelect){
         else if (el.tagName === 'SELECT') el.disabled = false;
         else el.readOnly = false;
       });
-      
+
       if (saveBtn) saveBtn.style.display = '';
       if (itemForm){
         itemForm.dataset.mode = 'edit';
@@ -1629,13 +1654,18 @@ if (deptSelect){
       typeSel.value = (r.type || r.scholarship_type || 'merit');
       amountInput.value = (r.amount ?? r.scholarship_amount ?? '');
       statusSel.value = (r.status || (r.is_published ? 'published' : 'draft') || 'draft');
+
+      // ✅ NEW
+      const feat = (r.is_featured_home ?? r.featured_home ?? 0);
+      if (featuredSel) featuredSel.value = String(Number(feat) ? 1 : 0);
+
       // ✅ Department fill
-const dep = r.department_id ?? r.dept_id ?? r.department ?? '';
-if (deptSelect){
-  deptSelect.value = dep ? String(dep) : (ACTOR.department_id ? String(ACTOR.department_id) : '');
-}
-lockDepartmentFieldIfNeeded();
-if (viewOnly && deptSelect) deptSelect.disabled = true;
+      const dep = r.department_id ?? r.dept_id ?? r.department ?? '';
+      if (deptSelect){
+        deptSelect.value = dep ? String(dep) : (ACTOR.department_id ? String(ACTOR.department_id) : '');
+      }
+      lockDepartmentFieldIfNeeded();
+      if (viewOnly && deptSelect) deptSelect.disabled = true;
 
       const isActive = (r.active ?? r.is_active ?? 1);
       activeSel.value = String(Number(isActive) ? 1 : 0);
@@ -1687,9 +1717,10 @@ if (viewOnly && deptSelect) deptSelect.disabled = true;
         itemForm.dataset.mode = 'edit';
         itemForm.dataset.intent = 'edit';
       }
-       if (!viewOnly) {
-    setTimeout(() => updatePublishOption(), 50);
-  }
+
+      if (!viewOnly) {
+        setTimeout(() => updatePublishOption(), 50);
+      }
     }
 
     function findRowByUuid(uuid){
@@ -1718,14 +1749,13 @@ if (viewOnly && deptSelect) deptSelect.disabled = true;
     });
 
     btnAddItem?.addEventListener('click', async () => {
-  if (!canCreate) return;
-  resetForm();
-  await loadDepartments(); // ✅ populate dept dropdown
-  if (itemModalTitle) itemModalTitle.textContent = 'Add Scholarship';
-  itemForm.dataset.intent = 'create';
-  itemModal && itemModal.show();
-});
-
+      if (!canCreate) return;
+      resetForm();
+      await loadDepartments();
+      if (itemModalTitle) itemModalTitle.textContent = 'Add Scholarship';
+      itemForm.dataset.intent = 'create';
+      itemModal && itemModal.show();
+    });
 
     itemModalEl?.addEventListener('hidden.bs.modal', () => {
       if (coverObjectUrl){ try{ URL.revokeObjectURL(coverObjectUrl); }catch(_){ } coverObjectUrl=null; }
@@ -1743,7 +1773,6 @@ if (viewOnly && deptSelect) deptSelect.disabled = true;
 
       const row = findRowByUuid(uuid);
 
-      // close dropdown
       const toggle = btn.closest('.dropdown')?.querySelector('.sc-dd-toggle');
       if (toggle) { try { bootstrap.Dropdown.getOrCreateInstance(toggle).hide(); } catch (_) {} }
 
@@ -1757,43 +1786,45 @@ if (viewOnly && deptSelect) deptSelect.disabled = true;
         itemModal && itemModal.show();
         return;
       }
-if (act === 'make-publish'){
-  if (!canPublish) return;
-  
-  const conf = await Swal.fire({
-    title: 'Publish this scholarship?',
-    text: 'This will make the scholarship visible to the public.',
-    icon: 'question',
-    showCancelButton: true,
-    confirmButtonText: 'Publish',
-    confirmButtonColor: '#10b981'
-  });
-  if (!conf.isConfirmed) return;
 
-  showLoading(true);
-  try{
-    const fd = new FormData();
-    fd.append('status', 'published');
-    fd.append('_method', 'PATCH');  // ✅ Use PATCH to match your other update logic
+      if (act === 'make-publish'){
+        if (!canPublish) return;
 
-    const res = await fetchWithTimeout(`${API_BASE}/${encodeURIComponent(uuid)}`, {  // ✅ Use uuid, not key
-      method: 'POST',
-      headers: authHeaders(),
-      body: fd
-    }, 15000);
+        const conf = await Swal.fire({
+          title: 'Publish this scholarship?',
+          text: 'This will make the scholarship visible to the public.',
+          icon: 'question',
+          showCancelButton: true,
+          confirmButtonText: 'Publish',
+          confirmButtonColor: '#10b981'
+        });
+        if (!conf.isConfirmed) return;
 
-    const js = await res.json().catch(() => ({}));
-    if (!res.ok || js.success === false) throw new Error(js?.message || 'Publish failed');
+        showLoading(true);
+        try{
+          const fd = new FormData();
+          fd.append('status', 'published');
+          fd.append('_method', 'PATCH');
 
-    ok('Scholarship published successfully');
-    await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
-  }catch(ex){
-    err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
-  }finally{
-    showLoading(false);
-  }
-  return;
-}
+          const res = await fetchWithTimeout(`${API_BASE}/${encodeURIComponent(uuid)}`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: fd
+          }, 15000);
+
+          const js = await res.json().catch(() => ({}));
+          if (!res.ok || js.success === false) throw new Error(js?.message || 'Publish failed');
+
+          ok('Scholarship published successfully');
+          await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
+        }catch(ex){
+          err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
+        }finally{
+          showLoading(false);
+        }
+        return;
+      }
+
       if (act === 'delete'){
         if (!canDelete) return;
         const conf = await Swal.fire({
@@ -1911,22 +1942,24 @@ if (act === 'make-publish'){
         const sortOrder = String(parseInt(sortOrderInput.value || '0', 10) || 0);
         const applyUrl = (applyUrlInput.value || '').trim();
 
+        // ✅ NEW
+        const featuredHome = (featuredSel?.value || '0').toString().trim();
+
         const rawBody = (rte.mode === 'code') ? (rte.code.value || '') : (rte.editor.innerHTML || '');
         const cleanBody = ensurePreHasCode(rawBody).trim();
         if (rte.hidden) rte.hidden.value = cleanBody;
 
         if (!title){ err('Title is required'); titleInput.focus(); return; }
         if (!cleanBody){ err('Description is required'); rteFocus(); return; }
-const fd = new FormData();
 
-// ✅ Department optional now
-const departmentId = (deptSelect?.value || '').toString().trim();
-if (departmentId !== '') {
-  fd.append('department_id', departmentId);
-}
+        const fd = new FormData();
 
+        // ✅ Department optional now
+        const departmentId = (deptSelect?.value || '').toString().trim();
+        if (departmentId !== '') {
+          fd.append('department_id', departmentId);
+        }
 
-        
         fd.append('title', title);
         if (slug) fd.append('slug', slug);
         fd.append('type', type);
@@ -1934,6 +1967,10 @@ if (departmentId !== '') {
         fd.append('status', status);
         fd.append('active', active === '1' ? '1' : '0');
         fd.append('sort_order', sortOrder);
+
+        // ✅ NEW: send to API
+        fd.append('is_featured_home', (featuredHome === '1') ? '1' : '0');
+
         if ((publishAtInput.value || '').trim()) fd.append('publish_at', publishAtInput.value);
         if ((expireAtInput.value || '').trim()) fd.append('expire_at', expireAtInput.value);
         if (applyUrl) fd.append('apply_url', applyUrl);

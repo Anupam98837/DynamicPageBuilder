@@ -82,6 +82,11 @@ td.col-slug code{
   background:color-mix(in oklab, var(--muted-color) 10%, transparent);
   color:var(--muted-color)
 }
+/* ✅ NEW: Featured badge */
+.badge-soft-primary{
+  background:color-mix(in oklab, var(--primary-color) 14%, transparent);
+  color:var(--primary-color);
+}
 
 /* Global loading overlay */
 .loading-overlay{
@@ -136,7 +141,8 @@ td.col-slug code{
   -webkit-overflow-scrolling:touch;
   position:relative;
 }
-.table-responsive > .table{width:max-content;min-width:1120px}
+/* ✅ updated min-width due to new column */
+.table-responsive > .table{width:max-content;min-width:1240px}
 .table-responsive th,.table-responsive td{white-space:nowrap}
 
 /* Cover thumbnail in table */
@@ -387,6 +393,8 @@ td.col-slug code{
                   <th>Title</th>
                   <th class="col-slug">Slug</th>
                   <th style="width:120px;">Status</th>
+                  {{-- ✅ NEW --}}
+                  <th style="width:120px;">Featured</th>
                   <th style="width:150px;">Publish At</th>
                   <th style="width:110px;">Sort</th>
                   <th style="width:170px;">Updated</th>
@@ -394,7 +402,7 @@ td.col-slug code{
                 </tr>
               </thead>
               <tbody id="tbody-active">
-                <tr><td colspan="8" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+                <tr><td colspan="9" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -424,6 +432,8 @@ td.col-slug code{
                   <th>Title</th>
                   <th class="col-slug">Slug</th>
                   <th style="width:120px;">Status</th>
+                  {{-- ✅ NEW --}}
+                  <th style="width:120px;">Featured</th>
                   <th style="width:150px;">Publish At</th>
                   <th style="width:110px;">Sort</th>
                   <th style="width:170px;">Updated</th>
@@ -431,7 +441,7 @@ td.col-slug code{
                 </tr>
               </thead>
               <tbody id="tbody-draft">
-                <tr><td colspan="8" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+                <tr><td colspan="9" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -461,12 +471,14 @@ td.col-slug code{
                   <th>Title</th>
                   <th class="col-slug">Slug</th>
                   <th style="width:150px;">Deleted</th>
+                  {{-- ✅ NEW --}}
+                  <th style="width:120px;">Featured</th>
                   <th style="width:110px;">Sort</th>
                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
               </thead>
               <tbody id="tbody-trash">
-                <tr><td colspan="6" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+                <tr><td colspan="7" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -586,6 +598,18 @@ td.col-slug code{
                   <option value="published">Published</option>
                   <option value="archived">Archived</option>
                 </select>
+              </div>
+
+              {{-- ✅ NEW: Featured on Home --}}
+              <div class="col-md-6">
+                <label class="form-label d-block">Featured</label>
+                <div class="form-check form-switch mt-1">
+                  <input class="form-check-input" type="checkbox" id="is_featured_home">
+                  <label class="form-check-label" for="is_featured_home">
+                    Show on homepage (Featured)
+                  </label>
+                </div>
+                <div class="form-text">If enabled, this notice can appear in the homepage featured section.</div>
               </div>
 
               <div class="col-md-6">
@@ -798,19 +822,19 @@ td.col-slug code{
     const btnAddItem = $('btnAddItem');
 
     const tbodyActive = $('tbody-active');
-    const tbodyDraft = $('tbody-draft');  // ✅ changed
+    const tbodyDraft = $('tbody-draft');
     const tbodyTrash = $('tbody-trash');
 
     const emptyActive = $('empty-active');
-    const emptyDraft = $('empty-draft');  // ✅ changed
+    const emptyDraft = $('empty-draft');
     const emptyTrash = $('empty-trash');
 
     const pagerActive = $('pager-active');
-    const pagerDraft = $('pager-draft');  // ✅ changed
+    const pagerDraft = $('pager-draft');
     const pagerTrash = $('pager-trash');
 
     const infoActive = $('resultsInfo-active');
-    const infoDraft = $('resultsInfo-draft'); // ✅ changed
+    const infoDraft = $('resultsInfo-draft');
     const infoTrash = $('resultsInfo-trash');
 
     const filterModalEl = $('filterModal');
@@ -835,6 +859,9 @@ td.col-slug code{
     const coverInput = $('cover_image');
     const attachmentsInput = $('attachments');
 
+    // ✅ NEW: featured switch
+    const featuredHomeInput = $('is_featured_home');
+
     // Department dropdown refs
     const departmentSel = $('department_id');
     const deptDot = $('deptDot');
@@ -851,7 +878,6 @@ td.col-slug code{
     // Permissions
     const ACTOR = { role: '' };
     let canCreate=false, canEdit=false, canDelete=false;
-    // Add publishing permissions
     let canPublish = false;
 
     function computePermissions(){
@@ -862,7 +888,7 @@ td.col-slug code{
       canCreate = createDeleteRoles.includes(r);
       canDelete = createDeleteRoles.includes(r);
       canEdit   = writeRoles.includes(r);
-      canPublish = createDeleteRoles.includes(r);  // Only these roles can publish
+      canPublish = createDeleteRoles.includes(r);
 
       if (writeControls) writeControls.style.display = canCreate ? 'flex' : 'none';
       updatePublishOption();
@@ -901,7 +927,7 @@ td.col-slug code{
       departments: [],
       tabs: {
         active: { page:1, lastPage:1, items:[] },
-        draft:  { page:1, lastPage:1, items:[] }, // ✅ changed
+        draft:  { page:1, lastPage:1, items:[] },
         trash:  { page:1, lastPage:1, items:[] }
       }
     };
@@ -909,12 +935,11 @@ td.col-slug code{
     const getTabKey = () => {
       const a = document.querySelector('.nav-tabs .nav-link.active');
       const href = a?.getAttribute('href') || '#tab-active';
-      if (href === '#tab-draft') return 'draft'; // ✅ changed
+      if (href === '#tab-draft') return 'draft';
       if (href === '#tab-trash') return 'trash';
       return 'active';
     };
 
-    // ✅ CHANGED: draft tab is driven by status=draft (so switching status to draft moves it here)
     function buildUrl(tabKey){
       const params = new URLSearchParams();
       params.set('per_page', String(state.perPage));
@@ -953,6 +978,13 @@ td.col-slug code{
       if (s === 'draft') return `<span class="badge badge-soft-warning">Draft</span>`;
       if (s === 'archived') return `<span class="badge badge-soft-muted">Archived</span>`;
       return `<span class="badge badge-soft-muted">${esc(s || '—')}</span>`;
+    }
+
+    // ✅ NEW: featured pill for table
+    function featuredBadge(flag){
+      const on = !!(flag === true || flag === 1 || flag === '1' || flag === 'true');
+      if (!on) return `<span class="badge badge-soft-muted">No</span>`;
+      return `<span class="badge badge-soft-primary"><i class="fa-solid fa-star me-1"></i>Yes</span>`;
     }
 
     function coverThumb(url){
@@ -1013,6 +1045,9 @@ td.col-slug code{
         const sortOrder = (r.sort_order ?? 0);
         const coverUrl = r.cover_image_url || r.cover_url || r.cover_image || '';
 
+        // ✅ NEW: detect featured
+        const isFeatured = (r.is_featured_home ?? r.featured_home ?? r.is_featured ?? 0);
+
         // Build action menu
         let actions = `
           <div class="dropdown text-end">
@@ -1057,6 +1092,7 @@ td.col-slug code{
               <td class="fw-semibold">${esc(title)}</td>
               <td class="col-slug"><code>${esc(slug)}</code></td>
               <td>${esc(deleted)}</td>
+              <td>${featuredBadge(isFeatured)}</td>
               <td>${esc(String(sortOrder))}</td>
               <td class="text-end">${actions}</td>
             </tr>`;
@@ -1068,6 +1104,7 @@ td.col-slug code{
             <td class="fw-semibold">${esc(title)}</td>
             <td class="col-slug"><code>${esc(slug)}</code></td>
             <td>${statusBadge(status)}</td>
+            <td>${featuredBadge(isFeatured)}</td>
             <td>${esc(String(publishAt))}</td>
             <td>${esc(String(sortOrder))}</td>
             <td>${esc(String(updated))}</td>
@@ -1084,7 +1121,8 @@ td.col-slug code{
         (tabKey==='draft' ? tbodyDraft : tbodyTrash);
 
       if (tbody){
-        const cols = (tabKey==='trash') ? 6 : 8;
+        // ✅ updated col counts due to new column
+        const cols = (tabKey==='trash') ? 7 : 9;
         tbody.innerHTML = `<tr><td colspan="${cols}" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>`;
       }
 
@@ -1148,14 +1186,9 @@ td.col-slug code{
       departmentSel.value = (selectedValue ?? '').toString();
     }
 
-    // ✅ FIXED: Create modal department stuck loading
-    // - Cache departments in state.departments
-    // - Re-hydrate instantly on Create modal open/reset
-    // - Respect View mode (keep disabled)
     async function loadDepartments(selected='', force=false){
       if (!departmentSel) return;
 
-      // If already loaded and not forcing, just hydrate (no fetch)
       if (!force && Array.isArray(state.departments) && state.departments.length){
         hydrateDeptSelect(selected);
         departmentSel.disabled = (itemForm?.dataset.mode === 'view');
@@ -1184,7 +1217,6 @@ td.col-slug code{
 
         hydrateDeptSelect(selected);
 
-        // enable unless view mode
         departmentSel.disabled = (itemForm?.dataset.mode === 'view');
 
         setDeptHint('ok', `${list.length} department(s) loaded`);
@@ -1539,8 +1571,12 @@ td.col-slug code{
       slugDirty = false;
       settingSlug = false;
 
-      // ✅ FIXED: don't leave department stuck at "Loading..."
-      // If already loaded, hydrate instantly; else fetch.
+      // ✅ NEW: default featured OFF
+      if (featuredHomeInput) {
+        featuredHomeInput.checked = false;
+        featuredHomeInput.disabled = false;
+      }
+
       if (Array.isArray(state.departments) && state.departments.length){
         hydrateDeptSelect('');
         departmentSel.disabled = false;
@@ -1552,7 +1588,6 @@ td.col-slug code{
           departmentSel.disabled = true;
           setDeptHint('', 'Loading departments…');
         }
-        // fetch fresh
         loadDepartments('', true);
       }
 
@@ -1567,9 +1602,10 @@ td.col-slug code{
 
       clearCoverPreview(true);
 
+      // ✅ FIX: ensure checkbox gets re-enabled after view mode
       itemForm?.querySelectorAll('input,select,textarea').forEach(el => {
         if (el.id === 'itemUuid' || el.id === 'itemId') return;
-        if (el.type === 'file') el.disabled = false;
+        if (el.type === 'file' || el.type === 'checkbox' || el.type === 'radio') el.disabled = false;
         else if (el.tagName === 'SELECT') el.disabled = false;
         else el.readOnly = false;
       });
@@ -1601,6 +1637,10 @@ td.col-slug code{
       publishAtInput.value = toLocal(r.publish_at);
       expireAtInput.value = toLocal(r.expire_at);
 
+      // ✅ NEW: featured value
+      const isFeatured = (r.is_featured_home ?? r.featured_home ?? r.is_featured ?? 0);
+      if (featuredHomeInput) featuredHomeInput.checked = !!(isFeatured === true || isFeatured === 1 || isFeatured === '1' || isFeatured === 'true');
+
       const bodyHtml = (r.body ?? r.body_html ?? r.body_content ?? '') || '';
       if (rte.editor) rte.editor.innerHTML = ensurePreHasCode(bodyHtml);
       syncRteToCode();
@@ -1626,7 +1666,6 @@ td.col-slug code{
 
       slugDirty = true;
 
-      // ✅ Load departments and set selected
       loadDepartments(deptId);
 
       if (!viewOnly) {
@@ -1634,9 +1673,10 @@ td.col-slug code{
       }
 
       if (viewOnly){
+        // ✅ FIX: disable checkbox in view mode too
         itemForm?.querySelectorAll('input,select,textarea').forEach(el => {
           if (el.id === 'itemUuid' || el.id === 'itemId') return;
-          if (el.type === 'file') el.disabled = true;
+          if (el.type === 'file' || el.type === 'checkbox' || el.type === 'radio') el.disabled = true;
           else if (el.tagName === 'SELECT') el.disabled = true;
           else el.readOnly = true;
         });
@@ -1689,7 +1729,6 @@ td.col-slug code{
       if (coverObjectUrl){ try{ URL.revokeObjectURL(coverObjectUrl); }catch(_){ } coverObjectUrl=null; }
     });
 
-    // ✅ helper: publish/activate from draft -> published (moves to Active tab)
     async function setNoticeStatus(uuid, nextStatus){
       showLoading(true);
       try{
@@ -1962,6 +2001,9 @@ td.col-slug code{
         if ((publishAtInput.value || '').trim()) fd.append('publish_at', publishAtInput.value);
         if ((expireAtInput.value || '').trim()) fd.append('expire_at', expireAtInput.value);
         fd.append('body', cleanBody);
+
+        // ✅ NEW: featured flag
+        fd.append('is_featured_home', featuredHomeInput?.checked ? '1' : '0');
 
         const cover = coverInput.files?.[0] || null;
         if (cover) fd.append('cover_image', cover);
