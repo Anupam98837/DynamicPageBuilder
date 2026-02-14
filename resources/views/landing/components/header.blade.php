@@ -290,14 +290,6 @@ background: var(--mh-bg);
   .mh-sec2{flex:none;}
 }
 
-/* Hide header title + rotating text at 782px and below */
-@media (max-width: 782px){
-  #mhHeaderText,
-  #mhRotateText{
-    display:none !important;
-  }
-}
-
 
 </style>
 

@@ -884,6 +884,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 <i class="fa fa-user"></i> Profile
               </button>
             </li>
+
+            {{-- ✅ NEW: redirects to editable profile page --}}
+            ${canEdit ? `
+              <li>
+                <button type="button" class="dropdown-item" data-action="profile_edit">
+                  <i class="fa fa-id-card"></i> Edit Profile
+                </button>
+              </li>
+            ` : ``}
+
             <li>
               <button type="button" class="dropdown-item" data-action="assign_privilege">
                 <i class="fa fa-key"></i> Assign Privilege
@@ -1125,6 +1135,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (act === 'profile') {
       window.open(`/user/profile/${encodeURIComponent(uuid)}`, '_blank', 'noopener');
+      return;
+    }
+
+    // ✅ NEW: go to editable profile page
+    if (act === 'profile_edit') {
+      if (!canEdit) return;
+      window.location.href = `/user/profile/edit/${encodeURIComponent(uuid)}`;
       return;
     }
 

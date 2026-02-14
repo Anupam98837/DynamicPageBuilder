@@ -29,6 +29,9 @@ Route::get('/user/manage', function () {
 Route::get('/user/profile/{uuid?}', function () {
     return view('modules.users.userProfile');
 });
+Route::get('/user/profile/edit/{uuid?}', function () {
+    return view('modules.users.editUserProfile');
+});
 
 Route::get('/user/conference-publications/manage', function () {
     return view('pages.users.pages.users.profile.manageConferencePublications');

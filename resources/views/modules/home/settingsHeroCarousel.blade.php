@@ -1352,11 +1352,32 @@
       if (modalSort) modalSort.value = state.filters.sort || '-updated_at';
     });
 
-    btnApplyFilters?.addEventListener('click', () => {
+    // ✅ FIX: stuck modal-backdrop cleanup helper (does not affect functionality)
+    function cleanupModalBackdropsIfStuck(){
+      // If any modal is still open, don't touch anything
+      if (document.querySelector('.modal.show')) return;
+
+      document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+      document.body.classList.remove('modal-open');
+      document.body.style.removeProperty('overflow');
+      document.body.style.removeProperty('padding-right');
+    }
+
+    // ✅ run cleanup after modals fully hide (Bootstrap sometimes leaves backdrop in edge cases)
+    filterModalEl?.addEventListener('hidden.bs.modal', () => setTimeout(cleanupModalBackdropsIfStuck, 0));
+    itemModalEl?.addEventListener('hidden.bs.modal', () => setTimeout(cleanupModalBackdropsIfStuck, 0));
+
+    btnApplyFilters?.addEventListener('click', (e) => {
+      e.preventDefault();
+
       state.filters.transition = (modalTransition?.value || '');
       state.filters.sort = (modalSort?.value || '-updated_at');
       state.versions.page = 1;
-      filterModal && filterModal.hide();
+
+      // ✅ use the real instance and force a safe cleanup fallback
+      try { bootstrap.Modal.getOrCreateInstance(filterModalEl).hide(); } catch(_){}
+      setTimeout(cleanupModalBackdropsIfStuck, 250);
+
       loadList('versions');
     });
 

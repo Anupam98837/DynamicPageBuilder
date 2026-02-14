@@ -156,6 +156,12 @@ Route::middleware(['checkRole:admin,director,principal,hod,student,technical_ass
     Route::get('/me/profile', [UserProfileController::class,'show']);
     Route::get('/users/{user_uuid}/profile', [UserProfileController::class,'show']);
     
+    // ✅ Other user's profile (protected)
+        Route::middleware(['checkRole:admin,director,principal,hod'])->prefix('users')->group(function () {
+            Route::post('/{user_uuid}/profile',  [UserProfileController::class,'store']);
+            Route::put('/{user_uuid}/profile',   [UserProfileController::class,'update']);
+            Route::patch('/{user_uuid}/profile', [UserProfileController::class,'update']);
+        });
 
 Route::middleware(['checkRole:admin,director,principal,hod'])->group(function () {
     Route::get('/users/{user_uuid}/personal-info', [UserPersonalInformationController::class, 'show']);

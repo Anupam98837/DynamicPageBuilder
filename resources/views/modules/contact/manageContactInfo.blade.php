@@ -626,7 +626,22 @@
     const modalFeatured = $('ciModalFeatured');
     const modalSort = $('ciModalSort');
     const filterModalEl = $('ciFilterModal');
-    const filterModal = filterModalEl ? new bootstrap.Modal(filterModalEl) : null;
+
+    // ✅ FIX: robust cleanup for stuck modal backdrop (especially after programmatic hide)
+    const cleanupBackdrops = () => {
+      // remove any stray backdrops
+      document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+      // reset body state if bootstrap didn't
+      document.body.classList.remove('modal-open');
+      document.body.style.removeProperty('padding-right');
+      document.body.style.removeProperty('overflow');
+    };
+    const getFilterModalInstance = () => {
+      if (!filterModalEl) return null;
+      return bootstrap.Modal.getInstance(filterModalEl) || bootstrap.Modal.getOrCreateInstance(filterModalEl);
+    };
+    // if backdrop remains for any reason, ensure it's cleaned after modal fully closes
+    filterModalEl?.addEventListener('hidden.bs.modal', () => cleanupBackdrops());
 
     const tbodyA = $('ciTbodyActive');
     const tbodyI = $('ciTbodyInactive');
@@ -926,7 +941,15 @@
       state.filters.featured = (modalFeatured?.value ?? '');
       state.filters.sort = modalSort?.value || '-updated_at';
       state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
-      filterModal && filterModal.hide();
+
+      // ✅ FIX: close modal + ensure backdrop/body state is cleaned even if Bootstrap transition glitches
+      try{
+        const inst = getFilterModalInstance();
+        inst && inst.hide();
+      }catch(_){}
+      // fallback cleanup (runs after transition tick)
+      setTimeout(cleanupBackdrops, 350);
+
       reloadCurrent();
     });
 

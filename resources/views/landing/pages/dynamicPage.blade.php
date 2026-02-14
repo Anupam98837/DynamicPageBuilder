@@ -88,6 +88,19 @@
         html.theme-dark .dp-skel-wrap{ background: rgba(255,255,255,.03); }
         html.theme-dark .dp-skel-line{ background: rgba(255,255,255,.10); }
         html.theme-dark .dp-skel-line::after{background: linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent);}
+
+            /* Carousel */
+    .ce-carousel{position:relative;width:100%;margin:0 0 12px 0;border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;background:#f3f4f6;}
+    .ce-carousel-viewport{width:100%;height:260px;overflow:hidden;}
+    .ce-carousel-track{display:flex;width:100%;height:100%;transform:translateX(0);transition:transform .35s ease;}
+    .ce-carousel-slide{flex:0 0 100%;height:100%;}
+    .ce-carousel-slide img{width:100%;height:100%;object-fit:cover;display:block;}
+    .ce-carousel[data-fit="contain"] .ce-carousel-slide img{object-fit:contain;background:#fff;}
+    .ce-carousel-btn{position:absolute;top:50%;transform:translateY(-50%);border:none;background:rgba(17,24,39,.55);color:#fff;width:34px;height:34px;border-radius:999px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+    .ce-carousel-prev{left:10px;}
+    .ce-carousel-next{right:10px;}
+    .ce-carousel-dots{position:absolute;left:0;right:0;bottom:10px;display:flex;justify-content:center;gap:6px;padding:0 10px;}
+    .ce-carousel-dot{width:8px;height:8px;border-radius:999px;border:0;background:rgba(255,255,255,.55);cursor:pointer;}
     </style>
 </head>
 <body>
@@ -170,6 +183,142 @@
 @php
   $apiBase = rtrim(url('/api'), '/');
 @endphp
+
+  <script>
+(function(){
+  function parseList(raw){
+    // split on newline OR pipe (safe for exported attributes)
+    return (raw||'').split(/\\r?\\n|\\|/g).map(function(s){return (s||'').trim();}).filter(Boolean);
+  }
+
+  function getOpts(car){
+    var h = parseInt(car.getAttribute('data-height') || '260', 10);
+    var interval = parseInt(car.getAttribute('data-interval') || '3000', 10);
+    return {
+      height: Math.max(120, isNaN(h)?260:h),
+      interval: Math.max(800, isNaN(interval)?3000:interval),
+      autoplay: car.getAttribute('data-autoplay') === 'true',
+      arrows: car.getAttribute('data-arrows') !== 'false',
+      dots: car.getAttribute('data-dots') !== 'false',
+      loop: car.getAttribute('data-loop') !== 'false',
+      fit: (car.getAttribute('data-fit') === 'contain') ? 'contain' : 'cover'
+    };
+  }
+
+  function ensure(car){
+    var viewport = car.querySelector('.ce-carousel-viewport');
+    var track = car.querySelector('.ce-carousel-track');
+    if(!viewport){ viewport=document.createElement('div'); viewport.className='ce-carousel-viewport'; car.insertBefore(viewport, car.firstChild); }
+    if(!track){ track=document.createElement('div'); track.className='ce-carousel-track'; viewport.appendChild(track); }
+    var dots = car.querySelector('.ce-carousel-dots');
+    if(!dots){ dots=document.createElement('div'); dots.className='ce-carousel-dots'; car.appendChild(dots); }
+    var prev = car.querySelector('.ce-carousel-prev');
+    var next = car.querySelector('.ce-carousel-next');
+    return {viewport:viewport, track:track, dots:dots, prev:prev, next:next};
+  }
+
+  function buildSlides(car){
+    var el = ensure(car);
+    var urls = parseList(car.getAttribute('data-images') || '');
+    if(!urls.length){
+      urls = Array.prototype.slice.call(car.querySelectorAll('.ce-carousel-slide img')).map(function(img){
+        return (img.getAttribute('src')||'').trim();
+      }).filter(Boolean);
+    }
+    if(!urls.length) urls = ['https://placehold.co/600x260'];
+
+    el.track.innerHTML = urls.map(function(u){
+      return '<div class="ce-carousel-slide"><img src="'+u.replace(/"/g,'&quot;')+'" alt="Slide"></div>';
+    }).join('');
+
+    el.dots.innerHTML = urls.map(function(_,i){
+      return '<button type="button" class="ce-carousel-dot" data-idx="'+i+'" aria-label="Go to slide '+(i+1)+'"></button>';
+    }).join('');
+
+    return urls;
+  }
+
+  function stop(car){
+    if(car.__t){ clearInterval(car.__t); car.__t=null; }
+  }
+
+  function go(car, idx, restart){
+    var o = getOpts(car);
+    var el = ensure(car);
+    var slides = car.querySelectorAll('.ce-carousel-slide');
+    var max = slides.length - 1;
+    var i = idx;
+
+    if(o.loop){
+      if(i<0) i=max;
+      if(i>max) i=0;
+    }else{
+      i = Math.max(0, Math.min(max, i));
+    }
+
+    car.setAttribute('data-index', String(i));
+    el.track.style.transform = 'translateX(-' + (i*100) + '%)';
+
+    var dots = car.querySelectorAll('.ce-carousel-dot');
+    for(var d=0; d<dots.length; d++){
+      if(d===i) dots[d].classList.add('active');
+      else dots[d].classList.remove('active');
+    }
+
+    if(restart) start(car);
+  }
+
+  function start(car){
+    var o = getOpts(car);
+    stop(car);
+    if(!o.autoplay) return;
+    car.__t = setInterval(function(){
+      var cur = parseInt(car.getAttribute('data-index') || '0', 10) || 0;
+      go(car, cur+1, false);
+    }, o.interval);
+  }
+
+  function init(car){
+    var o = getOpts(car);
+    var el = ensure(car);
+
+    car.setAttribute('data-fit', o.fit);
+    el.viewport.style.height = o.height + 'px';
+
+    buildSlides(car);
+
+    if(el.prev) el.prev.style.display = o.arrows ? '' : 'none';
+    if(el.next) el.next.style.display = o.arrows ? '' : 'none';
+    el.dots.style.display = o.dots ? 'flex' : 'none';
+
+    if(!car.__bound){
+      car.__bound=true;
+      car.addEventListener('click', function(e){
+        var p = e.target.closest && e.target.closest('.ce-carousel-prev');
+        var n = e.target.closest && e.target.closest('.ce-carousel-next');
+        var d = e.target.closest && e.target.closest('.ce-carousel-dot');
+
+        if(p){ e.preventDefault(); go(car, (parseInt(car.getAttribute('data-index')||'0',10)||0)-1, true); }
+        else if(n){ e.preventDefault(); go(car, (parseInt(car.getAttribute('data-index')||'0',10)||0)+1, true); }
+        else if(d){ e.preventDefault(); go(car, parseInt(d.getAttribute('data-idx')||'0',10)||0, true); }
+      });
+      car.addEventListener('mouseenter', function(){ stop(car); });
+      car.addEventListener('mouseleave', function(){ start(car); });
+    }
+
+    go(car, parseInt(car.getAttribute('data-index')||'0',10)||0, false);
+    start(car);
+  }
+
+  function boot(){
+    var cars = document.querySelectorAll('.ce-carousel');
+    for(var i=0;i<cars.length;i++) init(cars[i]);
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})();
+</script>
 <script>
 (function(){
     const API_BASE  = @json($apiBase);

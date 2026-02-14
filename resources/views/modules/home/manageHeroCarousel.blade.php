@@ -408,7 +408,10 @@ textarea.editor-code{
       </div>
       <div class="modal-footer">
         <button class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-        <button class="btn btn-primary" id="hcApplyFilters"><i class="fa fa-check me-1"></i>Apply</button>
+        {{-- ✅ fix: ensure this is not treated as submit anywhere --}}
+        <button type="button" class="btn btn-primary" id="hcApplyFilters">
+          <i class="fa fa-check me-1"></i>Apply
+        </button>
       </div>
     </div>
   </div>
@@ -653,6 +656,27 @@ textarea.editor-code{
     const toastErr = $('hcToastErr') ? new bootstrap.Toast($('hcToastErr')) : null;
     const ok = (m) => { $('hcToastOkText').textContent = m || 'Done'; toastOk && toastOk.show(); };
     const err = (m) => { $('hcToastErrText').textContent = m || 'Something went wrong'; toastErr && toastErr.show(); };
+
+    /* ✅ FIX: Cleanup stuck modal backdrops/body lock (safe no-op if none stuck) */
+    function cleanupModalArtifacts(){
+      try{
+        // remove all backdrops if no modal is actually visible
+        const anyShown = !!document.querySelector('.modal.show');
+        if (!anyShown){
+          document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+          document.body.classList.remove('modal-open');
+          document.body.style.removeProperty('overflow');
+          document.body.style.removeProperty('padding-right');
+        }
+      }catch(_){}
+    }
+
+    // safety net: whenever any of our modals fully close, ensure no leftover backdrop remains
+    ['hcFilterModal','hcItemModal'].forEach((mid) => {
+      const el = $(mid);
+      if (!el) return;
+      el.addEventListener('hidden.bs.modal', cleanupModalArtifacts);
+    });
 
     /* ========= Permissions ========= */
     const ACTOR = { role: '' };
@@ -948,6 +972,7 @@ textarea.editor-code{
       reloadCurrent();
     });
 
+    /* ✅ FIXED APPLY: close modal completely, remove stuck backdrop, then reload */
     $('hcApplyFilters').addEventListener('click', () => {
       const s = $('hcFilterSort').value || 'sort_order';
       state.sort = s.startsWith('-') ? s.slice(1) : s;
@@ -955,8 +980,27 @@ textarea.editor-code{
       state.visible_now = ($('hcFilterVisibleNow').value ?? '');
 
       state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
-      bootstrap.Modal.getInstance($('hcFilterModal'))?.hide();
-      reloadCurrent();
+
+      const modalEl = $('hcFilterModal');
+      let done = false;
+      const afterClose = async () => {
+        if (done) return;
+        done = true;
+        cleanupModalArtifacts();
+        await reloadCurrent();
+      };
+
+      // run after bootstrap finishes transition
+      modalEl?.addEventListener('hidden.bs.modal', afterClose, { once:true });
+
+      try{
+        bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+      }catch(_){
+        // if something odd happens, still attempt cleanup + reload
+      }
+
+      // fallback in case hidden event doesn't fire (rare, but fixes "stuck backdrop" setups)
+      setTimeout(afterClose, 450);
     });
 
     $('hcInactiveStatus').addEventListener('change', () => {

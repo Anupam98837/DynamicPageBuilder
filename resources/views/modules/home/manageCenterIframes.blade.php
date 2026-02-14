@@ -672,6 +672,17 @@
   const $ = (id) => document.getElementById(id);
   const debounce = (fn, ms=300) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
 
+  // ✅ FIX: hard cleanup for orphaned modal backdrops (Bootstrap sometimes leaves them behind)
+  function cleanupModalBackdrop(){
+    // Only cleanup if no modal is currently shown
+    if (document.querySelector('.modal.show')) return;
+
+    document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+    document.body.classList.remove('modal-open');
+    document.body.style.removeProperty('padding-right');
+    document.body.style.removeProperty('overflow');
+  }
+
   function esc(str){
     return (str ?? '').toString().replace(/[&<>"']/g, s => ({
       '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
@@ -965,14 +976,20 @@
 
     // filter modal
     const filterModalEl = $('ciFilterModal');
-    const filterModal = filterModalEl ? new bootstrap.Modal(filterModalEl) : null;
+    const filterModal = filterModalEl ? bootstrap.Modal.getOrCreateInstance(filterModalEl) : null;
     const modalActive = $('ciModalActive');
     const modalSort = $('ciModalSort');
     const btnApplyFilters = $('ciBtnApplyFilters');
 
+    // ✅ FIX: ensure cleanup happens after modal closes
+    filterModalEl?.addEventListener('hidden.bs.modal', cleanupModalBackdrop);
+
     // item modal
     const itemModalEl = $('ciItemModal');
-    const itemModal = itemModalEl ? new bootstrap.Modal(itemModalEl) : null;
+    const itemModal = itemModalEl ? bootstrap.Modal.getOrCreateInstance(itemModalEl) : null;
+    // ✅ also protect item modal, just in case
+    itemModalEl?.addEventListener('hidden.bs.modal', cleanupModalBackdrop);
+
     const itemModalTitle = $('ciItemModalTitle');
     const itemForm = $('ciItemForm');
     const saveBtn = $('ciSaveBtn');
@@ -1391,7 +1408,14 @@
       state.filters.active = (modalActive?.value ?? '');
       state.filters.sort = (modalSort?.value ?? '-updated_at');
       state.versions.page = 1;
-      filterModal && filterModal.hide();
+
+      // ✅ FIX: hide modal using the live instance + cleanup any leftover backdrop
+      if (filterModalEl){
+        bootstrap.Modal.getOrCreateInstance(filterModalEl).hide();
+        // after fade transition
+        setTimeout(cleanupModalBackdrop, 250);
+      }
+
       loadList('versions');
     });
 
