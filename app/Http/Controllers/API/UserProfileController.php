@@ -75,26 +75,37 @@ class UserProfileController extends Controller
      * - No auth inside controller
      * (IMPORTANT: route must NOT be inside auth middleware group)
      */
-    public function show(Request $request, string $user_uuid)
-    {
-        $user = DB::table('users')
-            ->where('uuid', $user_uuid)
-            ->whereNull('deleted_at')
-            ->first();
+public function show(Request $request, string $user_uuid)
+{
+    $user = DB::table('users')
+        ->where('uuid', $user_uuid)
+        ->whereNull('deleted_at')
+        ->first();
 
-        if (!$user) {
-            return response()->json([
-                'success' => false,
-                'error'   => 'User not found'
-            ], 404);
-        }
-
-        // Public profile -> keep only active social links
+    if (!$user) {
         return response()->json([
-            'success' => true,
-            'data'    => $this->buildProfile($user, false),
-        ]);
+            'success' => false,
+            'error'   => 'User not found'
+        ], 404);
     }
+
+    // ✅ Check if this is an authenticated editing request
+    $auth = $this->authUserRow($request);
+    $actor = $this->actor($request);
+    
+    $authUuid = $auth->uuid ?? null;
+    $role = $auth->role ?? $actor['role'] ?? null;
+    
+    $isSelf = $authUuid && ($authUuid === $user->uuid);
+    $isPrivileged = $role && in_array($role, $this->privilegedRoles(), true);
+    $canEdit = $isSelf || $isPrivileged;
+
+    // ✅ If can edit, include inactive socials with sort_order
+    return response()->json([
+        'success' => true,
+        'data'    => $this->buildProfile($user, $canEdit),
+    ]);
+}
 
     /** GET /api/me/profile (protected) */
     public function me(Request $request)
@@ -218,7 +229,7 @@ class UserProfileController extends Controller
 
             if (array_key_exists('journals', $payload)) {
                 $this->persistList($request, 'user_journals', $user, (array)$payload['journals'], [
-                    'title','publication_organization','publication_year','url','image','description',
+                    'title','publication_organization','publication_year','url','image','description','sort_order',
                 ], $mode, $noteBase);
             }
 
@@ -814,7 +825,8 @@ class UserProfileController extends Controller
                     'publication_year',
                     'url',
                     'image',
-                    'description'
+                    'description',
+                    'sort_order'
                 ]
             ),
 
@@ -855,18 +867,22 @@ class UserProfileController extends Controller
             ),
 
             'social_media' => (function () use ($user, $safeCollection, $includeInactiveSocial) {
-                $q = DB::table('user_social_media')
-                    ->where('user_id', $user->id)
-                    ->whereNull('deleted_at')
-                    ->orderBy('sort_order', 'asc');
+    $q = DB::table('user_social_media')
+        ->where('user_id', $user->id)
+        ->whereNull('deleted_at')
+        ->orderBy('sort_order', 'asc');
 
-                if (!$includeInactiveSocial) {
-                    $q->where('active', true);
-                    return $safeCollection($q->get(), ['uuid','platform','icon','link']);
-                }
+    // ✅ ALWAYS include sort_order and active, just filter by active status
+    $results = $q->get();
+    
+    if (!$includeInactiveSocial) {
+        // Filter to active only, but still include all fields
+        $results = $results->where('active', true);
+        return $safeCollection($results, ['uuid','platform','icon','link','active','sort_order']);  // ✅ ADDED
+    }
 
-                return $safeCollection($q->get(), ['uuid','platform','icon','link','active','sort_order']);
-            })(),
+    return $safeCollection($results, ['uuid','platform','icon','link','active','sort_order']);
+})(),
         ];
     }
 
@@ -936,9 +952,9 @@ class UserProfileController extends Controller
 
             'personal' => 'sometimes|nullable|array',
             'personal.qualification' => 'sometimes|nullable|array',
-            'personal.affiliation' => 'sometimes|nullable|string|max:255',
-            'personal.specification' => 'sometimes|nullable|string|max:255',
-            'personal.experience' => 'sometimes|nullable|string|max:255',
+            'personal.affiliation' => 'sometimes|nullable|string|max:1000',
+            'personal.specification' => 'sometimes|nullable|string|max:1000',
+            'personal.experience' => 'sometimes|nullable|string|max:1000',
             'personal.interest' => 'sometimes|nullable|string|max:1000',
             'personal.administration' => 'sometimes|nullable|string|max:1000',
             'personal.research_project' => 'sometimes|nullable|string|max:2000',
@@ -975,6 +991,7 @@ class UserProfileController extends Controller
             'journals.*.url' => 'sometimes|nullable|string|max:500',
             'journals.*.image' => 'sometimes|nullable|string|max:255',
             'journals.*.description' => 'sometimes|nullable|string|max:4000',
+            'journals.*.sort_order' => 'sometimes|nullable|integer|min:0|max:999999',
 
             'conference_publications' => 'sometimes|array',
             'conference_publications.*.uuid' => 'sometimes|nullable|string|max:50',

@@ -6,11 +6,10 @@
 <style>
   /* =========================================================
      Main Header (Public) - Flex layout (4 sections)
-     Sections in .mh-inner:
-       1) Primary logo
-       2) Title + rotating text + affiliation marquee
-       3) Secondary logo
-       4) Partner marquee + admission badge
+     Fixes added:
+     ✅ Title never shows "..." (no ellipsis), always shows full name (wraps when needed)
+     ✅ On small screens: logo + title/rotate stay SIDE-BY-SIDE (no stacking under logo)
+     ✅ Responsive title sizing (smaller on tight screens)
      ========================================================= */
 
   :root{
@@ -34,15 +33,17 @@
   .mh-inner{
     max-width:1400px;
     margin:0 auto;
-    padding:0px 0px;
+    padding:8px 10px;              /* slightly safer padding on all screens */
     display:flex;
-    align-items:stretch;
-    gap:18px;
+    align-items:center;            /* ✅ keeps logo + text aligned */
+    gap:16px;
+    flex-wrap:nowrap;              /* ✅ prevents title/rotate going under logo */
+    min-width:0;
   }
 
   /* ===== SECTION 1: Primary logo ===== */
   .mh-sec1{
-    flex:0 0 110px;
+    flex:0 0 auto;
     display:flex;
     align-items:center;
     justify-content:center;
@@ -56,27 +57,37 @@
 
   /* ===== SECTION 2: Center block ===== */
   .mh-sec2{
-    flex:1 1 auto;
-    min-width:0;
+    flex:1 1 auto;                 /* ✅ must take remaining space */
+    min-width:0;                   /* ✅ allows wrapping inside without pushing layout */
     display:flex;
     flex-direction:column;
     justify-content:center;
     gap:6px;
   }
 
+  /* ✅ FIX: no ellipsis, responsive font, wrap when needed */
   .mh-title{
-    display:inline-block;
+    display:block;
     color:var(--mh-red);
     font-weight:700;
     text-transform:uppercase;
-    letter-spacing:.8px;
-    line-height:1.06;
-    font-size:38px;
+    letter-spacing:.6px;
+    line-height:1.08;
+
+    /* responsive size: smaller on tight screens, still bold on desktop */
+    font-size:clamp(20px, 2.35vw, 36px);
+
     padding-bottom:7px;
     border-bottom:3px solid var(--mh-red);
-    white-space:nowrap;
-    overflow:hidden;
-    text-overflow:ellipsis;
+
+    /* ✅ remove ellipsis behavior */
+    white-space:normal;
+    overflow:visible;
+    text-overflow:clip;
+
+    /* ✅ allow long words to break if needed */
+    overflow-wrap:anywhere;
+    word-break:break-word;
   }
 
   .mh-subrow{
@@ -87,30 +98,28 @@
     min-width:0;
   }
 
+  /* ✅ allow rotating text to wrap instead of cutting with "..." */
   .mh-rotate{
     flex:1 1 auto;
     min-width:0;
     color:var(--mh-red);
-    font-size:1.1rem;
+    font-size:1.05rem;
     font-weight:400;
     line-height:1.2;
-    white-space:nowrap;
-    overflow:hidden;
-    text-overflow:ellipsis;
-    transition:opacity .18s ease, transform .18s ease;
+
+    white-space:normal;
+    overflow:visible;
+    text-overflow:clip;
+    overflow-wrap:anywhere;
+
+    transition:opacity .18s ease, transform .18s ease, color .15s ease .10s;
   }
   .mh-rotate.is-fading{ opacity:0; transform:translateY(-2px); }
 
-    /* Smooth hover color (with slight delay) */
-.mh-rotate{
-  transition: opacity .18s ease, transform .10s ease, color .15s ease .10s;
-}
-
-.mh-rotate:hover{
-  color:#0D29AC; /* same blue as screenshot */
-  cursor: pointer;
-}
-
+  .mh-rotate:hover{
+    color:#0D29AC;
+    cursor:pointer;
+  }
 
   /* Affiliation marquee (inside section 2) */
   .mh-affil-wrap{ flex:0 0 380px; max-width:380px; }
@@ -119,14 +128,14 @@
   /* ✅ FIX: Make ALL marquee logos same size + framed */
   .mh-affil-logo,
   .mh-partner-logo{
-width: 35px;
-height: 35px;
-object-fit: contain;
-display: block;
-padding: 1px 1px;
-border: 1px solid var(--mh-line);
-border-radius: 5px;
-background: var(--mh-bg);
+    width:35px;
+    height:35px;
+    object-fit:contain;
+    display:block;
+    padding:1px 1px;
+    border:1px solid var(--mh-line);
+    border-radius:5px;
+    background:var(--mh-bg);
   }
 
   /* ===== SECTION 3: Secondary logo (ONLY) ===== */
@@ -134,6 +143,7 @@ background: var(--mh-bg);
     display:flex;
     align-items:center;
     justify-content:flex-end;
+    flex:0 0 auto;
   }
   .mh-secondary-logo{
     max-height:92px;
@@ -144,7 +154,7 @@ background: var(--mh-bg);
 
   /* ===== SECTION 4: Partner marquee + admission badge ===== */
   .mh-sec4{
-    flex:0 0 270px;
+    flex:0 0 240px;               /* ✅ slightly smaller to give title more room */
     min-width:200px;
     display:flex;
     flex-direction:column;
@@ -247,50 +257,52 @@ background: var(--mh-bg);
 
   /* Responsive */
   @media (max-width: 1100px){
-    .mh-title{ font-size:34px; }
     .mh-affil-wrap{ flex-basis:320px; max-width:320px; }
-    .mh-sec4{ flex-basis:300px; min-width:270px; }
+    .mh-sec4{ flex-basis:230px; min-width:210px; }
+    .mh-secondary-logo{ max-height:84px; }
   }
 
+  /* ✅ Keep side-by-side (no wrap), just tighten spacing/sizes */
   @media (max-width: 920px){
-    .mh-inner{ flex-wrap:wrap; }
-    .mh-sec1{ flex:0 0 92px; }
-    .mh-sec2{ flex:1 1 calc(100% - 110px); }
-    .mh-sec3, .mh-sec4{ flex:1 1 100%; min-width:0; justify-content:flex-start; }
-    .mh-title{ white-space:normal; }
-    .mh-subrow{ flex-wrap:wrap; }
-    .mh-affil-wrap{ flex:1 1 100%; max-width:100%; }
+    .mh-inner{ gap:12px; padding:8px 10px; }
+    .mh-primary-logo{ width:78px; height:78px; }
+    .mh-title{ border-bottom-width:2px; }
+    .mh-subrow{ gap:10px; }
+  }
+
+  /* Hide marquees + Section 3 & 4 at 992px and below */
+  @media (max-width: 992px){
+    /* Hide 3rd + 4th sections */
+    .mh-sec3,
+    .mh-sec4{
+      display:none !important;
+    }
+
+    /* Hide both marquees (affiliation + partner) */
+    .mh-affil-wrap,
+    #mhAffilMarquee,
+    #mhPartnerMarquee{
+      display:none !important;
+    }
+
+    /* Optional: since affil is gone, don't push space to the right */
+    .mh-subrow{
+      justify-content:flex-start;
+    }
+  }
+
+  /* Extra-tight phones */
+  @media (max-width: 520px){
+    .mh-inner{ gap:10px; padding:8px 8px; }
+    .mh-primary-logo{ width:68px; height:68px; }
+    .mh-title{ padding-bottom:6px; letter-spacing:.4px; }
+    .mh-rotate{ font-size:1rem; }
   }
 
   @media (prefers-reduced-motion: reduce){
     .mh-track.is-animated{ animation:none !important; }
     .mh-skel{ animation:none !important; }
   }
-
-  /* Hide marquees + Section 3 & 4 at 992px and below */
-@media (max-width: 992px){
-  /* Hide 3rd + 4th sections */
-  .mh-sec3,
-  .mh-sec4{
-    display:none !important;
-  }
-
-  /* Hide both marquees (affiliation + partner) */
-  .mh-affil-wrap,
-  #mhAffilMarquee,
-  #mhPartnerMarquee{
-    display:none !important;
-  }
-
-  /* Optional: since affil is gone, don't push space to the right */
-  .mh-subrow{
-    justify-content:flex-start;
-  }
-  .mh-title{font-size:2rem;}
-  .mh-sec2{flex:none;}
-}
-
-
 </style>
 
 <header class="mh-bar" id="mhBar" data-endpoint="{{ url('/api/header-components') }}">
