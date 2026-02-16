@@ -8,7 +8,7 @@
 
   <meta name="csrf-token" content="{{ csrf_token() }}"/>
 
-  <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('assets/media/images/favicons/favicon.png') }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('assets/media/images/favicon/msit_logo.jpg') }}">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet"/>
   <link rel="stylesheet" href="{{ asset('/assets/css/common/main.css') }}">
@@ -308,115 +308,123 @@
 
         {{-- =======================
            SITE SETTINGS & CONTENT (site related changes)
+           ✅ HIDDEN for Director & Principal roles ONLY
         ======================== --}}
-        <div class="w3-nav-section" style="padding:10px 6px 2px">
-          <div class="w3-section-title"><i class="fa-solid fa-screwdriver-wrench"></i> SITE SETTINGS & CONTENT</div>
-          <div class="w3-section-rule"></div>
-        </div>
-
-        <div class="w3-group">
-          <a href="#" class="w3-link w3-toggle" data-target="sm-header-menu" aria-expanded="false">
-            <i class="fa-solid fa-bars"></i><span>Header Menu</span>
-            <i class="fa fa-chevron-down w3-chev"></i>
-          </a>
-          <div id="sm-header-menu" class="w3-submenu" role="group" aria-label="Header Menu submenu">
-            <a href="/header/menu/create" class="w3-link">Create Header Menu</a>
-            <a href="/header/menu/manage" class="w3-link">Manage Header Menus</a>
-            <a href="/top-header/menu" class="w3-link">Top Header Menus</a>
+        <div id="siteSettingsContentBlock">
+          <div class="w3-nav-section" style="padding:10px 6px 2px">
+            <div class="w3-section-title"><i class="fa-solid fa-screwdriver-wrench"></i> SITE SETTINGS & CONTENT</div>
+            <div class="w3-section-rule"></div>
           </div>
-        </div>
 
-        <!-- Header Components (Single Link) -->
-        <a href="/header-components/manage" class="w3-link">
-          <i class="fa-solid fa-header"></i><span>Header Components</span>
-        </a>
-
-        <!-- Footer Components -->
-        <a href="/footer-components/manage" class="w3-link">
-          <i class="fa-solid fa-window-minimize"></i><span>Footer Components</span>
-        </a>
-
-        <div class="w3-group">
-          <a href="#" class="w3-link w3-toggle" data-target="sm-pages" aria-expanded="false">
-            <i class="fa-solid fa-file-lines"></i><span>Pages</span>
-            <i class="fa fa-chevron-down w3-chev"></i>
-          </a>
-          <div id="sm-pages" class="w3-submenu" role="group" aria-label="Pages submenu">
-            <a href="/pages/create" class="w3-link">Create Page</a>
-            <a href="/pages/manage" class="w3-link">Manage Page</a>
+          <div class="w3-group">
+            <a href="#" class="w3-link w3-toggle" data-target="sm-header-menu" aria-expanded="false">
+              <i class="fa-solid fa-bars"></i><span>Header Menu</span>
+              <i class="fa fa-chevron-down w3-chev"></i>
+            </a>
+            <div id="sm-header-menu" class="w3-submenu" role="group" aria-label="Header Menu submenu">
+              <a href="/header/menu/create" class="w3-link">Create Header Menu</a>
+              <a href="/header/menu/manage" class="w3-link">Manage Header Menus</a>
+              <a href="/top-header/menu" class="w3-link">Top Header Menus</a>
+            </div>
           </div>
-        </div>
 
-        <div class="w3-group">
-          <a href="#" class="w3-link w3-toggle" data-target="sm-page-submenu" aria-expanded="false">
-            <i class="fa-solid fa-sitemap"></i><span>Page Submenu</span>
-            <i class="fa fa-chevron-down w3-chev"></i>
+          <!-- Header Components (Single Link) -->
+          <a href="/header-components/manage" class="w3-link">
+            <i class="fa-solid fa-header"></i><span>Header Components</span>
           </a>
-          <div id="sm-page-submenu" class="w3-submenu" role="group" aria-label="Page Submenu submenu">
-            <a href="/page/submenu/create" class="w3-link">Create Page Submenu</a>
-            <a href="/page/submenu/manage" class="w3-link">Manage Page Submenu</a>
-          </div>
-        </div>
 
-        <!-- Contact Info -->
-        <div class="w3-group">
-          <a href="#" class="w3-link w3-toggle" data-target="sm-contact-info" aria-expanded="false">
-            <i class="fa-solid fa-address-book"></i><span>Contact Info</span>
-            <i class="fa fa-chevron-down w3-chev"></i>
+          <!-- Footer Components -->
+          <a href="/footer-components/manage" class="w3-link">
+            <i class="fa-solid fa-window-minimize"></i><span>Footer Components</span>
           </a>
-          <div id="sm-contact-info" class="w3-submenu" role="group" aria-label="Contact Info submenu">
-            <a href="/contact-info/manage" class="w3-link">Manage Contact Info</a>
-            <!-- <a href="/contact/forms/manage" class="w3-link">Contact Forms</a>
-            <a href="/contact/locations/manage" class="w3-link">Office Locations</a> -->
-            <a href="/contact-us/manage" class="w3-link">Manage Enquiries</a>
-            <a href="/contact-us-visibility/manage" class="w3-link">Contact Visibility</a>
-          </div>
-        </div>
 
-        <!-- Hero Carousel -->
-        <div class="w3-group">
-          <a href="#" class="w3-link w3-toggle" data-target="sm-hero-carousel" aria-expanded="false">
-            <i class="fa-solid fa-images"></i><span>Hero Carousel</span>
-            <i class="fa fa-chevron-down w3-chev"></i>
+          <div class="w3-group">
+            <a href="#" class="w3-link w3-toggle" data-target="sm-pages" aria-expanded="false">
+              <i class="fa-solid fa-file-lines"></i><span>Pages</span>
+              <i class="fa fa-chevron-down w3-chev"></i>
+            </a>
+            <div id="sm-pages" class="w3-submenu" role="group" aria-label="Pages submenu">
+              <a href="/pages/create" class="w3-link">Create Page</a>
+              <a href="/pages/manage" class="w3-link">Manage Page</a>
+            </div>
+          </div>
+
+          <div class="w3-group">
+            <a href="#" class="w3-link w3-toggle" data-target="sm-page-submenu" aria-expanded="false">
+              <i class="fa-solid fa-sitemap"></i><span>Page Submenu</span>
+              <i class="fa fa-chevron-down w3-chev"></i>
+            </a>
+            <div id="sm-page-submenu" class="w3-submenu" role="group" aria-label="Page Submenu submenu">
+              <a href="/page/submenu/create" class="w3-link">Create Page Submenu</a>
+              <a href="/page/submenu/manage" class="w3-link">Manage Page Submenu</a>
+            </div>
+          </div>
+
+          <!-- Contact Info -->
+          <div class="w3-group">
+            <a href="#" class="w3-link w3-toggle" data-target="sm-contact-info" aria-expanded="false">
+              <i class="fa-solid fa-address-book"></i><span>Contact Info</span>
+              <i class="fa fa-chevron-down w3-chev"></i>
+            </a>
+            <div id="sm-contact-info" class="w3-submenu" role="group" aria-label="Contact Info submenu">
+              <a href="/contact-info/manage" class="w3-link">Manage Contact Info</a>
+              <!-- <a href="/contact/forms/manage" class="w3-link">Contact Forms</a>
+              <a href="/contact/locations/manage" class="w3-link">Office Locations</a> -->
+              <a href="/contact-us/manage" class="w3-link">Manage Enquiries</a>
+              <a href="/contact-us-visibility/manage" class="w3-link">Contact Visibility</a>
+            </div>
+          </div>
+
+          <!-- Hero Carousel -->
+          <div class="w3-group">
+            <a href="#" class="w3-link w3-toggle" data-target="sm-hero-carousel" aria-expanded="false">
+              <i class="fa-solid fa-images"></i><span>Hero Carousel</span>
+              <i class="fa fa-chevron-down w3-chev"></i>
+            </a>
+            <div id="sm-hero-carousel" class="w3-submenu" role="group" aria-label="Hero Carousel submenu">
+              <a href="/hero-carousel/manage" class="w3-link">Manage Hero Carousel</a>
+              <a href="/hero-carousel/settings" class="w3-link">Hero Carousel Settings</a>
+            </div>
+          </div>
+
+          <!-- Center Iframes -->
+          <a href="/center-iframes/manage" class="w3-link">
+            <i class="fa-solid fa-window-maximize"></i><span>Center Iframes</span>
           </a>
-          <div id="sm-hero-carousel" class="w3-submenu" role="group" aria-label="Hero Carousel submenu">
-            <a href="/hero-carousel/manage" class="w3-link">Manage Hero Carousel</a>
-            <a href="/hero-carousel/settings" class="w3-link">Hero Carousel Settings</a>
-          </div>
-        </div>
 
-        <!-- Center Iframes -->
-        <a href="/center-iframes/manage" class="w3-link">
-          <i class="fa-solid fa-window-maximize"></i><span>Center Iframes</span>
-        </a>
+          <!-- Stats Settings -->
+          <a href="/stats/settings" class="w3-link">
+            <i class="fa-solid fa-chart-line"></i><span>Stats</span>
+          </a>
 
-        <!-- Stats Settings -->
-        <a href="/stats/settings" class="w3-link">
-          <i class="fa-solid fa-chart-line"></i><span>Stats</span>
-        </a>
+          <!-- Notice Marquee Settings -->
+          <a href="/notice-marquee/settings" class="w3-link">
+            <i class="fa-solid fa-scroll"></i><span>Notice Marquee</span>
+          </a>
 
-        <!-- Notice Marquee Settings -->
-        <a href="/notice-marquee/settings" class="w3-link">
-          <i class="fa-solid fa-scroll"></i><span>Notice Marquee</span>
-        </a>
-
-<!-- Sticky Buttons -->
-<a href="/sticky-buttons/manage" class="w3-link">
-  <i class="fa-solid fa-thumbtack"></i><span>Sticky Buttons</span>
-</a>
+          <!-- Sticky Buttons -->
+          <a href="/sticky-buttons/manage" class="w3-link">
+            <i class="fa-solid fa-thumbtack"></i><span>Sticky Buttons</span>
+          </a>
 
           <!-- Staff Preview Order -->
-<div class="w3-group">
-  <a href="#" class="w3-link w3-toggle" data-target="sm-staff-preview-order" aria-expanded="false">
-    <i class="fa-solid fa-users-gear"></i><span>Staff Preview Order</span>
-    <i class="fa fa-chevron-down w3-chev"></i>
-  </a>
-  <div id="sm-staff-preview-order" class="w3-submenu" role="group" aria-label="Staff Preview Order submenu">
-    <a href="/faculty-preview-order" class="w3-link">Faculty Preview Order</a>
-    <a href="/technical-assistant-preview-order" class="w3-link">Technical Assistant Preview Order</a>
-    <a href="/placement-officer-preview-order" class="w3-link">Placement Officer Preview Order</a>
-  </div>
-</div>
+          <div class="w3-group">
+            <a href="#" class="w3-link w3-toggle" data-target="sm-staff-preview-order" aria-expanded="false">
+              <i class="fa-solid fa-users-gear"></i><span>Staff Preview Order</span>
+              <i class="fa fa-chevron-down w3-chev"></i>
+            </a>
+            <div id="sm-staff-preview-order" class="w3-submenu" role="group" aria-label="Staff Preview Order submenu">
+              <a href="/faculty-preview-order" class="w3-link">Faculty Preview Order</a>
+              <a href="/technical-assistant-preview-order" class="w3-link">Technical Assistant Preview Order</a>
+              <a href="/placement-officer-preview-order" class="w3-link">Placement Officer Preview Order</a>
+            </div>
+          </div>
+
+          <!-- Meta Tags -->
+          <a href="/meta-tags/manage" class="w3-link">
+            <i class="fa-solid fa-tags"></i><span>Meta Tags</span>
+          </a>
+        </div>
 
         {{-- =======================
            PLACEMENT & OUTCOMES
@@ -459,9 +467,9 @@
         </a>
 
         <!-- Successful Entrepreneurs -->
-<a href="/department/successful-entrepreneurs" class="w3-link">
-  <i class="fa-solid fa-lightbulb"></i><span>Successful Entrepreneurs</span>
-</a>
+        <a href="/department/successful-entrepreneurs" class="w3-link">
+          <i class="fa-solid fa-lightbulb"></i><span>Successful Entrepreneurs</span>
+        </a>
 
         {{-- =======================
            COMMUNICATIONS (notices/announcements/etc + feedback)
@@ -573,11 +581,6 @@
         </div>
       </div>
       <a href="/feedback/submit" class="w3-link"><i class="fa-solid fa-comment-dots"></i><span> Feedback</span></a>
-
-      <!-- Meta Tags -->
-<a href="/meta-tags/manage" class="w3-link">
-  <i class="fa-solid fa-tags"></i><span>Meta Tags</span>
-</a>
 
       <a href="/settings/general" class="w3-link">
         <i class="fa-solid fa-gear"></i>
@@ -746,6 +749,16 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   const roleFromStorage = sessionStorage.getItem('role') || localStorage.getItem('role');
   if (roleLabelEl) roleLabelEl.textContent = titleizeRole(roleFromStorage) || 'Admin';
+
+  // ✅ Hide SITE SETTINGS & CONTENT for director + principal
+  (function(){
+    const role = (roleFromStorage || '').toLowerCase();
+    const isDirectorOrPrincipal = (role === 'director' || role === 'principal');
+    if (isDirectorOrPrincipal) {
+      const block = document.getElementById('siteSettingsContentBlock');
+      if (block) block.style.display = 'none';
+    }
+  })();
 
   // ===== Auth helpers
   function getBearerToken(){

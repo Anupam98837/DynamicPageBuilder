@@ -1285,13 +1285,14 @@ class UserPrivilegeController extends Controller
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
-        // ✅ If admin => return string "all"
-        if (($actor['role'] ?? '') === 'admin') {
-            return response()->json([
-                'user_uuid' => $this->getUserUuid((int)$actor['id']),
-                'tree'      => 'all',   // ✅ string response
-            ], 200);
-        }
+        // ✅ If admin/director/principal => return string "all"
+if (in_array(strtolower(trim((string)($actor['role'] ?? ''))), ['admin', 'director', 'principal'], true)) {
+    return response()->json([
+        'user_uuid' => $this->getUserUuid((int)$actor['id']),
+        'tree'      => 'all',   // ✅ string response
+    ], 200);
+}
+
 
         $withActions = filter_var($r->query('with_actions', false), FILTER_VALIDATE_BOOLEAN);
 
