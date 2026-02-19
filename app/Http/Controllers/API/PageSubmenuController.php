@@ -311,9 +311,36 @@ class PageSubmenuController extends Controller
 
     /** Resolve header_menu_id from query param */
     private function resolveHeaderMenuIdFromRequest(Request $r): int
-    {
-        return (int) $r->query('header_menu_id', 0);
+{
+    // 1) existing: header_menu_id
+    $id = (int) $r->query('header_menu_id', 0);
+    if ($id > 0) return $id;
+
+    // 2) explicit uuid param
+    $uuid = trim((string) ($r->query('header_uuid')
+        ?? $r->query('header_menu_uuid')
+        ?? ''));
+
+    // 3) token style: ?h-<uuid>
+    if ($uuid === '') {
+        foreach (array_keys($r->query()) as $key) {
+            if (is_string($key) && str_starts_with($key, 'h-')) {
+                $uuid = trim(substr($key, 2));
+                break;
+            }
+        }
     }
+
+    if ($uuid === '') return 0;
+
+    // map uuid -> id
+    $mappedId = (int) DB::table('header_menus')
+        ->whereNull('deleted_at')
+        ->where('uuid', $uuid)
+        ->value('id');
+
+    return $mappedId > 0 ? $mappedId : 0;
+}
 
     /**
      * Enforce that ONLY ONE destination option is set:
@@ -509,8 +536,7 @@ class PageSubmenuController extends Controller
             ],
         ]);
     }
-
-    /**
+/**
      * Tree for a page.
      * Query:
      * - page_id=123 OR page_slug=about-us
@@ -519,43 +545,46 @@ class PageSubmenuController extends Controller
     public function tree(Request $r)
     {
         $onlyActive = (int) $r->query('only_active', 0) === 1;
-
-        $pageId = $this->resolvePageIdFromRequest($r);         // optional now
-        $headerMenuId = $this->resolveHeaderMenuIdFromRequest($r); // ✅ NEW MAIN
-
+    
+        $pageId = $this->resolvePageIdFromRequest($r);                 // optional
+        $requestedHeaderMenuId = $this->resolveHeaderMenuIdFromRequest($r); // optional/int
+    
         // ✅ NEW: allow header_menu_id as main scope
-        if ($pageId <= 0 && $headerMenuId <= 0) {
+        if ($pageId <= 0 && $requestedHeaderMenuId <= 0) {
             return response()->json([
                 'error' => 'Missing header_menu_id OR page_id/page_slug'
             ], 422);
         }
-
+    
         if ($pageId > 0) {
             $this->validatePage($pageId);
         }
-
-        if (Schema::hasColumn($this->table, 'header_menu_id') && $headerMenuId > 0) {
+    
+        $hasHeaderCol = Schema::hasColumn($this->table, 'header_menu_id');
+    
+        // validate only when column exists + requested id present
+        $headerMenuId = $requestedHeaderMenuId;
+        if ($hasHeaderCol && $headerMenuId > 0) {
             $this->validateHeaderMenu($headerMenuId);
         } else {
             $headerMenuId = 0;
         }
-
-        $q = DB::table($this->table)
-            ->whereNull('deleted_at');
-
-        if ($onlyActive) {
-            $q->where('active', true);
-        }
-
+    
         /**
-         * ✅ NEW SCOPING RULE:
-         * If header_menu_id exists => scope by header menu
-         * Page ID is optional (if present, allow both page-specific + global(page_id NULL))
+         * Helper: build the exact query for a given header_menu_id (same rules as your current tree)
+         * - scopes by header_menu_id
+         * - if pageId exists: allow (page_id = pageId OR page_id IS NULL) within that header
+         * - else: header-only scope (page_id IS NULL)
          */
-        if ($headerMenuId > 0 && Schema::hasColumn($this->table, 'header_menu_id')) {
-
-            $q->where('header_menu_id', $headerMenuId);
-
+        $buildQueryForHeader = function (int $hmId) use ($onlyActive, $pageId) {
+            $q = DB::table($this->table)
+                ->whereNull('deleted_at')
+                ->where('header_menu_id', $hmId);
+    
+            if ($onlyActive) {
+                $q->where('active', true);
+            }
+    
             if ($pageId > 0) {
                 $q->where(function ($x) use ($pageId) {
                     $x->where('page_id', $pageId)
@@ -564,27 +593,78 @@ class PageSubmenuController extends Controller
             } else {
                 $q->whereNull('page_id');
             }
-
+    
+            return $q->orderBy('position', 'asc')
+                     ->orderBy('id', 'asc');
+        };
+    
+        $rows = collect();
+        $resolvedHeaderMenuId = $headerMenuId;
+    
+        /**
+         * ✅ NEW: header_menu_id fallback chain (same idea as publicTree)
+         * If requested header_menu_id has NO submenus in this scope,
+         * try parent header_menu_id, then grand-parent, etc.
+         */
+        if ($hasHeaderCol && $headerMenuId > 0) {
+    
+            $visited = [];
+            $hmId = $headerMenuId;
+    
+            while ($hmId > 0 && !isset($visited[$hmId])) {
+                $visited[$hmId] = true;
+    
+                $candidate = $buildQueryForHeader($hmId)->get();
+    
+                if ($candidate->count() > 0) {
+                    $rows = $candidate;
+                    $resolvedHeaderMenuId = $hmId;
+                    break;
+                }
+    
+                // move to parent header menu
+                $parentId = DB::table('header_menus')
+                    ->where('id', $hmId)
+                    ->whereNull('deleted_at')
+                    ->value('parent_id');
+    
+                $hmId = $parentId ? (int) $parentId : 0;
+            }
+    
+            // if nothing found up the chain, keep empty rows and resolvedHeaderMenuId = original
+            if ($rows->count() === 0) {
+                $resolvedHeaderMenuId = $headerMenuId;
+            }
+    
         } else {
-            // fallback: old behavior
+            // ✅ fallback: old behavior (page scope only)
+            $q = DB::table($this->table)
+                ->whereNull('deleted_at');
+    
+            if ($onlyActive) {
+                $q->where('active', true);
+            }
+    
             if ($pageId > 0) {
                 $q->where('page_id', $pageId);
             } else {
                 $q->whereNull('page_id');
             }
+    
+            $rows = $q->orderBy('position', 'asc')
+                      ->orderBy('id', 'asc')
+                      ->get();
+    
+            $resolvedHeaderMenuId = 0;
         }
-
-        $rows = $q->orderBy('position', 'asc')
-                  ->orderBy('id', 'asc')
-                  ->get();
-
+    
         // build tree
         $byParent = [];
         foreach ($rows as $row) {
             $pid = $row->parent_id ?? 0;
             $byParent[$pid][] = $row;
         }
-
+    
         $make = function ($pid) use (&$make, &$byParent) {
             $nodes = $byParent[$pid] ?? [];
             foreach ($nodes as $n) {
@@ -592,17 +672,20 @@ class PageSubmenuController extends Controller
             }
             return $nodes;
         };
-
+    
         return response()->json([
             'success' => true,
             'scope'   => [
                 'page_id' => $pageId ?: null,
-                'header_menu_id' => $headerMenuId ?: null,
+                // backward compat key: shows the header actually used for response
+                'header_menu_id' => $resolvedHeaderMenuId ?: null,
+                // debug helper (safe additive field)
+                'requested_header_menu_id' => $requestedHeaderMenuId ?: null,
             ],
             'data' => $make(0),
         ]);
     }
-
+ 
     /**
      * Resolve submenu slug (same logic as header menus):
      * - if page_url is set => redirect to that url

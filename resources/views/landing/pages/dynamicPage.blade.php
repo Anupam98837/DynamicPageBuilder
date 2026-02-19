@@ -89,18 +89,18 @@
         html.theme-dark .dp-skel-line{ background: rgba(255,255,255,.10); }
         html.theme-dark .dp-skel-line::after{background: linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent);}
 
-            /* Carousel */
-    .ce-carousel{position:relative;width:100%;margin:0 0 12px 0;border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;background:#f3f4f6;}
-    .ce-carousel-viewport{width:100%;height:260px;overflow:hidden;}
-    .ce-carousel-track{display:flex;width:100%;height:100%;transform:translateX(0);transition:transform .35s ease;}
-    .ce-carousel-slide{flex:0 0 100%;height:100%;}
-    .ce-carousel-slide img{width:100%;height:100%;object-fit:cover;display:block;}
-    .ce-carousel[data-fit="contain"] .ce-carousel-slide img{object-fit:contain;background:#fff;}
-    .ce-carousel-btn{position:absolute;top:50%;transform:translateY(-50%);border:none;background:rgba(17,24,39,.55);color:#fff;width:34px;height:34px;border-radius:999px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
-    .ce-carousel-prev{left:10px;}
-    .ce-carousel-next{right:10px;}
-    .ce-carousel-dots{position:absolute;left:0;right:0;bottom:10px;display:flex;justify-content:center;gap:6px;padding:0 10px;}
-    .ce-carousel-dot{width:8px;height:8px;border-radius:999px;border:0;background:rgba(255,255,255,.55);cursor:pointer;}
+        /* Carousel */
+        .ce-carousel{position:relative;width:100%;margin:0 0 12px 0;border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;background:#f3f4f6;}
+        .ce-carousel-viewport{width:100%;height:260px;overflow:hidden;}
+        .ce-carousel-track{display:flex;width:100%;height:100%;transform:translateX(0);transition:transform .35s ease;}
+        .ce-carousel-slide{flex:0 0 100%;height:100%;}
+        .ce-carousel-slide img{width:100%;height:100%;object-fit:cover;display:block;}
+        .ce-carousel[data-fit="contain"] .ce-carousel-slide img{object-fit:contain;background:#fff;}
+        .ce-carousel-btn{position:absolute;top:50%;transform:translateY(-50%);border:none;background:rgba(17,24,39,.55);color:#fff;width:34px;height:34px;border-radius:999px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+        .ce-carousel-prev{left:10px;}
+        .ce-carousel-next{right:10px;}
+        .ce-carousel-dots{position:absolute;left:0;right:0;bottom:10px;display:flex;justify-content:center;gap:6px;padding:0 10px;}
+        .ce-carousel-dot{width:8px;height:8px;border-radius:999px;border:0;background:rgba(255,255,255,.55);cursor:pointer;}
     </style>
 </head>
 <body>
@@ -118,10 +118,6 @@
     <div class="container">
         <div class="row g-4 align-items-start" id="dpRow">
             {{-- Sidebar --}}
-            {{-- ✅ Reserve space on desktop to avoid full-width → shrink.
-                Starts in "preload" mode (skeleton), then:
-                - if sidebar exists → render tree & show
-                - if no sidebar → hide column & expand content --}}
             <aside class="col-12 col-lg-3 dp-side-preload" id="sidebarCol" aria-label="Page Sidebar">
                 <div class="hallienz-side" id="sidebarCard">
                     <div class="hallienz-side__head" id="sidebarHeading">Menu</div>
@@ -144,7 +140,6 @@
             </aside>
 
             {{-- Content --}}
-            {{-- ✅ Start as col-lg-9 so width doesn't jump on desktop --}}
             <section class="col-12 col-lg-9" id="contentCol">
                 <div class="dp-card" id="contentCard">
                     <div class="dp-loading" id="pageLoading">
@@ -158,7 +153,6 @@
                         @include('partials.pageNotFound')
                     </div>
 
-                    {{-- ✅ SPECIFIC CHANGE: Coming Soon wrapper (shown when API returns type=coming_soon) --}}
                     <div id="pageComingSoonWrap" class="d-none">
                         @include('partials.comingSoon')
                     </div>
@@ -184,149 +178,251 @@
   $apiBase = rtrim(url('/api'), '/');
 @endphp
 
-  <script>
+<script>
 (function(){
-  function parseList(raw){
-    // split on newline OR pipe (safe for exported attributes)
-    return (raw||'').split(/\\r?\\n|\\|/g).map(function(s){return (s||'').trim();}).filter(Boolean);
-  }
-
-  function getOpts(car){
-    var h = parseInt(car.getAttribute('data-height') || '260', 10);
-    var interval = parseInt(car.getAttribute('data-interval') || '3000', 10);
-    return {
-      height: Math.max(120, isNaN(h)?260:h),
-      interval: Math.max(800, isNaN(interval)?3000:interval),
-      autoplay: car.getAttribute('data-autoplay') === 'true',
-      arrows: car.getAttribute('data-arrows') !== 'false',
-      dots: car.getAttribute('data-dots') !== 'false',
-      loop: car.getAttribute('data-loop') !== 'false',
-      fit: (car.getAttribute('data-fit') === 'contain') ? 'contain' : 'cover'
-    };
-  }
-
-  function ensure(car){
-    var viewport = car.querySelector('.ce-carousel-viewport');
-    var track = car.querySelector('.ce-carousel-track');
-    if(!viewport){ viewport=document.createElement('div'); viewport.className='ce-carousel-viewport'; car.insertBefore(viewport, car.firstChild); }
-    if(!track){ track=document.createElement('div'); track.className='ce-carousel-track'; viewport.appendChild(track); }
-    var dots = car.querySelector('.ce-carousel-dots');
-    if(!dots){ dots=document.createElement('div'); dots.className='ce-carousel-dots'; car.appendChild(dots); }
-    var prev = car.querySelector('.ce-carousel-prev');
-    var next = car.querySelector('.ce-carousel-next');
-    return {viewport:viewport, track:track, dots:dots, prev:prev, next:next};
-  }
-
-  function buildSlides(car){
-    var el = ensure(car);
-    var urls = parseList(car.getAttribute('data-images') || '');
-    if(!urls.length){
-      urls = Array.prototype.slice.call(car.querySelectorAll('.ce-carousel-slide img')).map(function(img){
-        return (img.getAttribute('src')||'').trim();
-      }).filter(Boolean);
-    }
-    if(!urls.length) urls = ['https://placehold.co/600x260'];
-
-    el.track.innerHTML = urls.map(function(u){
-      return '<div class="ce-carousel-slide"><img src="'+u.replace(/"/g,'&quot;')+'" alt="Slide"></div>';
-    }).join('');
-
-    el.dots.innerHTML = urls.map(function(_,i){
-      return '<button type="button" class="ce-carousel-dot" data-idx="'+i+'" aria-label="Go to slide '+(i+1)+'"></button>';
-    }).join('');
-
-    return urls;
-  }
-
-  function stop(car){
-    if(car.__t){ clearInterval(car.__t); car.__t=null; }
-  }
-
-  function go(car, idx, restart){
-    var o = getOpts(car);
-    var el = ensure(car);
-    var slides = car.querySelectorAll('.ce-carousel-slide');
-    var max = slides.length - 1;
-    var i = idx;
-
-    if(o.loop){
-      if(i<0) i=max;
-      if(i>max) i=0;
-    }else{
-      i = Math.max(0, Math.min(max, i));
+    // ============================================================
+    // Carousel initialization (kept as is)
+    // ============================================================
+    function parseList(raw){
+        return (raw||'').split(/\\r?\\n|\\|/g).map(function(s){return (s||'').trim();}).filter(Boolean);
     }
 
-    car.setAttribute('data-index', String(i));
-    el.track.style.transform = 'translateX(-' + (i*100) + '%)';
-
-    var dots = car.querySelectorAll('.ce-carousel-dot');
-    for(var d=0; d<dots.length; d++){
-      if(d===i) dots[d].classList.add('active');
-      else dots[d].classList.remove('active');
+    function getOpts(car){
+        var h = parseInt(car.getAttribute('data-height') || '260', 10);
+        var interval = parseInt(car.getAttribute('data-interval') || '3000', 10);
+        return {
+            height: Math.max(120, isNaN(h)?260:h),
+            interval: Math.max(800, isNaN(interval)?3000:interval),
+            autoplay: car.getAttribute('data-autoplay') === 'true',
+            arrows: car.getAttribute('data-arrows') !== 'false',
+            dots: car.getAttribute('data-dots') !== 'false',
+            loop: car.getAttribute('data-loop') !== 'false',
+            fit: (car.getAttribute('data-fit') === 'contain') ? 'contain' : 'cover'
+        };
     }
 
-    if(restart) start(car);
-  }
-
-  function start(car){
-    var o = getOpts(car);
-    stop(car);
-    if(!o.autoplay) return;
-    car.__t = setInterval(function(){
-      var cur = parseInt(car.getAttribute('data-index') || '0', 10) || 0;
-      go(car, cur+1, false);
-    }, o.interval);
-  }
-
-  function init(car){
-    var o = getOpts(car);
-    var el = ensure(car);
-
-    car.setAttribute('data-fit', o.fit);
-    el.viewport.style.height = o.height + 'px';
-
-    buildSlides(car);
-
-    if(el.prev) el.prev.style.display = o.arrows ? '' : 'none';
-    if(el.next) el.next.style.display = o.arrows ? '' : 'none';
-    el.dots.style.display = o.dots ? 'flex' : 'none';
-
-    if(!car.__bound){
-      car.__bound=true;
-      car.addEventListener('click', function(e){
-        var p = e.target.closest && e.target.closest('.ce-carousel-prev');
-        var n = e.target.closest && e.target.closest('.ce-carousel-next');
-        var d = e.target.closest && e.target.closest('.ce-carousel-dot');
-
-        if(p){ e.preventDefault(); go(car, (parseInt(car.getAttribute('data-index')||'0',10)||0)-1, true); }
-        else if(n){ e.preventDefault(); go(car, (parseInt(car.getAttribute('data-index')||'0',10)||0)+1, true); }
-        else if(d){ e.preventDefault(); go(car, parseInt(d.getAttribute('data-idx')||'0',10)||0, true); }
-      });
-      car.addEventListener('mouseenter', function(){ stop(car); });
-      car.addEventListener('mouseleave', function(){ start(car); });
+    function ensure(car){
+        var viewport = car.querySelector('.ce-carousel-viewport');
+        var track = car.querySelector('.ce-carousel-track');
+        if(!viewport){ viewport=document.createElement('div'); viewport.className='ce-carousel-viewport'; car.insertBefore(viewport, car.firstChild); }
+        if(!track){ track=document.createElement('div'); track.className='ce-carousel-track'; viewport.appendChild(track); }
+        var dots = car.querySelector('.ce-carousel-dots');
+        if(!dots){ dots=document.createElement('div'); dots.className='ce-carousel-dots'; car.appendChild(dots); }
+        var prev = car.querySelector('.ce-carousel-prev');
+        var next = car.querySelector('.ce-carousel-next');
+        return {viewport:viewport, track:track, dots:dots, prev:prev, next:next};
     }
 
-    go(car, parseInt(car.getAttribute('data-index')||'0',10)||0, false);
-    start(car);
-  }
+    function buildSlides(car){
+        var el = ensure(car);
+        var urls = parseList(car.getAttribute('data-images') || '');
+        if(!urls.length){
+            urls = Array.prototype.slice.call(car.querySelectorAll('.ce-carousel-slide img')).map(function(img){
+                return (img.getAttribute('src')||'').trim();
+            }).filter(Boolean);
+        }
+        if(!urls.length) urls = ['https://placehold.co/600x260'];
 
-  function boot(){
-    var cars = document.querySelectorAll('.ce-carousel');
-    for(var i=0;i<cars.length;i++) init(cars[i]);
-  }
+        el.track.innerHTML = urls.map(function(u){
+            return '<div class="ce-carousel-slide"><img src="'+u.replace(/"/g,'&quot;')+'" alt="Slide"></div>';
+        }).join('');
 
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot);
-  else boot();
+        el.dots.innerHTML = urls.map(function(_,i){
+            return '<button type="button" class="ce-carousel-dot" data-idx="'+i+'" aria-label="Go to slide '+(i+1)+'"></button>';
+        }).join('');
+
+        return urls;
+    }
+
+    function stop(car){
+        if(car.__t){ clearInterval(car.__t); car.__t=null; }
+    }
+
+    function go(car, idx, restart){
+        var o = getOpts(car);
+        var el = ensure(car);
+        var slides = car.querySelectorAll('.ce-carousel-slide');
+        var max = slides.length - 1;
+        var i = idx;
+
+        if(o.loop){
+            if(i<0) i=max;
+            if(i>max) i=0;
+        }else{
+            i = Math.max(0, Math.min(max, i));
+        }
+
+        car.setAttribute('data-index', String(i));
+        el.track.style.transform = 'translateX(-' + (i*100) + '%)';
+
+        var dots = car.querySelectorAll('.ce-carousel-dot');
+        for(var d=0; d<dots.length; d++){
+            if(d===i) dots[d].classList.add('active');
+            else dots[d].classList.remove('active');
+        }
+
+        if(restart) start(car);
+    }
+
+    function start(car){
+        var o = getOpts(car);
+        stop(car);
+        if(!o.autoplay) return;
+        car.__t = setInterval(function(){
+            var cur = parseInt(car.getAttribute('data-index') || '0', 10) || 0;
+            go(car, cur+1, false);
+        }, o.interval);
+    }
+
+    function init(car){
+        var o = getOpts(car);
+        var el = ensure(car);
+
+        car.setAttribute('data-fit', o.fit);
+        el.viewport.style.height = o.height + 'px';
+
+        buildSlides(car);
+
+        if(el.prev) el.prev.style.display = o.arrows ? '' : 'none';
+        if(el.next) el.next.style.display = o.arrows ? '' : 'none';
+        el.dots.style.display = o.dots ? 'flex' : 'none';
+
+        if(!car.__bound){
+            car.__bound=true;
+            car.addEventListener('click', function(e){
+                var p = e.target.closest && e.target.closest('.ce-carousel-prev');
+                var n = e.target.closest && e.target.closest('.ce-carousel-next');
+                var d = e.target.closest && e.target.closest('.ce-carousel-dot');
+
+                if(p){ e.preventDefault(); go(car, (parseInt(car.getAttribute('data-index')||'0',10)||0)-1, true); }
+                else if(n){ e.preventDefault(); go(car, (parseInt(car.getAttribute('data-index')||'0',10)||0)+1, true); }
+                else if(d){ e.preventDefault(); go(car, parseInt(d.getAttribute('data-idx')||'0',10)||0, true); }
+            });
+            car.addEventListener('mouseenter', function(){ stop(car); });
+            car.addEventListener('mouseleave', function(){ start(car); });
+        }
+
+        go(car, parseInt(car.getAttribute('data-index')||'0',10)||0, false);
+        start(car);
+    }
+
+    function boot(){
+        var cars = document.querySelectorAll('.ce-carousel');
+        for(var i=0;i<cars.length;i++) init(cars[i]);
+    }
+
+    if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot);
+    else boot();
 })();
 </script>
+
 <script>
 (function(){
     const API_BASE  = @json($apiBase);
     const SITE_BASE = @json(url('/'));
 
-    // ------------------------------------------------------------------
-    // ✅ auth cache + global API auth injection
-    // ------------------------------------------------------------------
+    // ============================================================
+    // ✅ UUID helpers for header menu identification
+    // ============================================================
+    
+    /**
+     * Check if a string is a valid UUID
+     */
+    function isUuid(str) {
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        return uuidRegex.test(String(str || '').trim());
+    }
+
+    /**
+     * Check if a parameter is a header menu UUID token (h-{uuid})
+     */
+    function isHeaderMenuUuidToken(str) {
+        const token = String(str || '').trim();
+        if (!token.startsWith('h-')) return false;
+        const uuid = token.substring(2);
+        return isUuid(uuid);
+    }
+
+    /**
+     * Extract UUID from header menu token (h-{uuid})
+     */
+    function extractUuidFromHeaderToken(token) {
+        const t = String(token || '').trim();
+        if (!t.startsWith('h-')) return '';
+        return t.substring(2);
+    }
+
+    /**
+     * Create header menu token from UUID
+     */
+    function headerMenuTokenFromUuid(uuid) {
+        const u = String(uuid || '').trim();
+        if (!u) return '';
+        return u.startsWith('h-') ? u : ('h-' + u);
+    }
+
+    /**
+     * Read header menu UUID from URL (h-{uuid} parameter)
+     */
+    function readHeaderMenuUuidFromUrl() {
+        try {
+            const usp = new URLSearchParams(window.location.search || '');
+            
+            // Look for h-{uuid} parameters
+            for (const [key, value] of usp.entries()) {
+                // Check if the key itself is a header token
+                if (isHeaderMenuUuidToken(key)) {
+                    return extractUuidFromHeaderToken(key);
+                }
+                // Check if value is a header token
+                if (isHeaderMenuUuidToken(value)) {
+                    return extractUuidFromHeaderToken(value);
+                }
+            }
+            
+            // Legacy fallback: look for header_menu_id parameter
+            const legacyId = usp.get('header_menu_id') || usp.get('menu_id') || usp.get('headerMenuId');
+            if (legacyId) {
+                return legacyId;
+            }
+        } catch (e) {}
+        
+        return '';
+    }
+
+    /**
+     * Build search params with header menu UUID token
+     */
+    function buildSearchWithHeaderUuid(params, headerUuid) {
+        // Remove any existing header tokens
+        const newParams = new URLSearchParams();
+        
+        for (const [key, value] of params.entries()) {
+            if (!isHeaderMenuUuidToken(key) && key !== 'header_menu_id' && key !== 'menu_id' && key !== 'headerMenuId') {
+                newParams.append(key, value);
+            }
+        }
+        
+        // Add the new header token if provided
+        if (headerUuid) {
+            // Check if it's a UUID or legacy ID
+            if (isUuid(headerUuid)) {
+                const token = headerMenuTokenFromUuid(headerUuid);
+                if (token) {
+                    newParams.append(token, '1');
+                }
+            } else {
+                // Legacy ID
+                newParams.append('header_menu_id', headerUuid);
+            }
+        }
+        
+        return newParams;
+    }
+
+    // ============================================================
+    // Auth cache + global API auth injection
+    // ============================================================
     const TOKEN = (localStorage.getItem('token') || sessionStorage.getItem('token') || '');
     const ROLE  = (sessionStorage.getItem('role') || localStorage.getItem('role') || '');
 
@@ -375,31 +471,13 @@
         };
     })();
 
-    // ------------------------------------------------------------------
-    // ✅ read header_menu_id from URL query (?header_menu_id=1)
-    // ------------------------------------------------------------------
-    function readHeaderMenuIdFromUrl(){
-        try{
-            const qs = new URLSearchParams(window.location.search || '');
-            const v =
-                qs.get('header_menu_id') ||
-                qs.get('menu_id') ||
-                qs.get('headerMenuId') ||
-                qs.get('header_menu') ||
-                qs.get('headerMenu');
-            return parseInt(v || '0', 10) || 0;
-        }catch(e){
-            return 0;
-        }
-    }
-
-    // ------------------------------------------------------------------
+    // ============================================================
     // DOM refs
-    // ------------------------------------------------------------------
+    // ============================================================
     const elLoading   = document.getElementById('pageLoading');
     const elError     = document.getElementById('pageError');
     const elNotFound  = document.getElementById('pageNotFoundWrap');
-    const elComingSoon= document.getElementById('pageComingSoonWrap'); // ✅ NEW
+    const elComingSoon= document.getElementById('pageComingSoonWrap');
     const elWrap      = document.getElementById('pageWrap');
     const elTitle     = document.getElementById('pageTitle');
     const elMeta      = document.getElementById('pageMeta');
@@ -415,9 +493,9 @@
     const sidebarCard = document.getElementById('sidebarCard') || (sidebarCol ? sidebarCol.querySelector('.hallienz-side') : null);
     const contentCard = document.getElementById('contentCard') || (contentCol ? contentCol.querySelector('.dp-card') : null);
 
-    /* =========================================================
-       ✅ Skeleton helpers (only affects sidebar preload visuals)
-    ========================================================= */
+    // ============================================================
+    // Skeleton helpers
+    // ============================================================
     function showSidebarSkeleton(){
         try{
             if (submenuSkeleton) submenuSkeleton.classList.remove('d-none');
@@ -433,7 +511,6 @@
     }
 
     function resetSidebarPreloadState(){
-        // reserve desktop space immediately so content doesn't jump
         try{
             if (sidebarCol){
                 sidebarCol.classList.remove('d-none');
@@ -460,7 +537,7 @@
     function showLoading(msg){
         elLoadingText.textContent = msg || 'Loading…';
         elError.classList.add('d-none'); elError.textContent = '';
-        if (elComingSoon) elComingSoon.classList.add('d-none'); // ✅ NEW
+        if (elComingSoon) elComingSoon.classList.add('d-none');
         elWrap.classList.add('d-none');
         if (elNotFound) elNotFound.classList.add('d-none');
         elLoading.classList.remove('d-none');
@@ -469,7 +546,7 @@
     function showError(msg){
         elError.textContent = msg;
         elError.classList.remove('d-none');
-        if (elComingSoon) elComingSoon.classList.add('d-none'); // ✅ NEW
+        if (elComingSoon) elComingSoon.classList.add('d-none');
         elLoading.classList.add('d-none');
         elWrap.classList.add('d-none');
         if (elNotFound) elNotFound.classList.add('d-none');
@@ -482,20 +559,18 @@
         } catch(e){}
 
         elError.classList.add('d-none'); elError.textContent = '';
-        if (elComingSoon) elComingSoon.classList.add('d-none'); // ✅ NEW
+        if (elComingSoon) elComingSoon.classList.add('d-none');
         elLoading.classList.add('d-none');
         elWrap.classList.add('d-none');
         if (elNotFound) elNotFound.classList.remove('d-none');
     }
 
-    // ✅ SPECIFIC CHANGE: coming-soon renderer (no red error)
     function showComingSoon(submenuSlug, payload){
         try{
             const s = String(submenuSlug || '').trim();
             const title = String(payload?.title || 'Coming Soon').trim();
             const msg = String(payload?.message || '').trim();
 
-            // optional slots (only if your partial has them)
             const s1 = document.querySelector('[data-dp-comingsoon-slug]');
             if (s1) s1.textContent = s;
 
@@ -550,6 +625,7 @@
     function stripSubmenuFromPath(pathname){
         return String(pathname || '').replace(/&submenu=[^\/?#]*/g, '');
     }
+
     function readSubmenuFromPathname(){
         const p = String(window.location.pathname || '');
         const m = p.match(/&submenu=([^\/?#]+)/);
@@ -586,7 +662,6 @@
         try { return CSS.escape(s); } catch(e){ return String(s).replace(/["\\]/g, '\\$&'); }
     }
 
-    // ✅ NEW: normalize external link/url safely (supports relative + scheme-less)
     function normalizeExternalUrl(raw){
         const s0 = String(raw || '').trim();
         if (!s0) return '';
@@ -597,10 +672,8 @@
         if (low.startsWith('javascript:')) return '';
 
         try{
-            // handles absolute + relative (relative becomes same-origin)
             return new URL(s0, window.location.origin).toString();
         }catch(e){
-            // scheme-less like "www.google.com/..."
             try{
                 if (/^[\w.-]+\.[a-z]{2,}([\/?#]|$)/i.test(s0)){
                     return new URL('https://' + s0).toString();
@@ -610,9 +683,9 @@
         }
     }
 
-    // ------------------------------------------------------------------
-    // ✅ Smart Sticky Columns
-    // ------------------------------------------------------------------
+    // ============================================================
+    // Smart Sticky Columns
+    // ============================================================
     let __dpStickyRaf = 0;
     let __dpStickyRO  = null;
 
@@ -718,12 +791,13 @@
     window.addEventListener('resize', dpDebounce(scheduleStickyUpdate, 120));
     window.addEventListener('load', () => scheduleStickyUpdate());
 
-    // ------------------------------------------------------------------
+    // ============================================================
     // Dept helpers (kept)
-    // ------------------------------------------------------------------
+    // ============================================================
     function isDeptToken(x){
         return /^d-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(x || '').trim());
     }
+
     function deptTokenFromUuid(uuid){
         const u = String(uuid || '').trim();
         if (!u) return '';
@@ -748,53 +822,50 @@
     }
 
     function buildSearchWithDept(params, deptToken){
-        for (const k of Array.from(params.keys())){
-            if (isDeptToken(k)) params.delete(k);
+        const newParams = new URLSearchParams();
+        
+        for (const [key, value] of params.entries()) {
+            if (!isDeptToken(key) && key !== 'd' && key !== 'department_uuid') {
+                newParams.append(key, value);
+            }
         }
-        params.delete('submenu');
-        if (params.get('d') && isDeptToken(params.get('d'))) params.delete('d');
-
-        const normal = params.toString();
-        const t = String(deptToken || '').trim();
-
-        const parts = [];
-        if (t && isDeptToken(t)) parts.push(encodeURIComponent(t));
-        if (normal) parts.push(normal);
-
-        return parts.length ? ('?' + parts.join('&')) : '';
+        
+        if (deptToken && isDeptToken(deptToken)) {
+            newParams.append(deptToken, '1');
+        }
+        
+        return newParams;
     }
 
     /**
-     * ✅ IMPORTANT CHANGE (for new publicTree response):
-     * - Keep REQUESTED header_menu_id in URL (so header highlights stay correct)
-     * - Use EFFECTIVE header_menu_id (from API scope) for all API calls (render/tree)
+     * Push URL state with submenu and header UUID
      */
-    function pushUrlStateSubmenu(submenuSlug, deptTokenMaybe){
+    function pushUrlStateSubmenu(submenuSlug, headerUuid, deptTokenMaybe){
         const u = new URL(window.location.href);
 
         let path = stripSubmenuFromPath(u.pathname);
         const s = String(submenuSlug || '').trim();
         if (s) path += '&submenu=' + encodeURIComponent(s);
 
-        const params = new URLSearchParams(u.search);
-
-        // keep requested header menu id in URL if present.
-        // If missing, set it from requested_header_menu_id (fallback to effective, then url).
-        const hmRequested =
-            (window.__DP_PAGE_SCOPE__ && parseInt(window.__DP_PAGE_SCOPE__.requested_header_menu_id || 0, 10)) ||
-            readHeaderMenuIdFromUrl() ||
-            (window.__DP_PAGE_SCOPE__ && parseInt(window.__DP_PAGE_SCOPE__.header_menu_id || 0, 10)) ||
-            0;
-
-        if (hmRequested > 0 && !params.get('header_menu_id')) {
-            params.set('header_menu_id', String(hmRequested));
-        }
-
+        // Build params with header UUID
+        let params = new URLSearchParams(u.search);
+        
+        // Handle header UUID from scope if available
+        const headerUuidFinal = headerUuid || 
+            (window.__DP_PAGE_SCOPE__?.header_menu_uuid) || 
+            readHeaderMenuUuidFromUrl();
+        
+        // Build search with header UUID
+        params = buildSearchWithHeaderUuid(params, headerUuidFinal);
+        
+        // Add department token
         const deptTokenFinal = (deptTokenMaybe && isDeptToken(deptTokenMaybe))
             ? deptTokenMaybe
             : readDeptTokenFromUrl();
-
-        const search = buildSearchWithDept(params, deptTokenFinal);
+            
+        const finalParams = buildSearchWithDept(params, deptTokenFinal);
+        
+        const search = finalParams.toString() ? '?' + finalParams.toString() : '';
         window.history.pushState({}, '', path + search + u.hash);
     }
 
@@ -837,16 +908,21 @@
         return map;
     }
 
-    async function resolvePublicPage(slug, headerMenuId = 0){
+    async function resolvePublicPage(slug, headerUuid = ''){
         const raw = String(slug || '').trim();
         if (!raw) return null;
 
         const u = new URL(API_BASE + '/public/pages/resolve', window.location.origin);
         u.searchParams.set('slug', raw);
 
-        // requested header menu (keep)
-        const hm = parseInt(headerMenuId || 0, 10);
-        if (hm > 0) u.searchParams.set('header_menu_id', String(hm));
+        // Add header UUID if present
+        if (headerUuid) {
+            if (isUuid(headerUuid)) {
+                u.searchParams.set('header_uuid', headerUuid);
+            } else {
+                u.searchParams.set('header_menu_id', headerUuid);
+            }
+        }
 
         const r = await fetchJsonWithStatus(u.toString());
         if (r.ok) return r.data?.page || null;
@@ -878,28 +954,25 @@
     }
 
     function setInnerHTMLWithScripts(el, html){
-  el.innerHTML = '';
+        el.innerHTML = '';
 
-  const tpl = document.createElement('template');
-  tpl.innerHTML = String(html || '');
+        const tpl = document.createElement('template');
+        tpl.innerHTML = String(html || '');
 
-  // pull scripts out first
-  const scripts = Array.from(tpl.content.querySelectorAll('script'));
-  scripts.forEach(s => s.remove());
+        const scripts = Array.from(tpl.content.querySelectorAll('script'));
+        scripts.forEach(s => s.remove());
 
-  // insert DOM first
-  el.appendChild(tpl.content);
+        el.appendChild(tpl.content);
 
-  // now execute scripts with DOM-ready shim
-  runWithDomReadyShim(() => {
-    scripts.forEach((oldScript) => {
-      const s = document.createElement('script');
-      for (const attr of oldScript.attributes) s.setAttribute(attr.name, attr.value);
-      s.textContent = oldScript.textContent || '';
-      document.body.appendChild(s);
-    });
-  });
-}
+        runWithDomReadyShim(() => {
+            scripts.forEach((oldScript) => {
+                const s = document.createElement('script');
+                for (const attr of oldScript.attributes) s.setAttribute(attr.name, attr.value);
+                s.textContent = oldScript.textContent || '';
+                document.body.appendChild(s);
+            });
+        });
+    }
 
     function clearModuleAssets(){
         document.querySelectorAll('[data-dp-asset="style"]').forEach(n => n.remove());
@@ -1016,26 +1089,30 @@
         });
     }
 
-    // ------------------------------------------------------------------
-    // ✅ NEW helper: read effective/requested header_menu_id from publicTree scope
-    // ------------------------------------------------------------------
-    function parseTreeScope(treeBody, fallbackRequested){
+    /**
+     * Parse tree scope from API response
+     */
+    function parseTreeScope(treeBody, requestedHeaderUuid) {
         const scope = (treeBody && typeof treeBody === 'object' && treeBody.scope) ? treeBody.scope : {};
-        const effective = parseInt(scope?.header_menu_id ?? 0, 10) || 0;
-
-        // new backend sends requested_header_menu_id, but if not present, use fallbackRequested
-        const requested =
-            parseInt(scope?.requested_header_menu_id ?? 0, 10) ||
-            parseInt(scope?.requestedHeaderMenuId ?? 0, 10) ||
-            parseInt(fallbackRequested || 0, 10) ||
-            0;
-
-        return { effective, requested, raw: scope || {} };
+        
+        // The API returns the effective header_menu_id (numeric) in scope
+        const effectiveId = parseInt(scope?.header_menu_id ?? 0, 10) || 0;
+        const requestedId = parseInt(scope?.requested_header_menu_id ?? 0, 10) || 0;
+        
+        // Store the UUID if available in the response
+        const headerUuid = scope?.header_menu_uuid || '';
+        
+        return { 
+            effectiveId, 
+            requestedId, 
+            headerUuid,
+            raw: scope || {} 
+        };
     }
 
-    /* ==============================
-     * ✅ Submenu loader (uses EFFECTIVE header_menu_id)
-     * ============================== */
+    /**
+     * Load submenu content - FIXED VERSION
+     */
     async function loadSubmenuRightContent(submenuSlug, pageScope, preOpenedWin = null){
         const sslug = String(submenuSlug || '').trim();
         if (!sslug) {
@@ -1048,13 +1125,41 @@
         const u = new URL(API_BASE + '/public/page-submenus/render', window.location.origin);
         u.searchParams.set('slug', sslug);
 
-        // ✅ always pass EFFECTIVE header_menu_id (falls back to requested only if effective missing)
-        const hmEffective =
-            parseInt(pageScope?.header_menu_id || 0, 10) ||
-            parseInt(pageScope?.requested_header_menu_id || 0, 10) ||
-            readHeaderMenuIdFromUrl();
+        // CRITICAL FIX: Always pass header_menu_id if available
+        // First try to get from pageScope (set by loadSidebarIfAny)
+        let headerMenuId = null;
+        
+        if (pageScope) {
+            // Try different possible locations for header_menu_id
+            headerMenuId = pageScope.header_menu_id || 
+                          pageScope.requested_header_menu_id || 
+                          pageScope.effective_header_menu_id;
+        }
+        
+        // If not in scope, try to read from URL
+        if (!headerMenuId) {
+            const urlParams = new URLSearchParams(window.location.search);
+            headerMenuId = urlParams.get('header_menu_id') || 
+                          urlParams.get('menu_id') || 
+                          urlParams.get('headerMenuId');
+        }
+        
+        // If still no header_menu_id, try to get it from the page scope's requested value
+        if (!headerMenuId && window.__DP_PAGE_SCOPE__) {
+            headerMenuId = window.__DP_PAGE_SCOPE__.requested_header_menu_id || 
+                          window.__DP_PAGE_SCOPE__.header_menu_id;
+        }
+        
+        // Add header_menu_id to request if we have it
+        if (headerMenuId && parseInt(headerMenuId) > 0) {
+            u.searchParams.set('header_menu_id', String(headerMenuId));
+        }
 
-        if (hmEffective > 0) u.searchParams.set('header_menu_id', String(hmEffective));
+        // Also try to get header UUID
+        const headerUuid = pageScope?.header_menu_uuid || readHeaderMenuUuidFromUrl();
+        if (headerUuid && isUuid(headerUuid)) {
+            u.searchParams.set('header_uuid', headerUuid);
+        }
 
         if (pageScope?.page_id) u.searchParams.set('page_id', pageScope.page_id);
         else if (pageScope?.page_slug) u.searchParams.set('page_slug', pageScope.page_slug);
@@ -1078,7 +1183,6 @@
         elTitle.textContent = payload.title || 'Dynamic Page';
         setMeta('');
 
-        // ✅ SPECIFIC CHANGE: handle coming_soon type (no red error)
         if (type === 'coming_soon') {
             try{ if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close(); }catch(e){}
             clearModuleAssets();
@@ -1089,7 +1193,7 @@
 
         if (type === 'includable') {
             try{ if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close(); }catch(e){}
-            if (elComingSoon) elComingSoon.classList.add('d-none'); // ✅ NEW
+            if (elComingSoon) elComingSoon.classList.add('d-none');
             injectModuleStyles(payload?.assets?.styles || '');
 
             const out = payload.html || '';
@@ -1102,7 +1206,7 @@
         }
         else if (type === 'page') {
             try{ if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close(); }catch(e){}
-            if (elComingSoon) elComingSoon.classList.add('d-none'); // ✅ NEW
+            if (elComingSoon) elComingSoon.classList.add('d-none');
             clearModuleAssets();
             const out = payload.html || '';
             setInnerHTMLWithScripts(
@@ -1111,8 +1215,7 @@
             );
         }
         else if (type === 'url') {
-            // ✅ SPECIFIC CHANGE: if submenu has a link, open it in a new tab
-            if (elComingSoon) elComingSoon.classList.add('d-none'); // ✅ NEW
+            if (elComingSoon) elComingSoon.classList.add('d-none');
             clearModuleAssets();
 
             const rawUrl = payload.url || payload.link || payload.href || '';
@@ -1120,7 +1223,6 @@
 
             let opened = false;
             try{
-                // Best effort: use a pre-opened window created on click (avoids popup blockers)
                 if (preOpenedWin && !preOpenedWin.closed && safeUrl && safeUrl !== 'about:blank'){
                     preOpenedWin.location.href = safeUrl;
                     opened = true;
@@ -1130,7 +1232,6 @@
                 }
             }catch(e){}
 
-            // Show a tiny fallback in case popup is blocked
             setInnerHTMLWithScripts(elHtml, `
               <div class="alert alert-info mb-0">
                 ${opened ? 'Opened link in a new tab.' : 'Popup blocked. Please open the link:'}
@@ -1140,7 +1241,7 @@
         }
         else {
             try{ if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close(); }catch(e){}
-            if (elComingSoon) elComingSoon.classList.add('d-none'); // ✅ NEW
+            if (elComingSoon) elComingSoon.classList.add('d-none');
             clearModuleAssets();
             setInnerHTMLWithScripts(elHtml, '<p class="text-muted mb-0">Unknown content type.</p>');
         }
@@ -1148,15 +1249,15 @@
         elLoading.classList.add('d-none');
         elWrap.classList.remove('d-none');
         if (elNotFound) elNotFound.classList.add('d-none');
-        if (elComingSoon) elComingSoon.classList.add('d-none'); // ✅ NEW
+        if (elComingSoon) elComingSoon.classList.add('d-none');
         hideError();
 
         scheduleStickyUpdate();
     }
 
-    /* ==============================
-     * Sidebar renderer (recursive)
-     * ============================== */
+    /**
+     * Render sidebar tree
+     */
     function renderTree(nodes, currentLower, parentUl, level = 0){
         let anyActiveInThisList = false;
 
@@ -1178,11 +1279,9 @@
             a.dataset.submenuSlug = nodeSlug;
             a.setAttribute('data-submenu-slug', nodeSlug);
 
-            // ✅ NEW: if tree node already carries a link/url, mark it (open in new tab)
             const nodeLink = String(pick(node, ['link','url','href','external_url','externalLink','page_link','page_url']) || '').trim();
             if (nodeLink) a.dataset.submenuLink = nodeLink;
 
-            // ✅ NEW: if tree node type hints it's a link (so we can pre-open a window to avoid popup blockers)
             const nodeTypeHint = String(pick(node, ['type','content_type','submenu_type','render_type']) || '').toLowerCase().trim();
             if (nodeTypeHint === 'url') a.dataset.submenuType = 'url';
 
@@ -1191,6 +1290,10 @@
 
             const nodeDeptUuid = String(pick(node, ['department_uuid','dept_uuid']) || '').trim();
             if (nodeDeptUuid) a.dataset.deptUuid = nodeDeptUuid;
+
+            // Store header UUID if available in the node
+            const nodeHeaderUuid = String(pick(node, ['header_menu_uuid', 'menu_uuid']) || '').trim();
+            if (nodeHeaderUuid) a.dataset.headerUuid = nodeHeaderUuid;
 
             const basePad = 14;
             const indent = Math.min(54, level * 14);
@@ -1206,35 +1309,28 @@
                 e.preventDefault();
                 e.stopPropagation();
 
-                // ✅ SPECIFIC CHANGE:
-                // If this submenu has a link/url attached, open in a new tab immediately.
                 const directLinkRaw = (a.dataset.submenuLink || '').trim();
                 const directLink = normalizeExternalUrl(directLinkRaw);
                 if (directLink){
                     try { window.open(directLink, '_blank', 'noopener,noreferrer'); } catch(err) {}
 
-                    // optional: highlight clicked item (keeps UX consistent)
                     document.querySelectorAll('.hallienz-side__link.active').forEach(x => x.classList.remove('active'));
                     a.classList.add('active');
                     scheduleStickyUpdate();
                     return;
                 }
 
-                // ✅ SPECIFIC FIX:
-                // If this menu node has NO destination slug, show Coming Soon (or just toggle children).
                 const raw = (a.dataset.submenuSlug || '').trim();
                 const bad = ['null','undefined','#','0'];
                 const sslug = (raw && !bad.includes(raw.toLowerCase())) ? raw : '';
 
                 if (!sslug) {
-                    // If it’s a parent node, behave like an accordion.
                     if (hasChildren) {
                         li.classList.toggle('open');
                         scheduleStickyUpdate();
                         return;
                     }
 
-                    // Leaf with no destination ⇒ show coming soon partial.
                     document.querySelectorAll('.hallienz-side__link.active').forEach(x => x.classList.remove('active'));
                     a.classList.add('active');
 
@@ -1250,7 +1346,6 @@
                 document.querySelectorAll('.hallienz-side__link.active').forEach(x => x.classList.remove('active'));
                 a.classList.add('active');
 
-                // ✅ NEW: If this submenu is expected to be a URL type, pre-open a tab (avoids popup blockers).
                 let preWin = null;
                 try{
                     const hinted = String(a.dataset.submenuType || '').toLowerCase().trim();
@@ -1267,7 +1362,11 @@
                     (deptId > 0 ? (window.__DP_DEPT_ID_UUID_MAP__?.[String(deptId)] || '') : '');
 
                 const deptToken = deptTokenFromUuid(deptUuid);
-                pushUrlStateSubmenu(sslug, deptToken);
+                
+                // Get header UUID from node or scope
+                const headerUuid = a.dataset.headerUuid || window.__DP_PAGE_SCOPE__?.header_menu_uuid || '';
+                
+                pushUrlStateSubmenu(sslug, headerUuid, deptToken);
             });
 
             row.appendChild(a);
@@ -1329,22 +1428,25 @@
         return '';
     }
 
-    function filterTreeByHeaderMenuId(nodes, headerMenuId){
-        const hid = parseInt(headerMenuId || 0, 10);
-        if (!hid || !Array.isArray(nodes)) return nodes || [];
+    /**
+     * Filter tree by header menu UUID
+     */
+    function filterTreeByHeaderUuid(nodes, headerUuid) {
+        if (!headerUuid || !Array.isArray(nodes)) return nodes || [];
 
         const out = [];
 
         nodes.forEach(n => {
-            const nodeMenuId = parseInt(pick(n, ['header_menu_id','menu_id','headerMenuId']) || 0, 10);
-            const kids = filterTreeByHeaderMenuId(normalizeChildren(n), hid);
+            const nodeHeaderUuid = String(pick(n, ['header_menu_uuid', 'menu_uuid']) || '').trim();
+            const kids = filterTreeByHeaderUuid(normalizeChildren(n), headerUuid);
 
-            const keepById = (!nodeMenuId || nodeMenuId === hid);
+            // Keep if node matches UUID or has matching children
+            const keepByUuid = (!nodeHeaderUuid || nodeHeaderUuid === headerUuid);
 
-            if (keepById || kids.length){
+            if (keepByUuid || kids.length) {
                 const cloned = Object.assign({}, n);
 
-                if (kids.length){
+                if (kids.length) {
                     cloned.children = kids;
                     cloned.submenus = kids;
                     cloned.items = kids;
@@ -1358,34 +1460,37 @@
         return out;
     }
 
-    // ✅ UPDATED: loadSidebarIfAny now respects backend fallback scope.header_menu_id
-    async function loadSidebarIfAny(page){
-        // ✅ show sidebar skeleton while tree loads
+    /**
+     * Load sidebar with UUID support
+     */
+    async function loadSidebarIfAny(page) {
         showSidebarSkeleton();
 
         const pageId   = pick(page, ['id']);
         const pageSlug = pick(page, ['slug']);
 
-        const headerMenuFromPage = parseInt(pick(page, ['header_menu_id','headerMenuId','menu_id']) || 0, 10);
-        const headerMenuFromUrl  = readHeaderMenuIdFromUrl();
+        // Get header identifier from URL (UUID or legacy ID)
+        const headerFromUrl = readHeaderMenuUuidFromUrl();
 
-        // This is the REQUESTED menu id (keep from URL if present)
-        const headerMenuRequested = headerMenuFromUrl > 0 ? headerMenuFromUrl : headerMenuFromPage;
-
-        if (!pageId && !pageSlug && !headerMenuRequested){
-            // no sidebar possible
+        if (!pageId && !pageSlug && !headerFromUrl) {
             hideSidebarSkeleton();
             sidebarCol.classList.add('d-none');
             sidebarCol.classList.remove('dp-side-preload');
             contentCol.className = 'col-12';
             scheduleStickyUpdate();
-            return { hasSidebar:false, firstSubmenuSlug:'' };
+            return { hasSidebar: false, firstSubmenuSlug: '' };
         }
 
         const treeUrl = new URL(API_BASE + '/public/page-submenus/tree', window.location.origin);
 
-        // ✅ always send REQUESTED header_menu_id (server will fallback if needed)
-        if (headerMenuRequested > 0) treeUrl.searchParams.set('header_menu_id', String(headerMenuRequested));
+        // Send header identifier if present
+        if (headerFromUrl) {
+            if (isUuid(headerFromUrl)) {
+                treeUrl.searchParams.set('header_uuid', headerFromUrl);
+            } else {
+                treeUrl.searchParams.set('header_menu_id', headerFromUrl);
+            }
+        }
 
         if (pageId) treeUrl.searchParams.set('page_id', pageId);
         else if (pageSlug) treeUrl.searchParams.set('page_slug', pageSlug);
@@ -1393,47 +1498,46 @@
         const r = await fetchJsonWithStatus(treeUrl.toString());
 
         if (!r.ok) {
-            // hide sidebar on failure, expand content
             hideSidebarSkeleton();
             sidebarCol.classList.add('d-none');
             sidebarCol.classList.remove('dp-side-preload');
             contentCol.className = 'col-12';
             scheduleStickyUpdate();
-            return { hasSidebar:false, firstSubmenuSlug:'' };
+            return { hasSidebar: false, firstSubmenuSlug: '' };
         }
 
         const body = r.data || {};
-        const scopeParsed = parseTreeScope(body, headerMenuRequested);
+        const scopeParsed = parseTreeScope(body, headerFromUrl);
 
-        // ✅ EFFECTIVE header_menu_id (parent/grandparent fallback result)
-        const headerMenuEffective = scopeParsed.effective || headerMenuRequested || 0;
+        // Store in global scope
+        const headerUuidEffective = scopeParsed.headerUuid || (isUuid(headerFromUrl) ? headerFromUrl : '');
+        const headerIdEffective = scopeParsed.effectiveId || (!isUuid(headerFromUrl) ? parseInt(headerFromUrl) : 0);
 
-        // ✅ store both in global scope:
-        // - requested_header_menu_id stays as the user's selected menu (URL)
-        // - header_menu_id becomes the effective menu used for API calls (render/tree)
         window.__DP_PAGE_SCOPE__ = window.__DP_PAGE_SCOPE__ || {};
         if (!window.__DP_PAGE_SCOPE__.page_id && pageId) window.__DP_PAGE_SCOPE__.page_id = pageId;
         if (!window.__DP_PAGE_SCOPE__.page_slug && pageSlug) window.__DP_PAGE_SCOPE__.page_slug = pageSlug;
 
-        window.__DP_PAGE_SCOPE__.requested_header_menu_id = scopeParsed.requested || headerMenuRequested || null;
-        window.__DP_PAGE_SCOPE__.header_menu_id = headerMenuEffective || null;
+        window.__DP_PAGE_SCOPE__.requested_header_menu_uuid = (isUuid(headerFromUrl) ? headerFromUrl : null) || null;
+        window.__DP_PAGE_SCOPE__.header_menu_uuid = headerUuidEffective || null;
+        window.__DP_PAGE_SCOPE__.requested_header_menu_id = (!isUuid(headerFromUrl) ? parseInt(headerFromUrl) : null) || null;
+        window.__DP_PAGE_SCOPE__.header_menu_id = headerIdEffective || null;
 
         let nodes = normalizeTree(body);
 
-        // (safe) filter using EFFECTIVE menu id (so requested=10 still shows effective=7)
-        nodes = filterTreeByHeaderMenuId(nodes, headerMenuEffective);
+        // Filter using UUID if available
+        if (headerUuidEffective) {
+            nodes = filterTreeByHeaderUuid(nodes, headerUuidEffective);
+        }
 
         if (!nodes.length) {
-            // no sidebar items: hide column & expand content
             hideSidebarSkeleton();
             sidebarCol.classList.add('d-none');
             sidebarCol.classList.remove('dp-side-preload');
             contentCol.className = 'col-12';
             scheduleStickyUpdate();
-            return { hasSidebar:false, firstSubmenuSlug:'' };
+            return { hasSidebar: false, firstSubmenuSlug: '' };
         }
 
-        // sidebar exists: show & render
         sidebarCol.classList.remove('d-none');
         sidebarCol.classList.remove('dp-side-preload');
         contentCol.className = 'col-12 col-lg-9';
@@ -1447,12 +1551,10 @@
 
         const firstSubmenuSlug = findFirstSubmenuSlug(nodes);
 
-        // ✅ switch from skeleton to real list
         hideSidebarSkeleton();
-
         scheduleStickyUpdate();
 
-        return { hasSidebar:true, firstSubmenuSlug };
+        return { hasSidebar: true, firstSubmenuSlug };
     }
 
     function openAncestorsOfLink(linkEl){
@@ -1468,23 +1570,47 @@
     function setupHeaderMenuClicks() {
         document.addEventListener('click', function(e) {
             const headerLink = e.target.closest('a[data-header-menu]') ||
+                              e.target.closest('a[href*="h-"]') ||
                               e.target.closest('a[href*="header_menu_id"]');
 
             if (headerLink) {
                 e.preventDefault();
 
-                let menuId = headerLink.getAttribute('data-menu-id') ||
-                           headerLink.getAttribute('data-header-menu-id');
+                let menuUuid = headerLink.getAttribute('data-menu-uuid') ||
+                              headerLink.getAttribute('data-header-uuid');
 
-                if (!menuId) {
+                if (!menuUuid) {
                     const href = headerLink.getAttribute('href') || '';
                     const url = new URL(href, window.location.origin);
-                    menuId = url.searchParams.get('header_menu_id');
+                    
+                    // Look for h-{uuid} parameter
+                    for (const [key, value] of url.searchParams.entries()) {
+                        if (isHeaderMenuUuidToken(key)) {
+                            menuUuid = extractUuidFromHeaderToken(key);
+                            break;
+                        }
+                        if (isHeaderMenuUuidToken(value)) {
+                            menuUuid = extractUuidFromHeaderToken(value);
+                            break;
+                        }
+                    }
+                    
+                    // Legacy fallback
+                    if (!menuUuid) {
+                        const legacyId = url.searchParams.get('header_menu_id');
+                        if (legacyId) {
+                            menuUuid = legacyId;
+                        }
+                    }
                 }
 
-                if (menuId) {
+                if (menuUuid) {
                     const currentUrl = new URL(window.location);
-                    currentUrl.searchParams.set('header_menu_id', menuId);
+                    
+                    // Clear existing header params
+                    const newParams = buildSearchWithHeaderUuid(currentUrl.searchParams, menuUuid);
+                    
+                    currentUrl.search = newParams.toString();
                     currentUrl.searchParams.delete('submenu');
                     window.location.href = currentUrl.toString();
                 }
@@ -1496,7 +1622,6 @@
         hideError();
         setupStickyObservers();
 
-        // ✅ reset layout preload state every init (including popstate)
         resetSidebarPreloadState();
 
         const slugCandidate = getSlugCandidate();
@@ -1505,7 +1630,6 @@
         if (!slugCandidate) {
             elLoading.classList.add('d-none');
             showError("No page slug provided. Use /link/page/<slug>  OR  /page/<slug>  OR  ?slug=about-us");
-            // no sidebar when slug missing
             hideSidebarSkeleton();
             sidebarCol.classList.add('d-none');
             sidebarCol.classList.remove('dp-side-preload');
@@ -1518,13 +1642,11 @@
 
         showLoading('Loading page…');
 
-        // Requested header menu id comes from URL (keep)
-        const headerMenuFromUrl = readHeaderMenuIdFromUrl();
-        const page = await resolvePublicPage(slugCandidate, headerMenuFromUrl);
+        const headerFromUrl = readHeaderMenuUuidFromUrl();
+        const page = await resolvePublicPage(slugCandidate, headerFromUrl);
 
         if (!page) {
             showNotFound(slugCandidate);
-            // no sidebar if page not found
             hideSidebarSkeleton();
             sidebarCol.classList.add('d-none');
             sidebarCol.classList.remove('dp-side-preload');
@@ -1533,19 +1655,13 @@
             return;
         }
 
-        // Store requested in scope (effective will be updated after publicTree response)
-        const headerMenuRequested =
-            headerMenuFromUrl > 0
-                ? headerMenuFromUrl
-                : (parseInt(pick(page, ['header_menu_id','headerMenuId','menu_id']) || 0, 10) || 0);
-
         window.__DP_PAGE_SCOPE__ = {
             page_id: pick(page, ['id']) || null,
             page_slug: pick(page, ['slug']) || null,
-
-            // start both as requested; loadSidebarIfAny will overwrite header_menu_id with effective fallback
-            header_menu_id: headerMenuRequested || null,
-            requested_header_menu_id: headerMenuRequested || null
+            header_menu_uuid: (isUuid(headerFromUrl) ? headerFromUrl : null) || null,
+            requested_header_menu_uuid: (isUuid(headerFromUrl) ? headerFromUrl : null) || null,
+            header_menu_id: (!isUuid(headerFromUrl) ? parseInt(headerFromUrl) : null) || null,
+            requested_header_menu_id: (!isUuid(headerFromUrl) ? parseInt(headerFromUrl) : null) || null
         };
 
         elTitle.textContent = pick(page, ['title']) || slugCandidate;
@@ -1557,7 +1673,7 @@
         elLoading.classList.add('d-none');
         elWrap.classList.remove('d-none');
         if (elNotFound) elNotFound.classList.add('d-none');
-        if (elComingSoon) elComingSoon.classList.add('d-none'); // ✅ NEW
+        if (elComingSoon) elComingSoon.classList.add('d-none');
 
         await loadSidebarIfAny(page);
 
@@ -1583,7 +1699,6 @@
     init().catch((e) => {
         console.error(e);
         showError(e?.message || 'Something went wrong.');
-        // fail safe: hide sidebar preload
         hideSidebarSkeleton();
         sidebarCol.classList.add('d-none');
         sidebarCol.classList.remove('dp-side-preload');
@@ -1600,7 +1715,6 @@
         init().catch((e) => {
             console.error(e);
             showError(e?.message || 'Something went wrong.');
-            // fail safe: hide sidebar preload
             hideSidebarSkeleton();
             sidebarCol.classList.add('d-none');
             sidebarCol.classList.remove('dp-side-preload');

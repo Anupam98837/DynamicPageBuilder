@@ -254,6 +254,26 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.ptp-yearpill{
+  position:absolute;
+  top: 44px;
+  left: 12px;
+  z-index: 2;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 900;
+  letter-spacing:.15px;
+  color:#fff;
+  background: rgba(0,0,0,.24);
+  border: 1px solid rgba(255,255,255,.18);
+  backdrop-filter: blur(6px);
+
+  max-width: calc(100% - 24px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .ptp-rank{
   position:absolute;
   top: 12px;
@@ -758,7 +778,7 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
     <div class="ptp-tools">
       <div class="ptp-search">
         <i class="fa fa-magnifying-glass"></i>
-        <input id="ptpSearch" type="search" placeholder="Search (name, department, program, year, rank, score)…">
+        <input id="ptpSearch" type="search" placeholder="Search (name, department, program, batch, year topper, YGPA, rank)…">
       </div>
 
       <div class="ptp-select" title="Filter by department">
@@ -874,6 +894,27 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
     return parts.map(p => p[0].toUpperCase()).join('');
   }
 
+  function ordinal(n){
+    const x = parseInt(n, 10);
+    if (!x || Number.isNaN(x)) return '';
+    const v = x % 100;
+    if (v >= 11 && v <= 13) return x + 'th';
+    switch (x % 10){
+      case 1: return x + 'st';
+      case 2: return x + 'nd';
+      case 3: return x + 'rd';
+      default: return x + 'th';
+    }
+  }
+
+  function format2(v){
+    const s = (v ?? '').toString().trim();
+    if (!s) return '';
+    const num = Number(s);
+    if (Number.isFinite(num)) return num.toFixed(2);
+    return s;
+  }
+
   // ====== Resolvers (very tolerant) ======
   function resolveKey(item){
     const u = String(pick(item, ['uuid','topper_uuid','program_topper_uuid']) || '').trim();
@@ -935,12 +976,27 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
     return (y === null || y === undefined) ? '' : String(y);
   }
 
+  function resolveYearTopper(item){
+    const y = pick(item, ['year_topper','topper_year','year_of_topper']) ||
+              pick(item?.metadata, ['year_topper','topper_year']) || '';
+    return (y === null || y === undefined) ? '' : String(y);
+  }
+
+  function resolveYGPA(item){
+    const v = pick(item, ['ygpa','year_gpa','year_gpa_score','yearly_gpa']) ||
+              pick(item?.metadata, ['ygpa','year_gpa']) || '';
+    return format2(v);
+  }
+
   function resolveRank(item){
     const r = pick(item, ['rank','position','top_rank','merit_rank']) || pick(item?.metadata, ['rank','position']) || '';
     return (r === null || r === undefined) ? '' : String(r);
   }
 
+  // keep generic score resolver for backward compatibility, but prefer ygpa
   function resolveScore(item){
+    const yg = resolveYGPA(item);
+    if (yg) return yg;
     return String(
       pick(item, ['cgpa','gpa','percentage','score','marks','result']) ||
       pick(item?.metadata, ['cgpa','percentage','score']) ||
@@ -967,6 +1023,7 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
     return [];
   }
 
+  // kept for compatibility (even though DB cols were removed)
   function resolveCompany(item){
     return String(
       pick(item, ['current_company','company','company_name']) ||
@@ -1184,11 +1241,12 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
         const spec = resolveSpecialization(it).toLowerCase();
         const ay = resolveAdmissionYear(it).toLowerCase();
         const py = resolvePassingYear(it).toLowerCase();
+        const yearTopper = resolveYearTopper(it).toLowerCase();
+        const ygpa = resolveYGPA(it).toLowerCase();
         const rank = resolveRank(it).toLowerCase();
         const score = resolveScore(it).toLowerCase();
         const ach = resolveAchievement(it).toLowerCase();
-        const company = resolveCompany(it).toLowerCase();
-        const role = resolveRoleTitle(it).toLowerCase();
+
         return (
           name.includes(q) ||
           dept.includes(q) ||
@@ -1196,11 +1254,11 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
           spec.includes(q) ||
           ay.includes(q) ||
           py.includes(q) ||
+          yearTopper.includes(q) ||
+          ygpa.includes(q) ||
           rank.includes(q) ||
           score.includes(q) ||
-          ach.includes(q) ||
-          company.includes(q) ||
-          role.includes(q)
+          ach.includes(q)
         );
       });
     }
@@ -1227,13 +1285,15 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
     const spec = resolveSpecialization(it);
     const admissionYear = resolveAdmissionYear(it);
     const passingYear = resolvePassingYear(it);
+    const yearTopper = resolveYearTopper(it);
+    const ygpa = resolveYGPA(it);
     const rank = resolveRank(it);
-    const score = resolveScore(it);
     const img = resolveImage(it);
 
     const key = resolveKey(it);
 
     const deptPill = deptName ? `<div class="ptp-pill" title="${escAttr(deptName)}">${esc(deptName)}</div>` : '';
+    const yearPill = yearTopper ? `<div class="ptp-yearpill" title="Year topper">${esc(ordinal(yearTopper) ? (ordinal(yearTopper) + ' Year Topper') : ('Year Topper ' + yearTopper))}</div>` : '';
     const rankPill = rank ? `<div class="ptp-rank" title="Rank">${esc('Rank ' + rank)}</div>` : '';
 
     const metaLine =
@@ -1246,7 +1306,10 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
     const subParts = [];
     if (admissionYear) subParts.push(`Batch: ${esc(admissionYear)}${passingYear ? '–' + esc(passingYear) : ''}`);
     else if (passingYear) subParts.push(`Passout: ${esc(passingYear)}`);
-    if (score) subParts.push(`${esc(score)}`);
+
+    if (yearTopper) subParts.push(`${esc(ordinal(yearTopper) ? (ordinal(yearTopper) + ' Year Topper') : ('Year Topper ' + yearTopper))}`);
+    if (ygpa) subParts.push(`YGPA: ${esc(ygpa)}`);
+
     const subLine = subParts.length ? `<p class="ptp-submeta">${subParts.join(`<span class="dot">•</span>`)}</p>` : '';
 
     const inner = !img
@@ -1265,6 +1328,7 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
          aria-label="${escAttr(name)} details (opens modal)">
         ${inner}
         ${deptPill}
+        ${yearPill}
         ${rankPill}
         <div class="vignette"></div>
         <div class="info">
@@ -1410,19 +1474,20 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
     const spec = resolveSpecialization(it);
     const admissionYear = resolveAdmissionYear(it);
     const passingYear = resolvePassingYear(it);
+    const yearTopper = resolveYearTopper(it);
+    const ygpa = resolveYGPA(it);
     const rank = resolveRank(it);
-    const score = resolveScore(it);
+    const score = resolveScore(it); // fallback
     const ach = resolveAchievement(it);
     const skills = resolveSkills(it);
-
-    const company = resolveCompany(it);
-    const role = resolveRoleTitle(it);
 
     const img = resolveImage(it);
 
     // HERO subtitle
     const heroSub = [];
     if (rank) heroSub.push('Rank ' + rank);
+    if (yearTopper) heroSub.push((ordinal(yearTopper) ? (ordinal(yearTopper) + ' Year Topper') : ('Year Topper ' + yearTopper)));
+    if (ygpa) heroSub.push('YGPA ' + ygpa);
     if (program) heroSub.push(program + (spec ? (' · ' + spec) : ''));
     if (dept) heroSub.push(dept);
     const batch = admissionYear ? (admissionYear + (passingYear ? ('–' + passingYear) : '')) : (passingYear || '');
@@ -1432,7 +1497,7 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
       ? heroSub.map(s => `<span>${esc(s)}</span>`).join('<span class="sep">•</span>')
       : '';
 
-    const quoteText = ach || (score ? ('Score: ' + score) : '');
+    const quoteText = ach || (ygpa ? ('YGPA: ' + ygpa) : (score ? ('Score: ' + score) : ''));
     const quoteHtml = quoteText
       ? `<div class="ptp-modal__hero-quote">"${esc(quoteText)}"</div>`
       : '';
@@ -1465,27 +1530,23 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
     const tagParts = [];
     if (dept) tagParts.push(dept);
     if (program) tagParts.push(program + (spec ? (' · ' + spec) : ''));
+    if (yearTopper) tagParts.push(ordinal(yearTopper) ? (ordinal(yearTopper) + ' Year Topper') : ('Year Topper ' + yearTopper));
     if (rank) tagParts.push('Rank ' + rank);
-    if (score) tagParts.push(score);
+    if (ygpa) tagParts.push('YGPA ' + ygpa);
 
     const tagHtml = tagParts.length
       ? tagParts.map(t => `<span>${esc(t)}</span>`).join('<span class="tsep">•</span>')
       : '';
 
-    // Academic fields (main for toppers)
+    // Academic fields (updated to include year_topper & ygpa)
     const acadFields = [
       mFieldHtml('Program', 'fa-solid fa-graduation-cap', program),
       mFieldHtml('Specialization', 'fa-solid fa-diagram-project', spec),
       mFieldHtml('Batch Start', 'fa-solid fa-calendar-day', admissionYear),
       mFieldHtml('Batch End', 'fa-solid fa-calendar-check', passingYear),
+      mFieldHtml('Year Topper', 'fa-solid fa-medal', yearTopper ? (ordinal(yearTopper) ? (ordinal(yearTopper) + ' Year') : yearTopper) : ''),
+      mFieldHtml('YGPA', 'fa-solid fa-star', ygpa),
       mFieldHtml('Rank', 'fa-solid fa-award', rank ? ('Rank ' + rank) : ''),
-      mFieldHtml('Score', 'fa-solid fa-chart-line', score),
-    ].filter(Boolean);
-
-    // Professional (optional)
-    const profFields = [
-      mFieldHtml('Company', 'fa-solid fa-building', company),
-      mFieldHtml('Role / Designation', 'fa-solid fa-briefcase', role),
     ].filter(Boolean);
 
     const skillsHtml = mChipsHtml('Skills', 'fa-solid fa-wand-magic-sparkles', skills);
@@ -1519,15 +1580,6 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
         <div class="ptp-msection">
           <div class="ptp-msection-title">Skills</div>
           <div class="ptp-mrow">${skillsHtml}</div>
-        </div>
-      `;
-    }
-
-    if (profFields.length){
-      detailsHtml += `
-        <div class="ptp-msection">
-          <div class="ptp-msection-title">Professional</div>
-          <div class="ptp-mrow">${profFields.join('')}</div>
         </div>
       `;
     }

@@ -263,7 +263,8 @@ td .fw-semibold{color:var(--ink)}
             </div>
 
             <div class="position-relative" style="min-width:280px;">
-              <input id="ptSearch" type="search" class="form-control ps-5" placeholder="Search by user / company / roll / uuid…">
+              {{-- ✅ CHANGED: remove company/role mention --}}
+              <input id="ptSearch" type="search" class="form-control ps-5" placeholder="Search by user / program / roll / uuid…">
               <i class="fa fa-search position-absolute" style="left:12px;top:50%;transform:translateY(-50%);opacity:.6;"></i>
             </div>
 
@@ -297,8 +298,9 @@ td .fw-semibold{color:var(--ink)}
                   <th>Department</th>
                   <th>Program</th>
                   <th style="width:120px;">Passing Year</th>
-                  <th>Company</th>
-                  <th>Role</th>
+                  {{-- ✅ CHANGED: new fields --}}
+                  <th style="width:130px;">Year Topper</th>
+                  <th style="width:110px;">YGPA</th>
                   <th>Location</th>
                   <th style="width:110px;">Featured</th>
                   <th style="width:110px;">Verified</th>
@@ -338,8 +340,9 @@ td .fw-semibold{color:var(--ink)}
                   <th>Department</th>
                   <th>Program</th>
                   <th style="width:120px;">Passing Year</th>
-                  <th>Company</th>
-                  <th>Role</th>
+                  {{-- ✅ CHANGED: new fields --}}
+                  <th style="width:130px;">Year Topper</th>
+                  <th style="width:110px;">YGPA</th>
                   <th>Location</th>
                   <th style="width:110px;">Featured</th>
                   <th style="width:110px;">Verified</th>
@@ -466,8 +469,11 @@ td .fw-semibold{color:var(--ink)}
               <option value="-admission_year">Admission Year ↓</option>
               <option value="program">Program A→Z</option>
               <option value="-program">Program Z→A</option>
-              <option value="current_company">Company A→Z</option>
-              <option value="-current_company">Company Z→A</option>
+              {{-- ✅ CHANGED: remove company sort (column removed), add new fields --}}
+              <option value="year_topper">Year Topper ↑</option>
+              <option value="-year_topper">Year Topper ↓</option>
+              <option value="ygpa">YGPA ↑</option>
+              <option value="-ygpa">YGPA ↓</option>
             </select>
           </div>
 
@@ -544,27 +550,32 @@ td .fw-semibold{color:var(--ink)}
                 <input type="number" min="1900" max="2100" class="form-control" id="ptPassingYear" placeholder="e.g., 2022">
               </div>
 
+              {{-- ✅ CHANGED: new fields --}}
               <div class="col-md-6">
-                <label class="form-label">Current Company</label>
-                <input type="text" maxlength="160" class="form-control" id="ptCompany" placeholder="e.g., Infosys">
+                <label class="form-label">Year Topper</label>
+                <select id="ptYearTopper" class="form-select">
+                  <option value="">—</option>
+                  <option value="1">1st Year</option>
+                  <option value="2">2nd Year</option>
+                  <option value="3">3rd Year</option>
+                  <option value="4">4th Year</option>
+                  <option value="5">5th Year</option>
+                </select>
+                <div class="form-text">1 = 1st year topper, 2 = 2nd year topper, etc.</div>
               </div>
 
               <div class="col-md-6">
-                <label class="form-label">Current Role Title</label>
-                <input type="text" maxlength="160" class="form-control" id="ptRoleTitle" placeholder="e.g., Software Engineer">
+                <label class="form-label">YGPA</label>
+                <input type="number" step="0.01" min="0" max="10" class="form-control" id="ptYgpa" placeholder="e.g., 7.10">
+                <div class="form-text">Decimal (e.g., 7.10)</div>
               </div>
 
               <div class="col-md-6">
-                <label class="form-label">Industry</label>
-                <input type="text" maxlength="120" class="form-control" id="ptIndustry" placeholder="e.g., IT / Finance">
-              </div>
-
-              <div class="col-md-3">
                 <label class="form-label">City</label>
                 <input type="text" maxlength="120" class="form-control" id="ptCity" placeholder="e.g., Kolkata">
               </div>
 
-              <div class="col-md-3">
+              <div class="col-md-6">
                 <label class="form-label">Country</label>
                 <input type="text" maxlength="120" class="form-control" id="ptCountry" placeholder="e.g., India">
               </div>
@@ -943,6 +954,24 @@ td .fw-semibold{color:var(--ink)}
     return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
   }
 
+  // ✅ NEW: helpers for new columns
+  function topperYearLabel(v){
+    const n = parseInt(v, 10);
+    if (!n) return '—';
+    const mod100 = n % 100;
+    const suffix = (mod100 >= 11 && mod100 <= 13)
+      ? 'th'
+      : ({1:'st',2:'nd',3:'rd'}[n % 10] || 'th');
+    return `${n}${suffix}`;
+  }
+
+  function displayYgpa(v){
+    if (v === null || v === undefined || v === '') return '—';
+    const num = Number(v);
+    if (!Number.isNaN(num)) return num.toFixed(2);
+    return String(v);
+  }
+
   // ---------- Main ----------
   document.addEventListener('DOMContentLoaded', () => {
     const token = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
@@ -1033,9 +1062,9 @@ td .fw-semibold{color:var(--ink)}
     const ptPassingYear = $('ptPassingYear');
     const ptRollNo = $('ptRollNo');
 
-    const ptCompany = $('ptCompany');
-    const ptRoleTitle = $('ptRoleTitle');
-    const ptIndustry = $('ptIndustry');
+    // ✅ CHANGED: remove company/role/industry; add year_topper + ygpa
+    const ptYearTopper = $('ptYearTopper');
+    const ptYgpa = $('ptYgpa');
 
     const ptCity = $('ptCity');
     const ptCountry = $('ptCountry');
@@ -1438,8 +1467,11 @@ td .fw-semibold{color:var(--ink)}
         const deptTitle = resolveDeptName(r);
         const program = displayProgram(r);
         const passYear = displayYear(r.passing_year);
-        const company = (r.current_company || '—');
-        const role = (r.current_role_title || '—');
+
+        // ✅ CHANGED: new columns
+        const yTopper = topperYearLabel(r.year_topper);
+        const ygpa = displayYgpa(r.ygpa);
+
         const location = displayLocation(r);
 
         const featured = !!(r.is_featured_home ?? 0);
@@ -1496,8 +1528,8 @@ td .fw-semibold{color:var(--ink)}
             <td>${esc(deptTitle)}</td>
             <td>${esc(program)}</td>
             <td>${esc(passYear)}</td>
-            <td>${esc(String(company || '—'))}</td>
-            <td>${esc(String(role || '—'))}</td>
+            <td>${esc(yTopper)}</td>
+            <td>${esc(ygpa)}</td>
             <td>${esc(location)}</td>
             <td>${yesNoBadge(featured)}</td>
             <td>${yesNoBadge(verified, 'Yes', 'No')}</td>
@@ -1669,6 +1701,10 @@ td .fw-semibold{color:var(--ink)}
       if (ptUserId) ptUserId.value = '';
       if (ptDepartmentId) ptDepartmentId.value = '';
 
+      // ✅ default new fields
+      if (ptYearTopper) ptYearTopper.value = '';
+      if (ptYgpa) ptYgpa.value = '';
+
       if (ptStatus) ptStatus.value = 'active';
       if (ptFeatured) ptFeatured.value = '0';
       if (ptVerifiedAt) ptVerifiedAt.value = '';
@@ -1714,9 +1750,9 @@ td .fw-semibold{color:var(--ink)}
       ptPassingYear.value = r.passing_year ?? '';
       ptRollNo.value = r.roll_no ?? '';
 
-      ptCompany.value = r.current_company ?? '';
-      ptRoleTitle.value = r.current_role_title ?? '';
-      ptIndustry.value = r.industry ?? '';
+      // ✅ CHANGED: new fields
+      if (ptYearTopper) ptYearTopper.value = (r.year_topper ?? '') !== null ? String(r.year_topper ?? '') : '';
+      if (ptYgpa) ptYgpa.value = (r.ygpa ?? '') !== null ? String(r.ygpa ?? '') : '';
 
       ptCity.value = r.city ?? '';
       ptCountry.value = r.country ?? '';
@@ -1982,14 +2018,12 @@ td .fw-semibold{color:var(--ink)}
         const roll = (ptRollNo.value || '').trim();
         if (roll) fd.append('roll_no', roll);
 
-        const company = (ptCompany.value || '').trim();
-        if (company) fd.append('current_company', company);
+        // ✅ CHANGED: new fields
+        const yt = (ptYearTopper?.value || '').toString().trim();
+        if (yt) fd.append('year_topper', yt);
 
-        const role = (ptRoleTitle.value || '').trim();
-        if (role) fd.append('current_role_title', role);
-
-        const ind = (ptIndustry.value || '').trim();
-        if (ind) fd.append('industry', ind);
+        const yg = (ptYgpa?.value || '').toString().trim();
+        if (yg) fd.append('ygpa', yg);
 
         const city = (ptCity.value || '').trim();
         if (city) fd.append('city', city);

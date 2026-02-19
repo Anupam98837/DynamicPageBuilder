@@ -188,9 +188,9 @@ class ProgramTopperController extends Controller
                     ->orWhere('t.roll_no', 'like', $term)
                     ->orWhere('t.program', 'like', $term)
                     ->orWhere('t.specialization', 'like', $term)
-                    ->orWhere('t.current_company', 'like', $term)
-                    ->orWhere('t.current_role_title', 'like', $term)
-                    ->orWhere('t.industry', 'like', $term)
+                    // ✅ removed: current_company/current_role_title/industry
+                    ->orWhereRaw('CAST(t.ygpa AS CHAR) like ?', [$term])
+                    ->orWhereRaw('CAST(t.year_topper AS CHAR) like ?', [$term])
                     ->orWhere('t.city', 'like', $term)
                     ->orWhere('t.country', 'like', $term)
                     ->orWhere('t.note', 'like', $term)
@@ -224,8 +224,14 @@ class ProgramTopperController extends Controller
             $q->where('t.program', (string) $request->query('program'));
         }
 
-        if ($request->filled('industry')) {
-            $q->where('t.industry', (string) $request->query('industry'));
+        // ✅ removed: industry filter (column removed)
+        // ✅ added: year_topper, ygpa filters
+        if ($request->filled('year_topper') && ctype_digit((string) $request->query('year_topper'))) {
+            $q->where('t.year_topper', (int) $request->query('year_topper'));
+        }
+
+        if ($request->filled('ygpa') && is_numeric($request->query('ygpa'))) {
+            $q->where('t.ygpa', (string) $request->query('ygpa'));
         }
 
         if ($request->filled('city')) {
@@ -248,7 +254,7 @@ class ProgramTopperController extends Controller
         $sort = (string) $request->query('sort', 'created_at');
         $dir  = strtolower((string) $request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
 
-        $allowed = ['created_at', 'updated_at', 'passing_year', 'admission_year', 'id', 'verified_at'];
+        $allowed = ['created_at', 'updated_at', 'passing_year', 'admission_year', 'year_topper', 'ygpa', 'id', 'verified_at'];
         if (! in_array($sort, $allowed, true)) $sort = 'created_at';
 
         $q->orderBy('t.' . $sort, $dir);
@@ -343,9 +349,9 @@ class ProgramTopperController extends Controller
 
             'roll_no'         => ['nullable', 'string', 'max:60', 'unique:program_toppers,roll_no'],
 
-            'current_company'    => ['nullable', 'string', 'max:160'],
-            'current_role_title' => ['nullable', 'string', 'max:160'],
-            'industry'           => ['nullable', 'string', 'max:120'],
+            // ✅ NEW fields
+            'year_topper'     => ['nullable', 'integer', 'min:1', 'max:10'],
+            'ygpa'            => ['nullable', 'numeric', 'min:0', 'max:10'],
 
             'city'            => ['nullable', 'string', 'max:120'],
             'country'         => ['nullable', 'string', 'max:120'],
@@ -385,9 +391,9 @@ class ProgramTopperController extends Controller
             'passing_year'      => array_key_exists('passing_year', $validated) ? ($validated['passing_year'] !== null ? (int)$validated['passing_year'] : null) : null,
             'roll_no'           => $validated['roll_no'] ?? null,
 
-            'current_company'   => $validated['current_company'] ?? null,
-            'current_role_title'=> $validated['current_role_title'] ?? null,
-            'industry'          => $validated['industry'] ?? null,
+            // ✅ NEW fields
+            'year_topper'       => array_key_exists('year_topper', $validated) ? ($validated['year_topper'] !== null ? (int)$validated['year_topper'] : null) : null,
+            'ygpa'              => array_key_exists('ygpa', $validated) ? ($validated['ygpa'] !== null ? $validated['ygpa'] : null) : null,
 
             'city'              => $validated['city'] ?? null,
             'country'           => $validated['country'] ?? null,
@@ -461,9 +467,9 @@ class ProgramTopperController extends Controller
                 Rule::unique('program_toppers', 'roll_no')->ignore((int) $row->id),
             ],
 
-            'current_company'    => ['nullable', 'string', 'max:160'],
-            'current_role_title' => ['nullable', 'string', 'max:160'],
-            'industry'           => ['nullable', 'string', 'max:120'],
+            // ✅ NEW fields
+            'year_topper'     => ['nullable', 'integer', 'min:1', 'max:10'],
+            'ygpa'            => ['nullable', 'numeric', 'min:0', 'max:10'],
 
             'city'            => ['nullable', 'string', 'max:120'],
             'country'         => ['nullable', 'string', 'max:120'],
@@ -486,18 +492,21 @@ class ProgramTopperController extends Controller
 
         foreach ([
             'user_id','department_id','program','specialization','roll_no',
-            'current_company','current_role_title','industry','city','country',
-            'note','status'
+            'city','country','note','status'
         ] as $k) {
             if (array_key_exists($k, $validated)) {
                 $update[$k] = $validated[$k] !== null ? $validated[$k] : null;
             }
         }
 
-        foreach (['admission_year','passing_year'] as $k) {
+        foreach (['admission_year','passing_year','year_topper'] as $k) {
             if (array_key_exists($k, $validated)) {
                 $update[$k] = $validated[$k] !== null ? (int) $validated[$k] : null;
             }
+        }
+
+        if (array_key_exists('ygpa', $validated)) {
+            $update['ygpa'] = $validated['ygpa'] !== null ? $validated['ygpa'] : null;
         }
 
         if (array_key_exists('is_featured_home', $validated)) {
@@ -719,7 +728,7 @@ class ProgramTopperController extends Controller
 
         $sort = (string)$request->query('sort', 'created_at');
         $dir  = strtolower((string)$request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
-        $allowedSort = ['created_at','updated_at','passing_year','admission_year','id','verified_at'];
+        $allowedSort = ['created_at','updated_at','passing_year','admission_year','year_topper','ygpa','id','verified_at'];
         if (!in_array($sort, $allowedSort, true)) $sort = 'created_at';
 
         $base = DB::table('program_toppers as t')
@@ -755,14 +764,22 @@ class ProgramTopperController extends Controller
             $base->where('t.program', (string)$request->query('program'));
         }
 
+        // ✅ NEW filters
+        if ($request->filled('year_topper') && ctype_digit((string)$request->query('year_topper'))) {
+            $base->where('t.year_topper', (int)$request->query('year_topper'));
+        }
+        if ($request->filled('ygpa') && is_numeric($request->query('ygpa'))) {
+            $base->where('t.ygpa', (string)$request->query('ygpa'));
+        }
+
         if ($qText !== '') {
             $term = '%' . $qText . '%';
             $base->where(function ($w) use ($term) {
                 $w->where('t.program', 'like', $term)
                   ->orWhere('t.specialization', 'like', $term)
-                  ->orWhere('t.current_company', 'like', $term)
-                  ->orWhere('t.current_role_title', 'like', $term)
-                  ->orWhere('t.industry', 'like', $term)
+                  // ✅ removed: current_company/current_role_title/industry
+                  ->orWhereRaw('CAST(t.ygpa AS CHAR) like ?', [$term])
+                  ->orWhereRaw('CAST(t.year_topper AS CHAR) like ?', [$term])
                   ->orWhere('t.city', 'like', $term)
                   ->orWhere('t.country', 'like', $term)
                   ->orWhere('t.note', 'like', $term)
@@ -787,9 +804,11 @@ class ProgramTopperController extends Controller
                 't.admission_year',
                 't.passing_year',
                 't.roll_no',
-                't.current_company',
-                't.current_role_title',
-                't.industry',
+
+                // ✅ NEW fields
+                't.year_topper',
+                't.ygpa',
+
                 't.city',
                 't.country',
                 't.note',

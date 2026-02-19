@@ -58,12 +58,18 @@
         .nav-item.has-dropdown:hover > .dropdown-menu{opacity:1;visibility:visible;transform: translateY(0);pointer-events:auto;}
     }
 
-    /* ✅ Full-width dropdown on hover */
-    @media (min-width: 992px){
-        .dynamic-navbar .dropdown-menu.dm-fullwidth{left: var(--menu-gutter) !important;right: var(--menu-gutter) !important;width: auto !important;max-width: calc(100vw - (var(--menu-gutter) * 2)) !important;}
-        .dynamic-navbar .dropdown-menu.dm-fullwidth .mega-panel{width: 100%;max-width: 100% !important;}
+   /* REPLACE the dm-fullwidth block with this */
+@media (min-width: 992px){
+    .dynamic-navbar .dropdown-menu.dm-fullwidth {
+        width: max-content !important;
+        max-width: calc(100vw - 32px) !important;
+        right: auto !important;
     }
-
+    .dynamic-navbar .dropdown-menu.dm-fullwidth .mega-panel {
+        width: max-content;
+        max-width: 100%;
+    }
+}
     .dynamic-navbar .mega-panel{display:flex;align-items:flex-start;gap: 0;background: var(--secondary-color, #6B2528);border: 1px solid rgba(255,255,255,0.12);border-top: 0;border-radius: 0 0 10px 10px;box-shadow: 0 12px 30px rgba(0,0,0,0.22);max-width: min(var(--menu-max-w), calc(100vw - 20px));overflow-x: auto;overflow-y: hidden;scrollbar-width: none;-ms-overflow-style: none;}
     .dynamic-navbar .mega-panel::-webkit-scrollbar{ width:0; height:0; display:none; }
 
@@ -72,8 +78,7 @@
     .dynamic-navbar .mega-col:not([data-col="0"])::before{content:"";position:absolute;left:0;top:0;bottom:0;width:1px;background: rgba(255,255,255,0.14);}
     .dynamic-navbar .mega-list{list-style:none;margin:0;padding: 4px;max-height: calc(100vh - 180px);overflow:auto;scrollbar-width: none;-ms-overflow-style: none;}
     .dynamic-navbar .mega-list::-webkit-scrollbar{ width:0; height:0; display:none; }
-    .dynamic-navbar .dropdown-item{display:flex;align-items:center;justify-content:space-between;gap: 10px;padding: .62rem .95rem;color:#fff !important;font-weight: 400;font-size: .93rem;text-decoration:none;white-space: nowrap;border: 0;background: transparent;cursor:pointer;width:100%;text-align:left;border-radius: 10px;outline: 1px solid rgba(255,255,255,0.00);transition: background-color .25s ease, transform .25s ease, outline-color .25s ease;will-change: transform;}
-    .dynamic-navbar .dropdown-item:hover{background: rgba(255,255,255,0.10);outline-color: rgba(255,255,255,0.10);transform: translateX(2px);}
+.dynamic-navbar .dropdown-item{display:flex;align-items:center;justify-content:space-between;gap: 10px;padding: .62rem .95rem;color:#fff !important;font-weight: 400;font-size: .93rem;text-decoration:none;white-space: normal;word-break: break-word;line-height: 1.35;border: 0;background: transparent;cursor:pointer;width:100%;text-align:left;border-radius: 10px;outline: 1px solid rgba(255,255,255,0.00);transition: background-color .25s ease, transform .25s ease, outline-color .25s ease;will-change: transform;}    .dynamic-navbar .dropdown-item:hover{background: rgba(255,255,255,0.10);outline-color: rgba(255,255,255,0.10);transform: translateX(2px);}
     .dynamic-navbar .dropdown-item.is-active{background: rgba(255,255,255,0.13);outline: 1px solid rgba(255,255,255,0.16);position: relative;}
     .dynamic-navbar .dropdown-item.is-active::before{content:"";position:absolute;left: 8px;top: 50%;transform: translateY(-50%);width: 3px;height: 18px;border-radius: 3px;background: #f1c40f;opacity: .95;}
 
@@ -134,9 +139,6 @@
     .dynamic-navbar .navbar-nav .dropdown-menu{position: absolute !important;inset: auto !important;}
 
     .dynamic-navbar .dropdown-menu.is-portaled{position: fixed !important;}
-
-    /* Add to your existing CSS */
-
     /* Prevent Bootstrap from overriding portal positioning */
     .dynamic-navbar .dropdown-menu.is-portaled {position: fixed !important;z-index: 12001 !important; /* Higher than portal */margin-top: 0 !important;margin-left: 0 !important;}
 
@@ -378,42 +380,43 @@
             return Number(cur?.id || item.id || 0);
         }
 
-        applyHeaderMenuId(url, headerMenuId) {
-            headerMenuId = Number(headerMenuId || 0);
-            if (!headerMenuId) return url;
-            if (!url || url === '#') return url;
+        getItemMenuUuid(item) {
+    // Use item's uuid if available, otherwise fall back to id
+    const uuid = (item?.uuid ?? item?.menu_uuid ?? '').toString().trim();
+    return uuid || String(item?.id || '');
+}
 
-            let u;
-            try {
-                u = new URL(url, window.location.origin);
-            } catch (e) {
-                const sep = url.includes('?') ? '&' : '?';
-                const hashIndex = url.indexOf('#');
-                if (hashIndex !== -1) {
-                    const base = url.slice(0, hashIndex);
-                    const hash = url.slice(hashIndex);
-                    return `${base}${sep}header_menu_id=${headerMenuId}${hash}`;
-                }
-                return `${url}${sep}header_menu_id=${headerMenuId}`;
-            }
+applyHeaderMenuHUuid(url, hUuid) {
+    hUuid = (hUuid || '').toString().trim();
+    if (!hUuid) return url;
+    if (!url || url === '#') return url;
 
-            if (u.origin !== window.location.origin) return url;
+    let u;
+    try {
+        u = new URL(url, window.location.origin);
+    } catch (e) {
+        const sep = url.includes('?') ? '&' : '?';
+        return `${url}${sep}h-${hUuid}`;
+    }
 
-            const raw = (u.search || '').replace(/^\?/, '');
-            const parts = raw ? raw.split('&').filter(Boolean) : [];
+    if (u.origin !== window.location.origin) return url;
 
-            const kept = parts.filter(p => {
-                const key = (p.split('=')[0] || '').trim();
-                if (!key) return false;
-                if (key === 'header_menu_id') return false;
-                return true;
-            });
+    const raw = (u.search || '').replace(/^\?/, '');
+    const parts = raw ? raw.split('&').filter(Boolean) : [];
 
-            const token = `header_menu_id=${headerMenuId}`;
-            const newSearch = kept.length ? (`?${kept.join('&')}&${token}`) : (`?${token}`);
+    // Remove any existing h- or header_menu_id params
+    const kept = parts.filter(p => {
+        const key = (p.split('=')[0] || '').trim();
+        if (!key) return false;
+        if (key === 'header_menu_id') return false;
+        if (/^h-[a-zA-Z0-9_-]+$/.test(key)) return false; // remove old h-* tokens
+        return true;
+    });
 
-            return `${u.origin}${u.pathname}${newSearch}${u.hash || ''}`;
-        }
+    const token = `h-${hUuid}`;
+    const newSearch = kept.length ? `?${kept.join('&')}&${token}` : `?${token}`;
+    return `${u.origin}${u.pathname}${newSearch}${u.hash || ''}`;
+}
 
 hardNavigate(e, href, openNewTab = false) {
     if (!href || href === '#') return;
@@ -572,15 +575,12 @@ getMenuItemUrl(item){
         const deptUuid = this.getItemDeptUuid(item);
         url = this.applyDepartmentUuid(url, deptUuid);
 
-        // ✅ CHANGE: send CLICKED item's id (not root parent id)
-        const clickedHeaderId = Number(item?.id || 0);
-        url = this.applyHeaderMenuId(url, clickedHeaderId);
+const hUuid = this.getItemMenuUuid(item);
+url = this.applyHeaderMenuHUuid(url, hUuid);
     }
 
     return url;
 }
-
-
         async loadMenu() {
             this.showLoading('Loading menu…');
 
@@ -1107,21 +1107,42 @@ if (keys.includes(target)) return [n];
             });
         }
 
-        positionPortaledDropdown(anchorLi, dropdown) {
-            const nav = document.getElementById('dynamicNavbar');
-            if (!nav || !anchorLi || !dropdown) return;
+positionPortaledDropdown(anchorLi, dropdown) {
+    const nav = document.getElementById('dynamicNavbar');
+    if (!nav || !anchorLi || !dropdown) return;
 
-            const navRect = nav.getBoundingClientRect();
-            const gutter = this.getMenuGutterPx();
-            const pad = Math.max(8, gutter);
+    const navRect = nav.getBoundingClientRect();
+    const liRect  = anchorLi.getBoundingClientRect();
+    const vpWidth = window.innerWidth;
+    const pad     = 16;
 
-            dropdown.style.top = `${Math.round(navRect.bottom)}px`;
-            dropdown.style.left = `${pad}px`;
-            dropdown.style.right = `${pad}px`;
-            dropdown.style.width = 'auto';
-            dropdown.style.maxWidth = `calc(100vw - ${(pad * 2)}px)`;
+    // Step 1: position off-screen to measure true width
+    dropdown.style.visibility  = 'hidden';
+    dropdown.style.top         = `${Math.round(navRect.bottom)}px`;
+    dropdown.style.left        = '0px';
+    dropdown.style.right       = 'auto';
+    dropdown.style.width       = 'max-content';
+    dropdown.style.maxWidth    = `calc(100vw - ${pad * 2}px)`;
+
+    // Step 2: measure then position correctly
+    requestAnimationFrame(() => {
+        const dmWidth = dropdown.offsetWidth || 300;
+
+        // Align to left edge of the triggering nav item
+        let left = liRect.left;
+
+        // Clamp: don't overflow right edge
+        if (left + dmWidth > vpWidth - pad) {
+            left = vpWidth - dmWidth - pad;
         }
 
+        // Clamp: don't overflow left edge
+        if (left < pad) left = pad;
+
+        dropdown.style.left       = `${Math.round(left)}px`;
+        dropdown.style.visibility = 'visible';
+    });
+}
         getMenuGutterPx() {
             try {
                 const v = getComputedStyle(document.documentElement).getPropertyValue('--menu-gutter') || '';

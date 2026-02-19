@@ -64,31 +64,21 @@
     justify-content:center;
     gap:6px;
   }
+.mh-title{
+  display:block;
+  color:var(--mh-red);
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.6px;
+  line-height:1.08;
+  font-size:clamp(14px, 2.8vw, 36px);
 
-  /* ✅ FIX: no ellipsis, responsive font, wrap when needed */
-  .mh-title{
-    display:block;
-    color:var(--mh-red);
-    font-weight:700;
-    text-transform:uppercase;
-    letter-spacing:.6px;
-    line-height:1.08;
-
-    /* responsive size: smaller on tight screens, still bold on desktop */
-    font-size:clamp(20px, 2.35vw, 36px);
-
-    padding-bottom:7px;
-    border-bottom:3px solid var(--mh-red);
-
-    /* ✅ remove ellipsis behavior */
-    white-space:normal;
-    overflow:visible;
-    text-overflow:clip;
-
-    /* ✅ allow long words to break if needed */
-    overflow-wrap:anywhere;
-    word-break:break-word;
-  }
+  padding-bottom:7px;
+  border-bottom:3px solid var(--mh-red);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:clip;
+}
 
   .mh-subrow{
     display:flex;
@@ -162,11 +152,7 @@
     justify-content:center;
     gap:10px;
   }
-
-  /* partner marquee row */
   .mh-partner-marquee{ height:40px; }
-
-  /* admission row */
   .mh-admission-row{
     display:flex;
     align-items:center;
@@ -191,8 +177,6 @@
     transform:translateY(-1px);
     filter:drop-shadow(0 6px 14px rgba(0,0,0,.12));
   }
-
-  /* ===== Marquee base ===== */
   .mh-marquee{
     position:relative;
     overflow:hidden;
@@ -261,8 +245,6 @@
     .mh-sec4{ flex-basis:230px; min-width:210px; }
     .mh-secondary-logo{ max-height:84px; }
   }
-
-  /* ✅ Keep side-by-side (no wrap), just tighten spacing/sizes */
   @media (max-width: 920px){
     .mh-inner{ gap:12px; padding:8px 10px; }
     .mh-primary-logo{ width:78px; height:78px; }
@@ -290,19 +272,33 @@
       justify-content:flex-start;
     }
   }
-
   /* Extra-tight phones */
   @media (max-width: 520px){
     .mh-inner{ gap:10px; padding:8px 8px; }
     .mh-primary-logo{ width:68px; height:68px; }
-    .mh-title{ padding-bottom:6px; letter-spacing:.4px; }
-    .mh-rotate{ font-size:1rem; }
+ #mhHeaderText.mh-title{
+    font-size:clamp(10px, 3.2vw, 16px) !important;
+    letter-spacing:.2px !important;
+    padding-bottom:6px;
+    border-bottom-width:2px;
+  }
+  
+  .mh-rotate{ font-size:0.7rem; }
   }
 
   @media (prefers-reduced-motion: reduce){
     .mh-track.is-animated{ animation:none !important; }
     .mh-skel{ animation:none !important; }
   }
+@media (max-width: 991.98px){
+  .dynamic-navbar .navbar-container{
+    justify-content:flex-end; 
+  }
+  .dynamic-navbar .menu-toggle{
+    margin-left:auto ; 
+  }
+}
+
 </style>
 
 <header class="mh-bar" id="mhBar" data-endpoint="{{ url('/api/header-components') }}">
