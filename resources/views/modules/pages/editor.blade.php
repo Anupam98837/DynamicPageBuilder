@@ -271,6 +271,38 @@ body{margin:0;background:var(--ce-bg);color:var(--ce-text);}
           data-html="<div class='ce-gallery' data-gallery='simple' style='display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:0 0 12px 0;'><img src='https://placehold.co/300x200' alt='Gallery image' style='width:100%;height:auto;display:block;border-radius:6px;'/><img src='https://placehold.co/300x200' alt='Gallery image' style='width:100%;height:auto;display:block;border-radius:6px;'/><img src='https://placehold.co/300x200' alt='Gallery image' style='width:100%;height:auto;display:block;border-radius:6px;'/></div>">
           <i class="fa-regular fa-images"></i> Gallery
         </div>
+
+              <!-- CSS-ONLY CAROUSEL / IMAGE SLIDER
+            ========================== -->
+            <div class="ce-component" draggable="true" data-key="ce-carousel-css"
+            data-html='
+              <div class="ce-carousel-css" style="margin:0 0 12px 0; position:relative; width:100%; border-radius:6px; font-family:inherit;">
+                
+                <!-- Scrollable Carousel Container -->
+                <div class="ce-carousel-css-container" style="display:flex; overflow-x:auto; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; scroll-behavior:smooth; gap:0; border-radius:6px;">
+                  
+                  <div class="ce-carousel-css-slide" style="flex:0 0 100%; scroll-snap-align:start; position:relative;">
+                    <img src="https://placehold.co/800x400/6366f1/ffffff?text=Slide+1" style="width:100%; height:auto; display:block;" alt="Slide 1">
+                  </div>
+                  
+                  <div class="ce-carousel-css-slide" style="flex:0 0 100%; scroll-snap-align:start; position:relative;">
+                    <img src="https://placehold.co/800x400/10b981/ffffff?text=Slide+2" style="width:100%; height:auto; display:block;" alt="Slide 2">
+                  </div>
+                  
+                  <div class="ce-carousel-css-slide" style="flex:0 0 100%; scroll-snap-align:start; position:relative;">
+                    <img src="https://placehold.co/800x400/ef4444/ffffff?text=Slide+3" style="width:100%; height:auto; display:block;" alt="Slide 3">
+                  </div>
+                  
+                </div>
+                
+                <!-- Hidden anchors for scroll targeting -->
+                <span id="slide-1" style="display:none;"></span>
+                <span id="slide-2" style="display:none;"></span>
+                <span id="slide-3" style="display:none;"></span>
+                
+              </div>'>
+              <i class="fa-solid fa-images"></i> Image Carousel
+            </div>
       
         <div class="ce-component" draggable="true" data-key="ce-gallery-caption"
           data-html="<div class='ce-gallery ce-gallery-captions' data-gallery='captions' style='display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:0 0 12px 0;'><figure style='margin:0;'><img src='https://placehold.co/400x260' alt='Gallery image' style='width:100%;height:auto;display:block;border-radius:6px;'/><figcaption style='margin-top:6px;font-size:12px;color:#6b7280;line-height:1.4;'>Caption 1</figcaption></figure><figure style='margin:0;'><img src='https://placehold.co/400x260' alt='Gallery image' style='width:100%;height:auto;display:block;border-radius:6px;'/><figcaption style='margin-top:6px;font-size:12px;color:#6b7280;line-height:1.4;'>Caption 2</figcaption></figure></div>">
@@ -836,7 +868,7 @@ block.querySelectorAll('a').forEach((el,i)=>{
     addTextEditors(contentPane, textNodes);
     addListEditors(contentPane, block);
     addImageContentEditors(contentPane, block);
-
+    addCarouselCssEditors(contentPane, stylePane, block);
     addGalleryEditors(contentPane, stylePane, block);
     addTableEditors(contentPane, stylePane, block);      /* ✅ row/col/header + styling */
     addTableContentEditors(contentPane, block);          /* ✅ cell content editing grid */
@@ -1509,6 +1541,363 @@ addPDFEditors(contentPane, stylePane, block);
       panel.appendChild(field);
     });
   }
+
+/* ============================================================
+     ✅ CSS-ONLY CAROUSEL EDITOR FUNCTIONS (NO CAPTIONS)
+     ============================================================ */
+     function addCarouselCssEditors(panel, stylePanel, block) {
+  const carousel = block.querySelector('.ce-carousel-css');
+  if (!carousel || isUI(carousel)) return;
+
+  const container = carousel.querySelector('.ce-carousel-css-container');
+  const slides = carousel.querySelectorAll('.ce-carousel-css-slide');
+  const dotsContainer = carousel.querySelector('.ce-carousel-css-dots');
+
+  // ===== STYLE CONTROLS =====
+  const styleField = document.createElement('div');
+  styleField.className = 'ce-field';
+
+  // Get current styles
+  const cs = getComputedStyle(container);
+  const currentHeight = parseInt(container.style.minHeight) || 200;
+  const currentBorderRadius = parseInt(cs.borderRadius) || 6;
+
+  styleField.innerHTML = `
+    <label>Carousel Style</label>
+    <div style="display:flex; gap:8px; margin-bottom:8px;">
+      <input type="number" min="100" value="${currentHeight}" style="width:100px;" placeholder="Height" title="Container height (px)">
+      <input type="number" min="0" value="${currentBorderRadius}" style="width:80px;" placeholder="Radius" title="Border radius">
+    </div>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <label style="display:flex; align-items:center; gap:4px;">
+        <input type="checkbox" class="ce-carousel-css-hide-scrollbar" ${container.style.overflowX === 'auto' ? 'checked' : ''}> Hide scrollbar
+      </label>
+    </div>
+    <div class="ce-muted" style="padding:6px 0 0 0;">Height • Border radius • Scrollbar visibility</div>
+  `;
+
+  const heightInp = styleField.querySelector('input[type="number"]:first-child');
+  const radiusInp = styleField.querySelector('input[type="number"]:nth-child(2)');
+  const hideScrollbarChk = styleField.querySelector('.ce-carousel-css-hide-scrollbar');
+
+  heightInp.addEventListener('input', () => {
+    pushHistory();
+    container.style.minHeight = heightInp.value + 'px';
+    syncExport();
+  });
+
+  radiusInp.addEventListener('input', () => {
+    pushHistory();
+    carousel.style.borderRadius = radiusInp.value + 'px';
+    container.style.borderRadius = radiusInp.value + 'px';
+    syncExport();
+  });
+
+  hideScrollbarChk.addEventListener('change', () => {
+    pushHistory();
+    if (hideScrollbarChk.checked) {
+      container.style.overflowX = 'auto';
+      container.style.scrollbarWidth = 'none';
+      container.style.msOverflowStyle = 'none';
+      const style = document.createElement('style');
+      style.id = 'ce-carousel-scrollbar-hide';
+      style.textContent = '.ce-carousel-css-container::-webkit-scrollbar { display: none; }';
+      if (!document.getElementById('ce-carousel-scrollbar-hide')) {
+        document.head.appendChild(style);
+      }
+    } else {
+      container.style.overflowX = 'auto';
+      container.style.scrollbarWidth = '';
+      container.style.msOverflowStyle = '';
+      const oldStyle = document.getElementById('ce-carousel-scrollbar-hide');
+      if (oldStyle) oldStyle.remove();
+    }
+    syncExport();
+  });
+
+  stylePanel.appendChild(styleField);
+
+  // ===== CONTENT CONTROLS =====
+  const contentField = document.createElement('div');
+  contentField.className = 'ce-field';
+
+  const addRow = document.createElement('div');
+  addRow.style.display = 'flex';
+  addRow.style.gap = '6px';
+  addRow.style.marginBottom = '12px';
+  addRow.innerHTML = `
+    <button type="button" class="ce-btn-sm ce-primary" id="ceCarouselCssAddSlide"><i class="fa-solid fa-plus"></i> Add Slide</button>
+    <button type="button" class="ce-btn-sm" id="ceCarouselCssRemoveSlide"><i class="fa-solid fa-minus"></i> Remove Last</button>
+  `;
+  contentField.appendChild(addRow);
+
+  // Slides list
+  const slidesList = document.createElement('div');
+  slidesList.style.display = 'flex';
+  slidesList.style.flexDirection = 'column';
+  slidesList.style.gap = '12px';
+  slidesList.style.marginTop = '8px';
+  slidesList.style.maxHeight = '300px';
+  slidesList.style.overflowY = 'auto';
+  contentField.appendChild(slidesList);
+
+  function rebuildSlidesList() {
+    slidesList.innerHTML = '';
+    const currentSlides = carousel.querySelectorAll('.ce-carousel-css-slide');
+
+    currentSlides.forEach((slide, idx) => {
+      const img = slide.querySelector('img');
+      if (!img) return;
+
+      const card = document.createElement('div');
+      card.style.border = '1px solid var(--ce-border)';
+      card.style.borderRadius = '6px';
+      card.style.padding = '8px';
+
+      const head = document.createElement('div');
+      head.style.display = 'flex';
+      head.style.alignItems = 'center';
+      head.style.gap = '8px';
+      head.style.marginBottom = '8px';
+
+      const title = document.createElement('strong');
+      title.style.fontSize = '12px';
+      title.textContent = `Slide ${idx + 1}`;
+      head.appendChild(title);
+
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'ce-btn-sm';
+      del.style.marginLeft = 'auto';
+      del.innerHTML = '<i class="fa-solid fa-trash"></i>';
+      del.addEventListener('click', () => {
+        if (currentSlides.length <= 1) {
+          alert('Carousel must have at least 1 slide');
+          return;
+        }
+        pushHistory();
+
+        // Remove slide
+        slide.remove();
+
+        // Rebuild dots
+        rebuildDots();
+
+        syncExport();
+        rebuildSlidesList();
+        renderInspector(block);
+      });
+      head.appendChild(del);
+
+      card.appendChild(head);
+
+      // Image URL
+      const imgLabel = document.createElement('label');
+      imgLabel.textContent = 'Image URL';
+      card.appendChild(imgLabel);
+
+      const imgInp = document.createElement('input');
+      imgInp.type = 'text';
+      imgInp.value = img.src;
+      imgInp.addEventListener('input', (e) => {
+        pushHistory();
+        img.src = e.target.value;
+        syncExport();
+      });
+      card.appendChild(imgInp);
+
+      slidesList.appendChild(card);
+    });
+  }
+
+  function rebuildDots() {
+    const currentSlides = carousel.querySelectorAll('.ce-carousel-css-slide');
+    const dotsContainer = carousel.querySelector('.ce-carousel-css-dots');
+    const hiddenAnchors = carousel.querySelectorAll('span[id^="slide-"]');
+
+    if (!dotsContainer) return;
+
+    // Clear existing dots and anchors
+    dotsContainer.innerHTML = '';
+    hiddenAnchors.forEach(anchor => anchor.remove());
+
+    // Create new dots and anchors
+    currentSlides.forEach((_, idx) => {
+      // Create anchor
+      const anchor = document.createElement('span');
+      anchor.id = `slide-${idx + 1}`;
+      anchor.style.display = 'none';
+      carousel.appendChild(anchor);
+
+      // Create dot
+      const dot = document.createElement('a');
+      dot.href = `#slide-${idx + 1}`;
+      dot.className = 'ce-carousel-css-dot' + (idx === 0 ? ' active' : '');
+      dot.dataset.index = idx;
+      dot.style.display = 'inline-block';
+      dot.style.width = '10px';
+      dot.style.height = '10px';
+      dot.style.background = idx === 0 ? '#6366f1' : '#d1d5db';
+      dot.style.borderRadius = '50%';
+      dot.style.margin = '0 4px';
+      dot.style.cursor = 'pointer';
+      dot.style.transition = 'all 0.2s ease';
+
+      // Add click handler to update active state
+      dot.addEventListener('click', (e) => {
+        setTimeout(() => {
+          dotsContainer.querySelectorAll('.ce-carousel-css-dot').forEach(d => {
+            d.style.background = '#d1d5db';
+          });
+          e.target.style.background = '#6366f1';
+        }, 100);
+      });
+
+      dotsContainer.appendChild(dot);
+    });
+  }
+
+  // Add slide button (NO CAPTION)
+  addRow.querySelector('#ceCarouselCssAddSlide').addEventListener('click', () => {
+    const url = prompt('Enter image URL:', 'https://placehold.co/800x400/6366f1/ffffff?text=New+Slide');
+    if (!url) return;
+
+    pushHistory();
+
+    // Create new slide
+    const newSlide = document.createElement('div');
+    newSlide.className = 'ce-carousel-css-slide';
+    newSlide.style.flex = '0 0 100%';
+    newSlide.style.scrollSnapAlign = 'start';
+    newSlide.style.position = 'relative';
+
+    newSlide.innerHTML = `
+      <img src="${url}" style="width:100%; height:auto; display:block;">
+    `;
+
+    container.appendChild(newSlide);
+
+    // Rebuild dots
+    rebuildDots();
+
+    syncExport();
+    rebuildSlidesList();
+    renderInspector(block);
+  });
+
+  // Remove slide button
+  addRow.querySelector('#ceCarouselCssRemoveSlide').addEventListener('click', () => {
+    const currentSlides = carousel.querySelectorAll('.ce-carousel-css-slide');
+    if (currentSlides.length <= 1) {
+      alert('Carousel must have at least 1 slide');
+      return;
+    }
+
+    pushHistory();
+    currentSlides[currentSlides.length - 1].remove();
+
+    // Rebuild dots
+    rebuildDots();
+
+    syncExport();
+    rebuildSlidesList();
+    renderInspector(block);
+  });
+
+  rebuildSlidesList();
+  panel.appendChild(contentField);
+
+  // ===== SCROLL CONTROLS =====
+  const scrollField = document.createElement('div');
+  scrollField.className = 'ce-field';
+  scrollField.innerHTML = `
+    <label>Scroll Controls</label>
+    <div style="display:flex; gap:8px; margin-bottom:8px;">
+      <button type="button" class="ce-btn-sm" id="ceCarouselCssPrev"><i class="fa-solid fa-chevron-left"></i> Previous</button>
+      <button type="button" class="ce-btn-sm" id="ceCarouselCssNext">Next <i class="fa-solid fa-chevron-right"></i></button>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <select id="ceCarouselCssScrollTo" style="flex:1;">
+        <option value="">— Jump to slide —</option>
+      </select>
+      <button type="button" class="ce-btn-sm" id="ceCarouselCssGoTo">Go</button>
+    </div>
+  `;
+
+  const prevBtn = scrollField.querySelector('#ceCarouselCssPrev');
+  const nextBtn = scrollField.querySelector('#ceCarouselCssNext');
+  const slideSelect = scrollField.querySelector('#ceCarouselCssScrollTo');
+  const goBtn = scrollField.querySelector('#ceCarouselCssGoTo');
+
+  // Update slide select options
+  function updateSlideSelect() {
+    const currentSlides = carousel.querySelectorAll('.ce-carousel-css-slide');
+    slideSelect.innerHTML = '<option value="">— Jump to slide —</option>';
+
+    currentSlides.forEach((_, idx) => {
+      const option = document.createElement('option');
+      option.value = idx;
+      option.textContent = `Slide ${idx + 1}`;
+      slideSelect.appendChild(option);
+    });
+  }
+
+  updateSlideSelect();
+
+  prevBtn.addEventListener('click', () => {
+    const scrollAmount = container.clientWidth;
+    container.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
+
+    // Update active dot after scroll
+    setTimeout(() => {
+      const activeIndex = Math.round(container.scrollLeft / container.clientWidth);
+      dotsContainer.querySelectorAll('.ce-carousel-css-dot').forEach((dot, i) => {
+        dot.style.background = i === activeIndex ? '#6366f1' : '#d1d5db';
+      });
+    }, 300);
+  });
+
+  nextBtn.addEventListener('click', () => {
+    const scrollAmount = container.clientWidth;
+    container.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+
+    // Update active dot after scroll
+    setTimeout(() => {
+      const activeIndex = Math.round(container.scrollLeft / container.clientWidth);
+      dotsContainer.querySelectorAll('.ce-carousel-css-dot').forEach((dot, i) => {
+        dot.style.background = i === activeIndex ? '#6366f1' : '#d1d5db';
+      });
+    }, 300);
+  });
+
+  goBtn.addEventListener('click', () => {
+    const index = parseInt(slideSelect.value);
+    if (!isNaN(index) && index >= 0) {
+      const scrollTo = index * container.clientWidth;
+      container.scrollTo({ left: scrollTo, behavior: 'smooth' });
+
+      // Update active dot
+      setTimeout(() => {
+        dotsContainer.querySelectorAll('.ce-carousel-css-dot').forEach((dot, i) => {
+          dot.style.background = i === index ? '#6366f1' : '#d1d5db';
+        });
+      }, 300);
+    }
+  });
+
+  // Update active dot on scroll
+  container.addEventListener('scroll', () => {
+    const activeIndex = Math.round(container.scrollLeft / container.clientWidth);
+    if (!isNaN(activeIndex) && activeIndex >= 0) {
+      dotsContainer.querySelectorAll('.ce-carousel-css-dot').forEach((dot, i) => {
+        dot.style.background = i === activeIndex ? '#6366f1' : '#d1d5db';
+      });
+    }
+  });
+
+  panel.appendChild(scrollField);
+}
+
 
 
 

@@ -239,7 +239,7 @@ function parseUuidFromPath(){
 
 function getManageUsersUrl(){
   const parts = (window.location.pathname || '').split('/').filter(Boolean);
-  const rolePrefix = ['admin','examiner','student'].includes(parts[0]) ? parts[0] : null;
+  const rolePrefix = ['admin','examiner','student','alumni'].includes(parts[0]) ? parts[0] : null;
   if (rolePrefix) return `/${rolePrefix}/user/manage`;
   if (parts[0] === 'user') return '/user/manage';
   return '/user/manage';
@@ -1104,6 +1104,7 @@ function renderRoleOptions(current){
     ['technical_assistant','Technical Assistant'],
     ['it_person','IT Person'],
     ['placement_officer','Placement Officer'],
+    ['alumni','Alumni'],
     ['student','Student']
   ];
   let html = `<option value="">Select Role</option>`;

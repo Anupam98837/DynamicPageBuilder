@@ -22,7 +22,7 @@ class UserController extends Controller
 
     /**
      * MSIT Home Builder roles:
-     * director, principal, hod, faculty, technical_assistant, it_person, student
+     * director, principal, hod, faculty, technical_assistant, it_person, placement_officer, student, alumni
      */
     private const ALLOWED_ROLES = [
         'admin',
@@ -34,6 +34,7 @@ class UserController extends Controller
         'it_person',
         'placement_officer',
         'student',
+        'alumni', // ✅ added
     ];
 
     private const ROLE_SHORT_MAP = [
@@ -46,6 +47,7 @@ class UserController extends Controller
         'it_person'           => 'IT',
         'placement_officer'   => 'TPO',   // ✅ added
         'student'             => 'STD',
+        'alumni'              => 'ALU',   // ✅ added
     ];
 
     // ✅ Added: name_short_form + employee_id + department_id
@@ -310,7 +312,7 @@ class UserController extends Controller
 
         // ✅ CONFIG: decide access by role + department_id
         $allRoles  = ['admin', 'director', 'principal']; // gets ALL even if dept null
-        $deptRoles = ['hod', 'faculty', 'technical_assistant', 'it_person', 'placement_officer', 'student']; // needs dept
+        $deptRoles = ['hod', 'faculty', 'technical_assistant', 'it_person', 'placement_officer', 'student', 'alumni']; // ✅ added alumni
 
         if (in_array($role, $allRoles, true)) {
             return ['mode' => 'all', 'department_id' => null];
@@ -341,6 +343,11 @@ class UserController extends Controller
         // aliases/synonyms
         if ($role === 'tech_assistant' || $role === 'techassistant') {
             $role = 'technical_assistant';
+        }
+
+        // ✅ alumni aliases
+        if (in_array($role, ['alum', 'alumnus', 'alumni'], true)) {
+            $role = 'alumni';
         }
 
         // ✅ placement officer aliases
@@ -1922,7 +1929,7 @@ class UserController extends Controller
         if (!in_array($sort, $allowedSort, true)) $sort = 'created_at';
 
         // ✅ exclude roles
-        $excludedRoles = ['super_admin', 'admin', 'student', 'students'];
+        $excludedRoles = ['super_admin', 'admin', 'student', 'students', 'alumni']; // ✅ added alumni
 
         // ✅ detect where dept mapping exists
         $upiHasDept  = Schema::hasColumn('user_personal_information', 'department_id');
