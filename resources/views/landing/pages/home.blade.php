@@ -566,7 +566,7 @@ Home API error. Please verify section endpoints in <code>$homeApis</code>.
 
 <section class="recruiters-section reveal" data-anim="up">
 <div class="recruiters-wrap">
-@include('modules.ourRecruiters.viewAllOurRecruiters')
+@include('modules.ourRecruiters.autoScrollRecruiters')
 </div>
 </section>
 

@@ -459,6 +459,7 @@
             <a href="/department/placement-notices" class="w3-link">Placement Notices</a>
             <a href="/department/placed-students" class="w3-link">Placed Students</a>
             <a href="/department/alumni" class="w3-link">Alumni</a>
+            <a href="/department/program-toppers" class="w3-link">Program Toppers</a>
           </div>
         </div>
 

@@ -70,6 +70,7 @@ use App\Http\Controllers\API\PlacementOfficerPreviewOrderController;
 use App\Http\Controllers\API\UserActivityLogsController;
 use App\Http\Controllers\API\MetaTagController;
 use App\Http\Controllers\API\AlumniController;
+use App\Http\Controllers\API\ProgramTopperController;
 
 /*
 |--------------------------------------------------------------------------
@@ -1522,6 +1523,34 @@ Route::prefix('alumni')->group(function () {
     // Public listing endpoint
     Route::get('/public/index', [AlumniController::class, 'publicIndex']);
 });
+
+
+Route::prefix('program-toppers')->group(function () {
+
+    // Admin-style listing (supports filters, pagination, trash, etc.)
+    Route::get('/', [ProgramTopperController::class, 'index']);
+    Route::get('/trash', [ProgramTopperController::class, 'trash']);
+
+    // Department scoped
+    Route::get('/department/{department}', [ProgramTopperController::class, 'indexByDepartment']);
+    Route::post('/department/{department}', [ProgramTopperController::class, 'storeForDepartment']);
+    Route::get('/department/{department}/{identifier}', [ProgramTopperController::class, 'showByDepartment']);
+
+    // CRUD
+    Route::get('/{identifier}', [ProgramTopperController::class, 'show']);
+    Route::post('/', [ProgramTopperController::class, 'store']);
+
+    Route::put('/{identifier}', [ProgramTopperController::class, 'update']); // ✅ PUT (not PATCH)
+    Route::put('/{identifier}/toggle-featured', [ProgramTopperController::class, 'toggleFeatured']);
+
+    Route::delete('/{identifier}', [ProgramTopperController::class, 'destroy']);
+    Route::put('/{identifier}/restore', [ProgramTopperController::class, 'restore']);
+    Route::delete('/{identifier}/force', [ProgramTopperController::class, 'forceDelete']);
+
+    // Public listing endpoint
+    Route::get('/public/index', [ProgramTopperController::class, 'publicIndex']);
+});
+
 
 /*
 |--------------------------------------------------------------------------

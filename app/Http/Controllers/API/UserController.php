@@ -22,7 +22,7 @@ class UserController extends Controller
 
     /**
      * MSIT Home Builder roles:
-     * director, principal, hod, faculty, technical_assistant, it_person, placement_officer, student, alumni
+     * director, principal, hod, faculty, technical_assistant, it_person, placement_officer, student, alumni, program_topper
      */
     private const ALLOWED_ROLES = [
         'admin',
@@ -35,6 +35,7 @@ class UserController extends Controller
         'placement_officer',
         'student',
         'alumni', // ✅ added
+        'program_topper', // ✅ added
     ];
 
     private const ROLE_SHORT_MAP = [
@@ -48,6 +49,7 @@ class UserController extends Controller
         'placement_officer'   => 'TPO',   // ✅ added
         'student'             => 'STD',
         'alumni'              => 'ALU',   // ✅ added
+        'program_topper'      => 'TOP',   // ✅ added
     ];
 
     // ✅ Added: name_short_form + employee_id + department_id
@@ -312,7 +314,7 @@ class UserController extends Controller
 
         // ✅ CONFIG: decide access by role + department_id
         $allRoles  = ['admin', 'director', 'principal']; // gets ALL even if dept null
-        $deptRoles = ['hod', 'faculty', 'technical_assistant', 'it_person', 'placement_officer', 'student', 'alumni']; // ✅ added alumni
+        $deptRoles = ['hod', 'faculty', 'technical_assistant', 'it_person', 'placement_officer', 'student', 'alumni', 'program_topper']; // ✅ added program_topper
 
         if (in_array($role, $allRoles, true)) {
             return ['mode' => 'all', 'department_id' => null];
@@ -348,6 +350,17 @@ class UserController extends Controller
         // ✅ alumni aliases
         if (in_array($role, ['alum', 'alumnus', 'alumni'], true)) {
             $role = 'alumni';
+        }
+
+        // ✅ program topper aliases
+        if (in_array($role, [
+            'program_topper',
+            'programtopper',
+            'program_top',
+            'program-topper',
+            'topper',
+        ], true)) {
+            $role = 'program_topper';
         }
 
         // ✅ placement officer aliases
@@ -1929,7 +1942,7 @@ class UserController extends Controller
         if (!in_array($sort, $allowedSort, true)) $sort = 'created_at';
 
         // ✅ exclude roles
-        $excludedRoles = ['super_admin', 'admin', 'student', 'students', 'alumni']; // ✅ added alumni
+        $excludedRoles = ['super_admin', 'admin', 'student', 'students', 'alumni', 'program_topper']; // ✅ added program_topper
 
         // ✅ detect where dept mapping exists
         $upiHasDept  = Schema::hasColumn('user_personal_information', 'department_id');

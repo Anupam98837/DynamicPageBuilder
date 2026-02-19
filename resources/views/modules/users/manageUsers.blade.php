@@ -249,6 +249,8 @@ td .fw-semibold{color:var(--ink)}
               <option value="student">Student</option>
               {{-- ✅ NEW: Alumni role --}}
               <option value="alumni">Alumni</option>
+              {{-- ✅ NEW: Program Topper role --}}
+              <option value="program_topper">Program Topper</option>
             </select>
           </div>
 
@@ -326,6 +328,8 @@ td .fw-semibold{color:var(--ink)}
               <option value="student">Student</option>
               {{-- ✅ NEW: Alumni role --}}
               <option value="alumni">Alumni</option>
+              {{-- ✅ NEW: Program Topper role --}}
+              <option value="program_topper">Program Topper</option>
             </select>
           </div>
 
@@ -494,7 +498,8 @@ document.addEventListener('DOMContentLoaded', function () {
     it_person: 'IT Person',
     placement_officer: 'Placement Officer',
     student: 'Student',
-    alumni: 'Alumni', // ✅ NEW
+    alumni: 'Alumni',
+    program_topper: 'Program Topper', // ✅ NEW
   };
   const roleLabel = v => ROLE_LABEL[(v || '').toLowerCase()] || (v || '');
 

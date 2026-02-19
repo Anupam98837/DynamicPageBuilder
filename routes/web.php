@@ -98,6 +98,10 @@ Route::get('/department/alumni', function () {
     return view('pages.users.pages.alumni.manageAlumni');
 });
 
+Route::get('/department/program-toppers', function () {
+    return view('pages.users.pages.programToppers.manageProgramToppers');
+});
+
 Route::get('/department/placement-notices', function () {
     return view('pages.users.pages.placementNotices.managePlacementNotices');
 });
@@ -417,6 +421,12 @@ Route::get('/placed-students', function () {
 Route::get('/alumni', function () {
 
     return view('landing.pages.alumni.viewAllAlumni');
+
+});
+
+Route::get('/program-toppers', function () {
+
+    return view('landing.pages.programToppers.viewAllProgramToppers');
 
 });
  
