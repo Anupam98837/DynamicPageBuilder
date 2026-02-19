@@ -1339,16 +1339,16 @@
     const t = String($('title').value || '').trim();
     if (!t) return 'Title is required';
     if (!state.selectedQuestionIds.size) return 'Please select at least 1 question';
-    if (!state.selectedFacultyIds.size) return 'Please select faculty';
     if (!state.selectedStudentIds.size) return 'Please select students';
     return '';
   }
 
   function buildQuestionFacultyPayload(){
-    const out = {};
     const fac = Array.from(state.selectedFacultyIds);
+    if (!fac.length) return {}; // ✅ allow saving without faculty
+    const out = {};
     state.selectedQuestionIds.forEach(qid => {
-      out[qid] = fac.length ? { faculty_ids: fac } : null;
+      out[qid] = { faculty_ids: fac };
     });
     return out;
   }

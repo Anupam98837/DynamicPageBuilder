@@ -305,26 +305,36 @@ class FeedbackQuestionController extends Controller
      | CURRENT (frontend-friendly)
      | GET /api/feedback-questions/current
      |========================================================= */
-    public function current(Request $r)
-    {
-        $group = trim((string)$r->query('group_title', ''));
-
-        $q = $this->baseQuery(false)
-            ->where('fq.status', 'active')
-            ->where(function ($w) {
-                $w->whereNull('fq.publish_at')->orWhere('fq.publish_at', '<=', now());
-            })
-            ->where(function ($w) {
-                $w->whereNull('fq.expire_at')->orWhere('fq.expire_at', '>=', now());
-            })
-            ->orderBy('fq.group_title', 'asc')
-            ->orderBy('fq.sort_order', 'asc')
-            ->orderBy('fq.id', 'asc');
-
-        if ($group !== '') $q->where('fq.group_title', 'like', "%{$group}%");
-
-        return $this->respondList($r, $q);
-    }
+     public function current(Request $r)
+     {
+         $group = trim((string) $r->query('group_title', ''));
+     
+         $q = $this->baseQuery(false)
+             ->where('fq.status', 'active')
+             ->where(function ($w) {
+                 $w->whereNull('fq.publish_at')->orWhere('fq.publish_at', '<=', now());
+             })
+             ->where(function ($w) {
+                 $w->whereNull('fq.expire_at')->orWhere('fq.expire_at', '>=', now());
+             })
+             ->orderBy('fq.group_title', 'asc')
+             ->orderBy('fq.sort_order', 'asc')
+             ->orderBy('fq.id', 'asc');
+     
+         if ($group !== '') {
+             $q->where('fq.group_title', 'like', "%{$group}%");
+         }
+     
+         // ✅ NO PAGINATION: return ALL rows
+         $rows = $q->get();
+     
+         return response()->json([
+             'success' => true,
+             'data'    => $rows,
+             'count'   => $rows->count(),
+         ], 200);
+     }
+     
 
     /* =========================================================
      | GROUP TITLES ONLY

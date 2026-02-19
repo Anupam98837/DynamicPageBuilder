@@ -29,7 +29,7 @@ body{margin:0;background:var(--ce-bg);color:var(--ce-text);}
 .ce-inspector{width:300px;background:var(--ce-white);border-right:1px solid var(--ce-border);display:flex;flex-direction:column;}
 .ce-panel-header{padding:14px 16px;font-weight:600;border-bottom:1px solid var(--ce-border);background:#f9fafb;}
 .ce-inspector-actions{padding:8px 12px;border-bottom:1px solid var(--ce-border);display:flex;gap:8px;}
-.ce-inspector-body{flex:1;overflow:auto;padding:0;font-size:14px;display:flex;flex-direction:column;}
+.ce-inspector-body{flex:1;overflow:auto;padding:0;font-size:14px;display:flex;flex-direction:column}.ce-inspector-body .ce-empty{margin:auto;text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px;padding:18px 14px}.ce-inspector-body .ce-empty-ico{font-size:34px;opacity:.9;color:var(--primary-color,#9E363A)}.ce-inspector-body .ce-muted{margin:0;opacity:.72}
 .ce-muted{color:var(--ce-muted);font-size:13px;padding:12px;}
 .ce-inspector, .ce-components-panel { position: sticky; top: 41px; height: calc(100vh - 41px); overflow: auto; }
 
@@ -85,7 +85,7 @@ body{margin:0;background:var(--ce-bg);color:var(--ce-text);}
 .ce-add-inside{margin-top:12px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;color:var(--ce-accent);cursor:pointer;width:100%;}
 
 /* ADD POPUP */
-.ce-add-popup{position:absolute;background:#fff;border:1px solid var(--ce-border);border-radius:6px;box-shadow:var(--ce-shadow-md);padding:12px;width:220px;z-index:9999;font-size:13px;}
+.ce-add-popup{position:absolute;background:#fff;border:1px solid var(--ce-border);border-radius:6px;box-shadow:var(--ce-shadow-md);padding:12px;width:220px;z-index:99999;font-size:13px;}
 .ce-add-popup h4{margin:0 0 8px 0;font-size:12px;color:#374151;font-weight:600;}
 .ce-add-popup button{display:block;width:100%;text-align:left;border:0;background:none;padding:6px 8px;border-radius:4px;cursor:pointer;}
 .ce-add-popup button:hover{background:#f3f4f6;color:var(--ce-accent);}
@@ -183,8 +183,11 @@ body{margin:0;background:var(--ce-bg);color:var(--ce-text);}
         <button id="ceRedo" class="ce-btn-sm" title="Redo (Ctrl+Shift+Z)"><i class="fa-solid fa-rotate-right"></i></button>
       </div>
       <div class="ce-inspector-body" id="ceInspector">
-        <p class="ce-muted">Select a block to edit.</p>
-      </div>
+        <div class="ce-empty">
+          <i class="fa-solid fa-sliders ce-empty-ico" aria-hidden="true"></i>
+          <p class="ce-muted">Select a block to edit.</p>
+        </div>
+      </div>      
     </aside>
 
     <main class="ce-canvas-wrap">
