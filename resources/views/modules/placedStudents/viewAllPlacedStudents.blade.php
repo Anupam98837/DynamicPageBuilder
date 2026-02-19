@@ -4,18 +4,6 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
 
 <style>
-/* =========================================================
-  ✅ Placed Students (Scoped / No :root / No global body rules)
-  - UI structure SAME as Announcements reference (header card + tools + grid + skeleton + pager)
-  - Card size: 247px (W) x 329px (H)
-  - Dept dropdown added (nicer UI)
-  - Dept filtering FIXED (frontend filter by department_id / department_uuid)
-  - Deep-link ?d-{uuid} anywhere => auto-select dept + filter
-  ✅ CHANGE:
-  - Removed count chip from header + related code
-  - Header kept in ONE ROW on desktop
-========================================================= */
-
 .psx-wrap{
   /* scoped tokens */
   --psx-brand: var(--primary-color, #9E363A);
@@ -206,7 +194,7 @@
   position:absolute; inset:0;
   background:
     radial-gradient(1200px 500px at 50% -20%, rgba(255,255,255,.10), rgba(0,0,0,0) 60%),
-    linear-gradient(180deg, rgba(0,0,0,.00) 28%, rgba(0,0,0,.12) 60%, rgba(0,0,0,.54) 100%);
+    linear-gradient(180deg, rgba(0,0,0,.00) 28%, rgba(0,0,0,.12) 60%, rgba(0,0,0,.62) 100%);
 }
 
 /* bottom overlay text */
@@ -221,32 +209,51 @@
   margin:0;
   font-size: 18px;
   font-weight: 950;
-  line-height: 1.1;
+  line-height: 1.12;
   color: #fff;
   text-shadow: 0 6px 16px rgba(0,0,0,.35);
 }
-.psx-pass{
-  margin: 6px 0 0;
-  font-size: 14px;
-  color: rgba(255,255,255,.86);
+.psx-meta{
+  margin: 7px 0 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: rgba(255,255,255,.90);
   text-shadow: 0 6px 16px rgba(0,0,0,.35);
+  line-height: 1.2;
+}
+.psx-meta .dot{
+  opacity: .85;
+  padding: 0 6px;
+}
+.psx-submeta{
+  margin: 7px 0 0;
+  font-size: 12.5px;
+  color: rgba(255,255,255,.82);
+  text-shadow: 0 6px 16px rgba(0,0,0,.35);
+  line-height: 1.2;
 }
 
-/* top “pill” */
+/* top “pill” (department) */
 .psx-pill{
   position:absolute;
   top: 12px;
   left: 12px;
   z-index: 2;
-  padding: 7px 10px;
+  padding: 6px 10px;
   border-radius: 999px;
-  font-size: 12px;
-  font-weight: 950;
-  letter-spacing:.2px;
+  font-size: 11.5px;          /* ✅ smaller */
+  font-weight: 900;
+  letter-spacing:.15px;
   color:#fff;
   background: rgba(0,0,0,.28);
   border: 1px solid rgba(255,255,255,.20);
   backdrop-filter: blur(6px);
+
+  /* ✅ prevent breaking & keep UI clean */
+  max-width: calc(100% - 24px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Placeholder */
@@ -377,7 +384,7 @@
     <div class="psx-tools">
       <div class="psx-search">
         <i class="fa fa-magnifying-glass"></i>
-        <input id="psxSearch" type="search" placeholder="Search placed students (name/department/year)…">
+        <input id="psxSearch" type="search" placeholder="Search (name, department, company, role, CTC)…">
       </div>
 
       <div class="psx-select" title="Filter by department">
@@ -411,9 +418,11 @@
   const API1 = root.getAttribute('data-api') || '/api/placed-students/public';
   const API2 = root.getAttribute('data-api-alt') || '/api/placed-students';
   const DEPT_API = root.getAttribute('data-dept-api') || '/api/public/departments';
-  const PROFILE_BASE = (root.getAttribute('data-profile-base') || '/user/profile').replace(/\/+$/,''); // no trailing slash
+  const PROFILE_BASE_RAW = root.getAttribute('data-profile-base') || '/user/profile';
 
-  const APP_ORIGIN = @json(url('/'));
+  const APP_URL = @json(url('/'));
+  const ORIGIN = (APP_URL || window.location.origin || '').toString().replace(/\/+$/,'');
+
   const $ = (id) => document.getElementById(id);
 
   const els = {
@@ -460,8 +469,8 @@
     const u = (url || '').toString().trim();
     if (!u) return '';
     if (/^(data:|blob:|https?:\/\/)/i.test(u)) return u;
-    if (u.startsWith('/')) return APP_ORIGIN + u;
-    return APP_ORIGIN + '/' + u;
+    if (u.startsWith('/')) return ORIGIN + u;
+    return ORIGIN + '/' + u;
   }
 
   function pick(obj, keys){
@@ -479,6 +488,20 @@
     return parts.map(p => p[0].toUpperCase()).join('');
   }
 
+  function fmtDate(d){
+    const s = (d || '').toString().trim();
+    if (!s) return '';
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return s;
+    const dt = new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00`);
+    try{
+      return new Intl.DateTimeFormat('en-IN', { day:'2-digit', month:'short', year:'numeric' }).format(dt);
+    }catch(_){
+      return s;
+    }
+  }
+
+  // ====== API-key based resolvers (matches /api/placed-students response) ======
   function resolveName(item){
     return String(
       pick(item, ['user_name','student_name','name']) ||
@@ -487,21 +510,10 @@
     );
   }
 
-  function resolveYear(item){
-    const y =
-      pick(item, ['passout_year','pass_out_year','passing_year','graduation_year','year']) ||
-      pick(item?.user, ['passout_year','passing_year','graduation_year','year']) || '';
-    if (y) return String(y);
-
-    const od = pick(item, ['offer_date','placed_at','created_at']) || '';
-    const m = String(od).match(/^(\d{4})/);
-    return m ? m[1] : '';
-  }
-
   function resolveDepartmentName(item){
     return String(
-      pick(item, ['department_name','department_title']) ||
-      pick(item?.department, ['name','title']) ||
+      pick(item, ['department_title','department_name']) ||
+      pick(item?.department, ['title','name']) ||
       ''
     );
   }
@@ -520,34 +532,64 @@
     return (du === null || du === undefined) ? '' : String(du);
   }
 
+  function resolveCompany(item){
+    return String(
+      pick(item?.metadata, ['company']) ||
+      pick(item, ['company','company_name']) ||
+      ''
+    );
+  }
+
+  function resolveRoleTitle(item){
+    return String(
+      pick(item, ['role_title','role','designation','job_title']) ||
+      pick(item?.metadata, ['role_title','role']) ||
+      ''
+    );
+  }
+
+  function resolveCTC(item){
+    const c = pick(item, ['ctc','package','salary']) || pick(item?.metadata, ['ctc']) || '';
+    return (c === null || c === undefined) ? '' : String(c);
+  }
+
+  function resolveOfferDate(item){
+    return String(pick(item, ['offer_date']) || '');
+  }
+
+  function resolveJoiningDate(item){
+    return String(pick(item, ['joining_date']) || '');
+  }
+
   function resolveImage(item){
+    // your API provides: user_image, image (already full URL sometimes)
     const img =
-      pick(item, ['image_url','photo_url','profile_image_url']) ||
-      pick(item, ['user_image_url','user_image']) ||
-      pick(item?.user, ['image_url','photo_url','image']) ||
-      pick(item, ['photo','image']) || '';
+      pick(item, ['user_image','image','user_image_url','image_url','photo_url','profile_image_url']) ||
+      pick(item?.user, ['image','photo_url','image_url']) ||
+      '';
     return normalizeUrl(img);
   }
 
-  // Build identifier for /user/profile/{identifier}
-  function resolveProfileIdentifier(item){
-    const candidates = [
-      pick(item, ['user_uuid','userUuid','profile_uuid','profileUuid','user_profile_uuid','userProfileUuid']),
-      pick(item?.user, ['uuid','user_uuid']),
-      pick(item, ['uuid']),
-      (item?.user_id ?? ''),
-      (item?.user?.id ?? '')
-    ]
-      .map(v => String(v ?? '').trim())
-      .filter(Boolean);
-
-    const uuid = candidates.find(looksLikeUuid);
-    return uuid || candidates[0] || '';
+  // ✅ REQUIRED: redirect must be /user/profile/{user_uuid}
+  function resolveUserUuid(item){
+    const u =
+      pick(item, ['user_uuid']) ||
+      pick(item?.user, ['uuid','user_uuid']) ||
+      '';
+    const s = String(u || '').trim();
+    return looksLikeUuid(s) ? s : '';
   }
 
-  function buildProfileUrl(identifier){
-    if (!identifier) return '#';
-    return APP_ORIGIN + PROFILE_BASE + '/' + encodeURIComponent(identifier);
+  function buildProfileUrl(userUuid){
+    const id = String(userUuid || '').trim();
+    if (!id) return '#';
+
+    let base = (PROFILE_BASE_RAW || '/user/profile').toString().trim().replace(/\/+$/,'');
+    // if base is absolute (url('/user/profile') returns absolute) -> use directly
+    if (/^https?:\/\//i.test(base)) return base + '/' + encodeURIComponent(id);
+    // otherwise join with ORIGIN
+    if (!base.startsWith('/')) base = '/' + base;
+    return ORIGIN + base + '/' + encodeURIComponent(id);
   }
 
   function toItems(js){
@@ -604,7 +646,6 @@
   }
 
   function extractDeptUuidFromUrl(){
-    // matches "?d-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" anywhere in URL (search OR full href)
     const hay = (window.location.search || '') + ' ' + (window.location.href || '');
     const m = hay.match(/d-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
     return m ? m[1] : '';
@@ -674,11 +715,9 @@
         }))
         .filter(x => x.uuid && x.title && String(x.active) === '1');
 
-      // maps
       deptByUuid = new Map(depts.map(d => [d.uuid, d]));
       deptBySlug = new Map(depts.filter(d => d.slug).map(d => [d.slug, d.uuid]));
 
-      // sort A-Z
       depts.sort((a,b) => a.title.localeCompare(b.title));
 
       sel.innerHTML = `<option value="">All Departments</option>` + depts
@@ -699,8 +738,8 @@
     showSkeleton();
 
     try{
-      // fetch big once (frontend search/filter/pagination)
-      const urls = [API1, API2].filter(Boolean).map(base => {
+      // ✅ Prefer /api/placed-students first (your response keys are here), fallback to /public
+      const urls = [API2, API1].filter(Boolean).map(base => {
         const u = new URL(base, window.location.origin);
         u.searchParams.set('page', '1');
         u.searchParams.set('per_page', '500');
@@ -731,7 +770,6 @@
       items = items.filter(it => {
         const did = resolveDepartmentId(it);
         const duu = resolveDepartmentUuid(it);
-        // when dept selected -> show ONLY those that match dept (nulls auto-excluded)
         return (did && did === deptIdStr) || (duu && duu === deptUuidStr);
       });
     } else if (state.deptUuid){
@@ -739,13 +777,25 @@
       items = items.filter(it => String(resolveDepartmentUuid(it) || '') === deptUuidStr);
     }
 
-    // ✅ search across name + dept + year
+    // ✅ search across name + dept + company + role + ctc + dates
     if (q){
       items = items.filter(it => {
         const name = resolveName(it).toLowerCase();
         const dept = resolveDepartmentName(it).toLowerCase();
-        const year = resolveYear(it).toLowerCase();
-        return name.includes(q) || dept.includes(q) || year.includes(q);
+        const company = resolveCompany(it).toLowerCase();
+        const role = resolveRoleTitle(it).toLowerCase();
+        const ctc = resolveCTC(it).toLowerCase();
+        const offer = (resolveOfferDate(it) || '').toLowerCase();
+        const join = (resolveJoiningDate(it) || '').toLowerCase();
+        return (
+          name.includes(q) ||
+          dept.includes(q) ||
+          company.includes(q) ||
+          role.includes(q) ||
+          ctc.includes(q) ||
+          offer.includes(q) ||
+          join.includes(q)
+        );
       });
     }
 
@@ -754,40 +804,52 @@
 
   function cardHtml(it){
     const name = resolveName(it);
-    const yr = resolveYear(it);
     const deptName = resolveDepartmentName(it);
+    const company = resolveCompany(it);
+    const role = resolveRoleTitle(it);
+    const ctc = resolveCTC(it);
+    const offerDate = fmtDate(resolveOfferDate(it));
+    const joiningDate = fmtDate(resolveJoiningDate(it));
     const img = resolveImage(it);
 
-    const identifier = resolveProfileIdentifier(it);
-    const href = buildProfileUrl(identifier);
+    const userUuid = resolveUserUuid(it);
+    const href = buildProfileUrl(userUuid);
 
-    const passLine = yr ? `${esc(yr)} Pass Out` : (deptName ? esc(deptName) : 'Placed Student');
-    const pill = deptName ? `<div class="psx-pill">${esc(deptName)}</div>` : '';
+    const pill = deptName ? `<div class="psx-pill" title="${escAttr(deptName)}">${esc(deptName)}</div>` : '';
 
-    if (!img){
-      return `
-        <a class="psx-card" href="${escAttr(href)}" data-profile="${escAttr(href)}" aria-label="${escAttr(name)} profile">
-          <div class="psx-placeholder">
-            <div class="psx-initials">${esc(initials(name))}</div>
-          </div>
-          ${pill}
-          <div class="vignette"></div>
-          <div class="info">
-            <p class="psx-name">${esc(name)}</p>
-            <p class="psx-pass">${passLine}</p>
-          </div>
-        </a>
-      `;
-    }
+    const metaLine =
+      (company || role)
+        ? `<p class="psx-meta">${esc(company || 'Company')}${company && role ? `<span class="dot">•</span>` : ''}${esc(role || '')}</p>`
+        : `<p class="psx-meta">${deptName ? esc(deptName) : 'Placed Student'}</p>`;
+
+    const subMetaParts = [];
+    if (ctc) subMetaParts.push(`CTC: ${esc(ctc)}`);
+    if (offerDate) subMetaParts.push(`Offer: ${esc(offerDate)}`);
+    if (joiningDate) subMetaParts.push(`Join: ${esc(joiningDate)}`);
+    const subMetaLine = subMetaParts.length ? `<p class="psx-submeta">${subMetaParts.join(`<span class="dot">•</span>`)}</p>` : '';
+
+    const inner = !img
+      ? `
+        <div class="psx-placeholder">
+          <div class="psx-initials">${esc(initials(name))}</div>
+        </div>
+      `
+      : `<div class="bg" style="background-image:url('${escAttr(img)}')"></div>`;
 
     return `
-      <a class="psx-card" href="${escAttr(href)}" data-profile="${escAttr(href)}" aria-label="${escAttr(name)} profile">
-        <div class="bg" style="background-image:url('${escAttr(img)}')"></div>
+      <a class="psx-card"
+         href="${escAttr(href)}"
+         data-profile="${escAttr(href)}"
+         target="_blank"
+         rel="noopener noreferrer"
+         aria-label="${escAttr(name)} profile (opens in new tab)">
+        ${inner}
         ${pill}
         <div class="vignette"></div>
         <div class="info">
           <p class="psx-name">${esc(name)}</p>
-          <p class="psx-pass">${passLine}</p>
+          ${metaLine}
+          ${subMetaLine}
         </div>
       </a>
     `;
@@ -896,14 +958,19 @@
     await ensurePlacedLoaded(false);
     repaint();
 
-    // ✅ Force navigation on card click (in case any global script blocks anchors)
+    // ✅ Open profile in NEW TAB on normal click (keeps modifiers working)
     document.addEventListener('click', (e) => {
       const card = e.target.closest('.psx-card');
       if (!card) return;
+
       const url = card.getAttribute('data-profile') || card.getAttribute('href') || '';
       if (!url || url === '#') return;
+
+      // allow browser behavior for modifier keys (ctrl/cmd/shift etc.)
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+
       e.preventDefault();
-      window.location.href = url;
+      window.open(url, '_blank', 'noopener');
     });
 
     // search (debounced)

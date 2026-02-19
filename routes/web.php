@@ -94,6 +94,10 @@ Route::get('/department/placed-students', function () {
     return view('pages.users.pages.placedStudents.managePlacedStudents');
 });
 
+Route::get('/department/alumni', function () {
+    return view('pages.users.pages.alumni.manageAlumni');
+});
+
 Route::get('/department/placement-notices', function () {
     return view('pages.users.pages.placementNotices.managePlacementNotices');
 });
@@ -407,6 +411,12 @@ Route::get('/placement-officers', function () {
 Route::get('/placed-students', function () {
 
     return view('landing.pages.placedStudents.viewAllPlacedStudents');
+
+});
+
+Route::get('/alumni', function () {
+
+    return view('landing.pages.alumni.viewAllAlumni');
 
 });
  

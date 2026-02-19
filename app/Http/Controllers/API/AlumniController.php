@@ -6,9 +6,10 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Carbon\Carbon;
 
-class PlacedStudentController extends Controller
+class AlumniController extends Controller
 {
     /* ============================================
      | Helpers
@@ -86,21 +87,21 @@ class PlacedStudentController extends Controller
         return $q->first();
     }
 
-    protected function resolvePlacedStudent($identifier, bool $includeDeleted = false, $departmentId = null)
+    protected function resolveAlumni($identifier, bool $includeDeleted = false, $departmentId = null)
     {
-        $q = DB::table('placed_students as ps')
-            ->leftJoin('departments as d', 'd.id', '=', 'ps.department_id')
+        $q = DB::table('alumni as a')
+            ->leftJoin('departments as d', 'd.id', '=', 'a.department_id')
             ->leftJoin('users as u', function ($j) {
-                $j->on('u.id', '=', 'ps.user_id')->whereNull('u.deleted_at');
+                $j->on('u.id', '=', 'a.user_id')->whereNull('u.deleted_at');
             })
             ->select([
-                'ps.*',
+                'a.*',
                 'd.title as department_title',
                 'd.slug  as department_slug',
                 'd.uuid  as department_uuid',
 
-                // ✅ actual user details
-                'u.uuid as user_uuid',              // ✅ ACTUAL USER UUID
+                // ✅ user details (only if user_id exists)
+                'u.uuid as user_uuid',
                 'u.slug as user_slug',
                 'u.name as user_name',
                 'u.role as user_role',
@@ -109,13 +110,13 @@ class PlacedStudentController extends Controller
                 'u.image as image',
             ]);
 
-        if (! $includeDeleted) $q->whereNull('ps.deleted_at');
-        if ($departmentId !== null) $q->where('ps.department_id', (int) $departmentId);
+        if (! $includeDeleted) $q->whereNull('a.deleted_at');
+        if ($departmentId !== null) $q->where('a.department_id', (int) $departmentId);
 
         if (ctype_digit((string) $identifier)) {
-            $q->where('ps.id', (int) $identifier);
+            $q->where('a.id', (int) $identifier);
         } elseif (Str::isUuid((string) $identifier)) {
-            $q->where('ps.uuid', (string) $identifier);
+            $q->where('a.uuid', (string) $identifier);
         } else {
             return null;
         }
@@ -135,14 +136,14 @@ class PlacedStudentController extends Controller
     {
         $arr = (array) $row;
 
+        // decode metadata json if stored as string
         $meta = $arr['metadata'] ?? null;
         if (is_string($meta)) {
             $decoded = json_decode($meta, true);
             $arr['metadata'] = (json_last_error() === JSON_ERROR_NONE) ? $decoded : null;
         }
 
-        $arr['offer_letter_full_url'] = $this->toUrl($arr['offer_letter_url'] ?? null);
-
+        // normalize user image url
         if (array_key_exists('user_image', $arr)) {
             $arr['user_image'] = $this->toUrl($arr['user_image'] ?? null);
         }
@@ -157,19 +158,18 @@ class PlacedStudentController extends Controller
 
     protected function baseQuery(Request $request, bool $includeDeleted = false)
     {
-        $q = DB::table('placed_students as ps')
-            ->leftJoin('departments as d', 'd.id', '=', 'ps.department_id')
+        $q = DB::table('alumni as a')
+            ->leftJoin('departments as d', 'd.id', '=', 'a.department_id')
             ->leftJoin('users as u', function ($j) {
-                $j->on('u.id', '=', 'ps.user_id')->whereNull('u.deleted_at');
+                $j->on('u.id', '=', 'a.user_id')->whereNull('u.deleted_at');
             })
             ->select([
-                'ps.*',
+                'a.*',
                 'd.title as department_title',
                 'd.slug  as department_slug',
                 'd.uuid  as department_uuid',
 
-                // ✅ actual user details
-                'u.uuid as user_uuid',              // ✅ ACTUAL USER UUID
+                'u.uuid as user_uuid',
                 'u.slug as user_slug',
                 'u.name as user_name',
                 'u.role as user_role',
@@ -178,88 +178,82 @@ class PlacedStudentController extends Controller
                 'u.image as image',
             ]);
 
-        if (! $includeDeleted) $q->whereNull('ps.deleted_at');
+        if (! $includeDeleted) $q->whereNull('a.deleted_at');
 
+        // q search
         if ($request->filled('q')) {
             $term = '%' . trim((string) $request->query('q')) . '%';
             $q->where(function ($sub) use ($term) {
-                $sub->where('ps.role_title', 'like', $term)
-                    ->orWhere('ps.note', 'like', $term)
-                    ->orWhere('ps.uuid', 'like', $term);
+                $sub->where('a.uuid', 'like', $term)
+                    ->orWhere('a.roll_no', 'like', $term)
+                    ->orWhere('a.program', 'like', $term)
+                    ->orWhere('a.specialization', 'like', $term)
+                    ->orWhere('a.current_company', 'like', $term)
+                    ->orWhere('a.current_role_title', 'like', $term)
+                    ->orWhere('a.industry', 'like', $term)
+                    ->orWhere('a.city', 'like', $term)
+                    ->orWhere('a.country', 'like', $term)
+                    ->orWhere('a.note', 'like', $term)
+                    ->orWhere('d.title', 'like', $term)
+                    ->orWhere('d.slug', 'like', $term)
+                    ->orWhere('u.name', 'like', $term);
             });
         }
 
+        // filters
         if ($request->filled('status')) {
-            $q->where('ps.status', (string) $request->query('status'));
+            $q->where('a.status', (string) $request->query('status'));
         }
 
         if ($request->has('featured')) {
             $featured = filter_var($request->query('featured'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
-            if ($featured !== null) {
-                $q->where('ps.is_featured_home', $featured ? 1 : 0);
-            }
+            if ($featured !== null) $q->where('a.is_featured_home', $featured ? 1 : 0);
         }
 
         if ($request->filled('department')) {
             $dept = $this->resolveDepartment($request->query('department'), true);
-            if ($dept) $q->where('ps.department_id', (int) $dept->id);
+            if ($dept) $q->where('a.department_id', (int) $dept->id);
             else $q->whereRaw('1=0');
         }
 
-        if ($request->filled('user_id') && ctype_digit((string)$request->query('user_id'))) {
-            $q->where('ps.user_id', (int) $request->query('user_id'));
+        if ($request->filled('user_id') && ctype_digit((string) $request->query('user_id'))) {
+            $q->where('a.user_id', (int) $request->query('user_id'));
         }
 
-        if ($request->filled('placement_notice_id') && ctype_digit((string)$request->query('placement_notice_id'))) {
-            $q->where('ps.placement_notice_id', (int) $request->query('placement_notice_id'));
+        if ($request->filled('program')) {
+            $q->where('a.program', (string) $request->query('program'));
         }
 
-        if ($request->filled('offer_date_from')) $q->whereDate('ps.offer_date', '>=', $request->query('offer_date_from'));
-        if ($request->filled('offer_date_to'))   $q->whereDate('ps.offer_date', '<=', $request->query('offer_date_to'));
+        if ($request->filled('industry')) {
+            $q->where('a.industry', (string) $request->query('industry'));
+        }
 
-        if ($request->filled('joining_date_from')) $q->whereDate('ps.joining_date', '>=', $request->query('joining_date_from'));
-        if ($request->filled('joining_date_to'))   $q->whereDate('ps.joining_date', '<=', $request->query('joining_date_to'));
+        if ($request->filled('city')) {
+            $q->where('a.city', (string) $request->query('city'));
+        }
 
+        if ($request->filled('country')) {
+            $q->where('a.country', (string) $request->query('country'));
+        }
+
+        if ($request->filled('admission_year') && ctype_digit((string) $request->query('admission_year'))) {
+            $q->where('a.admission_year', (int) $request->query('admission_year'));
+        }
+
+        if ($request->filled('passing_year') && ctype_digit((string) $request->query('passing_year'))) {
+            $q->where('a.passing_year', (int) $request->query('passing_year'));
+        }
+
+        // sorting
         $sort = (string) $request->query('sort', 'created_at');
         $dir  = strtolower((string) $request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
 
-        $allowed = ['created_at', 'updated_at', 'offer_date', 'joining_date', 'sort_order', 'ctc', 'id'];
+        $allowed = ['created_at', 'updated_at', 'passing_year', 'admission_year', 'id', 'verified_at'];
         if (! in_array($sort, $allowed, true)) $sort = 'created_at';
 
-        $q->orderBy('ps.' . $sort, $dir);
+        $q->orderBy('a.' . $sort, $dir);
 
         return $q;
-    }
-
-    protected function uploadOfferLetterToPublic($file, string $dirRel, string $prefix): array
-    {
-        $originalName = $file->getClientOriginalName();
-        $mimeType     = $file->getClientMimeType() ?: $file->getMimeType();
-        $fileSize     = (int) $file->getSize();
-        $ext          = strtolower($file->getClientOriginalExtension() ?: 'bin');
-
-        $dirRel = trim($dirRel, '/');
-        $dirAbs = public_path($dirRel);
-        if (!is_dir($dirAbs)) @mkdir($dirAbs, 0775, true);
-
-        $filename = $prefix . '-' . Str::random(8) . '.' . $ext;
-        $file->move($dirAbs, $filename);
-
-        return [
-            'path' => $dirRel . '/' . $filename,
-            'name' => $originalName,
-            'mime' => $mimeType,
-            'size' => $fileSize,
-        ];
-    }
-
-    protected function deletePublicPath(?string $path): void
-    {
-        $path = trim((string) $path);
-        if ($path === '' || preg_match('~^https?://~i', $path)) return;
-
-        $abs = public_path(ltrim($path, '/'));
-        if (is_file($abs)) @unlink($abs);
     }
 
     /* ============================================
@@ -274,8 +268,7 @@ class PlacedStudentController extends Controller
         $onlyDeleted    = filter_var($request->query('only_trashed', false), FILTER_VALIDATE_BOOLEAN);
 
         $query = $this->baseQuery($request, $includeDeleted || $onlyDeleted);
-
-        if ($onlyDeleted) $query->whereNotNull('ps.deleted_at');
+        if ($onlyDeleted) $query->whereNotNull('a.deleted_at');
 
         $paginator = $query->paginate($perPage);
         $items = array_map(fn($r) => $this->normalizeRow($r), $paginator->items());
@@ -310,8 +303,8 @@ class PlacedStudentController extends Controller
     {
         $includeDeleted = filter_var($request->query('with_trashed', false), FILTER_VALIDATE_BOOLEAN);
 
-        $row = $this->resolvePlacedStudent($identifier, $includeDeleted);
-        if (! $row) return response()->json(['message' => 'Placed student not found'], 404);
+        $row = $this->resolveAlumni($identifier, $includeDeleted);
+        if (! $row) return response()->json(['message' => 'Alumni not found'], 404);
 
         return response()->json([
             'success' => true,
@@ -326,8 +319,8 @@ class PlacedStudentController extends Controller
 
         $includeDeleted = filter_var($request->query('with_trashed', false), FILTER_VALIDATE_BOOLEAN);
 
-        $row = $this->resolvePlacedStudent($identifier, $includeDeleted, $dept->id);
-        if (! $row) return response()->json(['message' => 'Placed student not found'], 404);
+        $row = $this->resolveAlumni($identifier, $includeDeleted, $dept->id);
+        if (! $row) return response()->json(['message' => 'Alumni not found'], 404);
 
         return response()->json([
             'success' => true,
@@ -340,24 +333,29 @@ class PlacedStudentController extends Controller
         $actor = $this->actor($request);
 
         $validated = $request->validate([
-            'department_id'        => ['nullable', 'integer', 'exists:departments,id'],
-            'placement_notice_id'  => ['nullable', 'integer', 'exists:placement_notices,id'],
-            'user_id'              => ['required', 'integer', 'exists:users,id'],
+            'user_id'         => ['nullable', 'integer', 'exists:users,id'],
+            'department_id'   => ['nullable', 'integer', 'exists:departments,id'],
 
-            'role_title'           => ['nullable', 'string', 'max:255'],
-            'ctc'                  => ['nullable', 'numeric', 'min:0', 'max:9999.99'],
+            'program'         => ['nullable', 'string', 'max:120'],
+            'specialization'  => ['nullable', 'string', 'max:120'],
+            'admission_year'  => ['nullable', 'integer', 'min:1900', 'max:2100'],
+            'passing_year'    => ['nullable', 'integer', 'min:1900', 'max:2100'],
 
-            'offer_date'           => ['nullable', 'date'],
-            'joining_date'         => ['nullable', 'date'],
+            'roll_no'         => ['nullable', 'string', 'max:60', 'unique:alumni,roll_no'],
 
-            'offer_letter_url'     => ['nullable', 'string', 'max:255'],
-            'offer_letter_file'    => ['nullable', 'file', 'max:20480'],
+            'current_company'    => ['nullable', 'string', 'max:160'],
+            'current_role_title' => ['nullable', 'string', 'max:160'],
+            'industry'           => ['nullable', 'string', 'max:120'],
 
-            'note'                 => ['nullable', 'string'],
-            'is_featured_home'     => ['nullable', 'in:0,1', 'boolean'],
-            'sort_order'           => ['nullable', 'integer', 'min:0'],
-            'status'               => ['nullable', 'in:active,inactive,verified'],
-            'metadata'             => ['nullable'],
+            'city'            => ['nullable', 'string', 'max:120'],
+            'country'         => ['nullable', 'string', 'max:120'],
+
+            'note'            => ['nullable', 'string'],
+            'is_featured_home'=> ['nullable', 'in:0,1', 'boolean'],
+            'status'          => ['nullable', 'in:active,inactive'],
+
+            'verified_at'     => ['nullable', 'date'],
+            'metadata'        => ['nullable'],
         ]);
 
         $uuid = (string) Str::uuid();
@@ -369,64 +367,60 @@ class PlacedStudentController extends Controller
             if (json_last_error() === JSON_ERROR_NONE) $metadata = $decoded;
         }
 
-        $offerLetterPath = $validated['offer_letter_url'] ?? null;
-
-        if ($request->hasFile('offer_letter_file')) {
-            $f = $request->file('offer_letter_file');
-            if (!$f || !$f->isValid()) {
-                return response()->json(['success' => false, 'message' => 'Offer letter upload failed'], 422);
-            }
-
-            $deptKey = !empty($validated['department_id']) ? (string) ((int) $validated['department_id']) : 'global';
-            $dirRel  = 'depy_uploads/placed_students/' . $deptKey;
-
-            $meta = $this->uploadOfferLetterToPublic($f, $dirRel, 'offer-letter-' . $uuid);
-            $offerLetterPath = $meta['path'];
+        $verifiedAt = null;
+        if (!empty($validated['verified_at'])) {
+            $verifiedAt = Carbon::parse($validated['verified_at'])->toDateTimeString();
+        } elseif (filter_var($request->input('verify', false), FILTER_VALIDATE_BOOLEAN)) {
+            $verifiedAt = $now->toDateTimeString();
         }
 
         $insert = [
-            'uuid'                => $uuid,
-            'department_id'        => $validated['department_id'] ?? null,
-            'placement_notice_id'  => $validated['placement_notice_id'] ?? null,
-            'user_id'              => (int) $validated['user_id'],
+            'uuid'              => $uuid,
+            'user_id'           => $validated['user_id'] ?? null,
+            'department_id'     => $validated['department_id'] ?? null,
 
-            'role_title'           => $validated['role_title'] ?? null,
-            'ctc'                  => array_key_exists('ctc', $validated) ? $validated['ctc'] : null,
+            'program'           => $validated['program'] ?? null,
+            'specialization'    => $validated['specialization'] ?? null,
+            'admission_year'    => array_key_exists('admission_year', $validated) ? ($validated['admission_year'] !== null ? (int)$validated['admission_year'] : null) : null,
+            'passing_year'      => array_key_exists('passing_year', $validated) ? ($validated['passing_year'] !== null ? (int)$validated['passing_year'] : null) : null,
+            'roll_no'           => $validated['roll_no'] ?? null,
 
-            'offer_date'           => !empty($validated['offer_date']) ? Carbon::parse($validated['offer_date'])->toDateString() : null,
-            'joining_date'         => !empty($validated['joining_date']) ? Carbon::parse($validated['joining_date'])->toDateString() : null,
+            'current_company'   => $validated['current_company'] ?? null,
+            'current_role_title'=> $validated['current_role_title'] ?? null,
+            'industry'          => $validated['industry'] ?? null,
 
-            'offer_letter_url'     => $offerLetterPath ? trim((string)$offerLetterPath) : null,
-            'note'                 => $validated['note'] ?? null,
+            'city'              => $validated['city'] ?? null,
+            'country'           => $validated['country'] ?? null,
 
-            'is_featured_home'     => (int) ($validated['is_featured_home'] ?? 0),
-            'sort_order'           => (int) ($validated['sort_order'] ?? 0),
-            'status'               => (string) ($validated['status'] ?? 'active'),
+            'note'              => $validated['note'] ?? null,
+            'is_featured_home'  => (int) ($validated['is_featured_home'] ?? 0),
+            'status'            => (string) ($validated['status'] ?? 'active'),
+            'verified_at'       => $verifiedAt,
 
-            'created_by'           => $actor['id'] ?: null,
-            'created_at'           => $now,
-            'updated_at'           => $now,
-            'created_at_ip'        => $request->ip(),
-            'updated_at_ip'        => $request->ip(),
-            'deleted_at'           => null,
-            'metadata'             => $metadata !== null ? json_encode($metadata) : null,
+            'created_by'        => $actor['id'] ?: null,
+            'created_at'        => $now,
+            'updated_at'        => $now,
+            'created_at_ip'     => $request->ip(),
+            'updated_at_ip'     => $request->ip(),
+            'deleted_at'        => null,
+            'metadata'          => $metadata !== null ? json_encode($metadata) : null,
         ];
 
-        $id = DB::table('placed_students')->insertGetId($insert);
+        $id = DB::table('alumni')->insertGetId($insert);
 
         $this->logActivity(
             $request,
             'create',
-            'placed_students',
-            'placed_students',
+            'alumni',
+            'alumni',
             $id,
             array_merge(['id'], array_keys($insert)),
             null,
-            array_merge(['id' => (int) $id], $insert),
-            'Placed student created'
+            array_merge(['id' => (int)$id], $insert),
+            'Alumni created'
         );
 
-        $row = $this->resolvePlacedStudent((string)$id, true);
+        $row = $this->resolveAlumni((string)$id, true);
 
         return response()->json([
             'success' => true,
@@ -445,32 +439,44 @@ class PlacedStudentController extends Controller
 
     public function update(Request $request, $identifier)
     {
-        $row = $this->resolvePlacedStudent($identifier, true);
-        if (! $row) return response()->json(['message' => 'Placed student not found'], 404);
+        $row = $this->resolveAlumni($identifier, true);
+        if (! $row) return response()->json(['message' => 'Alumni not found'], 404);
 
-        $beforeObj = DB::table('placed_students')->where('id', (int) $row->id)->first();
+        $beforeObj = DB::table('alumni')->where('id', (int) $row->id)->first();
         $before = $beforeObj ? (array) $beforeObj : (array) $row;
 
         $validated = $request->validate([
-            'department_id'         => ['nullable', 'integer', 'exists:departments,id'],
-            'placement_notice_id'   => ['nullable', 'integer', 'exists:placement_notices,id'],
-            'user_id'               => ['nullable', 'integer', 'exists:users,id'],
+            'user_id'         => ['nullable', 'integer', 'exists:users,id'],
+            'department_id'   => ['nullable', 'integer', 'exists:departments,id'],
 
-            'role_title'            => ['nullable', 'string', 'max:255'],
-            'ctc'                   => ['nullable', 'numeric', 'min:0', 'max:9999.99'],
+            'program'         => ['nullable', 'string', 'max:120'],
+            'specialization'  => ['nullable', 'string', 'max:120'],
+            'admission_year'  => ['nullable', 'integer', 'min:1900', 'max:2100'],
+            'passing_year'    => ['nullable', 'integer', 'min:1900', 'max:2100'],
 
-            'offer_date'            => ['nullable', 'date'],
-            'joining_date'          => ['nullable', 'date'],
+            'roll_no'         => [
+                'nullable',
+                'string',
+                'max:60',
+                Rule::unique('alumni', 'roll_no')->ignore((int) $row->id),
+            ],
 
-            'offer_letter_url'      => ['nullable', 'string', 'max:255'],
-            'offer_letter_file'     => ['nullable', 'file', 'max:20480'],
-            'offer_letter_remove'   => ['nullable', 'in:0,1', 'boolean'],
+            'current_company'    => ['nullable', 'string', 'max:160'],
+            'current_role_title' => ['nullable', 'string', 'max:160'],
+            'industry'           => ['nullable', 'string', 'max:120'],
 
-            'note'                  => ['nullable', 'string'],
-            'is_featured_home'      => ['nullable', 'in:0,1', 'boolean'],
-            'sort_order'            => ['nullable', 'integer', 'min:0'],
-            'status'                => ['nullable', 'in:active,inactive,verified'],
-            'metadata'              => ['nullable'],
+            'city'            => ['nullable', 'string', 'max:120'],
+            'country'         => ['nullable', 'string', 'max:120'],
+
+            'note'            => ['nullable', 'string'],
+            'is_featured_home'=> ['nullable', 'in:0,1', 'boolean'],
+            'status'          => ['nullable', 'in:active,inactive'],
+
+            'verified_at'     => ['nullable', 'date'],
+            'verify'          => ['nullable', 'in:0,1', 'boolean'],
+            'unverify'        => ['nullable', 'in:0,1', 'boolean'],
+
+            'metadata'        => ['nullable'],
         ]);
 
         $update = [
@@ -478,34 +484,35 @@ class PlacedStudentController extends Controller
             'updated_at_ip' => $request->ip(),
         ];
 
-        foreach (['department_id','placement_notice_id','user_id','role_title','note','status'] as $k) {
+        foreach ([
+            'user_id','department_id','program','specialization','roll_no',
+            'current_company','current_role_title','industry','city','country',
+            'note','status'
+        ] as $k) {
             if (array_key_exists($k, $validated)) {
                 $update[$k] = $validated[$k] !== null ? $validated[$k] : null;
             }
         }
 
-        if (array_key_exists('ctc', $validated)) {
-            $update['ctc'] = $validated['ctc'] !== null ? $validated['ctc'] : null;
-        }
-
-        if (array_key_exists('offer_date', $validated)) {
-            $update['offer_date'] = !empty($validated['offer_date'])
-                ? Carbon::parse($validated['offer_date'])->toDateString()
-                : null;
-        }
-
-        if (array_key_exists('joining_date', $validated)) {
-            $update['joining_date'] = !empty($validated['joining_date'])
-                ? Carbon::parse($validated['joining_date'])->toDateString()
-                : null;
+        foreach (['admission_year','passing_year'] as $k) {
+            if (array_key_exists($k, $validated)) {
+                $update[$k] = $validated[$k] !== null ? (int) $validated[$k] : null;
+            }
         }
 
         if (array_key_exists('is_featured_home', $validated)) {
             $update['is_featured_home'] = (int) $validated['is_featured_home'];
         }
 
-        if (array_key_exists('sort_order', $validated)) {
-            $update['sort_order'] = (int) ($validated['sort_order'] ?? 0);
+        // verified_at control
+        if (filter_var($request->input('unverify', false), FILTER_VALIDATE_BOOLEAN)) {
+            $update['verified_at'] = null;
+        } elseif (filter_var($request->input('verify', false), FILTER_VALIDATE_BOOLEAN)) {
+            $update['verified_at'] = now()->toDateTimeString();
+        } elseif (array_key_exists('verified_at', $validated)) {
+            $update['verified_at'] = !empty($validated['verified_at'])
+                ? Carbon::parse($validated['verified_at'])->toDateTimeString()
+                : null;
         }
 
         if (array_key_exists('metadata', $validated)) {
@@ -517,42 +524,15 @@ class PlacedStudentController extends Controller
             $update['metadata'] = $metadata !== null ? json_encode($metadata) : null;
         }
 
-        if (filter_var($request->input('offer_letter_remove', false), FILTER_VALIDATE_BOOLEAN)) {
-            $this->deletePublicPath($row->offer_letter_url ?? null);
-            $update['offer_letter_url'] = null;
-        }
+        DB::table('alumni')->where('id', (int) $row->id)->update($update);
 
-        if (array_key_exists('offer_letter_url', $validated) && trim((string)$validated['offer_letter_url']) !== '') {
-            $update['offer_letter_url'] = trim((string) $validated['offer_letter_url']);
-        }
-
-        if ($request->hasFile('offer_letter_file')) {
-            $f = $request->file('offer_letter_file');
-            if (!$f || !$f->isValid()) {
-                return response()->json(['success' => false, 'message' => 'Offer letter upload failed'], 422);
-            }
-
-            $this->deletePublicPath($row->offer_letter_url ?? null);
-
-            $newDeptId = array_key_exists('department_id', $validated)
-                ? ($validated['department_id'] !== null ? (int) $validated['department_id'] : null)
-                : ($row->department_id !== null ? (int) $row->department_id : null);
-
-            $deptKey = $newDeptId ? (string) $newDeptId : 'global';
-            $dirRel  = 'depy_uploads/placed_students/' . $deptKey;
-
-            $meta = $this->uploadOfferLetterToPublic($f, $dirRel, 'offer-letter-' . (string)$row->uuid);
-            $update['offer_letter_url'] = $meta['path'];
-        }
-
-        DB::table('placed_students')->where('id', (int) $row->id)->update($update);
-
-        $freshObj = DB::table('placed_students')->where('id', (int) $row->id)->first();
+        $freshObj = DB::table('alumni')->where('id', (int) $row->id)->first();
         $freshArr = $freshObj ? (array) $freshObj : null;
 
         $changed = [];
         $oldVals = [];
         $newVals = [];
+
         if ($freshArr) {
             foreach (array_keys($freshArr) as $k) {
                 if (in_array($k, ['updated_at', 'updated_at_ip'], true)) continue;
@@ -567,9 +547,9 @@ class PlacedStudentController extends Controller
                     if ((string)$old === (string)$new) continue;
                 }
 
-                $changed[]     = $k;
-                $oldVals[$k]   = $old;
-                $newVals[$k]   = $new;
+                $changed[]   = $k;
+                $oldVals[$k] = $old;
+                $newVals[$k] = $new;
             }
         } else {
             foreach ($update as $k => $v) {
@@ -583,16 +563,16 @@ class PlacedStudentController extends Controller
         $this->logActivity(
             $request,
             'update',
-            'placed_students',
-            'placed_students',
+            'alumni',
+            'alumni',
             (int) $row->id,
-            $changed,
+            $changed ?: null,
             $oldVals ?: null,
             $newVals ?: null,
-            'Placed student updated'
+            'Alumni updated'
         );
 
-        $joined = $this->resolvePlacedStudent((string)$row->id, true);
+        $joined = $this->resolveAlumni((string)$row->id, true);
 
         return response()->json([
             'success' => true,
@@ -602,13 +582,13 @@ class PlacedStudentController extends Controller
 
     public function toggleFeatured(Request $request, $identifier)
     {
-        $row = $this->resolvePlacedStudent($identifier, true);
-        if (! $row) return response()->json(['message' => 'Placed student not found'], 404);
+        $row = $this->resolveAlumni($identifier, true);
+        if (! $row) return response()->json(['message' => 'Alumni not found'], 404);
 
         $oldVal = (int) ($row->is_featured_home ?? 0);
         $newVal = $oldVal ? 0 : 1;
 
-        DB::table('placed_students')->where('id', (int) $row->id)->update([
+        DB::table('alumni')->where('id', (int) $row->id)->update([
             'is_featured_home' => $newVal,
             'updated_at'       => now(),
             'updated_at_ip'    => $request->ip(),
@@ -617,16 +597,16 @@ class PlacedStudentController extends Controller
         $this->logActivity(
             $request,
             'update',
-            'placed_students',
-            'placed_students',
+            'alumni',
+            'alumni',
             (int) $row->id,
             ['is_featured_home'],
             ['is_featured_home' => $oldVal],
             ['is_featured_home' => $newVal],
-            'Placed student featured flag toggled'
+            'Alumni featured flag toggled'
         );
 
-        $fresh = $this->resolvePlacedStudent((string)$row->id, true);
+        $fresh = $this->resolveAlumni((string)$row->id, true);
 
         return response()->json([
             'success' => true,
@@ -636,12 +616,12 @@ class PlacedStudentController extends Controller
 
     public function destroy(Request $request, $identifier)
     {
-        $row = $this->resolvePlacedStudent($identifier, false);
+        $row = $this->resolveAlumni($identifier, false);
         if (! $row) return response()->json(['message' => 'Not found or already deleted'], 404);
 
         $ts = now();
 
-        DB::table('placed_students')->where('id', (int) $row->id)->update([
+        DB::table('alumni')->where('id', (int) $row->id)->update([
             'deleted_at'    => $ts,
             'updated_at'    => $ts,
             'updated_at_ip' => $request->ip(),
@@ -650,13 +630,13 @@ class PlacedStudentController extends Controller
         $this->logActivity(
             $request,
             'delete',
-            'placed_students',
-            'placed_students',
+            'alumni',
+            'alumni',
             (int) $row->id,
             ['deleted_at'],
             ['deleted_at' => $row->deleted_at ?? null],
             ['deleted_at' => $ts->toDateTimeString()],
-            'Placed student soft deleted'
+            'Alumni soft deleted'
         );
 
         return response()->json(['success' => true]);
@@ -664,14 +644,14 @@ class PlacedStudentController extends Controller
 
     public function restore(Request $request, $identifier)
     {
-        $row = $this->resolvePlacedStudent($identifier, true);
+        $row = $this->resolveAlumni($identifier, true);
         if (! $row || $row->deleted_at === null) {
             return response()->json(['message' => 'Not found in bin'], 404);
         }
 
         $ts = now();
 
-        DB::table('placed_students')->where('id', (int) $row->id)->update([
+        DB::table('alumni')->where('id', (int) $row->id)->update([
             'deleted_at'    => null,
             'updated_at'    => $ts,
             'updated_at_ip' => $request->ip(),
@@ -680,16 +660,16 @@ class PlacedStudentController extends Controller
         $this->logActivity(
             $request,
             'restore',
-            'placed_students',
-            'placed_students',
+            'alumni',
+            'alumni',
             (int) $row->id,
             ['deleted_at'],
             ['deleted_at' => $row->deleted_at],
             ['deleted_at' => null],
-            'Placed student restored from bin'
+            'Alumni restored from bin'
         );
 
-        $fresh = $this->resolvePlacedStudent((string)$row->id, true);
+        $fresh = $this->resolveAlumni((string)$row->id, true);
 
         return response()->json([
             'success' => true,
@@ -699,26 +679,24 @@ class PlacedStudentController extends Controller
 
     public function forceDelete(Request $request, $identifier)
     {
-        $row = $this->resolvePlacedStudent($identifier, true);
-        if (! $row) return response()->json(['message' => 'Placed student not found'], 404);
+        $row = $this->resolveAlumni($identifier, true);
+        if (! $row) return response()->json(['message' => 'Alumni not found'], 404);
 
-        $beforeObj = DB::table('placed_students')->where('id', (int) $row->id)->first();
+        $beforeObj = DB::table('alumni')->where('id', (int) $row->id)->first();
         $before = $beforeObj ? (array) $beforeObj : (array) $row;
 
-        $this->deletePublicPath($row->offer_letter_url ?? null);
-
-        DB::table('placed_students')->where('id', (int) $row->id)->delete();
+        DB::table('alumni')->where('id', (int) $row->id)->delete();
 
         $this->logActivity(
             $request,
             'force_delete',
-            'placed_students',
-            'placed_students',
+            'alumni',
+            'alumni',
             (int) $row->id,
             null,
             $before ?: null,
             null,
-            'Placed student permanently deleted'
+            'Alumni permanently deleted'
         );
 
         return response()->json(['success' => true]);
@@ -728,7 +706,7 @@ class PlacedStudentController extends Controller
      | Public Index
      |============================================ */
 
-    public function publicindex(Request $request)
+    public function publicIndex(Request $request)
     {
         $page    = max(1, (int)$request->query('page', 1));
         $perPage = (int)$request->query('per_page', 12);
@@ -741,77 +719,100 @@ class PlacedStudentController extends Controller
 
         $sort = (string)$request->query('sort', 'created_at');
         $dir  = strtolower((string)$request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
-        $allowedSort = ['created_at','updated_at','offer_date','joining_date','sort_order','ctc','id'];
+        $allowedSort = ['created_at','updated_at','passing_year','admission_year','id','verified_at'];
         if (!in_array($sort, $allowedSort, true)) $sort = 'created_at';
 
-        $base = DB::table('placed_students as ps')
-            ->leftJoin('users as u', 'u.id', '=', 'ps.user_id')
-            ->leftJoin('departments as d', 'd.id', '=', 'ps.department_id')
-            ->whereNull('ps.deleted_at')
-            ->whereNull('u.deleted_at')
+        $base = DB::table('alumni as a')
+            ->leftJoin('users as u', function ($j) {
+                $j->on('u.id', '=', 'a.user_id')->whereNull('u.deleted_at');
+            })
+            ->leftJoin('departments as d', 'd.id', '=', 'a.department_id')
+            ->whereNull('a.deleted_at')
             ->where(function ($w) {
-                $w->whereNull('ps.department_id')
+                // allow null dept OR dept not deleted
+                $w->whereNull('a.department_id')
                   ->orWhereNull('d.deleted_at');
             });
 
-        if ($status !== '') $base->where('ps.status', $status);
+        if ($status !== '') $base->where('a.status', $status);
 
         if ($request->has('featured')) {
             $featured = filter_var($request->query('featured'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
-            if ($featured !== null) $base->where('ps.is_featured_home', $featured ? 1 : 0);
+            if ($featured !== null) $base->where('a.is_featured_home', $featured ? 1 : 0);
         }
 
         if (!empty($deptParam)) {
             $dept = $this->resolveDepartment($deptParam);
-            if ($dept) $base->where('ps.department_id', (int)$dept->id);
+            if ($dept) $base->where('a.department_id', (int)$dept->id);
             else $base->whereRaw('1=0');
+        }
+
+        if ($request->filled('passing_year') && ctype_digit((string)$request->query('passing_year'))) {
+            $base->where('a.passing_year', (int)$request->query('passing_year'));
+        }
+
+        if ($request->filled('program')) {
+            $base->where('a.program', (string)$request->query('program'));
         }
 
         if ($qText !== '') {
             $term = '%' . $qText . '%';
             $base->where(function ($w) use ($term) {
-                $w->where('u.name', 'like', $term)
-                  ->orWhere('ps.role_title', 'like', $term)
+                $w->where('a.program', 'like', $term)
+                  ->orWhere('a.specialization', 'like', $term)
+                  ->orWhere('a.current_company', 'like', $term)
+                  ->orWhere('a.current_role_title', 'like', $term)
+                  ->orWhere('a.industry', 'like', $term)
+                  ->orWhere('a.city', 'like', $term)
+                  ->orWhere('a.country', 'like', $term)
+                  ->orWhere('a.note', 'like', $term)
+                  ->orWhere('a.roll_no', 'like', $term)
                   ->orWhere('d.title', 'like', $term)
-                  ->orWhere('d.slug', 'like', $term);
+                  ->orWhere('d.slug', 'like', $term)
+                  ->orWhere('u.name', 'like', $term);
             });
         }
 
-        $total    = (clone $base)->distinct('ps.id')->count('ps.id');
+        $total    = (clone $base)->distinct('a.id')->count('a.id');
         $lastPage = max(1, (int)ceil($total / $perPage));
 
         $rows = (clone $base)
             ->select([
-                'ps.id',
-                'ps.uuid',
-                'ps.user_id',
-                'ps.department_id',
-                'ps.role_title',
-                'ps.ctc',
-                'ps.offer_date',
-                'ps.joining_date',
-                'ps.note',
-                'ps.is_featured_home',
-                'ps.sort_order',
-                'ps.status',
-                'ps.created_at',
-                'ps.updated_at',
+                'a.id',
+                'a.uuid',
+                'a.user_id',
+                'a.department_id',
+                'a.program',
+                'a.specialization',
+                'a.admission_year',
+                'a.passing_year',
+                'a.roll_no',
+                'a.current_company',
+                'a.current_role_title',
+                'a.industry',
+                'a.city',
+                'a.country',
+                'a.note',
+                'a.is_featured_home',
+                'a.status',
+                'a.verified_at',
+                'a.created_at',
+                'a.updated_at',
 
                 'd.title as department_title',
                 'd.slug  as department_slug',
                 'd.uuid  as department_uuid',
 
-                // ✅ actual user uuid for public too
-                'u.uuid as user_uuid',     // ✅ ACTUAL USER UUID
+                'u.uuid as user_uuid',
                 'u.name as user_name',
                 'u.image as user_image',
             ])
-            ->orderBy('ps.' . $sort, $dir)
-            ->orderBy('ps.id', 'desc')
+            ->orderBy('a.' . $sort, $dir)
+            ->orderBy('a.id', 'desc')
             ->forPage($page, $perPage)
             ->get();
 
-        $items = $rows->map(fn ($r) => $this->normalizeRow($r))->values()->all();
+        $items = $rows->map(fn($r) => $this->normalizeRow($r))->values()->all();
 
         return response()->json([
             'success' => true,

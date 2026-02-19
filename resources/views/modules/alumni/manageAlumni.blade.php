@@ -1,5 +1,5 @@
-{{-- resources/views/modules/placed-students/managePlacedStudents.blade.php --}}
-@section('title','Placed Students')
+{{-- resources/views/modules/alumni/manageAlumni.blade.php --}}
+@section('title','Alumni')
 
 @push('styles')
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
@@ -7,32 +7,33 @@
 
 <style>
 /* =========================
- * Placed Students - Admin UI
+ * Alumni - Admin UI
+ * (Following Placed Students module UI)
  * ========================= */
 
-.ps-wrap{max-width:1200px;margin:16px auto 40px;padding:0 6px;overflow:visible}
+.al-wrap{max-width:1200px;margin:16px auto 40px;padding:0 6px;overflow:visible}
 
 /* Tabs */
-.ps-tabs.nav-tabs{border-color:var(--line-strong)}
-.ps-tabs .nav-link{color:var(--ink)}
-.ps-tabs .nav-link.active{
+.al-tabs.nav-tabs{border-color:var(--line-strong)}
+.al-tabs .nav-link{color:var(--ink)}
+.al-tabs .nav-link.active{
   background:var(--surface);
   border-color:var(--line-strong) var(--line-strong) var(--surface);
 }
 .tab-content,.tab-pane{overflow:visible}
 
 /* Toolbar */
-.ps-toolbar.panel{
+.al-toolbar.panel{
   background:var(--surface);
   border:1px solid var(--line-strong);
   border-radius:16px;
   box-shadow:var(--shadow-2);
   padding:12px;
 }
-.ps-toolbar .form-select,.ps-toolbar .form-control{border-radius:12px}
+.al-toolbar .form-select,.al-toolbar .form-control{border-radius:12px}
 
 /* Table card */
-.ps-table.card{
+.al-table.card{
   position:relative;
   border:1px solid var(--line-strong);
   border-radius:16px;
@@ -40,7 +41,7 @@
   box-shadow:var(--shadow-2);
   overflow:visible;
 }
-.ps-table .card-body{overflow:visible}
+.al-table .card-body{overflow:visible}
 .table{--bs-table-bg:transparent}
 .table thead th{
   font-weight:600;
@@ -56,19 +57,19 @@ td .fw-semibold{color:var(--ink)}
 .small{font-size:12.5px}
 
 /* ✅ dropdown safe */
-.ps-table .dropdown{position:relative}
-.ps-table .dd-toggle{border-radius:10px}
-.ps-table .dropdown-menu{
+.al-table .dropdown{position:relative}
+.al-table .dd-toggle{border-radius:10px}
+.al-table .dropdown-menu{
   border-radius:12px;
   border:1px solid var(--line-strong);
   box-shadow:var(--shadow-2);
   min-width:230px;
-  z-index:99999; /* ✅ match reference page (avoid being behind footer/containers) */
+  z-index:99999;
 }
-.ps-table .dropdown-menu.show{display:block !important}
-.ps-table .dropdown-item{display:flex;align-items:center;gap:.6rem}
-.ps-table .dropdown-item i{width:16px;text-align:center}
-.ps-table .dropdown-item.text-danger{color:var(--danger-color) !important}
+.al-table .dropdown-menu.show{display:block !important}
+.al-table .dropdown-item{display:flex;align-items:center;gap:.6rem}
+.al-table .dropdown-item i{width:16px;text-align:center}
+.al-table .dropdown-item.text-danger{color:var(--danger-color) !important}
 
 /* ✅ Horizontal scroll (keep dropdown visible vertically) */
 .table-responsive{
@@ -112,27 +113,27 @@ td .fw-semibold{color:var(--ink)}
 }
 
 /* Loading overlay */
-.ps-loading{
+.al-loading{
   position:fixed;inset:0;
   background:rgba(0,0,0,.45);
   display:flex;justify-content:center;align-items:center;
   z-index:9999;
   backdrop-filter:blur(2px);
 }
-.ps-loading .box{
+.al-loading .box{
   background:var(--surface);
   padding:20px 22px;
   border-radius:14px;
   display:flex;flex-direction:column;align-items:center;gap:10px;
   box-shadow:0 10px 26px rgba(0,0,0,0.3);
 }
-.ps-loading .spin{
+.al-loading .spin{
   width:40px;height:40px;border-radius:50%;
   border:4px solid rgba(148,163,184,0.3);
   border-top:4px solid var(--primary-color);
-  animation:psspin 1s linear infinite;
+  animation:alspin 1s linear infinite;
 }
-@keyframes psspin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+@keyframes alspin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
 
 /* Button loading */
 .btn-loading{position:relative;color:transparent !important}
@@ -142,7 +143,7 @@ td .fw-semibold{color:var(--ink)}
   width:16px;height:16px;margin:-8px 0 0 -8px;
   border:2px solid transparent;border-top:2px solid currentColor;
   border-radius:50%;
-  animation:psspin 1s linear infinite;
+  animation:alspin 1s linear infinite;
 }
 
 /* RTE (note) */
@@ -204,18 +205,18 @@ td .fw-semibold{color:var(--ink)}
 
 /* Small screens toolbar */
 @media (max-width: 768px){
-  .ps-toolbar .row{row-gap:12px}
-  .ps-toolbar .ps-actions{display:flex;gap:8px;flex-wrap:wrap}
-  .ps-toolbar .ps-actions .btn{flex:1;min-width:140px}
+  .al-toolbar .row{row-gap:12px}
+  .al-toolbar .al-actions{display:flex;gap:8px;flex-wrap:wrap}
+  .al-toolbar .al-actions .btn{flex:1;min-width:140px}
 }
 </style>
 @endpush
 
 @section('content')
-<div class="ps-wrap">
+<div class="al-wrap">
 
   {{-- Global loading --}}
-  <div id="psLoading" class="ps-loading" style="display:none;">
+  <div id="alLoading" class="al-loading" style="display:none;">
     <div class="box">
       <div class="spin"></div>
       <div class="small">Loading…</div>
@@ -223,19 +224,19 @@ td .fw-semibold{color:var(--ink)}
   </div>
 
   {{-- Tabs --}}
-  <ul class="nav nav-tabs ps-tabs mb-3" role="tablist">
+  <ul class="nav nav-tabs al-tabs mb-3" role="tablist">
     <li class="nav-item">
-      <a class="nav-link active" data-bs-toggle="tab" href="#ps-tab-active" role="tab" aria-selected="true">
-        <i class="fa-solid fa-user-check me-2"></i>Active
+      <a class="nav-link active" data-bs-toggle="tab" href="#al-tab-active" role="tab" aria-selected="true">
+        <i class="fa-solid fa-user-graduate me-2"></i>Active
       </a>
     </li>
     <li class="nav-item">
-      <a class="nav-link" data-bs-toggle="tab" href="#ps-tab-inactive" role="tab" aria-selected="false">
-        <i class="fa-solid fa-user-xmark me-2"></i>Inactive
+      <a class="nav-link" data-bs-toggle="tab" href="#al-tab-inactive" role="tab" aria-selected="false">
+        <i class="fa-solid fa-user-slash me-2"></i>Inactive
       </a>
     </li>
     <li class="nav-item">
-      <a class="nav-link" data-bs-toggle="tab" href="#ps-tab-trash" role="tab" aria-selected="false">
+      <a class="nav-link" data-bs-toggle="tab" href="#al-tab-trash" role="tab" aria-selected="false">
         <i class="fa-solid fa-trash-can me-2"></i>Trash
       </a>
     </li>
@@ -244,16 +245,16 @@ td .fw-semibold{color:var(--ink)}
   <div class="tab-content">
 
     {{-- ACTIVE --}}
-    <div class="tab-pane fade show active" id="ps-tab-active" role="tabpanel">
+    <div class="tab-pane fade show active" id="al-tab-active" role="tabpanel">
 
       {{-- Toolbar --}}
-      <div class="ps-toolbar panel mb-3">
+      <div class="al-toolbar panel mb-3">
         <div class="row align-items-center g-2">
           <div class="col-12 col-lg d-flex align-items-center flex-wrap gap-2">
 
             <div class="d-flex align-items-center gap-2">
               <label class="text-muted small mb-0">Per Page</label>
-              <select id="psPerPage" class="form-select" style="width:96px;">
+              <select id="alPerPage" class="form-select" style="width:96px;">
                 <option>10</option>
                 <option selected>20</option>
                 <option>50</option>
@@ -262,23 +263,23 @@ td .fw-semibold{color:var(--ink)}
             </div>
 
             <div class="position-relative" style="min-width:280px;">
-              <input id="psSearch" type="search" class="form-control ps-5" placeholder="Search by user / note / uuid…">
+              <input id="alSearch" type="search" class="form-control ps-5" placeholder="Search by user / company / roll / uuid…">
               <i class="fa fa-search position-absolute" style="left:12px;top:50%;transform:translateY(-50%);opacity:.6;"></i>
             </div>
 
-            <button id="psBtnFilter" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#psFilterModal">
+            <button id="alBtnFilter" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#alFilterModal">
               <i class="fa fa-sliders me-1"></i>Filter
             </button>
 
-            <button id="psBtnReset" class="btn btn-light">
+            <button id="alBtnReset" class="btn btn-light">
               <i class="fa fa-rotate-left me-1"></i>Reset
             </button>
           </div>
 
           <div class="col-12 col-lg-auto ms-lg-auto d-flex justify-content-lg-end">
-            <div class="ps-actions" id="psWriteControls" style="display:none;">
-              <button type="button" class="btn btn-primary" id="psBtnAdd">
-                <i class="fa fa-plus me-1"></i> Add Placed Student
+            <div class="al-actions" id="alWriteControls" style="display:none;">
+              <button type="button" class="btn btn-primary" id="alBtnAdd">
+                <i class="fa fa-plus me-1"></i> Add Alumni
               </button>
             </div>
           </div>
@@ -286,114 +287,116 @@ td .fw-semibold{color:var(--ink)}
       </div>
 
       {{-- Table --}}
-      <div class="card ps-table">
+      <div class="card al-table">
         <div class="card-body p-0">
           <div class="table-responsive">
             <table class="table table-hover table-borderless align-middle mb-0">
               <thead class="sticky-top">
                 <tr>
-                  <th>User</th>
+                  <th>Alumni</th>
                   <th>Department</th>
+                  <th>Program</th>
+                  <th style="width:120px;">Passing Year</th>
+                  <th>Company</th>
                   <th>Role</th>
-                  <th style="width:110px;">CTC (LPA)</th>
-                  <th style="width:130px;">Offer Date</th>
-                  <th style="width:130px;">Joining Date</th>
+                  <th>Location</th>
                   <th style="width:110px;">Featured</th>
+                  <th style="width:110px;">Verified</th>
                   <th style="width:120px;">Status</th>
-                  <th style="width:90px;">Sort</th>
                   <th style="width:170px;">Updated</th>
                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
               </thead>
-              <tbody id="psTbodyActive">
-                <tr><td colspan="11" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+              <tbody id="alTbodyActive">
+                <tr><td colspan="12" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
 
-          <div id="psEmptyActive" class="p-4 text-center text-muted" style="display:none;">
-            <i class="fa fa-user-check mb-2" style="font-size:32px;opacity:.6;"></i>
-            <div>No active placed students found.</div>
+          <div id="alEmptyActive" class="p-4 text-center text-muted" style="display:none;">
+            <i class="fa fa-user-graduate mb-2" style="font-size:32px;opacity:.6;"></i>
+            <div>No active alumni found.</div>
           </div>
 
           <div class="d-flex flex-wrap align-items-center justify-content-between p-3 gap-2">
-            <div class="text-muted small" id="psInfoActive">—</div>
-            <nav><ul id="psPagerActive" class="pagination mb-0"></ul></nav>
+            <div class="text-muted small" id="alInfoActive">—</div>
+            <nav><ul id="alPagerActive" class="pagination mb-0"></ul></nav>
           </div>
         </div>
       </div>
     </div>
 
     {{-- INACTIVE --}}
-    <div class="tab-pane fade" id="ps-tab-inactive" role="tabpanel">
-      <div class="card ps-table">
+    <div class="tab-pane fade" id="al-tab-inactive" role="tabpanel">
+      <div class="card al-table">
         <div class="card-body p-0">
           <div class="table-responsive">
             <table class="table table-hover table-borderless align-middle mb-0">
               <thead class="sticky-top">
                 <tr>
-                  <th>User</th>
+                  <th>Alumni</th>
                   <th>Department</th>
+                  <th>Program</th>
+                  <th style="width:120px;">Passing Year</th>
+                  <th>Company</th>
                   <th>Role</th>
-                  <th style="width:110px;">CTC (LPA)</th>
-                  <th style="width:130px;">Offer Date</th>
-                  <th style="width:130px;">Joining Date</th>
+                  <th>Location</th>
                   <th style="width:110px;">Featured</th>
+                  <th style="width:110px;">Verified</th>
                   <th style="width:120px;">Status</th>
-                  <th style="width:90px;">Sort</th>
                   <th style="width:170px;">Updated</th>
                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
               </thead>
-              <tbody id="psTbodyInactive">
-                <tr><td colspan="11" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+              <tbody id="alTbodyInactive">
+                <tr><td colspan="12" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
 
-          <div id="psEmptyInactive" class="p-4 text-center text-muted" style="display:none;">
-            <i class="fa fa-user-xmark mb-2" style="font-size:32px;opacity:.6;"></i>
-            <div>No inactive placed students found.</div>
+          <div id="alEmptyInactive" class="p-4 text-center text-muted" style="display:none;">
+            <i class="fa fa-user-slash mb-2" style="font-size:32px;opacity:.6;"></i>
+            <div>No inactive alumni found.</div>
           </div>
 
           <div class="d-flex flex-wrap align-items-center justify-content-between p-3 gap-2">
-            <div class="text-muted small" id="psInfoInactive">—</div>
-            <nav><ul id="psPagerInactive" class="pagination mb-0"></ul></nav>
+            <div class="text-muted small" id="alInfoInactive">—</div>
+            <nav><ul id="alPagerInactive" class="pagination mb-0"></ul></nav>
           </div>
         </div>
       </div>
     </div>
 
     {{-- TRASH --}}
-    <div class="tab-pane fade" id="ps-tab-trash" role="tabpanel">
-      <div class="card ps-table">
+    <div class="tab-pane fade" id="al-tab-trash" role="tabpanel">
+      <div class="card al-table">
         <div class="card-body p-0">
           <div class="table-responsive">
             <table class="table table-hover table-borderless align-middle mb-0">
               <thead class="sticky-top">
                 <tr>
-                  <th>User</th>
+                  <th>Alumni</th>
                   <th>Department</th>
+                  <th style="width:120px;">Passing Year</th>
                   <th style="width:150px;">Deleted</th>
                   <th style="width:120px;">Status</th>
-                  <th style="width:90px;">Sort</th>
                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
               </thead>
-              <tbody id="psTbodyTrash">
+              <tbody id="alTbodyTrash">
                 <tr><td colspan="6" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
 
-          <div id="psEmptyTrash" class="p-4 text-center text-muted" style="display:none;">
+          <div id="alEmptyTrash" class="p-4 text-center text-muted" style="display:none;">
             <i class="fa fa-trash-can mb-2" style="font-size:32px;opacity:.6;"></i>
             <div>Trash is empty.</div>
           </div>
 
           <div class="d-flex flex-wrap align-items-center justify-content-between p-3 gap-2">
-            <div class="text-muted small" id="psInfoTrash">—</div>
-            <nav><ul id="psPagerTrash" class="pagination mb-0"></ul></nav>
+            <div class="text-muted small" id="alInfoTrash">—</div>
+            <nav><ul id="alPagerTrash" class="pagination mb-0"></ul></nav>
           </div>
         </div>
       </div>
@@ -403,7 +406,7 @@ td .fw-semibold{color:var(--ink)}
 </div>
 
 {{-- Filter Modal --}}
-<div class="modal fade" id="psFilterModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="alFilterModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-md">
     <div class="modal-content">
       <div class="modal-header">
@@ -416,43 +419,52 @@ td .fw-semibold{color:var(--ink)}
 
           <div class="col-12">
             <label class="form-label">Department (optional)</label>
-            <input id="psFilterDepartment" class="form-control" placeholder="Enter department id / uuid / slug">
+            <input id="alFilterDepartment" class="form-control" placeholder="Enter department id / uuid / slug">
             <div class="form-text">This filters list only (store/update uses department id).</div>
           </div>
 
-          <div class="col-12">
+          <div class="col-md-6">
             <label class="form-label">Status</label>
-            <select id="psFilterStatus" class="form-select">
+            <select id="alFilterStatus" class="form-select">
               <option value="">All</option>
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
-              <option value="verified">Verified</option>
             </select>
           </div>
 
-          <div class="col-12">
+          <div class="col-md-6">
             <label class="form-label">Featured</label>
-            <select id="psFilterFeatured" class="form-select">
+            <select id="alFilterFeatured" class="form-select">
               <option value="">Any</option>
               <option value="1">Featured only</option>
               <option value="0">Not featured</option>
             </select>
           </div>
 
+          <div class="col-md-6">
+            <label class="form-label">Passing Year (optional)</label>
+            <input id="alFilterPassingYear" type="number" min="1900" max="2100" class="form-control" placeholder="e.g., 2022">
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label">Program (optional)</label>
+            <input id="alFilterProgram" class="form-control" placeholder="e.g., BCA">
+          </div>
+
           <div class="col-12">
             <label class="form-label">Sort By</label>
-            <select id="psFilterSort" class="form-select">
+            <select id="alFilterSort" class="form-select">
               <option value="-created_at">Newest First</option>
               <option value="created_at">Oldest First</option>
               <option value="-updated_at">Recently Updated</option>
-              <option value="offer_date">Offer Date (Asc)</option>
-              <option value="-offer_date">Offer Date (Desc)</option>
-              <option value="joining_date">Joining Date (Asc)</option>
-              <option value="-joining_date">Joining Date (Desc)</option>
-              <option value="ctc">CTC (Asc)</option>
-              <option value="-ctc">CTC (Desc)</option>
-              <option value="sort_order">Sort Order ↑</option>
-              <option value="-sort_order">Sort Order ↓</option>
+              <option value="passing_year">Passing Year ↑</option>
+              <option value="-passing_year">Passing Year ↓</option>
+              <option value="admission_year">Admission Year ↑</option>
+              <option value="-admission_year">Admission Year ↓</option>
+              <option value="program">Program A→Z</option>
+              <option value="-program">Program Z→A</option>
+              <option value="current_company">Company A→Z</option>
+              <option value="-current_company">Company Z→A</option>
             </select>
           </div>
 
@@ -461,7 +473,7 @@ td .fw-semibold{color:var(--ink)}
 
       <div class="modal-footer">
         <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" id="psBtnApplyFilters" class="btn btn-primary">
+        <button type="button" id="alBtnApplyFilters" class="btn btn-primary">
           <i class="fa fa-check me-1"></i>Apply Filters
         </button>
       </div>
@@ -470,104 +482,108 @@ td .fw-semibold{color:var(--ink)}
 </div>
 
 {{-- Add/Edit/View Modal --}}
-<div class="modal fade" id="psItemModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="alItemModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-centered">
-    <form class="modal-content" id="psItemForm" autocomplete="off">
+    <form class="modal-content" id="alItemForm" autocomplete="off">
       <div class="modal-header">
-        <h5 class="modal-title" id="psItemModalTitle">Add Placed Student</h5>
+        <h5 class="modal-title" id="alItemModalTitle">Add Alumni</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
 
       <div class="modal-body">
-        <input type="hidden" id="psUuid">
-        <input type="hidden" id="psId">
+        <input type="hidden" id="alIdentifier">
 
         <div class="row g-3">
 
           <div class="col-lg-6">
             <div class="row g-3">
 
-              {{-- User (dropdown) --}}
+              {{-- Optional User link --}}
               <div class="col-md-6">
-                <label class="form-label">User <span class="text-danger">*</span></label>
-                <select class="form-select" id="psUserId" required>
-                  <option value="">Loading students…</option>
+                <label class="form-label">User (optional)</label>
+                <select class="form-select" id="alUserId">
+                  <option value="">Loading users…</option>
                 </select>
-                <div class="form-text">Options are loaded from Users API (students only) (value = user id, label = name).</div>
+                <div class="form-text">If alumni has a portal account, pick the user. Otherwise keep empty.</div>
               </div>
 
               <div class="col-md-6">
                 <label class="form-label">Department (optional)</label>
-                <select class="form-select" id="psDepartmentId">
+                <select class="form-select" id="alDepartmentId">
                   <option value="">Loading departments…</option>
                 </select>
               </div>
 
-              <div class="col-md-6">
-                <label class="form-label">Placement Notice (optional)</label>
-                <select class="form-select" id="psPlacementNoticeId">
-                  <option value="">Loading notices…</option>
-                </select>
+              <div class="col-md-4">
+                <label class="form-label">Program</label>
+                <input type="text" maxlength="120" class="form-control" id="alProgram" placeholder="e.g., BCA / BTech">
+              </div>
+
+              <div class="col-md-4">
+                <label class="form-label">Specialization</label>
+                <input type="text" maxlength="120" class="form-control" id="alSpecialization" placeholder="e.g., CSE">
+              </div>
+
+              <div class="col-md-4">
+                <label class="form-label">Roll No</label>
+                <input type="text" maxlength="60" class="form-control" id="alRollNo" placeholder="Optional">
               </div>
 
               <div class="col-md-6">
+                <label class="form-label">Admission Year</label>
+                <input type="number" min="1900" max="2100" class="form-control" id="alAdmissionYear" placeholder="e.g., 2019">
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Passing Year</label>
+                <input type="number" min="1900" max="2100" class="form-control" id="alPassingYear" placeholder="e.g., 2022">
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Current Company</label>
+                <input type="text" maxlength="160" class="form-control" id="alCompany" placeholder="e.g., Infosys">
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Current Role Title</label>
+                <input type="text" maxlength="160" class="form-control" id="alRoleTitle" placeholder="e.g., Software Engineer">
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Industry</label>
+                <input type="text" maxlength="120" class="form-control" id="alIndustry" placeholder="e.g., IT / Finance">
+              </div>
+
+              <div class="col-md-3">
+                <label class="form-label">City</label>
+                <input type="text" maxlength="120" class="form-control" id="alCity" placeholder="e.g., Kolkata">
+              </div>
+
+              <div class="col-md-3">
+                <label class="form-label">Country</label>
+                <input type="text" maxlength="120" class="form-control" id="alCountry" placeholder="e.g., India">
+              </div>
+
+              <div class="col-md-4">
                 <label class="form-label">Status</label>
-                <select id="psStatus" class="form-select">
+                <select id="alStatus" class="form-select">
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
-                  <option value="verified">Verified</option>
                 </select>
               </div>
 
-              <div class="col-12">
-                <label class="form-label">Role Title (optional)</label>
-                <input type="text" maxlength="255" class="form-control" id="psRoleTitle" placeholder="e.g., Software Engineer">
-              </div>
-
               <div class="col-md-4">
-                <label class="form-label">CTC (LPA)</label>
-                <input type="number" step="0.01" min="0" class="form-control" id="psCtc" placeholder="e.g., 6.50">
-              </div>
-
-              <div class="col-md-4">
-                <label class="form-label">Offer Date</label>
-                <input type="date" class="form-control" id="psOfferDate">
-              </div>
-
-              <div class="col-md-4">
-                <label class="form-label">Joining Date</label>
-                <input type="date" class="form-control" id="psJoiningDate">
-              </div>
-
-              <div class="col-md-6">
                 <label class="form-label">Featured on Home</label>
-                <select id="psFeatured" class="form-select">
+                <select id="alFeatured" class="form-select">
                   <option value="0">No</option>
                   <option value="1">Yes</option>
                 </select>
               </div>
 
-              <div class="col-md-6">
-                <label class="form-label">Sort Order</label>
-                <input type="number" min="0" class="form-control" id="psSortOrder" value="0">
-              </div>
-
-              <div class="col-12">
-                <label class="form-label">Offer Letter URL/Path (optional)</label>
-                <input type="text" maxlength="255" class="form-control" id="psOfferLetterUrl" placeholder="e.g., depy_uploads/placed_students/global/file.pdf or https://…">
-                <div class="form-text">You can either set URL/path OR upload a file.</div>
-              </div>
-
-              <div class="col-12">
-                <label class="form-label">Offer Letter File (optional)</label>
-                <input type="file" class="form-control" id="psOfferLetterFile">
-                <div class="small text-muted mt-2" id="psOfferLetterCurrent" style="display:none;">
-                  <i class="fa fa-paperclip me-1"></i>
-                  <a href="#" target="_blank" rel="noopener" id="psOfferLetterLink">Open</a>
-                  <button type="button" class="btn btn-light btn-sm ms-2" id="psBtnOfferRemove" style="display:none;">
-                    <i class="fa fa-xmark me-1"></i>Remove
-                  </button>
-                </div>
+              <div class="col-md-4">
+                <label class="form-label">Verified At (optional)</label>
+                <input type="datetime-local" class="form-control" id="alVerifiedAt">
+                <div class="form-text">Leave empty if not verified.</div>
               </div>
 
             </div>
@@ -576,7 +592,7 @@ td .fw-semibold{color:var(--ink)}
           <div class="col-lg-6">
             <label class="form-label">Note (HTML allowed)</label>
 
-            <div class="rte-wrap" id="psNoteWrap">
+            <div class="rte-wrap" id="alNoteWrap">
               <div class="rte-toolbar">
                 <button type="button" class="rte-btn" data-cmd="bold" title="Bold"><i class="fa fa-bold"></i></button>
                 <button type="button" class="rte-btn" data-cmd="italic" title="Italic"><i class="fa fa-italic"></i></button>
@@ -603,13 +619,13 @@ td .fw-semibold{color:var(--ink)}
               </div>
 
               <div class="rte-area">
-                <div id="psNoteEditor" class="rte-editor" contenteditable="true" data-placeholder="Write notes / remarks…"></div>
-                <textarea id="psNoteCode" class="rte-code" spellcheck="false" placeholder="HTML code…"></textarea>
+                <div id="alNoteEditor" class="rte-editor" contenteditable="true" data-placeholder="Write alumni intro / achievements / remarks…"></div>
+                <textarea id="alNoteCode" class="rte-code" spellcheck="false" placeholder="HTML code…"></textarea>
               </div>
             </div>
 
             <div class="rte-help">Use <b>Text</b> or switch to <b>Code</b> to paste HTML.</div>
-            <input type="hidden" id="psNoteHidden">
+            <input type="hidden" id="alNoteHidden">
           </div>
 
         </div>
@@ -617,7 +633,7 @@ td .fw-semibold{color:var(--ink)}
 
       <div class="modal-footer">
         <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-        <button type="submit" class="btn btn-primary" id="psSaveBtn">
+        <button type="submit" class="btn btn-primary" id="alSaveBtn">
           <i class="fa fa-floppy-disk me-1"></i> Save
         </button>
       </div>
@@ -627,15 +643,15 @@ td .fw-semibold{color:var(--ink)}
 
 {{-- Toasts --}}
 <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index:2000">
-  <div id="psToastSuccess" class="toast align-items-center text-bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+  <div id="alToastSuccess" class="toast align-items-center text-bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
     <div class="d-flex">
-      <div class="toast-body" id="psToastSuccessText">Done</div>
+      <div class="toast-body" id="alToastSuccessText">Done</div>
       <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
     </div>
   </div>
-  <div id="psToastError" class="toast align-items-center text-bg-danger border-0 mt-2" role="alert" aria-live="assertive" aria-atomic="true">
+  <div id="alToastError" class="toast align-items-center text-bg-danger border-0 mt-2" role="alert" aria-live="assertive" aria-atomic="true">
     <div class="d-flex">
-      <div class="toast-body" id="psToastErrorText">Something went wrong</div>
+      <div class="toast-body" id="alToastErrorText">Something went wrong</div>
       <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
     </div>
   </div>
@@ -648,8 +664,8 @@ td .fw-semibold{color:var(--ink)}
 
 <script>
 (() => {
-  if (window.__PLACED_STUDENTS_MODULE_INIT__) return;
-  window.__PLACED_STUDENTS_MODULE_INIT__ = true;
+  if (window.__ALUMNI_MODULE_INIT__) return;
+  window.__ALUMNI_MODULE_INIT__ = true;
 
   const $ = (id) => document.getElementById(id);
   const debounce = (fn, ms=300) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
@@ -658,14 +674,6 @@ td .fw-semibold{color:var(--ink)}
     return (str ?? '').toString().replace(/[&<>"']/g, s => ({
       '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
     }[s]));
-  }
-
-  function normalizeUrl(url){
-    const u = (url || '').toString().trim();
-    if (!u) return '';
-    if (/^(data:|blob:|https?:\/\/)/i.test(u)) return u;
-    if (u.startsWith('/')) return window.location.origin + u;
-    return window.location.origin + '/' + u;
   }
 
   async function fetchWithTimeout(url, opts={}, ms=15000){
@@ -684,7 +692,6 @@ td .fw-semibold{color:var(--ink)}
 
     let mode = 'text';
     let enabled = true;
-
     const toolbar = wrap?.querySelector('.rte-toolbar') || null;
 
     function rteFocus(){
@@ -850,12 +857,6 @@ td .fw-semibold{color:var(--ink)}
     return '';
   }
 
-  // ✅ Only student users in dropdown (API-first via role=student, plus safe client filter when role field exists)
-  function isStudentUser(u){
-    const r = (u?.role ?? u?.user_role ?? u?.userRole ?? u?.user_type ?? u?.userType ?? u?.type ?? '').toString().toLowerCase().trim();
-    return r === 'student';
-  }
-
   async function tryFetchList(endpoints, headers, timeoutMs=15000){
     for (const url of endpoints){
       try{
@@ -894,6 +895,51 @@ td .fw-semibold{color:var(--ink)}
     selectEl.innerHTML = `<option value="">${esc(msg || 'Loading…')}</option>`;
   }
 
+  function ensureSelectOption(selectEl, value, label){
+    if (!selectEl) return;
+    const v = (value ?? '').toString();
+    if (!v) return;
+    const exists = Array.from(selectEl.options).some(o => o.value === v);
+    if (exists) return;
+    const opt = document.createElement('option');
+    opt.value = v;
+    opt.textContent = label ? String(label) : `#${v}`;
+    selectEl.appendChild(opt);
+  }
+
+  function dbToDtLocal(v){
+    const s = (v || '').toString().trim();
+    if (!s) return '';
+    // expected: "YYYY-MM-DD HH:MM:SS"
+    const m = s.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})/);
+    if (!m) return '';
+    return `${m[1]}T${m[2]}`;
+  }
+
+  function dtLocalToDb(v){
+    const s = (v || '').toString().trim();
+    if (!s) return '';
+    // "YYYY-MM-DDTHH:MM"
+    if (s.includes('T')){
+      const [d,t] = s.split('T');
+      if (!d || !t) return '';
+      return `${d} ${t}:00`;
+    }
+    return s;
+  }
+
+  function nowDb(){
+    const d = new Date();
+    const pad = (n)=> String(n).padStart(2,'0');
+    const yyyy = d.getFullYear();
+    const mm = pad(d.getMonth()+1);
+    const dd = pad(d.getDate());
+    const hh = pad(d.getHours());
+    const mi = pad(d.getMinutes());
+    const ss = pad(d.getSeconds());
+    return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
+  }
+
   // ---------- Main ----------
   document.addEventListener('DOMContentLoaded', () => {
     const token = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
@@ -904,16 +950,16 @@ td .fw-semibold{color:var(--ink)}
       'Accept': 'application/json'
     });
 
-    const loadingEl = $('psLoading');
+    const loadingEl = $('alLoading');
     const showLoading = (v)=>{ if (loadingEl) loadingEl.style.display = v ? 'flex' : 'none'; };
 
-    const toastOkEl = $('psToastSuccess');
-    const toastErrEl = $('psToastError');
+    const toastOkEl = $('alToastSuccess');
+    const toastErrEl = $('alToastError');
     const toastOk = toastOkEl ? new bootstrap.Toast(toastOkEl) : null;
     const toastErr = toastErrEl ? new bootstrap.Toast(toastErrEl) : null;
 
-    const ok = (m) => { const el=$('psToastSuccessText'); if(el) el.textContent=m||'Done'; toastOk && toastOk.show(); };
-    const err = (m) => { const el=$('psToastErrorText'); if(el) el.textContent=m||'Something went wrong'; toastErr && toastErr.show(); };
+    const ok = (m) => { const el=$('alToastSuccessText'); if(el) el.textContent=m||'Done'; toastOk && toastOk.show(); };
+    const err = (m) => { const el=$('alToastErrorText'); if(el) el.textContent=m||'Something went wrong'; toastErr && toastErr.show(); };
 
     // Permissions
     const ACTOR = { role: '' };
@@ -927,7 +973,7 @@ td .fw-semibold{color:var(--ink)}
       canDelete = createDeleteRoles.includes(r);
       canEdit   = writeRoles.includes(r);
 
-      const wc = $('psWriteControls');
+      const wc = $('alWriteControls');
       if (wc) wc.style.display = canCreate ? 'flex' : 'none';
     }
 
@@ -947,72 +993,148 @@ td .fw-semibold{color:var(--ink)}
     }
 
     // Elements
-    const perPageSel = $('psPerPage');
-    const searchInput = $('psSearch');
-    const btnReset = $('psBtnReset');
-    const btnApplyFilters = $('psBtnApplyFilters');
+    const perPageSel = $('alPerPage');
+    const searchInput = $('alSearch');
+    const btnReset = $('alBtnReset');
+    const btnApplyFilters = $('alBtnApplyFilters');
 
-    const filterDepartment = $('psFilterDepartment');
-    const filterStatus = $('psFilterStatus');
-    const filterFeatured = $('psFilterFeatured');
-    const filterSort = $('psFilterSort');
+    const filterDepartment = $('alFilterDepartment');
+    const filterStatus = $('alFilterStatus');
+    const filterFeatured = $('alFilterFeatured');
+    const filterPassingYear = $('alFilterPassingYear');
+    const filterProgram = $('alFilterProgram');
+    const filterSort = $('alFilterSort');
 
-    const tbodyActive = $('psTbodyActive');
-    const tbodyInactive = $('psTbodyInactive');
-    const tbodyTrash = $('psTbodyTrash');
+    const tbodyActive = $('alTbodyActive');
+    const tbodyInactive = $('alTbodyInactive');
+    const tbodyTrash = $('alTbodyTrash');
 
-    const infoActive = $('psInfoActive');
-    const infoInactive = $('psInfoInactive');
-    const infoTrash = $('psInfoTrash');
+    const infoActive = $('alInfoActive');
+    const infoInactive = $('alInfoInactive');
+    const infoTrash = $('alInfoTrash');
 
-    const itemModalEl = $('psItemModal');
+    const itemModalEl = $('alItemModal');
     const itemModal = itemModalEl ? new bootstrap.Modal(itemModalEl) : null;
-    const itemModalTitle = $('psItemModalTitle');
-    const itemForm = $('psItemForm');
-    const saveBtn = $('psSaveBtn');
+    const itemModalTitle = $('alItemModalTitle');
+    const itemForm = $('alItemForm');
+    const saveBtn = $('alSaveBtn');
 
-    const psUuid = $('psUuid');
-    const psId = $('psId');
+    const alIdentifier = $('alIdentifier');
 
-    const psUserId = $('psUserId');
-    const psDepartmentId = $('psDepartmentId');
-    const psPlacementNoticeId = $('psPlacementNoticeId');
+    const alUserId = $('alUserId');
+    const alDepartmentId = $('alDepartmentId');
 
-    const psRoleTitle = $('psRoleTitle');
-    const psCtc = $('psCtc');
-    const psOfferDate = $('psOfferDate');
-    const psJoiningDate = $('psJoiningDate');
-    const psStatus = $('psStatus');
-    const psFeatured = $('psFeatured');
-    const psSortOrder = $('psSortOrder');
-    const psOfferLetterUrl = $('psOfferLetterUrl');
-    const psOfferLetterFile = $('psOfferLetterFile');
+    const alProgram = $('alProgram');
+    const alSpecialization = $('alSpecialization');
+    const alAdmissionYear = $('alAdmissionYear');
+    const alPassingYear = $('alPassingYear');
+    const alRollNo = $('alRollNo');
 
-    const psOfferLetterCurrent = $('psOfferLetterCurrent');
-    const psOfferLetterLink = $('psOfferLetterLink');
-    const psBtnOfferRemove = $('psBtnOfferRemove');
+    const alCompany = $('alCompany');
+    const alRoleTitle = $('alRoleTitle');
+    const alIndustry = $('alIndustry');
 
-    const btnAdd = $('psBtnAdd');
+    const alCity = $('alCity');
+    const alCountry = $('alCountry');
+
+    const alStatus = $('alStatus');
+    const alFeatured = $('alFeatured');
+    const alVerifiedAt = $('alVerifiedAt');
+
+    const btnAdd = $('alBtnAdd');
 
     // Note RTE
     const noteRte = initRte({
-      wrapId: 'psNoteWrap',
-      editorId: 'psNoteEditor',
-      codeId: 'psNoteCode',
-      hiddenId: 'psNoteHidden'
+      wrapId: 'alNoteWrap',
+      editorId: 'alNoteEditor',
+      codeId: 'alNoteCode',
+      hiddenId: 'alNoteHidden'
     });
 
-    // Lookup caches for names
+    // Lookup caches
     const lookups = {
       usersMap: new Map(),
       usersList: [],
       deptsMap: new Map(),
-      noticesMap: new Map(),
-      loaded: { users:false, depts:false, notices:false }
+      loaded: { users:false, depts:false }
     };
 
-    // used users (to remove from dropdown once placed)
-    const usedUserIds = new Set();
+    // ✅ Dept auto-fill + lock state
+    let deptLocked = false;
+
+    const norm = (v)=> (v ?? '').toString().trim().toLowerCase();
+
+    function isAlumniUser(u){
+      const r = norm(u?.role || u?.role_name || u?.user_role || u?.data?.role || u?.profile?.role || '');
+      return r === 'alumni';
+    }
+
+    function findUserById(id){
+      const v = (id ?? '').toString();
+      if (!v) return null;
+      return lookups.usersList.find(u => String(u?.id) === v) || null;
+    }
+
+    function resolveUserDeptId(u){
+      const did = u?.department_id ?? u?.departmentId ?? u?.department?.id ?? null;
+      if (did === null || did === undefined || did === '') return '';
+      return String(did);
+    }
+
+    function resolveUserDeptLabel(u){
+      return (
+        u?.department_title ||
+        u?.department_name ||
+        u?.department?.name ||
+        u?.department?.title ||
+        ''
+      );
+    }
+
+    function setDeptLocked(on){
+      deptLocked = !!on;
+      if (alDepartmentId) alDepartmentId.disabled = !!on;
+    }
+
+    function applyDeptFromSelectedUser({ forceSet=false } = {}){
+      if (!alDepartmentId || !alUserId) return;
+
+      // if form is in view mode, don't interfere (view already disables all fields)
+      if ((itemForm?.dataset?.mode || '') === 'view') return;
+
+      const uid = (alUserId.value || '').trim();
+      if (!uid){
+        if (deptLocked){
+          // unlock + clear (prevents stale dept that came from an auto-lock)
+          alDepartmentId.value = '';
+        }
+        setDeptLocked(false);
+        return;
+      }
+
+      const u = findUserById(uid);
+      const userDeptId = u ? resolveUserDeptId(u) : '';
+
+      if (userDeptId){
+        // ensure option exists so it can display
+        const lbl = resolveUserDeptLabel(u) || (lookups.deptsMap.get(userDeptId) || `Dept #${userDeptId}`);
+        ensureSelectOption(alDepartmentId, userDeptId, lbl);
+
+        // only force set when user is actively changed, otherwise keep existing value if already set
+        if (forceSet || !(alDepartmentId.value || '').trim()){
+          alDepartmentId.value = userDeptId;
+        }
+
+        setDeptLocked(true);
+      } else {
+        // user has no dept -> allow manual dept pick
+        if (deptLocked){
+          // unlock + clear (prevents stale dept that came from a previous locked user)
+          alDepartmentId.value = '';
+        }
+        setDeptLocked(false);
+      }
+    }
 
     function setBtnLoading(btn, loading){
       if (!btn) return;
@@ -1020,97 +1142,46 @@ td .fw-semibold{color:var(--ink)}
       btn.classList.toggle('btn-loading', !!loading);
     }
 
-    // build User dropdown excluding used users (but allow current selection for edit/view)
-    function rebuildUserSelect(allowUserId=''){
-      if (!psUserId) return;
-
-      const allow = (allowUserId ?? '').toString().trim();
-      const all = Array.isArray(lookups.usersList) ? lookups.usersList : [];
-
-      const filtered = all.filter(u => {
-        const id = (u?.id ?? '').toString();
-        if (!id) return false;
-        if (allow && id === allow) return true;
-        return !usedUserIds.has(id);
-      });
-
-      if (!lookups.loaded.users){
-        psUserId.innerHTML = `<option value="">(Users API not reachable)</option>`;
-        return;
-      }
-
-      setSelectOptions(psUserId, filtered, {
-        idKey: 'id',
-        labelKeys: ['name','full_name','username'],
-        placeholder: 'Select a student…',
-        keepValue: true
-      });
-    }
-
-    // best-effort: rebuild used users by fetching placed-students in bulk
-    async function refreshUsedUsers(){
-      usedUserIds.clear();
-      const headers = authHeaders();
-
-      const endpoints = [
-        '/api/placed-students?per_page=5000&page=1',
-        '/api/placed-students?per_page=5000&page=1&status=active',
-        '/api/placed-students?per_page=5000&page=1&status=inactive',
-        '/api/placed-students?per_page=5000&page=1&status=verified',
-        '/api/placed-students?per_page=5000&page=1&only_trashed=1'
-      ];
-
-      for (const url of endpoints){
-        try{
-          const res = await fetchWithTimeout(url, { headers }, 15000);
-          if (!res.ok) continue;
-          const js = await res.json().catch(()=> ({}));
-          const items = Array.isArray(js?.data) ? js.data : (Array.isArray(js?.items) ? js.items : []);
-          items.forEach(r => {
-            const uid = r?.user_id;
-            if (uid !== null && uid !== undefined && uid !== '') usedUserIds.add(String(uid));
-          });
-        }catch(_){}
-      }
-    }
-
     async function loadLookups(){
       const headers = authHeaders();
 
-      // users (students only)
-      setSelectLoading(psUserId, 'Loading students…');
+      // users (optional link) — ✅ only alumni users
+      setSelectLoading(alUserId, 'Loading alumni users…');
       const usersRes = await tryFetchList([
-        '/api/users?role=student&per_page=500&sort=name&direction=asc',
-        '/api/users?per_page=500&sort=name&direction=asc&role=student',
-        '/api/users?per_page=500&role=student',
-        '/api/users?role=student'
+        '/api/users?role=alumni&per_page=500&sort=name&direction=asc',
+        '/api/users?per_page=500&sort=name&direction=asc',
+        '/api/users?per_page=500',
+        '/api/users'
       ], headers);
 
       if (usersRes.ok){
-        const raw = usersRes.items;
-
-        // If role field exists in payload, filter client-side too (hard guarantee)
-        const hasRoleField = raw.some(u => u && (u.role != null || u.user_role != null || u.userRole != null || u.user_type != null || u.userType != null || u.type != null));
-        const items = hasRoleField ? raw.filter(isStudentUser) : raw;
+        const raw = usersRes.items || [];
+        const items = raw.filter(isAlumniUser);
 
         lookups.usersList = items;
-
         lookups.usersMap.clear();
         items.forEach(u => {
           const id = u?.id;
-          const nm = pickLabel(u, ['name','full_name','username']) || '';
+          const nm = pickLabel(u, ['name','full_name','username','email']) || '';
           if (id != null && nm) lookups.usersMap.set(String(id), nm);
+        });
+
+        setSelectOptions(alUserId, items, {
+          idKey: 'id',
+          labelKeys: ['name','full_name','username','email'],
+          placeholder: items.length ? 'Select an alumni user (optional)…' : '(No alumni users found)',
+          keepValue: true
         });
 
         lookups.loaded.users = true;
       } else {
         lookups.usersList = [];
-        psUserId.innerHTML = `<option value="">(Users API not reachable)</option>`;
+        alUserId.innerHTML = `<option value="">(Users API not reachable)</option>`;
         lookups.loaded.users = false;
       }
 
       // departments
-      setSelectLoading(psDepartmentId, 'Loading departments…');
+      setSelectLoading(alDepartmentId, 'Loading departments…');
       const deptsRes = await tryFetchList([
         '/api/departments?per_page=500&sort=name&direction=asc',
         '/api/departments?per_page=500',
@@ -1125,7 +1196,7 @@ td .fw-semibold{color:var(--ink)}
           const nm = pickLabel(d, ['name','title','department_name']) || '';
           if (id != null && nm) lookups.deptsMap.set(String(id), nm);
         });
-        setSelectOptions(psDepartmentId, items, {
+        setSelectOptions(alDepartmentId, items, {
           idKey: 'id',
           labelKeys: ['name','title','department_name'],
           placeholder: 'Select a department…',
@@ -1133,45 +1204,23 @@ td .fw-semibold{color:var(--ink)}
         });
         lookups.loaded.depts = true;
       } else {
-        psDepartmentId.innerHTML = `<option value="">Select a department…</option>`;
+        alDepartmentId.innerHTML = `<option value="">Select a department…</option>`;
         lookups.loaded.depts = false;
       }
 
-      // placement notices
-      setSelectLoading(psPlacementNoticeId, 'Loading notices…');
-      const noticesRes = await tryFetchList([
-        '/api/placement-notices?per_page=500&sort=created_at&direction=desc',
-        '/api/placement-notices?per_page=500',
-        '/api/placement-notices',
-        '/api/placement-notice?per_page=500',
-        '/api/placement-notice'
-      ], headers);
-
-      if (noticesRes.ok){
-        const items = noticesRes.items;
-        lookups.noticesMap.clear();
-        items.forEach(n => {
-          const id = n?.id;
-          const nm = pickLabel(n, ['title','name','notice_title','company_name']) || '';
-          if (id != null && nm) lookups.noticesMap.set(String(id), nm);
-        });
-        setSelectOptions(psPlacementNoticeId, items, {
-          idKey: 'id',
-          labelKeys: ['title','name','notice_title','company_name'],
-          placeholder: 'Select a placement notice…',
-          keepValue: true
-        });
-        lookups.loaded.notices = true;
-      } else {
-        psPlacementNoticeId.innerHTML = `<option value="">Select a placement notice…</option>`;
-        lookups.loaded.notices = false;
-      }
+      // ✅ if a user is already selected (edge), apply dept lock
+      applyDeptFromSelectedUser({ forceSet:false });
     }
+
+    // ✅ when user changes, auto-fill dept + lock if user has dept
+    alUserId?.addEventListener('change', () => {
+      applyDeptFromSelectedUser({ forceSet:true });
+    });
 
     // State
     const state = {
       perPage: parseInt(perPageSel?.value || '20', 10) || 20,
-      filters: { q: '', department: '', status: '', featured: '', sort: '-created_at' },
+      filters: { q: '', department: '', status: '', featured: '', passing_year:'', program:'', sort: '-created_at' },
       tabs: {
         active:   { page: 1, lastPage: 1, items: [] },
         inactive: { page: 1, lastPage: 1, items: [] },
@@ -1180,10 +1229,10 @@ td .fw-semibold{color:var(--ink)}
     };
 
     const getTabKey = () => {
-      const a = document.querySelector('.ps-tabs .nav-link.active');
-      const href = a?.getAttribute('href') || '#ps-tab-active';
-      if (href === '#ps-tab-inactive') return 'inactive';
-      if (href === '#ps-tab-trash') return 'trash';
+      const a = document.querySelector('.al-tabs .nav-link.active');
+      const href = a?.getAttribute('href') || '#al-tab-active';
+      if (href === '#al-tab-inactive') return 'inactive';
+      if (href === '#al-tab-trash') return 'trash';
       return 'active';
     };
 
@@ -1191,19 +1240,11 @@ td .fw-semibold{color:var(--ink)}
       const v = (s || '').toString().toLowerCase();
       if (v === 'active') return `<span class="badge badge-soft-success">Active</span>`;
       if (v === 'inactive') return `<span class="badge badge-soft-danger">Inactive</span>`;
-      if (v === 'verified') return `<span class="badge badge-soft-warning">Verified</span>`;
       return `<span class="badge badge-soft-muted">${esc(v || '—')}</span>`;
     }
 
-    function featuredBadge(v){
-      return v ? `<span class="badge badge-soft-primary">Yes</span>` : `<span class="badge badge-soft-muted">No</span>`;
-    }
-
-    function money(v){
-      if (v === null || v === undefined || v === '') return '—';
-      const n = Number(v);
-      if (Number.isNaN(n)) return esc(String(v));
-      return n.toFixed(2);
+    function yesNoBadge(v, yes='Yes', no='No'){
+      return v ? `<span class="badge badge-soft-primary">${esc(yes)}</span>` : `<span class="badge badge-soft-muted">${esc(no)}</span>`;
     }
 
     function buildListUrl(tabKey){
@@ -1220,28 +1261,36 @@ td .fw-semibold{color:var(--ink)}
       const featured = (state.filters.featured ?? '');
       if (featured !== '') params.set('featured', featured);
 
+      const passing = (state.filters.passing_year || '').toString().trim();
+      if (passing) params.set('passing_year', passing);
+
+      const prog = (state.filters.program || '').trim();
+      if (prog) params.set('program', prog);
+
       const sort = state.filters.sort || '-created_at';
       params.set('sort', sort.startsWith('-') ? sort.slice(1) : sort);
       params.set('direction', sort.startsWith('-') ? 'desc' : 'asc');
 
+      // tabs -> default status routing
       if (tabKey === 'active') params.set('status', 'active');
       if (tabKey === 'inactive') params.set('status', 'inactive');
-      if (tabKey === 'trash') params.set('only_trashed', '1');
 
+      // optional override (kept to match reference behavior)
       if (tabKey !== 'trash' && state.filters.status){
         params.set('status', state.filters.status);
       }
 
-      return `/api/placed-students?${params.toString()}`;
+      const base = (tabKey === 'trash') ? '/api/alumni/trash' : '/api/alumni';
+      return `${base}?${params.toString()}`;
     }
 
     function setEmpty(tabKey, show){
-      const el = tabKey==='active' ? $('psEmptyActive') : (tabKey==='inactive' ? $('psEmptyInactive') : $('psEmptyTrash'));
+      const el = tabKey==='active' ? $('alEmptyActive') : (tabKey==='inactive' ? $('alEmptyInactive') : $('alEmptyTrash'));
       if (el) el.style.display = show ? '' : 'none';
     }
 
     function renderPager(tabKey){
-      const pagerEl = tabKey==='active' ? $('psPagerActive') : (tabKey==='inactive' ? $('psPagerInactive') : $('psPagerTrash'));
+      const pagerEl = tabKey==='active' ? $('alPagerActive') : (tabKey==='inactive' ? $('alPagerInactive') : $('alPagerTrash'));
       if (!pagerEl) return;
 
       const st = state.tabs[tabKey];
@@ -1264,10 +1313,10 @@ td .fw-semibold{color:var(--ink)}
     }
 
     function resolveUserName(r){
-      const direct = r?.user_name || r?.user?.name || r?.user?.full_name || r?.student_name || '';
+      const direct = r?.user_name || r?.user?.name || r?.user?.full_name || r?.name || '';
       if (direct) return String(direct);
       const id = r?.user_id;
-      if (id == null) return '—';
+      if (id == null || id === '') return '—';
       return lookups.usersMap.get(String(id)) || `User #${id}`;
     }
 
@@ -1279,8 +1328,27 @@ td .fw-semibold{color:var(--ink)}
       return lookups.deptsMap.get(String(id)) || `Dept #${id}`;
     }
 
+    function displayLocation(r){
+      const city = (r?.city || '').toString().trim();
+      const country = (r?.country || '').toString().trim();
+      if (city && country) return `${city}, ${country}`;
+      return city || country || '—';
+    }
+
+    function displayProgram(r){
+      const p = (r?.program || '').toString().trim();
+      const sp = (r?.specialization || '').toString().trim();
+      if (p && sp) return `${p} • ${sp}`;
+      return p || sp || '—';
+    }
+
+    function displayYear(v){
+      if (v === null || v === undefined || v === '') return '—';
+      return String(v);
+    }
+
     function renderTable(tabKey){
-      const tbody = tabKey==='active' ? $('psTbodyActive') : (tabKey==='inactive' ? $('psTbodyInactive') : $('psTbodyTrash'));
+      const tbody = tabKey==='active' ? $('alTbodyActive') : (tabKey==='inactive' ? $('alTbodyInactive') : $('alTbodyTrash'));
       const rows = state.tabs[tabKey].items || [];
       if (!tbody) return;
 
@@ -1293,41 +1361,37 @@ td .fw-semibold{color:var(--ink)}
       setEmpty(tabKey, false);
 
       tbody.innerHTML = rows.map(r => {
-        const uuid = r.uuid || '';
+        const identifier = (r.uuid || r.id || '').toString();
         const userName = resolveUserName(r);
         const deptTitle = resolveDeptName(r);
-        const role = r.role_title || '—';
-        const ctc = money(r.ctc);
-        const offerDate = r.offer_date || '—';
-        const joinDate = r.joining_date || '—';
+        const program = displayProgram(r);
+        const passYear = displayYear(r.passing_year);
+        const company = (r.current_company || '—');
+        const role = (r.current_role_title || '—');
+        const location = displayLocation(r);
+
         const featured = !!(r.is_featured_home ?? 0);
+        const verified = !!(r.verified_at ?? '');
         const status = r.status || '—';
-        const sort = (r.sort_order ?? 0);
         const updated = r.updated_at || '—';
         const deleted = r.deleted_at || '—';
-        const offerLink = r.offer_letter_full_url || r.offer_letter_url || '';
 
-        // ✅ FIX (like Contact Info): render toggle WITHOUT data-bs-toggle and handle via JS + Popper fixed strategy
+        // dropdown actions (with fixed popper strategy)
         let actions = `
           <div class="dropdown text-end">
             <button type="button"
-              class="btn btn-light btn-sm dd-toggle ps-dd-toggle"
+              class="btn btn-light btn-sm dd-toggle al-dd-toggle"
               aria-expanded="false" title="Actions">
               <i class="fa fa-ellipsis-vertical"></i>
             </button>
             <ul class="dropdown-menu dropdown-menu-end">
               <li><button type="button" class="dropdown-item" data-action="view"><i class="fa fa-eye"></i> View</button></li>`;
 
-        if (offerLink){
-          actions += `<li><a class="dropdown-item" href="${esc(normalizeUrl(offerLink))}" target="_blank" rel="noopener">
-              <i class="fa fa-file-arrow-up"></i> Open Offer Letter
-            </a></li>`;
-        }
-
         if (tabKey !== 'trash'){
           if (canEdit){
             actions += `<li><button type="button" class="dropdown-item" data-action="edit"><i class="fa fa-pen-to-square"></i> Edit</button></li>`;
             actions += `<li><button type="button" class="dropdown-item" data-action="toggle_featured"><i class="fa fa-star"></i> Toggle Featured</button></li>`;
+            actions += `<li><button type="button" class="dropdown-item" data-action="toggle_verified"><i class="fa fa-badge-check"></i> ${verified ? 'Unverify' : 'Mark Verified'}</button></li>`;
           }
           if (canDelete){
             actions += `<li><hr class="dropdown-divider"></li>
@@ -1345,27 +1409,28 @@ td .fw-semibold{color:var(--ink)}
 
         if (tabKey === 'trash'){
           return `
-            <tr data-uuid="${esc(uuid)}">
+            <tr data-identifier="${esc(identifier)}" data-verified="${verified ? '1':'0'}">
               <td><div class="fw-semibold">${esc(userName)}</div></td>
               <td>${esc(deptTitle)}</td>
+              <td>${esc(passYear)}</td>
               <td>${esc(deleted)}</td>
               <td>${statusBadge(status)}</td>
-              <td>${esc(String(sort))}</td>
               <td class="text-end">${actions}</td>
             </tr>`;
         }
 
         return `
-          <tr data-uuid="${esc(uuid)}">
+          <tr data-identifier="${esc(identifier)}" data-verified="${verified ? '1':'0'}">
             <td><div class="fw-semibold">${esc(userName)}</div></td>
             <td>${esc(deptTitle)}</td>
-            <td>${esc(role)}</td>
-            <td>${esc(ctc)}</td>
-            <td>${esc(String(offerDate))}</td>
-            <td>${esc(String(joinDate))}</td>
-            <td>${featuredBadge(featured)}</td>
+            <td>${esc(program)}</td>
+            <td>${esc(passYear)}</td>
+            <td>${esc(String(company || '—'))}</td>
+            <td>${esc(String(role || '—'))}</td>
+            <td>${esc(location)}</td>
+            <td>${yesNoBadge(featured)}</td>
+            <td>${yesNoBadge(verified, 'Yes', 'No')}</td>
             <td>${statusBadge(status)}</td>
-            <td>${esc(String(sort))}</td>
             <td>${esc(String(updated))}</td>
             <td class="text-end">${actions}</td>
           </tr>`;
@@ -1377,7 +1442,7 @@ td .fw-semibold{color:var(--ink)}
     async function loadTab(tabKey){
       const tbody = tabKey==='active' ? tbodyActive : (tabKey==='inactive' ? tbodyInactive : tbodyTrash);
       if (tbody){
-        const cols = (tabKey==='trash') ? 6 : 11;
+        const cols = (tabKey==='trash') ? 6 : 12;
         tbody.innerHTML = `<tr><td colspan="${cols}" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>`;
       }
 
@@ -1435,10 +1500,12 @@ td .fw-semibold{color:var(--ink)}
     });
 
     // Filter modal set/reset/apply
-    $('psFilterModal')?.addEventListener('show.bs.modal', () => {
+    $('alFilterModal')?.addEventListener('show.bs.modal', () => {
       if (filterDepartment) filterDepartment.value = state.filters.department || '';
       if (filterStatus) filterStatus.value = state.filters.status || '';
       if (filterFeatured) filterFeatured.value = (state.filters.featured ?? '');
+      if (filterPassingYear) filterPassingYear.value = (state.filters.passing_year ?? '');
+      if (filterProgram) filterProgram.value = (state.filters.program ?? '');
       if (filterSort) filterSort.value = state.filters.sort || '-created_at';
     });
 
@@ -1446,16 +1513,18 @@ td .fw-semibold{color:var(--ink)}
       state.filters.department = (filterDepartment?.value || '').trim();
       state.filters.status = (filterStatus?.value || '').trim();
       state.filters.featured = (filterFeatured?.value ?? '');
+      state.filters.passing_year = (filterPassingYear?.value || '').toString().trim();
+      state.filters.program = (filterProgram?.value || '').trim();
       state.filters.sort = (filterSort?.value || '-created_at');
 
       state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
-      const modalEl = $('psFilterModal');
+      const modalEl = $('alFilterModal');
       if (modalEl) bootstrap.Modal.getInstance(modalEl)?.hide();
       loadTab(getTabKey());
     });
 
     btnReset?.addEventListener('click', () => {
-      state.filters = { q:'', department:'', status:'', featured:'', sort:'-created_at' };
+      state.filters = { q:'', department:'', status:'', featured:'', passing_year:'', program:'', sort:'-created_at' };
       state.perPage = 20;
 
       if (searchInput) searchInput.value = '';
@@ -1464,20 +1533,21 @@ td .fw-semibold{color:var(--ink)}
       if (filterDepartment) filterDepartment.value = '';
       if (filterStatus) filterStatus.value = '';
       if (filterFeatured) filterFeatured.value = '';
+      if (filterPassingYear) filterPassingYear.value = '';
+      if (filterProgram) filterProgram.value = '';
       if (filterSort) filterSort.value = '-created_at';
 
       state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
       loadTab(getTabKey());
     });
 
-    document.querySelector('a[href="#ps-tab-active"]')?.addEventListener('shown.bs.tab', () => loadTab('active'));
-    document.querySelector('a[href="#ps-tab-inactive"]')?.addEventListener('shown.bs.tab', () => loadTab('inactive'));
-    document.querySelector('a[href="#ps-tab-trash"]')?.addEventListener('shown.bs.tab', () => loadTab('trash'));
+    document.querySelector('a[href="#al-tab-active"]')?.addEventListener('shown.bs.tab', () => loadTab('active'));
+    document.querySelector('a[href="#al-tab-inactive"]')?.addEventListener('shown.bs.tab', () => loadTab('inactive'));
+    document.querySelector('a[href="#al-tab-trash"]')?.addEventListener('shown.bs.tab', () => loadTab('trash'));
 
-    // ---------- ✅ ACTION DROPDOWN FIX (from reference page behavior) ----------
-    // Use Bootstrap Dropdown programmatically with Popper strategy "fixed" so it won't be clipped by table overflow/footer.
+    // ---------- ✅ ACTION DROPDOWN FIX ----------
     function closeAllDropdownsExcept(exceptToggle){
-      document.querySelectorAll('.ps-dd-toggle').forEach(t => {
+      document.querySelectorAll('.al-dd-toggle').forEach(t => {
         if (t === exceptToggle) return;
         try{
           const inst = bootstrap.Dropdown.getInstance(t);
@@ -1487,7 +1557,7 @@ td .fw-semibold{color:var(--ink)}
     }
 
     document.addEventListener('click', (e) => {
-      const toggle = e.target.closest('.ps-dd-toggle');
+      const toggle = e.target.closest('.al-dd-toggle');
       if (!toggle) return;
 
       e.preventDefault();
@@ -1510,43 +1580,37 @@ td .fw-semibold{color:var(--ink)}
       }catch(_){}
     });
 
-    // close dropdowns on outside click (but allow clicks inside menu items to go through)
     document.addEventListener('click', (e) => {
-      if (e.target.closest('.ps-dd-toggle')) return;
+      if (e.target.closest('.al-dd-toggle')) return;
       if (e.target.closest('.dropdown-menu')) return;
       closeAllDropdownsExcept(null);
     }, { capture:true });
 
     // Modal helpers
     let saving = false;
-    let offerRemoveRequested = false;
 
     function resetForm(){
       itemForm?.reset();
-      psUuid.value = '';
-      psId.value = '';
-      offerRemoveRequested = false;
-
+      alIdentifier.value = '';
       noteRte.setHtml('');
       noteRte.setEnabled(true);
 
-      rebuildUserSelect('');
+      if (alUserId) alUserId.value = '';
+      if (alDepartmentId) alDepartmentId.value = '';
+      setDeptLocked(false);
 
-      if (psDepartmentId) psDepartmentId.value = '';
-      if (psPlacementNoticeId) psPlacementNoticeId.value = '';
-
-      if (psOfferLetterCurrent) psOfferLetterCurrent.style.display = 'none';
-      if (psOfferLetterLink) psOfferLetterLink.href = '#';
-      if (psBtnOfferRemove) psBtnOfferRemove.style.display = 'none';
-      if (psOfferLetterFile) psOfferLetterFile.value = '';
-      if (psOfferLetterUrl) psOfferLetterUrl.value = '';
+      if (alStatus) alStatus.value = 'active';
+      if (alFeatured) alFeatured.value = '0';
+      if (alVerifiedAt) alVerifiedAt.value = '';
 
       itemForm?.querySelectorAll('input,select,textarea').forEach(el => {
-        if (el.id === 'psUuid' || el.id === 'psId') return;
-        if (el.type === 'file') el.disabled = false;
-        else if (el.tagName === 'SELECT') el.disabled = false;
+        if (el.id === 'alIdentifier') return;
+        if (el.tagName === 'SELECT') el.disabled = false;
         else el.readOnly = false;
       });
+
+      // after generic enable, re-apply dept lock rule (user is empty => dept enabled)
+      applyDeptFromSelectedUser({ forceSet:false });
 
       if (saveBtn) saveBtn.style.display = '';
       itemForm.dataset.mode = 'edit';
@@ -1554,47 +1618,39 @@ td .fw-semibold{color:var(--ink)}
     }
 
     function fillForm(r, viewOnly=false){
-      psUuid.value = r.uuid || '';
-      psId.value = r.id || '';
+      const identifier = (r.uuid || r.id || '').toString();
+      alIdentifier.value = identifier;
 
       const uid = r.user_id ?? '';
       const did = r.department_id ?? '';
-      const pnid = r.placement_notice_id ?? '';
 
-      rebuildUserSelect(uid !== null && uid !== undefined ? String(uid) : '');
+      if (alUserId) alUserId.value = (uid !== null && uid !== undefined) ? String(uid) : '';
+      if (alDepartmentId) alDepartmentId.value = (did !== null && did !== undefined) ? String(did) : '';
 
-      if (psUserId) psUserId.value = uid !== null && uid !== undefined ? String(uid) : '';
-      if (psDepartmentId) psDepartmentId.value = did !== null && did !== undefined ? String(did) : '';
-      if (psPlacementNoticeId) psPlacementNoticeId.value = pnid !== null && pnid !== undefined ? String(pnid) : '';
+      alProgram.value = r.program ?? '';
+      alSpecialization.value = r.specialization ?? '';
+      alAdmissionYear.value = r.admission_year ?? '';
+      alPassingYear.value = r.passing_year ?? '';
+      alRollNo.value = r.roll_no ?? '';
 
-      psRoleTitle.value = r.role_title ?? '';
-      psCtc.value = r.ctc ?? '';
-      psOfferDate.value = r.offer_date ?? '';
-      psJoiningDate.value = r.joining_date ?? '';
-      psStatus.value = (r.status || 'active');
-      psFeatured.value = String((r.is_featured_home ?? 0) ? 1 : 0);
-      psSortOrder.value = (r.sort_order ?? 0);
+      alCompany.value = r.current_company ?? '';
+      alRoleTitle.value = r.current_role_title ?? '';
+      alIndustry.value = r.industry ?? '';
 
-      const offer = r.offer_letter_full_url || r.offer_letter_url || '';
-      psOfferLetterUrl.value = (r.offer_letter_url || '');
+      alCity.value = r.city ?? '';
+      alCountry.value = r.country ?? '';
 
-      if (offer){
-        if (psOfferLetterCurrent) psOfferLetterCurrent.style.display = '';
-        if (psOfferLetterLink) psOfferLetterLink.href = normalizeUrl(offer);
-        if (psBtnOfferRemove) psBtnOfferRemove.style.display = viewOnly ? 'none' : '';
-      } else {
-        if (psOfferLetterCurrent) psOfferLetterCurrent.style.display = 'none';
-        if (psBtnOfferRemove) psBtnOfferRemove.style.display = 'none';
-      }
+      alStatus.value = (r.status || 'active');
+      alFeatured.value = String((r.is_featured_home ?? 0) ? 1 : 0);
+      alVerifiedAt.value = dbToDtLocal(r.verified_at || '');
 
       noteRte.setHtml(r.note || '');
       noteRte.updateToolbarActive();
 
       if (viewOnly){
         itemForm?.querySelectorAll('input,select,textarea').forEach(el => {
-          if (el.id === 'psUuid' || el.id === 'psId') return;
-          if (el.type === 'file') el.disabled = true;
-          else if (el.tagName === 'SELECT') el.disabled = true;
+          if (el.id === 'alIdentifier') return;
+          if (el.tagName === 'SELECT') el.disabled = true;
           else el.readOnly = true;
         });
         noteRte.setEnabled(false);
@@ -1606,33 +1662,40 @@ td .fw-semibold{color:var(--ink)}
         if (saveBtn) saveBtn.style.display = '';
         itemForm.dataset.mode = 'edit';
         itemForm.dataset.intent = 'edit';
+
+        // ✅ lock dept if selected user has a dept (do NOT force override existing dept on open)
+        applyDeptFromSelectedUser({ forceSet:false });
       }
     }
 
-    async function fetchOne(uuid, withTrashed=true){
-      const url = `/api/placed-students/${encodeURIComponent(uuid)}${withTrashed ? '?with_trashed=1' : ''}`;
-      const res = await fetchWithTimeout(url, { headers: authHeaders() }, 12000);
-      const js = await res.json().catch(()=> ({}));
-      if (!res.ok) throw new Error(js?.message || 'Failed to load item');
-      return js?.item || js?.data || null;
+    async function fetchOne(identifier){
+      const id = encodeURIComponent(identifier);
+      const tries = [
+        `/api/alumni/${id}?with_trashed=1`,
+        `/api/alumni/${id}`
+      ];
+      let lastErr = null;
+
+      for (const url of tries){
+        try{
+          const res = await fetchWithTimeout(url, { headers: authHeaders() }, 12000);
+          const js = await res.json().catch(()=> ({}));
+          if (!res.ok) throw new Error(js?.message || 'Failed to load item');
+          return js?.item || js?.data || js || null;
+        }catch(e){
+          lastErr = e;
+        }
+      }
+      throw lastErr || new Error('Failed to load item');
     }
 
     btnAdd?.addEventListener('click', () => {
       if (!canCreate) return;
       resetForm();
-      if (itemModalTitle) itemModalTitle.textContent = 'Add Placed Student';
+      if (itemModalTitle) itemModalTitle.textContent = 'Add Alumni';
       itemForm.dataset.intent = 'create';
       itemModal && itemModal.show();
       setTimeout(()=> noteRte.updateToolbarActive(), 0);
-    });
-
-    psBtnOfferRemove?.addEventListener('click', () => {
-      offerRemoveRequested = true;
-      if (psOfferLetterUrl) psOfferLetterUrl.value = '';
-      if (psOfferLetterFile) psOfferLetterFile.value = '';
-      if (psOfferLetterCurrent) psOfferLetterCurrent.style.display = 'none';
-      if (psBtnOfferRemove) psBtnOfferRemove.style.display = 'none';
-      ok('Offer letter will be removed on save');
     });
 
     // Row actions
@@ -1641,12 +1704,12 @@ td .fw-semibold{color:var(--ink)}
       if (!btn) return;
 
       const tr = btn.closest('tr');
-      const uuid = tr?.dataset?.uuid;
+      const identifier = tr?.dataset?.identifier;
       const act = btn.dataset.action;
-      if (!uuid) return;
+      if (!identifier) return;
 
       // close dropdown
-      const toggle = btn.closest('.dropdown')?.querySelector('.ps-dd-toggle');
+      const toggle = btn.closest('.dropdown')?.querySelector('.al-dd-toggle');
       if (toggle) { try { bootstrap.Dropdown.getInstance(toggle)?.hide(); } catch (_) {} }
 
       try{
@@ -1654,10 +1717,10 @@ td .fw-semibold{color:var(--ink)}
           if (act === 'edit' && !canEdit) return;
 
           resetForm();
-          if (itemModalTitle) itemModalTitle.textContent = (act === 'view') ? 'View Placed Student' : 'Edit Placed Student';
+          if (itemModalTitle) itemModalTitle.textContent = (act === 'view') ? 'View Alumni' : 'Edit Alumni';
 
           showLoading(true);
-          const item = await fetchOne(uuid, true);
+          const item = await fetchOne(identifier);
           fillForm(item || {}, act === 'view');
 
           itemModal && itemModal.show();
@@ -1668,13 +1731,44 @@ td .fw-semibold{color:var(--ink)}
         if (act === 'toggle_featured'){
           if (!canEdit) return;
           showLoading(true);
-          const res = await fetchWithTimeout(`/api/placed-students/${encodeURIComponent(uuid)}/toggle-featured`, {
+          const res = await fetchWithTimeout(`/api/alumni/${encodeURIComponent(identifier)}/toggle-featured`, {
             method: 'PUT',
             headers: authHeaders()
           }, 15000);
           const js = await res.json().catch(()=> ({}));
           if (!res.ok || js.success === false) throw new Error(js?.message || 'Failed');
           ok('Featured updated');
+          await Promise.all([loadTab('active'), loadTab('inactive')]);
+          return;
+        }
+
+        if (act === 'toggle_verified'){
+          if (!canEdit) return;
+
+          const isVerified = (tr?.dataset?.verified || '0') === '1';
+          const conf = await Swal.fire({
+            title: isVerified ? 'Unverify this alumni?' : 'Mark alumni as verified?',
+            text: isVerified ? 'This will clear verified_at.' : 'This will set verified_at to current time.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: isVerified ? 'Unverify' : 'Verify'
+          });
+          if (!conf.isConfirmed) return;
+
+          showLoading(true);
+          const fd = new FormData();
+          fd.append('_method', 'PUT');
+          fd.append('verified_at', isVerified ? '' : nowDb());
+
+          const res = await fetchWithTimeout(`/api/alumni/${encodeURIComponent(identifier)}`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: fd
+          }, 15000);
+
+          const js = await res.json().catch(()=> ({}));
+          if (!res.ok || js.success === false) throw new Error(js?.message || 'Failed');
+          ok(isVerified ? 'Unverified' : 'Verified');
           await Promise.all([loadTab('active'), loadTab('inactive')]);
           return;
         }
@@ -1692,16 +1786,13 @@ td .fw-semibold{color:var(--ink)}
           if (!conf.isConfirmed) return;
 
           showLoading(true);
-          const res = await fetchWithTimeout(`/api/placed-students/${encodeURIComponent(uuid)}`, {
+          const res = await fetchWithTimeout(`/api/alumni/${encodeURIComponent(identifier)}`, {
             method: 'DELETE',
             headers: authHeaders()
           }, 15000);
           const js = await res.json().catch(()=> ({}));
           if (!res.ok || js.success === false) throw new Error(js?.message || 'Delete failed');
           ok('Moved to trash');
-
-          await refreshUsedUsers();
-          rebuildUserSelect('');
 
           await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
           return;
@@ -1717,16 +1808,13 @@ td .fw-semibold{color:var(--ink)}
           if (!conf.isConfirmed) return;
 
           showLoading(true);
-          const res = await fetchWithTimeout(`/api/placed-students/${encodeURIComponent(uuid)}/restore`, {
+          const res = await fetchWithTimeout(`/api/alumni/${encodeURIComponent(identifier)}/restore`, {
             method: 'PUT',
             headers: authHeaders()
           }, 15000);
           const js = await res.json().catch(()=> ({}));
           if (!res.ok || js.success === false) throw new Error(js?.message || 'Restore failed');
           ok('Restored');
-
-          await refreshUsedUsers();
-          rebuildUserSelect('');
 
           await Promise.all([loadTab('trash'), loadTab('active'), loadTab('inactive')]);
           return;
@@ -1736,7 +1824,7 @@ td .fw-semibold{color:var(--ink)}
           if (!canDelete) return;
           const conf = await Swal.fire({
             title: 'Delete permanently?',
-            text: 'This cannot be undone (offer letter file will be removed).',
+            text: 'This cannot be undone.',
             icon: 'warning',
             showCancelButton: true,
             confirmButtonText: 'Delete Permanently',
@@ -1745,16 +1833,13 @@ td .fw-semibold{color:var(--ink)}
           if (!conf.isConfirmed) return;
 
           showLoading(true);
-          const res = await fetchWithTimeout(`/api/placed-students/${encodeURIComponent(uuid)}/force`, {
+          const res = await fetchWithTimeout(`/api/alumni/${encodeURIComponent(identifier)}/force`, {
             method: 'DELETE',
             headers: authHeaders()
           }, 15000);
           const js = await res.json().catch(()=> ({}));
           if (!res.ok || js.success === false) throw new Error(js?.message || 'Force delete failed');
           ok('Deleted permanently');
-
-          await refreshUsedUsers();
-          rebuildUserSelect('');
 
           await loadTab('trash');
           return;
@@ -1767,7 +1852,7 @@ td .fw-semibold{color:var(--ink)}
       }
     });
 
-    // Submit (create/edit) using FormData (supports file)
+    // Submit (create/edit) using FormData
     itemForm?.addEventListener('submit', async (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -1775,17 +1860,10 @@ td .fw-semibold{color:var(--ink)}
       if (itemForm.dataset.mode === 'view') return;
 
       const intent = itemForm.dataset.intent || 'create';
-      const isEdit = (intent === 'edit') && !!(psUuid.value || '').trim();
+      const isEdit = (intent === 'edit') && !!(alIdentifier.value || '').trim();
 
       if (isEdit && !canEdit) return;
       if (!isEdit && !canCreate) return;
-
-      const userId = (psUserId.value || '').trim();
-      if (!userId){
-        err('User is required');
-        psUserId.focus();
-        return;
-      }
 
       saving = true;
       setBtnLoading(saveBtn, true);
@@ -1793,43 +1871,54 @@ td .fw-semibold{color:var(--ink)}
 
       try{
         const fd = new FormData();
-        fd.append('user_id', userId);
 
-        const deptId = (psDepartmentId.value || '').trim();
+        const userId = (alUserId.value || '').trim();
+        if (userId) fd.append('user_id', userId);
+
+        const deptId = (alDepartmentId.value || '').trim();
         if (deptId) fd.append('department_id', deptId);
 
-        const pnId = (psPlacementNoticeId.value || '').trim();
-        if (pnId) fd.append('placement_notice_id', pnId);
+        const program = (alProgram.value || '').trim();
+        if (program) fd.append('program', program);
 
-        const role = (psRoleTitle.value || '').trim();
-        if (role) fd.append('role_title', role);
+        const spec = (alSpecialization.value || '').trim();
+        if (spec) fd.append('specialization', spec);
 
-        const ctc = (psCtc.value || '').trim();
-        if (ctc !== '') fd.append('ctc', ctc);
+        const ady = (alAdmissionYear.value || '').toString().trim();
+        if (ady) fd.append('admission_year', ady);
 
-        const offerDate = (psOfferDate.value || '').trim();
-        if (offerDate) fd.append('offer_date', offerDate);
+        const pasy = (alPassingYear.value || '').toString().trim();
+        if (pasy) fd.append('passing_year', pasy);
 
-        const joiningDate = (psJoiningDate.value || '').trim();
-        if (joiningDate) fd.append('joining_date', joiningDate);
+        const roll = (alRollNo.value || '').trim();
+        if (roll) fd.append('roll_no', roll);
 
-        fd.append('status', (psStatus.value || 'active').trim());
-        fd.append('is_featured_home', (psFeatured.value || '0').trim());
-        fd.append('sort_order', String(parseInt(psSortOrder.value || '0', 10) || 0));
+        const company = (alCompany.value || '').trim();
+        if (company) fd.append('current_company', company);
+
+        const role = (alRoleTitle.value || '').trim();
+        if (role) fd.append('current_role_title', role);
+
+        const ind = (alIndustry.value || '').trim();
+        if (ind) fd.append('industry', ind);
+
+        const city = (alCity.value || '').trim();
+        if (city) fd.append('city', city);
+
+        const country = (alCountry.value || '').trim();
+        if (country) fd.append('country', country);
+
+        fd.append('status', (alStatus.value || 'active').trim());
+        fd.append('is_featured_home', (alFeatured.value || '0').trim());
+
+        const vAt = dtLocalToDb(alVerifiedAt.value || '');
+        fd.append('verified_at', vAt); // empty allowed
 
         fd.append('note', noteRte.getHtml() || '');
 
-        const offerUrl = (psOfferLetterUrl.value || '').trim();
-        if (offerUrl) fd.append('offer_letter_url', offerUrl);
-
-        const file = psOfferLetterFile?.files?.[0] || null;
-        if (file) fd.append('offer_letter_file', file);
-
-        if (offerRemoveRequested) fd.append('offer_letter_remove', '1');
-
-        let url = '/api/placed-students';
+        let url = '/api/alumni';
         if (isEdit){
-          url = `/api/placed-students/${encodeURIComponent(psUuid.value)}`;
+          url = `/api/alumni/${encodeURIComponent(alIdentifier.value)}`;
           fd.append('_method', 'PUT');
         }
 
@@ -1852,9 +1941,6 @@ td .fw-semibold{color:var(--ink)}
         ok(isEdit ? 'Updated' : 'Created');
         itemModal && itemModal.hide();
 
-        await refreshUsedUsers();
-        rebuildUserSelect('');
-
         state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
         await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
 
@@ -1872,12 +1958,7 @@ td .fw-semibold{color:var(--ink)}
       showLoading(true);
       try{
         await fetchMe();
-
         await loadLookups();
-
-        await refreshUsedUsers();
-        rebuildUserSelect('');
-
         await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
       }catch(ex){
         err(ex?.message || 'Initialization failed');
