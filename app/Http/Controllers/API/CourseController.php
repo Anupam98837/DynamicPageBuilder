@@ -588,7 +588,7 @@ class CourseController extends Controller
 
             'title'             => ['required', 'string', 'max:255'],
             'slug'              => ['nullable', 'string', 'max:160'],
-            'summary'           => ['nullable', 'string', 'max:500'],
+            'summary'           => ['nullable', 'string', 'max:1000'],
             'body'              => ['required', 'string'],
 
             'program_level'     => ['nullable', 'string', 'max:30'],
@@ -803,7 +803,7 @@ class CourseController extends Controller
 
             'title'              => ['nullable', 'string', 'max:255'],
             'slug'               => ['nullable', 'string', 'max:160'],
-            'summary'            => ['nullable', 'string', 'max:500'],
+            'summary'            => ['nullable', 'string', 'max:1000'],
             'body'               => ['nullable', 'string'],
 
             'program_level'      => ['nullable', 'string', 'max:30'],
