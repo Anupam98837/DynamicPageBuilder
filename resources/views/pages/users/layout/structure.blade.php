@@ -76,6 +76,24 @@
       content:""; position:absolute; left:-6px; top:8px; bottom:8px; width:3px; background:var(--accent-color); border-radius:4px;
     }
 
+    /* Active nav auto-focus flash */
+    .w3-link.w3-focus-flash{
+      animation: w3FocusFlash 1.1s ease;
+    }
+    @keyframes w3FocusFlash{
+      0%   { box-shadow: 0 0 0 0 rgba(201,75,80,0); }
+      20%  { box-shadow: 0 0 0 6px rgba(201,75,80,.14); }
+      100% { box-shadow: 0 0 0 0 rgba(201,75,80,0); }
+    }
+    html.theme-dark .w3-link.w3-focus-flash{
+      animation: w3FocusFlashDark 1.1s ease;
+    }
+    @keyframes w3FocusFlashDark{
+      0%   { box-shadow: 0 0 0 0 rgba(20,184,166,0); }
+      20%  { box-shadow: 0 0 0 6px rgba(20,184,166,.16); }
+      100% { box-shadow: 0 0 0 0 rgba(20,184,166,0); }
+    }
+
     /* Group / Submenu */
     .w3-group{display:grid; gap:4px; margin-top:2px}
     .w3-toggle{cursor:pointer}
@@ -198,6 +216,7 @@
 <div id="pageLoadingWrap" style="display:block;">
   @include('partials.overlay')
 </div>
+
 <!-- Sidebar -->
 <aside id="sidebar" class="w3-sidebar" aria-label="Sidebar">
   <div class="w3-sidebar-head">
@@ -219,19 +238,18 @@
       </a>
     </nav>
 
-
     {{-- ✅ ADMIN FULL MENU (static) --}}
     <div id="adminFullMenu" style="display:none">
       <nav class="w3-menu" aria-label="Site Builder (Admin)">
 
-                {{-- =======================
+        {{-- =======================
            ACCESS & CONTROL
         ======================== --}}
         <div class="w3-nav-section" style="padding:6px 6px 2px">
           <div class="w3-section-title"><i class="fa-solid fa-user-shield"></i> ACCESS & CONTROL</div>
           <div class="w3-section-rule"></div>
         </div>
- 
+
         <div class="w3-group">
           <a href="#" class="w3-link w3-toggle" data-target="sm-users" aria-expanded="false">
             <i class="fa-solid fa-user-shield"></i><span>Users & Access</span>
@@ -239,18 +257,16 @@
           </a>
           <div id="sm-users" class="w3-submenu" role="group" aria-label="Users submenu">
             <a href="/user/manage" class="w3-link">All Users</a>
-                        <a href="/senior-authority/manage" class="w3-link">Senior Authority</a>
-                                <a href="/faculty/manage" class="w3-link">Faculty</a>
+            <a href="/senior-authority/manage" class="w3-link">Senior Authority</a>
+            <a href="/faculty/manage" class="w3-link">Faculty</a>
             <a href="/other-roles/manage" class="w3-link">Other Roles</a>
             <a href="/students/manage" class="w3-link">Students</a>
- 
           </div>
 
           <!-- Master Approval -->
-<a href="/master-approval/manage" class="w3-link">
-  <i class="fa-solid fa-clipboard-check"></i><span>Master Approval</span>
-</a>
-         
+          <a href="/master-approval/manage" class="w3-link">
+            <i class="fa-solid fa-clipboard-check"></i><span>Master Approval</span>
+          </a>
         </div>
 
         {{-- =======================
@@ -269,6 +285,7 @@
           </a>
           <div id="sm-departments" class="w3-submenu" role="group" aria-label="Departments submenu">
             <a href="/department/manage" class="w3-link">Manage Departments</a>
+          </div>
         </div>
 
         <!-- Courses -->
@@ -285,26 +302,26 @@
         </div>
 
         <!-- Subjects -->
-<div class="w3-group">
-  <a href="#" class="w3-link w3-toggle" data-target="sm-subjects" aria-expanded="false">
-    <i class="fa-solid fa-book"></i><span>Subjects</span>
-    <i class="fa fa-chevron-down w3-chev"></i>
-  </a>
-  <div id="sm-subjects" class="w3-submenu" role="group" aria-label="Subjects submenu">
-    <a href="/course/subject/manage" class="w3-link">Manage Subject</a>
-    <a href="/student-subject-attendance" class="w3-link">Student Subject Attendance</a>
-  </div>
-</div>
+        <div class="w3-group">
+          <a href="#" class="w3-link w3-toggle" data-target="sm-subjects" aria-expanded="false">
+            <i class="fa-solid fa-book"></i><span>Subjects</span>
+            <i class="fa fa-chevron-down w3-chev"></i>
+          </a>
+          <div id="sm-subjects" class="w3-submenu" role="group" aria-label="Subjects submenu">
+            <a href="/course/subject/manage" class="w3-link">Manage Subject</a>
+            <a href="/student-subject-attendance" class="w3-link">Student Subject Attendance</a>
+          </div>
+        </div>
 
         <!-- Curriculum & Syllabus -->
-<a href="/department/curriculum-syllabus" class="w3-link">
-  <i class="fa-solid fa-book-open"></i><span>Curriculum & Syllabus</span>
-</a>
+        <a href="/department/curriculum-syllabus" class="w3-link">
+          <i class="fa-solid fa-book-open"></i><span>Curriculum & Syllabus</span>
+        </a>
 
-<!-- Gallery -->
-<a href="/department/gallery" class="w3-link">
-  <i class="fa-solid fa-images"></i><span>Gallery</span>
-</a>
+        <!-- Gallery -->
+        <a href="/department/gallery" class="w3-link">
+          <i class="fa-solid fa-images"></i><span>Gallery</span>
+        </a>
 
         {{-- =======================
            SITE SETTINGS & CONTENT (site related changes)
@@ -368,8 +385,6 @@
             </a>
             <div id="sm-contact-info" class="w3-submenu" role="group" aria-label="Contact Info submenu">
               <a href="/contact-info/manage" class="w3-link">Manage Contact Info</a>
-              <!-- <a href="/contact/forms/manage" class="w3-link">Contact Forms</a>
-              <a href="/contact/locations/manage" class="w3-link">Office Locations</a> -->
               <a href="/contact-us/manage" class="w3-link">Manage Enquiries</a>
               <a href="/contact-us-visibility/manage" class="w3-link">Contact Visibility</a>
             </div>
@@ -509,10 +524,8 @@
             <a href="/feedback/post/manage" class="w3-link">Create Posts</a>
             <a href="/feedback/manage" class="w3-link">Manage Posts</a>
             <a href="/feedback/result" class="w3-link">Feedback Result</a>
-
           </div>
         </div>
-
       </nav>
 
       <!-- privileges (admin static) -->
@@ -582,6 +595,7 @@
           <a href="/user/social-media/manage" class="w3-link">Social Media</a>
         </div>
       </div>
+
       <a href="/feedback/submit" class="w3-link"><i class="fa-solid fa-comment-dots"></i><span> Feedback</span></a>
 
       <a href="/settings/general" class="w3-link">
@@ -590,9 +604,9 @@
       </a>
 
       <!-- Activity Logs -->
-<a href="/activity-logs" class="w3-link">
-  <i class="fa-solid fa-clipboard-list"></i><span>Activity Logs</span>
-</a>
+      <a href="/activity-logs" class="w3-link">
+        <i class="fa-solid fa-clipboard-list"></i><span>Activity Logs</span>
+      </a>
     </nav>
 
     <!-- Account (mobile only) -->
@@ -614,7 +628,6 @@
     </a>
   </div>
 </aside>
-
 
 <!-- Appbar -->
 <header class="w3-appbar">
@@ -713,11 +726,15 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem(THEME_KEY, mode);
     if (themeIcon) themeIcon.className = isDark ? 'fa-regular fa-sun' : 'fa-regular fa-moon';
   }
+
   setTheme(
     localStorage.getItem(THEME_KEY) ||
     (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
   );
-  btnTheme?.addEventListener('click', () => setTheme(html.classList.contains('theme-dark') ? 'light' : 'dark'));
+
+  btnTheme?.addEventListener('click', () =>
+    setTheme(html.classList.contains('theme-dark') ? 'light' : 'dark')
+  );
 
   // ===== Sidebar toggle (mobile)
   const sidebar = document.getElementById('sidebar');
@@ -731,6 +748,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnHamburger?.setAttribute('aria-expanded','true');
     btnHamburger?.setAttribute('aria-label','Close menu');
   };
+
   const closeSidebar = () => {
     sidebar.classList.remove('w3-on');
     overlay.classList.remove('w3-on');
@@ -739,9 +757,13 @@ document.addEventListener('DOMContentLoaded', () => {
     btnHamburger?.setAttribute('aria-label','Open menu');
   };
 
-  btnHamburger?.addEventListener('click', () => sidebar.classList.contains('w3-on') ? closeSidebar() : openSidebar());
+  btnHamburger?.addEventListener('click', () =>
+    sidebar.classList.contains('w3-on') ? closeSidebar() : openSidebar()
+  );
   overlay?.addEventListener('click', closeSidebar);
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSidebar(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeSidebar();
+  });
 
   // ===== Role label
   const roleLabelEl = document.getElementById('userRoleLabel');
@@ -749,6 +771,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!r) return 'Admin';
     return r.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
   }
+
   const roleFromStorage = sessionStorage.getItem('role') || localStorage.getItem('role');
   if (roleLabelEl) roleLabelEl.textContent = titleizeRole(roleFromStorage) || 'Admin';
 
@@ -788,11 +811,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ===== Active link + open parent
   function markActiveLinks(){
-    const path = window.location.pathname.replace(/\/+$/, '');
+    const path = window.location.pathname.replace(/\/+$/, '') || '/';
+    let firstVisibleActive = null;
+
     document.querySelectorAll('.w3-menu a[href]').forEach(a => {
       const href = a.getAttribute('href');
-      if (href && href !== '#' && href.replace(/\/+$/, '') === path){
+      if (!href || href === '#') return;
+
+      const normalizedHref = href.replace(/\/+$/, '') || '/';
+      if (normalizedHref === path){
         a.classList.add('active');
+
+        // open parent submenu if inside one
         const sub = a.closest('.w3-submenu');
         if (sub){
           sub.classList.add('w3-open');
@@ -800,8 +830,48 @@ document.addEventListener('DOMContentLoaded', () => {
           toggle?.classList.add('w3-open');
           toggle?.setAttribute('aria-expanded','true');
         }
+
+        // keep first visible active link (avoid hidden duplicate mobile/desktop links)
+        const isVisible = a.offsetParent !== null && getComputedStyle(a).visibility !== 'hidden';
+        if (!firstVisibleActive && isVisible) firstVisibleActive = a;
       }
     });
+
+    return firstVisibleActive;
+  }
+
+  // ===== Keep active nav item inside sidebar viewport (smooth scroll)
+  function focusActiveNavIntoView(activeEl){
+    if (!activeEl) return;
+
+    const scroller = document.querySelector('.w3-sidebar-scroll');
+    if (!scroller) return;
+
+    // Wait a bit so submenu open animation/layout is applied
+    setTimeout(() => {
+      try{
+        const sRect = scroller.getBoundingClientRect();
+        const aRect = activeEl.getBoundingClientRect();
+
+        // If already fully visible, still add small flash only
+        const fullyVisible = aRect.top >= sRect.top + 8 && aRect.bottom <= sRect.bottom - 8;
+
+        if (!fullyVisible) {
+          const currentTop = scroller.scrollTop;
+          const deltaTop = aRect.top - sRect.top;
+          const targetTop = currentTop + deltaTop - (sRect.height / 2) + (aRect.height / 2);
+
+          scroller.scrollTo({
+            top: Math.max(0, targetTop - 8),
+            behavior: 'smooth'
+          });
+        }
+
+        // small focus flash
+        activeEl.classList.add('w3-focus-flash');
+        setTimeout(() => activeEl.classList.remove('w3-focus-flash'), 1200);
+      }catch(e){}
+    }, 180);
   }
 
   // ===== Dynamic menu builder
@@ -850,7 +920,7 @@ document.addEventListener('DOMContentLoaded', () => {
         a.className = 'w3-link';
         a.href = href === '' ? '#' : href;
 
-        // For pages: if API sends icon_class null, we keep just text (like your sample)
+        // For pages: if API sends icon_class null, we keep just text
         a.innerHTML = pIcon ? `${iconHtml(pIcon)}<span>${name}</span>` : `<span>${name}</span>`;
         sub.appendChild(a);
       });
@@ -981,12 +1051,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ===== INIT (hide overlay only after theme + sidebar + active link is ready)
   (async () => {
+    let activeNavEl = null;
     try{
       bindSubmenuToggles(document);     // static: system + overview toggles (if any)
       await loadSidebarByToken();       // dynamic/admin menu decision + build
-      markActiveLinks();               // after menu is rendered
+      activeNavEl = markActiveLinks();  // after menu is rendered
     } finally {
-      hideLoading();                   // ✅ wrapper display none
+      hideLoading();                    // ✅ wrapper display none
+      focusActiveNavIntoView(activeNavEl); // ✅ smooth auto-focus inside sidebar
     }
   })();
 });

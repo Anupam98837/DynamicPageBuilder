@@ -161,6 +161,12 @@ body{margin:0;background:var(--ce-bg);color:var(--ce-text);}
   pointer-events:none;
 }
 
+.ce-section-slot-wrapper > .ce-slot { flex:1; min-width:0; }
+@media (max-width: 375px) {
+  .ce-section-slot-wrapper > .ce-slot { width:100% !important; display:block; }
+}
+
+
 </style>
 </head>
 <body>
@@ -875,11 +881,8 @@ block.querySelectorAll('a').forEach((el,i)=>{
     addTagsEditors(contentPane, stylePane, block);
     addFAQEditors(contentPane, stylePane, block);
 addPDFEditors(contentPane, stylePane, block);
-
+addVideoEditors(contentPane, stylePane, block);
     addSocialEditors(contentPane, stylePane, block);     /* ✅ new social editor */
-    if ((block.dataset.key || '') === 'ce-video') {
-  addVideoEditors(contentPane, stylePane, block);
-}
     if(block.dataset.key==='ce-html'){ addCustomHTMLField(contentPane, block, contentHTML); }
 
     if(block.querySelector('.ce-slot')){
@@ -1982,16 +1985,29 @@ addPDFEditors(contentPane, stylePane, block);
   }
 
   function cleanCloneFromEdit(){
-    const clone=state.editEl.cloneNode(true);
+    const clone = state.editEl.cloneNode(true);
+
+    // remove editor-only UI
     clone.querySelectorAll('.ce-block-handle,.ce-add-inside,.ce-drop-marker').forEach(x=>x.remove());
+
+    // clean block wrappers but keep structure
     clone.querySelectorAll('.ce-block').forEach(b=>{
       b.classList.remove('ce-block','ce-selected','ce-prop-active');
       b.removeAttribute('data-block-id');
       b.removeAttribute('data-key');
+      b.removeAttribute('draggable');
     });
-    clone.querySelectorAll('.ce-slot').forEach(s=>s.replaceWith(...s.childNodes));
+
+    // ✅ IMPORTANT: keep section slots (do not replaceWith childNodes)
+    clone.querySelectorAll('.ce-slot').forEach(s=>{
+      s.classList.remove('ce-slot-active');
+      s.removeAttribute('contenteditable');
+      s.removeAttribute('data-ce-editing');
+    });
+
     return clone;
   }
+
 
   function syncExport(){
     const cleaned = cleanCloneFromEdit();
@@ -2000,20 +2016,30 @@ addPDFEditors(contentPane, stylePane, block);
   }
 
   function rebuildEditFromExport(html){
-    state.editEl.innerHTML='';
-    const tmp=document.createElement('div'); tmp.innerHTML=html;
-    Array.from(tmp.childNodes).forEach(n=>{
-      if(n.nodeType===1){
-        const wrap=createBlock(n.outerHTML,'custom');
-        state.editEl.appendChild(wrap);
-      }else if(n.nodeType===3 && n.textContent.trim()){
-        const wrap=createBlock(`<p>${n.textContent}</p>`,'ce-paragraph');
-        state.editEl.appendChild(wrap);
-      }
-    });
-    rebindAll();
-    syncExport();
-  }
+  state.editEl.innerHTML = '';
+
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+
+  Array.from(tmp.childNodes).forEach(n=>{
+    if(n.nodeType===1){
+      const wrap = createBlock(n.outerHTML,'custom');
+      state.editEl.appendChild(wrap);
+    }else if(n.nodeType===3 && n.textContent.trim()){
+      const p = document.createElement('p');
+      p.textContent = n.textContent.trim();
+      const wrap = createBlock(p.outerHTML,'ce-paragraph');
+      state.editEl.appendChild(wrap);
+    }
+  });
+
+  // ✅ rebuild nested items inside sections
+  rehydrateImportedSectionBlocks(state.editEl);
+
+  rebindAll();
+  syncExport();
+}
+
 
   function rgb2hex(rgb){
     if(!rgb || rgb==='transparent') return '#ffffff';
@@ -2157,20 +2183,96 @@ addPDFEditors(contentPane, stylePane, block);
     iframe.contentDocument.open();iframe.contentDocument.write(html);iframe.contentDocument.close();
   }
   function stripToBodyInner(html) {
-    const s = (html || '').trim();
-    if (!s) return '';
-    if (/<html[\s>]/i.test(s) || /<!doctype/i.test(s)) {
-      const doc = new DOMParser().parseFromString(s, 'text/html');
-      return (doc.body ? doc.body.innerHTML : s).trim();
-    }
-    return s;
+  const s = (html || '').trim();
+  if (!s) return '';
+
+  if (/<html[\s>]/i.test(s) || /<!doctype/i.test(s)) {
+    const doc = new DOMParser().parseFromString(s, 'text/html');
+
+    // ✅ If it's our exported email template, extract only the inner editable content cell
+    const innerCell =
+      doc.querySelector('table.inner td') ||
+      doc.querySelector('.inner td') ||
+      doc.querySelector('td[style*="font-family"]');
+
+    if (innerCell) return (innerCell.innerHTML || '').trim();
+
+    return (doc.body ? doc.body.innerHTML : s).trim();
   }
-  function applyCodeToCanvas(){
+
+  return s;
+}
+
+function rehydrateImportedSectionBlocks(root){
+  const slots = root.querySelectorAll('.ce-slot');
+  slots.forEach(slot=>{
+    // skip if already rebuilt
+    const alreadyWrapped = Array.from(slot.children).some(ch => ch.classList && ch.classList.contains('ce-block'));
+    if (alreadyWrapped) return;
+
+    const nodes = Array.from(slot.childNodes);
+    slot.innerHTML = '';
+
+    nodes.forEach(n=>{
+      if (n.nodeType === 1) {
+        // wrap each element as a builder block again
+        const wrap = createBlock(n.outerHTML, 'custom');
+        slot.appendChild(wrap);
+      } else if (n.nodeType === 3 && n.textContent.trim()) {
+        const p = document.createElement('p');
+        p.textContent = n.textContent.trim();
+        const wrap = createBlock(p.outerHTML, 'ce-paragraph');
+        slot.appendChild(wrap);
+      }
+    });
+  });
+}
+
+
+function applyCodeToCanvas(){
+  const btn = document.getElementById('ceCodeApply');
+  const oldHtml = btn ? btn.innerHTML : '';
+  const oldDisabled = btn ? btn.disabled : false;
+
+  try{
+    // Loading state
+    if (btn){
+      btn.disabled = true;
+      btn.innerHTML = 'Applying...';
+    }
+
     const txt = document.getElementById('ceCodeArea').value;
     refreshPreview(txt);
     rebuildEditFromExport(stripToBodyInner(txt));
     syncExport();
+
+    // Done state
+    if (btn){
+      btn.innerHTML = 'Done ✅';
+      setTimeout(() => {
+        btn.innerHTML = oldHtml || 'Apply';
+        btn.disabled = oldDisabled;
+      }, 1000);
+    }
+
+    // If you want alert instead, uncomment:
+    // alert('Applied successfully ✅');
+
+  }catch(err){
+    console.error(err);
+
+    if (btn){
+      btn.innerHTML = 'Failed ❌';
+      setTimeout(() => {
+        btn.innerHTML = oldHtml || 'Apply';
+        btn.disabled = oldDisabled;
+      }, 1200);
+    }
+
+    alert('Apply failed. Please check your code.');
   }
+}
+
 
   function rebindAll(){
     deselect();
@@ -2400,13 +2502,40 @@ addPDFEditors(contentPane, stylePane, block);
    VIDEO EMBED EDITOR
    ================================ */
    function addVideoEditors(panel, stylePanel, block){
+  // ✅ Don't rely only on data-key; detect video by DOM too
+  let iframe = block.querySelector('.ce-video-frame iframe');
 
-    if ((block.dataset.key || '') !== 'ce-video') return;
+  // fallback: any iframe inside block (youtube/vimeo/etc.)
+  if(!iframe){
+    const anyIframe = block.querySelector('iframe');
+    if(anyIframe && !isUI(anyIframe)) iframe = anyIframe;
+  }
 
-const iframe = block.querySelector('.ce-video-frame iframe');
   if(!iframe || isUI(iframe)) return;
 
-  const frame = block.querySelector('.ce-video-frame');
+  // find/create frame wrapper
+  let frame = block.querySelector('.ce-video-frame');
+  if(!frame){
+    // If iframe exists without wrapper, wrap it so aspect ratio control works
+    frame = document.createElement('div');
+    frame.className = 'ce-video-frame';
+    frame.style.position = 'relative';
+    frame.style.width = '100%';
+    frame.style.paddingTop = '56.25%';
+    frame.style.overflow = 'hidden';
+    frame.style.borderRadius = '10px';
+
+    const parent = iframe.parentElement;
+    if(parent){
+      parent.insertBefore(frame, iframe);
+      frame.appendChild(iframe);
+    }
+    iframe.style.position = 'absolute';
+    iframe.style.inset = '0';
+    iframe.style.width = '100%';
+    iframe.style.height = '100%';
+    iframe.style.border = '0';
+  }
 
   /* ===== CONTENT: URL + OPTIONS ===== */
   const c = document.createElement('div');
@@ -2426,12 +2555,14 @@ const iframe = block.querySelector('.ce-video-frame iframe');
       </label>
     </div>
   `;
-  const urlInp = c.querySelector('input');
+
+  // ✅ safer selector (only text input)
+  const urlInp = c.querySelector('input[type="text"]');
   const autoplayCh = c.querySelector('[data-opt="autoplay"]');
   const loopCh     = c.querySelector('[data-opt="loop"]');
   const controlsCh = c.querySelector('[data-opt="controls"]');
 
-  // Try to prefill checkboxes from current iframe src params
+  // Prefill from current iframe src params
   (function initFromSrc(){
     try{
       const src = (iframe.getAttribute('src') || '').trim();
@@ -2439,8 +2570,7 @@ const iframe = block.querySelector('.ce-video-frame iframe');
       const p = new URLSearchParams(qs);
       autoplayCh.checked = p.get('autoplay') === '1';
       loopCh.checked     = p.get('loop') === '1';
-      // Default controls true unless explicitly 0
-      controlsCh.checked = p.get('controls') !== '0';
+      controlsCh.checked = p.get('controls') !== '0'; // default true
     }catch(_){}
   })();
 
@@ -2448,13 +2578,10 @@ const iframe = block.querySelector('.ce-video-frame iframe');
 
   function guessYoutubeId(u){
     const s = (u||'').trim();
-    // https://www.youtube.com/embed/ID
     let m = s.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]{6,})/);
     if(m) return m[1];
-    // https://youtu.be/ID
     m = s.match(/youtu\.be\/([a-zA-Z0-9_-]{6,})/);
     if(m) return m[1];
-    // https://www.youtube.com/watch?v=ID
     m = s.match(/[?&]v=([a-zA-Z0-9_-]{6,})/);
     if(m) return m[1];
     return '';
@@ -2472,13 +2599,13 @@ const iframe = block.querySelector('.ce-video-frame iframe');
 
     if(loopCh.checked){
       params.set('loop','1');
-      // YouTube loop needs playlist=videoId
       const yid = guessYoutubeId(raw) || guessYoutubeId(b) || b.split('/').pop();
       if(yid) params.set('playlist', yid);
     }
 
     const finalSrc = params.toString() ? (b + '?' + params.toString()) : b;
     iframe.setAttribute('src', finalSrc);
+    urlInp.value = finalSrc; // keep input synced
   }
 
   urlInp.addEventListener('input', ()=>{
@@ -2497,76 +2624,92 @@ const iframe = block.querySelector('.ce-video-frame iframe');
 
   panel.appendChild(c);
 
-  /* ===== CONTENT: TITLE ===== */
-  const titleEl = block.querySelector('.ce-video-title');
-  if(titleEl){
-    const t = document.createElement('div');
-    t.className = 'ce-field';
-    t.innerHTML = `
-      <label>Video Title</label>
-      <input type="text" value="${(titleEl.textContent || '').trim()}">
-    `;
-    t.querySelector('input').addEventListener('input', e=>{
-      pushHistory();
-      titleEl.textContent = e.target.value;
-      syncExport();
-    });
-    panel.appendChild(t);
+  /* ===== CONTENT: TITLE (create if missing) ===== */
+  let titleEl = block.querySelector('.ce-video-title');
+  if(!titleEl){
+    titleEl = document.createElement('div');
+    titleEl.className = 'ce-video-title';
+    titleEl.textContent = 'Video Title';
+    titleEl.style.fontWeight = '700';
+    titleEl.style.margin = '10px 0 4px 0';
+    frame.insertAdjacentElement('afterend', titleEl);
   }
 
-  /* ===== CONTENT: CAPTION ===== */
-  const capEl = block.querySelector('.ce-video-caption');
-  if(capEl){
-    const cap = document.createElement('div');
-    cap.className = 'ce-field';
-    cap.innerHTML = `
-      <label>Video Caption</label>
-      <textarea style="min-height:70px;">${(capEl.textContent || '').trim()}</textarea>
-    `;
-    cap.querySelector('textarea').addEventListener('input', e=>{
-      pushHistory();
-      capEl.textContent = e.target.value;
-      syncExport();
-    });
-    panel.appendChild(cap);
+  const t = document.createElement('div');
+  t.className = 'ce-field';
+  t.innerHTML = `
+    <label>Video Title</label>
+    <input type="text" value="${(titleEl.textContent || '').trim()}">
+  `;
+  t.querySelector('input').addEventListener('input', e=>{
+    pushHistory();
+    titleEl.textContent = e.target.value;
+    syncExport();
+  });
+  panel.appendChild(t);
+
+  /* ===== CONTENT: DESCRIPTION / CAPTION (create if missing) ===== */
+  let capEl = block.querySelector('.ce-video-caption');
+  if(!capEl){
+    capEl = document.createElement('div');
+    capEl.className = 'ce-video-caption';
+    capEl.textContent = 'Video description';
+    capEl.style.margin = '4px 0 0 0';
+    capEl.style.color = '#6b7280';
+    capEl.style.lineHeight = '1.5';
+    titleEl.insertAdjacentElement('afterend', capEl);
   }
+
+  const cap = document.createElement('div');
+  cap.className = 'ce-field';
+  cap.innerHTML = `
+    <label>Video Description</label>
+    <textarea style="min-height:70px;">${(capEl.textContent || '').trim()}</textarea>
+  `;
+  cap.querySelector('textarea').addEventListener('input', e=>{
+    pushHistory();
+    capEl.textContent = e.target.value;
+    syncExport();
+  });
+  panel.appendChild(cap);
 
   /* ===== STYLE: ASPECT RATIO ===== */
-  if(frame){
-    let currentPct = 56.25;
-    try{
-      const cs = getComputedStyle(frame);
-      const pt = (frame.style.paddingTop || cs.paddingTop || '56.25%').toString();
-      currentPct = parseFloat(pt) || 56.25;
-    }catch(_){}
+  let currentPct = 56.25;
+  try{
+    const cs = getComputedStyle(frame);
+    const pt = (frame.style.paddingTop || cs.paddingTop || '56.25%').toString();
+    currentPct = parseFloat(pt) || 56.25;
+  }catch(_){}
 
-    const s = document.createElement('div');
-    s.className = 'ce-field';
-    s.innerHTML = `
-      <label>Aspect Ratio</label>
-      <select>
-        <option value="56.25">16:9</option>
-        <option value="75">4:3</option>
-        <option value="100">1:1</option>
-      </select>
-    `;
-    const ratioSel = s.querySelector('select');
+  const s = document.createElement('div');
+  s.className = 'ce-field';
+  s.innerHTML = `
+    <label>Aspect Ratio</label>
+    <select>
+      <option value="56.25">16:9</option>
+      <option value="75">4:3</option>
+      <option value="100">1:1</option>
+    </select>
+  `;
+  const ratioSel = s.querySelector('select');
 
-    // Set initial select value by closest match
-    (function(){
-      const v = [56.25, 75, 100].reduce((best, x)=> Math.abs(x-currentPct) < Math.abs(best-currentPct) ? x : best, 56.25);
-      ratioSel.value = String(v);
-    })();
+  (function(){
+    const v = [56.25, 75, 100].reduce(
+      (best, x)=> Math.abs(x-currentPct) < Math.abs(best-currentPct) ? x : best,
+      56.25
+    );
+    ratioSel.value = String(v);
+  })();
 
-    ratioSel.addEventListener('change', ()=>{
-      pushHistory();
-      frame.style.paddingTop = ratioSel.value + '%';
-      syncExport();
-    });
+  ratioSel.addEventListener('change', ()=>{
+    pushHistory();
+    frame.style.paddingTop = ratioSel.value + '%';
+    syncExport();
+  });
 
-    stylePanel.appendChild(s);
-  }
+  stylePanel.appendChild(s);
 }
+
 
 
 
@@ -2643,21 +2786,255 @@ function getEditableTargetFromDblClick(startEl){
   return null;
 }
 
-function enableInlineTextEdit(el){
+/* ✅ Floating inline text toolbar (B/I/U + H1-H6 + Link + Color + Font) */
+function ensureInlineTextToolbar(){
+  let bar = document.getElementById('ceInlineTextToolbar');
+  if (bar) return bar;
+
+  bar = document.createElement('div');
+  bar.id = 'ceInlineTextToolbar';
+  bar.style.position = 'fixed';
+  bar.style.zIndex = '999999';
+  bar.style.display = 'none';
+  bar.style.padding = '6px';
+  bar.style.border = '1px solid #d1d5db';
+  bar.style.borderRadius = '8px';
+  bar.style.background = '#fff';
+  bar.style.boxShadow = '0 8px 24px rgba(0,0,0,.12)';
+  bar.style.gap = '6px';
+  bar.style.alignItems = 'center';
+  bar.style.flexWrap = 'wrap';
+  bar.style.maxWidth = 'min(96vw, 820px)';
+
+  bar.innerHTML = `
+    <select id="ceInlineTag" title="Tag" style="height:30px;border:1px solid #e5e7eb;border-radius:6px;padding:0 6px;">
+      <option value="P">P</option>
+      <option value="H1">H1</option>
+      <option value="H2">H2</option>
+      <option value="H3">H3</option>
+      <option value="H4">H4</option>
+      <option value="H5">H5</option>
+      <option value="H6">H6</option>
+    </select>
+
+    <button type="button" data-cmd="bold" title="Bold" style="min-width:30px;height:30px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;cursor:pointer;"><b>B</b></button>
+    <button type="button" data-cmd="italic" title="Italic" style="min-width:30px;height:30px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;cursor:pointer;"><i>I</i></button>
+    <button type="button" data-cmd="underline" title="Underline" style="min-width:30px;height:30px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;cursor:pointer;"><u>U</u></button>
+
+    <button type="button" id="ceInlineLink" title="Insert Link" style="min-width:34px;height:30px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;cursor:pointer;">🔗</button>
+    <button type="button" id="ceInlineUnlink" title="Remove Link" style="min-width:34px;height:30px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;cursor:pointer;">⛓️‍💥</button>
+
+    <input id="ceInlineColor" type="color" title="Text color" value="#111827"
+      style="width:34px;height:30px;padding:0;border:1px solid #e5e7eb;border-radius:6px;background:#fff;cursor:pointer;">
+
+    <select id="ceInlineFont" title="Font family" style="height:30px;border:1px solid #e5e7eb;border-radius:6px;padding:0 6px;min-width:130px;">
+      <option value="Arial">Arial</option>
+      <option value="Verdana">Verdana</option>
+      <option value="Tahoma">Tahoma</option>
+      <option value="Georgia">Georgia</option>
+      <option value="Times New Roman">Times New Roman</option>
+      <option value="Cambria">Cambria</option>
+      <option value="Trebuchet MS">Trebuchet MS</option>
+      <option value="Courier New">Courier New</option>
+    </select>
+
+    <select id="ceInlineFontSize" title="Font size" style="height:30px;border:1px solid #e5e7eb;border-radius:6px;padding:0 6px;">
+      <option value="1">10px</option>
+      <option value="2">13px</option>
+      <option value="3" selected>16px</option>
+      <option value="4">18px</option>
+      <option value="5">24px</option>
+      <option value="6">32px</option>
+      <option value="7">48px</option>
+    </select>
+  `;
+
+  // Track toolbar interaction so blur doesn't instantly finish editing
+  bar.addEventListener('pointerdown', () => { bar.dataset.cePointerDown = '1'; });
+  bar.addEventListener('pointerup',   () => { setTimeout(()=>{ bar.dataset.cePointerDown = '0'; }, 0); });
+
+  // Keep buttons from stealing focus (select/color can still be used)
+  bar.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('mousedown', (e)=> e.preventDefault());
+  });
+
+  document.body.appendChild(bar);
+
+  const tagSel   = bar.querySelector('#ceInlineTag');
+  const colorInp = bar.querySelector('#ceInlineColor');
+  const fontSel  = bar.querySelector('#ceInlineFont');
+  const sizeSel  = bar.querySelector('#ceInlineFontSize');
+  const linkBtn  = bar.querySelector('#ceInlineLink');
+  const unlinkBtn= bar.querySelector('#ceInlineUnlink');
+
+  function getTarget(){
+    return bar.__ceTarget || null;
+  }
+
+  function execOnTarget(cmd, value=null){
+    const el = getTarget();
+    if (!el || el.getAttribute('contenteditable') !== 'true') return;
+
+    el.focus();
+
+    try { document.execCommand('styleWithCSS', false, true); } catch(_) {}
+    document.execCommand(cmd, false, value);
+
+    syncExport();
+  }
+
+  function replaceEditableTag(newTag){
+    let el = getTarget();
+    if (!el || !newTag) return;
+    if (el.tagName === newTag) return;
+
+    // only allow p/h1..h6
+    if (!/^(P|H1|H2|H3|H4|H5|H6)$/.test(newTag)) return;
+
+    pushHistory();
+
+    const newEl = document.createElement(newTag);
+
+    // copy attributes except editing runtime attrs
+    [...el.attributes].forEach(attr => {
+      if (['contenteditable','spellcheck','data-ce-editing'].includes(attr.name)) return;
+      newEl.setAttribute(attr.name, attr.value);
+    });
+
+    newEl.innerHTML = el.innerHTML;
+    el.replaceWith(newEl);
+
+    syncExport();
+
+    // continue editing on new element (no new history step)
+    enableInlineTextEdit(newEl, { skipHistory: true });
+
+    // restore caret at end
+    try{
+      const r = document.createRange();
+      r.selectNodeContents(newEl);
+      r.collapse(false);
+      const s = window.getSelection();
+      s.removeAllRanges();
+      s.addRange(r);
+    }catch(_){}
+  }
+
+  // B / I / U buttons
+  bar.querySelectorAll('button[data-cmd]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      execOnTarget(btn.dataset.cmd, null);
+    });
+  });
+
+  // Link
+  linkBtn.addEventListener('click', ()=>{
+    const el = getTarget();
+    if (!el || el.getAttribute('contenteditable') !== 'true') return;
+
+    const url = prompt('Enter URL:', 'https://');
+    if (!url) return;
+
+    pushHistory();
+    el.focus();
+    document.execCommand('createLink', false, url);
+    syncExport();
+  });
+
+  unlinkBtn.addEventListener('click', ()=>{
+    pushHistory();
+    execOnTarget('unlink', null);
+  });
+
+  // Tag (P / H1..H6)
+  tagSel.addEventListener('change', ()=>{
+    replaceEditableTag(tagSel.value);
+  });
+
+  // Color
+  colorInp.addEventListener('input', ()=>{
+    pushHistory();
+    execOnTarget('foreColor', colorInp.value);
+  });
+
+  // Font family
+  fontSel.addEventListener('change', ()=>{
+    pushHistory();
+    execOnTarget('fontName', fontSel.value);
+  });
+
+  // Font size (execCommand scale 1..7)
+  sizeSel.addEventListener('change', ()=>{
+    pushHistory();
+    execOnTarget('fontSize', sizeSel.value);
+  });
+
+  return bar;
+}
+
+function hideInlineTextToolbar(){
+  const bar = document.getElementById('ceInlineTextToolbar');
+  if (bar) {
+    bar.style.display = 'none';
+    bar.__ceTarget = null;
+  }
+}
+
+function showInlineTextToolbarFor(el){
+  const bar = ensureInlineTextToolbar();
+  if (!el) return;
+
+  bar.__ceTarget = el;
+
+  // position near element
+  const rect = el.getBoundingClientRect();
+  const top = Math.max(8, rect.top - 44);
+  const left = Math.max(8, rect.left);
+
+  bar.style.display = 'flex';
+  bar.style.top = top + 'px';
+  bar.style.left = left + 'px';
+
+  // prefill tag select
+  const tagSel = bar.querySelector('#ceInlineTag');
+  const tag = (el.tagName || 'P').toUpperCase();
+  tagSel.value = /^(H1|H2|H3|H4|H5|H6|P)$/.test(tag) ? tag : 'P';
+
+  // prefill color (best effort)
+  const colorInp = bar.querySelector('#ceInlineColor');
+  try { colorInp.value = rgb2hex(getComputedStyle(el).color); } catch(_) {}
+
+  // font best-effort (optional)
+  const fontSel = bar.querySelector('#ceInlineFont');
+  try{
+    const ff = (getComputedStyle(el).fontFamily || '').replace(/["']/g,'').split(',')[0].trim();
+    if ([...fontSel.options].some(o => o.value.toLowerCase() === ff.toLowerCase())) {
+      fontSel.value = [...fontSel.options].find(o => o.value.toLowerCase() === ff.toLowerCase()).value;
+    }
+  }catch(_){}
+}
+
+function enableInlineTextEdit(el, opts = {}){
   if(!el) return;
 
-  // Table cells are handled by enableCellEdit()
+  // Table cells are handled by table editor
   if(el.matches && el.matches('td,th')) return;
 
-  if(el.getAttribute('contenteditable') === 'true') return;
+  if(el.getAttribute('contenteditable') === 'true') {
+    showInlineTextToolbarFor(el);
+    return;
+  }
 
-  pushHistory();
+  if(!opts.skipHistory) pushHistory();
 
   const original = el.innerHTML;
 
   el.setAttribute('contenteditable','true');
   el.setAttribute('spellcheck','true');
   el.dataset.ceEditing = '1';
+
+  // ✅ Show toolbar (now includes H1-H6, link, color, font)
+  showInlineTextToolbarFor(el);
 
   // place caret at end
   try{
@@ -2671,40 +3048,71 @@ function enableInlineTextEdit(el){
 
   el.focus();
 
+  const onInput = () => {
+    syncExport(); // live sync
+    showInlineTextToolbarFor(el); // keeps toolbar aligned
+  };
+
   const onKey = (e)=>{
-    // ESC = cancel changes
+    // ESC = cancel
     if(e.key === 'Escape'){
       e.preventDefault();
       el.innerHTML = original;
+      hideInlineTextToolbar();
       el.blur();
       return;
     }
 
-    // ENTER behavior:
-    // - Headings: Enter finishes edit
-    // - Others: allow newline with Shift+Enter, normal Enter finishes
     const isHeading = /^H[1-6]$/.test(el.tagName);
+
+    // Enter = finish (Shift+Enter newline only for non-heading)
     if(e.key === 'Enter' && !e.shiftKey){
-      if(isHeading){
-        e.preventDefault();
-        el.blur();
-      }
+      e.preventDefault();
+      el.blur();
+      return;
+    }
+
+    // Ctrl/Cmd B/I/U
+    if ((e.ctrlKey || e.metaKey) && ['b','i','u'].includes(e.key.toLowerCase())) {
+      e.preventDefault();
+      const map = { b:'bold', i:'italic', u:'underline' };
+      document.execCommand(map[e.key.toLowerCase()], false, null);
+      syncExport();
     }
   };
 
+  const onBlur = (ev)=>{
+    const bar = document.getElementById('ceInlineTextToolbar');
+
+    // if blur caused by toolbar interaction, don't finish edit
+    if (bar && (bar.contains(ev.relatedTarget) || bar.dataset.cePointerDown === '1')) {
+      return;
+    }
+
+    finish();
+  };
+
   const finish = ()=>{
+    // element may already be replaced (tag change)
+    if (!document.body.contains(el)) return;
+
     el.removeAttribute('contenteditable');
     delete el.dataset.ceEditing;
 
     el.removeEventListener('keydown', onKey);
-    el.removeEventListener('blur', finish);
+    el.removeEventListener('input', onInput);
+    el.removeEventListener('blur', onBlur);
 
+    hideInlineTextToolbar();
     syncExport();
   };
 
   el.addEventListener('keydown', onKey);
-  el.addEventListener('blur', finish);
+  el.addEventListener('input', onInput);
+  el.addEventListener('blur', onBlur);
 }
+
+
 
   function makeHeaderCellLike(sample){
     const th = document.createElement('th');
@@ -3753,6 +4161,24 @@ function enableInlineTextEdit(el){
     state.editEl.addEventListener('drop',    onDropCanvas);
 
     state.editEl.addEventListener('click', () => { deselect(); closePopup(); });
+    // ✅ Double-click text on canvas to edit directly
+    state.editEl.addEventListener('dblclick', (e) => {
+      // ignore editor UI clicks
+      if (isUI(e.target)) return;
+
+      // Table cells are handled by table editor
+      const cell = e.target.closest && e.target.closest('td,th');
+      if (cell) return;
+
+      const target = getEditableTargetFromDblClick(e.target);
+      if (!target) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      enableInlineTextEdit(target);
+    });
+
 
     document.querySelectorAll('#list-elements .ce-component, #list-sections .ce-component')
       .forEach(el => el.addEventListener('dragstart', onDragStartComponent));

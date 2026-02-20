@@ -212,7 +212,7 @@
           <h5 class="popo-title">Placement Officer Preview Order</h5>
         </div>
         <div class="popo-helper mt-1">
-          Select a department, then assign/unassign placement officers and reorder the “Assigned Users” list (saved as an ordered JSON array of placement officer IDs).
+          Select a department (or <strong>All Departments</strong>), then assign/unassign placement officers and reorder the “Assigned Users” list (saved as an ordered JSON array of placement officer IDs).
         </div>
       </div>
       <div class="d-flex gap-2 flex-wrap">
@@ -229,12 +229,12 @@
       <div class="popo-toolbar">
         <div class="popo-toolbar-left">
           <div>
-            <label class="form-label mb-1">Department</label>
+            <label class="form-label mb-1">Department / Scope</label>
             <select id="deptSelect" class="form-select popo-select">
               <option value="">Loading departments…</option>
             </select>
             <div class="popo-helper mt-1">
-              Placement officers are loaded for the selected department (excluding admin/director/student).
+              Choose a department-specific order or <strong>All Departments</strong> (global). Empty assignments are allowed and can be saved.
             </div>
           </div>
 
@@ -295,7 +295,7 @@
           <div id="assignedEmpty" class="popo-empty" style="display:none;">
             <i class="fa-regular fa-folder-open mb-2"></i>
             <div class="fw-semibold">No assigned users</div>
-            <div class="popo-small">Assign users from the “Unassigned Users” tab.</div>
+            <div class="popo-small">Assign users from the “Unassigned Users” tab, or save empty for this scope.</div>
           </div>
 
           <ul id="assignedList" class="popo-list"></ul>
@@ -361,6 +361,7 @@
 
   const $ = (id) => document.getElementById(id);
   const debounce = (fn, ms=250) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
+  const GLOBAL_KEY = '__all';
 
   function esc(str){
     return (str ?? '').toString().replace(/[&<>"']/g, s => ({
@@ -386,7 +387,7 @@
     if (!token) { window.location.href = '/'; return; }
 
     // =========================
-    // ✅ API MAP (edit if your routes differ)
+    // ✅ API MAP
     // =========================
     const API = {
       departments: '/api/departments',
@@ -521,7 +522,7 @@
     }
 
     function updateButtons(){
-      const hasDept = !!state.deptKey;
+      const hasDept = !!state.deptKey; // includes __all
       const dirty = isDirty();
       if (btnResetLocal) btnResetLocal.disabled = !(hasDept && dirty);
       if (btnSave) btnSave.disabled = !(hasDept && dirty && canWrite);
@@ -745,18 +746,28 @@
         const list = normDeptList(js);
         state.depts = list;
 
-        if (!list.length){
-          deptSelect.innerHTML = `<option value="">No departments found</option>`;
-          return;
-        }
+        const deptOptions = [];
+        const seen = new Set();
 
-        deptSelect.innerHTML = `<option value="">Select department…</option>` + list.map(d => {
-          const id = d.uuid || d.id;
+        list.forEach(d => {
+          const key = String(d.uuid || d.id || '').trim();
+          if (!key || seen.has(key)) return;
+          seen.add(key);
+
           const name = d.name || d.title || d.department_name || 'Department';
-          return `<option value="${esc(id)}">${esc(name)}</option>`;
-        }).join('');
+          deptOptions.push(`<option value="${esc(key)}">${esc(name)}</option>`);
+        });
+
+        deptSelect.innerHTML = `
+          <option value="">Select department / scope…</option>
+          <option value="${GLOBAL_KEY}">All Departments (Global)</option>
+          ${deptOptions.join('')}
+        `;
       }catch(e){
-        deptSelect.innerHTML = `<option value="">Failed to load departments</option>`;
+        deptSelect.innerHTML = `
+          <option value="">Failed to load departments</option>
+          <option value="${GLOBAL_KEY}">All Departments (Global)</option>
+        `;
         err(e?.name === 'AbortError' ? 'Request timed out' : (e.message || 'Failed'));
       }
     }
@@ -868,9 +879,12 @@
       if (!canWrite) return;
       if (!state.deptKey) return;
 
+      const isGlobal = state.deptKey === GLOBAL_KEY;
       const conf = await Swal.fire({
         title: 'Save placement officer order?',
-        text: 'This will update the saved JSON array for the selected department.',
+        text: isGlobal
+          ? 'This will update the saved JSON array for All Departments (global scope). Empty list is allowed.'
+          : 'This will update the saved JSON array for the selected department. Empty list is allowed.',
         icon: 'question',
         showCancelButton: true,
         confirmButtonText: 'Save',
@@ -881,7 +895,9 @@
       setBtnLoading(btnSave, true);
 
       try{
-        const payload = { placement_officer_ids: state.assignedIdsLocal.map(Number) };
+        const payload = {
+          placement_officer_ids: state.assignedIdsLocal.map(Number) // can be [] now
+        };
 
         const res = await fetchWithTimeout(API.save(state.deptKey), {
           method: 'POST',
@@ -934,7 +950,7 @@
     });
 
     btnReload?.addEventListener('click', async () => {
-      if (!state.deptKey) { ok('Select a department'); return; }
+      if (!state.deptKey) { ok('Select a department or All Departments'); return; }
       showLoading(true);
       await loadDeptData(state.deptKey);
       showLoading(false);

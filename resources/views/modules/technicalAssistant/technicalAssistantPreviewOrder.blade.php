@@ -6,13 +6,6 @@
 <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}">
 
 <style>
-/* =========================
-  Technical Assistant Preview Order (Admin)
-  - Same UI as Faculty Preview Order
-  - Dept select -> Assigned/Unassigned tabs
-  - Drag reorder + Up/Down controls
-========================= */
-
 .fpo-wrap{max-width:1200px;margin:18px auto 48px;padding:0 12px;overflow:visible}
 .fpo-wrap .tab-content,.fpo-wrap .tab-pane{overflow:visible}
 
@@ -204,7 +197,7 @@
           <h5 class="fpo-title">Technical Assistant Preview Order</h5>
         </div>
         <div class="fpo-helper mt-1">
-          Select a department, then assign/unassign technical assistants and reorder the “Assigned Users” list (saved as an ordered JSON array of technical assistant IDs).
+          Keep <strong>Global (All Departments)</strong> selected by default, or choose a department. Then assign/unassign technical assistants and reorder the “Assigned Users” list (saved as an ordered JSON array of technical assistant IDs).
         </div>
       </div>
       <div class="d-flex gap-2 flex-wrap">
@@ -225,7 +218,7 @@
             <select id="deptSelect" class="form-select fpo-select">
               <option value="">Loading departments…</option>
             </select>
-            <div class="fpo-helper mt-1">Users are loaded for the selected department.</div>
+            <div class="fpo-helper mt-1">Global (All Departments) is selected by default. Choose a department only if you want department-wise filtering.</div>
           </div>
 
           <div class="d-flex flex-wrap gap-2 align-items-end">
@@ -352,10 +345,16 @@
   const $ = (id) => document.getElementById(id);
   const debounce = (fn, ms=250) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
 
+  const GLOBAL_SCOPE_KEY = '__all'; // ✅ default global scope option
+
   function esc(str){
     return (str ?? '').toString().replace(/[&<>"']/g, s => ({
       '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
     }[s]));
+  }
+
+  function isEmptyRequiredError(msg){
+    return /technical assistant ids field is required/i.test(String(msg || ''));
   }
 
   async function fetchWithTimeout(url, opts={}, ms=15000){
@@ -383,12 +382,13 @@
     if (!token) { window.location.href = '/'; return; }
 
     // =========================
-    // ✅ API MAP (TechnicalAssistantPreviewOrderController)
+    // ✅ API MAP
     // =========================
     const API = {
       departments: '/api/departments',
-      byDept: (deptKey) => `/api/technical-assistant-preview-order/${encodeURIComponent(deptKey)}`,
-      save: (deptKey) => `/api/technical-assistant-preview-order/${encodeURIComponent(deptKey)}/save`,
+      users: '/api/users', // ✅ load all users, then filter role=technical_assistant client-side
+      byDept: (deptKey) => `/api/technical-assistant-preview-order/${encodeURIComponent(deptKey)}`,      // order JSON for selected scope
+      save: (deptKey) => `/api/technical-assistant-preview-order/${encodeURIComponent(deptKey)}/save`,   // save ordered ids
       me: '/api/users/me'
     };
 
@@ -418,17 +418,14 @@
     const err = (m) => { const el=$('toastErrorText'); if(el) el.textContent=m||'Something went wrong'; toastErr && toastErr.show(); };
 
     function handleAuth(res, js){
-      // ✅ redirect only on 401 (expired/invalid token)
       if (res.status === 401){
         window.location.href = '/';
         return true;
       }
-      // ✅ do NOT redirect on 403 (permissions); just show toast
       if (res.status === 403){
         err(js?.message || 'Forbidden: you do not have permission.');
         return true;
       }
-      // ✅ if API returned HTML (often due to middleware redirect), show error instead of breaking
       if (js && js.__non_json){
         err('Unexpected response (not JSON). Check API middleware/auth for this route.');
         return true;
@@ -482,9 +479,11 @@
     // State
     // =========================
     const state = {
-      deptKey: '',
+      deptKey: GLOBAL_SCOPE_KEY,          // current backend scope key (may be uuid or id)
+      selectedDeptMeta: { id:'', uuid:'' }, // selected department option metadata for matching users
       depts: [],
-      allUsers: [],
+      masterTaUsers: [],                  // all TAs from /api/users
+      scopeUsers: [],                     // filtered by selected department (or all)
       assignedIdsServer: [],
       assignedIdsLocal: [],
       usersById: new Map(),
@@ -492,25 +491,82 @@
       qUnassigned: ''
     };
 
-    // extra safety (backend already filters to TA roles)
-    const EXCLUDE_ROLES = new Set(['admin','director','student','students','super_admin']);
+    function normStr(v){ return (v ?? '').toString().trim(); }
+    function normKey(v){ return normStr(v).toLowerCase(); }
+    function normRoleKey(v){ return normKey(v).replace(/[\s-]+/g, '_'); }
+
+    function isTechnicalAssistantRole(role){
+      const r = normRoleKey(role);
+      return r === 'technical_assistant' || r === 'technicalassistant';
+    }
 
     function normDeptList(js){
       const arr = js?.data || js?.departments || js?.items || [];
       return Array.isArray(arr) ? arr : [];
     }
 
+    function pushIf(set, value){
+      const k = normKey(value);
+      if (k) set.add(k);
+    }
+
+    function collectDeptKeysFromUser(u){
+      const deptKeys = new Set();
+      const deptNames = [];
+
+      const addDeptObject = (d) => {
+        if (!d || typeof d !== 'object') return;
+        pushIf(deptKeys, d.id);
+        pushIf(deptKeys, d.uuid);
+        pushIf(deptKeys, d.department_id);
+        pushIf(deptKeys, d.department_uuid);
+        const nm = d.name || d.title || d.department_name || d.department || '';
+        if (normStr(nm)) deptNames.push(normStr(nm));
+      };
+
+      // single-value fields
+      pushIf(deptKeys, u.department_id);
+      pushIf(deptKeys, u.dept_id);
+      pushIf(deptKeys, u.departmentId);
+      pushIf(deptKeys, u.department_uuid);
+      pushIf(deptKeys, u.dept_uuid);
+      pushIf(deptKeys, u.departmentUuid);
+
+      // nested single dept
+      if (u.department && typeof u.department === 'object') addDeptObject(u.department);
+      if (u.department_info && typeof u.department_info === 'object') addDeptObject(u.department_info);
+      if (u.dept && typeof u.dept === 'object') addDeptObject(u.dept);
+
+      // nested many depts (if any)
+      if (Array.isArray(u.departments)) u.departments.forEach(addDeptObject);
+      if (Array.isArray(u.department_details)) u.department_details.forEach(addDeptObject);
+
+      // raw name-like fields (kept only for display; not used for exact matching)
+      const nm = u.department_name || u.dept_name || (typeof u.department === 'string' ? u.department : '');
+      if (normStr(nm)) deptNames.push(normStr(nm));
+
+      return {
+        deptKeys: Array.from(deptKeys),
+        deptName: deptNames.find(Boolean) || ''
+      };
+    }
+
     function normUsers(arr){
       const a = Array.isArray(arr) ? arr : [];
-      return a.map(u => ({
-        id: u.id ?? u.user_id ?? u.uid,
-        uuid: u.uuid ?? u.user_uuid ?? null,
-        name: u.name ?? u.full_name ?? u.title ?? '—',
-        email: u.email ?? '',
-        role: (u.role ?? u.user_role ?? '').toString(),
-        avatar: u.avatar_url ?? u.photo_url ?? u.image_url ?? u.image ?? null,
-        meta: u
-      })).filter(x => x.id !== undefined && x.id !== null);
+      return a.map(u => {
+        const { deptKeys, deptName } = collectDeptKeysFromUser(u);
+        return {
+          id: u.id ?? u.user_id ?? u.uid,
+          uuid: u.uuid ?? u.user_uuid ?? null,
+          name: u.name ?? u.full_name ?? u.title ?? '—',
+          email: u.email ?? '',
+          role: (u.role ?? u.user_role ?? '').toString(),
+          avatar: u.avatar_url ?? u.photo_url ?? u.image_url ?? u.image ?? null,
+          deptKeys,
+          deptName,
+          meta: u
+        };
+      }).filter(x => x.id !== undefined && x.id !== null);
     }
 
     function uniqById(list){
@@ -523,28 +579,94 @@
       return Array.from(map.values());
     }
 
-    function eligibleFilter(u){
-      const r = (u.role || '').toLowerCase();
-      if (!r) return true;
-      return !EXCLUDE_ROLES.has(r);
+    function extractUsersArray(js){
+      if (Array.isArray(js)) return js;
+
+      const candidates = [
+        js?.data,
+        js?.users,
+        js?.items,
+        js?.results,
+        js?.rows,
+        js?.list,
+        js?.payload?.data,
+        js?.payload?.users,
+        js?.payload?.items,
+        js?.data?.data,
+        js?.data?.users,
+        js?.data?.items,
+        js?.data?.results,
+        js?.data?.rows,
+        js?.data?.list,
+      ];
+
+      for (const c of candidates){
+        if (Array.isArray(c)) return c;
+      }
+      return [];
     }
 
-    function normDeptPayload(js){
-      // Controller returns:
-      // { success:true, order:{ technical_assistant_ids:[] }, assigned:[], unassigned:[] }
-      const root = js?.data || js || {};
-      const order = root.order || {};
-      const ids = order.technical_assistant_ids || root.technical_assistant_ids || root.assigned_ids || [];
+    function usersHasNextPage(js){
+      const meta = js?.meta || js?.data?.meta || null;
 
-      const assigned = normUsers(root.assigned || root.assigned_users || []);
-      const unassigned = normUsers(root.unassigned || root.unassigned_users || []);
+      if (meta && Number.isFinite(Number(meta.current_page)) && Number.isFinite(Number(meta.last_page))) {
+        return Number(meta.current_page) < Number(meta.last_page);
+      }
 
-      return {
-        ids: Array.isArray(ids) ? ids.map(x => Number(x)).filter(n => Number.isFinite(n)) : [],
-        assigned,
-        unassigned
-      };
+      const nextUrl = js?.next_page_url || js?.data?.next_page_url || js?.links?.next || js?.data?.links?.next;
+      if (nextUrl) return true;
+
+      const linksArr = Array.isArray(js?.links) ? js.links : (Array.isArray(js?.data?.links) ? js.data.links : null);
+      if (linksArr) {
+        const nextLink = linksArr.find(l => {
+          const label = (l?.label ?? l?.rel ?? '').toString().toLowerCase();
+          return label.includes('next');
+        });
+        if (nextLink?.url) return true;
+      }
+
+      return false;
     }
+
+    function parseIdsArray(value){
+      if (Array.isArray(value)) {
+        return value.map(x => Number(x)).filter(n => Number.isFinite(n));
+      }
+      if (typeof value === 'string') {
+        const s = value.trim();
+        if (!s) return [];
+        try{
+          const j = JSON.parse(s);
+          return Array.isArray(j) ? j.map(x => Number(x)).filter(n => Number.isFinite(n)) : [];
+        }catch(_){ return []; }
+      }
+      return [];
+    }
+
+    function normOrderPayload(js){
+  const root = js?.data || js || {};
+  const order = root.order || root.preview_order || {};
+
+  const candidates = [
+    order.technical_assistant_ids,
+    order.technical_assistant_ids_json,
+    root.technical_assistant_ids,
+    root.technical_assistant_ids_json,
+    root.assigned_ids
+  ];
+
+  let ids = [];
+  for (const c of candidates) {
+    const parsed = parseIdsArray(c);
+    if (Array.isArray(parsed)) {
+      ids = parsed;
+      // stop at first valid field (even if empty, this is intentional)
+      break;
+    }
+  }
+
+  return { ids };
+}
 
     function isDirty(){
       const a = state.assignedIdsServer || [];
@@ -555,16 +677,16 @@
     }
 
     function updateButtons(){
-      const hasDept = !!state.deptKey;
+      const hasDept = !!state.deptKey; // ✅ global key is non-empty, so buttons work by default
       const dirty = isDirty();
       if (btnResetLocal) btnResetLocal.disabled = !(hasDept && dirty);
       if (btnSave) btnSave.disabled = !(hasDept && dirty && canWrite);
     }
 
     function updateChips(){
-      const total = state.allUsers.length;
+      const total = state.scopeUsers.length;
       const assignedSet = new Set(state.assignedIdsLocal.map(Number));
-      const assigned = state.allUsers.filter(u => assignedSet.has(Number(u.id))).length;
+      const assigned = state.scopeUsers.filter(u => assignedSet.has(Number(u.id))).length;
       const unassigned = total - assigned;
 
       if (chipTotal) chipTotal.textContent = `Total: ${total}`;
@@ -577,6 +699,30 @@
       users.forEach(u => state.usersById.set(Number(u.id), u));
     }
 
+    function scopeDeptTargets(){
+      if (state.deptKey === GLOBAL_SCOPE_KEY) return new Set();
+      const s = new Set();
+      pushIf(s, state.deptKey);
+      pushIf(s, state.selectedDeptMeta.id);
+      pushIf(s, state.selectedDeptMeta.uuid);
+      return s;
+    }
+
+    function deriveScopeUsers(){
+      if (state.deptKey === GLOBAL_SCOPE_KEY) {
+        return state.masterTaUsers.slice();
+      }
+
+      const targets = scopeDeptTargets();
+      if (!targets.size) return [];
+
+      return state.masterTaUsers.filter(u => {
+        const keys = Array.isArray(u.deptKeys) ? u.deptKeys : [];
+        if (!keys.length) return false;
+        return keys.some(k => targets.has(normKey(k)));
+      });
+    }
+
     function getAssignedUsers(){
       const ids = state.assignedIdsLocal.map(Number);
       const q = (state.qAssigned || '').toLowerCase();
@@ -585,10 +731,9 @@
       ids.forEach(id => {
         const u = state.usersById.get(id);
         if (!u) return;
-        if (!eligibleFilter(u)) return;
 
         if (q){
-          const hay = `${u.name} ${u.email} ${u.role}`.toLowerCase();
+          const hay = `${u.name} ${u.email} ${u.role} ${u.deptName || ''}`.toLowerCase();
           if (!hay.includes(q)) return;
         }
         out.push(u);
@@ -600,12 +745,11 @@
       const assignedSet = new Set(state.assignedIdsLocal.map(Number));
       const q = (state.qUnassigned || '').toLowerCase();
 
-      return state.allUsers
-        .filter(u => eligibleFilter(u))
+      return state.scopeUsers
         .filter(u => !assignedSet.has(Number(u.id)))
         .filter(u => {
           if (!q) return true;
-          const hay = `${u.name} ${u.email} ${u.role}`.toLowerCase();
+          const hay = `${u.name} ${u.email} ${u.role} ${u.deptName || ''}`.toLowerCase();
           return hay.includes(q);
         });
     }
@@ -614,6 +758,28 @@
       if (u.avatar) return `<img src="${esc(u.avatar)}" alt="">`;
       const initials = (u.name || 'U').trim().split(/\s+/).slice(0,2).map(s=>s[0]?.toUpperCase()||'').join('');
       return `<span style="font-weight:800">${esc(initials || 'U')}</span>`;
+    }
+
+    function userSubLine(u){
+      const parts = [u.email || '—'];
+      if (u.role) parts.push(u.role);
+      if (u.deptName && state.deptKey === GLOBAL_SCOPE_KEY) parts.push(u.deptName); // show dept in global view
+      return parts.filter(Boolean).map((x, i) => i === 0 ? esc(x) : `<span class="text-muted">${esc(x)}</span>`).join(' • ');
+    }
+
+    function syncSelectedDeptMeta(){
+      const opt = deptSelect?.options?.[deptSelect.selectedIndex];
+      state.selectedDeptMeta = {
+        id: normStr(opt?.dataset?.id),
+        uuid: normStr(opt?.dataset?.uuid)
+      };
+    }
+
+    function currentFallbackKey(){
+      if ((state.deptKey || '') === GLOBAL_SCOPE_KEY) return null;
+      const options = [state.selectedDeptMeta.id, state.selectedDeptMeta.uuid].map(normStr).filter(Boolean);
+      const current = normStr(state.deptKey);
+      return options.find(v => normKey(v) !== normKey(current)) || null;
     }
 
     // =========================
@@ -638,10 +804,7 @@
             <div class="fpo-avatar" title="User">${avatarHtml(u)}</div>
             <div class="fpo-meta">
               <div class="fpo-name">${esc(u.name)}</div>
-              <div class="fpo-sub">
-                ${esc(u.email || '—')}
-                ${u.role ? ` • <span class="text-muted">${esc(u.role)}</span>` : ``}
-              </div>
+              <div class="fpo-sub">${userSubLine(u)}</div>
             </div>
           </div>
 
@@ -681,10 +844,7 @@
             <div class="fpo-avatar">${avatarHtml(u)}</div>
             <div class="fpo-meta">
               <div class="fpo-name">${esc(u.name)}</div>
-              <div class="fpo-sub">
-                ${esc(u.email || '—')}
-                ${u.role ? ` • <span class="text-muted">${esc(u.role)}</span>` : ``}
-              </div>
+              <div class="fpo-sub">${userSubLine(u)}</div>
             </div>
           </div>
 
@@ -763,7 +923,11 @@
     // =========================
     async function loadDepartments(){
       if (!deptSelect) return;
-      deptSelect.innerHTML = `<option value="">Loading departments…</option>`;
+
+      deptSelect.innerHTML = `
+        <option value="${GLOBAL_SCOPE_KEY}" selected>Global (All Departments)</option>
+        <option value="" disabled>Loading departments…</option>
+      `;
 
       try{
         const res = await fetchWithTimeout(API.departments, { headers: authHeaders(false) }, 15000);
@@ -775,30 +939,62 @@
         const list = normDeptList(js);
         state.depts = list;
 
-        if (!list.length){
-          deptSelect.innerHTML = `<option value="">No departments found</option>`;
-          return;
-        }
+        const deptOptions = (list || []).map(d => {
+          const uuid = d.uuid ?? '';
+          const id   = d.id ?? '';
+          const value = uuid || id;
+          const name = d.name || d.title || d.department_name || 'Department';
+          return `<option value="${esc(value)}" data-id="${esc(id)}" data-uuid="${esc(uuid)}">${esc(name)}</option>`;
+        }).join('');
 
-        // ✅ store BOTH uuid + id (fallback)
         deptSelect.innerHTML =
-          `<option value="">Select department…</option>` +
-          list.map(d => {
-            const uuid = d.uuid ?? '';
-            const id   = d.id ?? '';
-            const value = uuid || id; // primary (same as faculty)
-            const name = d.name || d.title || d.department_name || 'Department';
-            return `<option value="${esc(value)}" data-id="${esc(id)}" data-uuid="${esc(uuid)}">${esc(name)}</option>`;
-          }).join('');
+          `<option value="${GLOBAL_SCOPE_KEY}">Global (All Departments)</option>` +
+          deptOptions;
+
+        deptSelect.value = GLOBAL_SCOPE_KEY;
+        syncSelectedDeptMeta();
       }catch(e){
-        deptSelect.innerHTML = `<option value="">Failed to load departments</option>`;
+        deptSelect.innerHTML = `<option value="${GLOBAL_SCOPE_KEY}">Global (All Departments)</option>`;
+        deptSelect.value = GLOBAL_SCOPE_KEY;
+        syncSelectedDeptMeta();
         err(e?.name === 'AbortError' ? 'Request timed out' : (e.message || 'Failed'));
       }
     }
 
-    async function loadDeptData(deptKey, fallbackKey=null){
-      state.deptKey = deptKey || '';
-      state.allUsers = [];
+    async function loadMasterTechnicalAssistants(force=false){
+      if (!force && Array.isArray(state.masterTaUsers) && state.masterTaUsers.length) return;
+
+      let page = 1;
+      let guard = 40;
+      let all = [];
+
+      while (guard-- > 0) {
+        const url = new URL(API.users, window.location.origin);
+        url.searchParams.set('page', String(page));
+        url.searchParams.set('per_page', '500');
+
+        const res = await fetchWithTimeout(url.toString(), { headers: authHeaders(false) }, 20000);
+        const js = await safeJson(res);
+
+        if (handleAuth(res, js)) throw new Error('__auth_handled__');
+        if (!res.ok || js.success === false) throw new Error(js?.message || 'Failed to load users');
+
+        const rows = extractUsersArray(js);
+        const users = normUsers(rows)
+          .filter(u => isTechnicalAssistantRole(u.role));
+
+        all.push(...users);
+
+        if (!usersHasNextPage(js)) break;
+        page += 1;
+      }
+
+      state.masterTaUsers = uniqById(all);
+    }
+
+    async function loadDeptData(deptKey, fallbackKey=null, opts={}){
+      state.deptKey = normStr(deptKey);
+      state.scopeUsers = [];
       state.assignedIdsServer = [];
       state.assignedIdsLocal = [];
       state.usersById = new Map();
@@ -816,7 +1012,7 @@
       updateChips();
       updateButtons();
 
-      if (!deptKey){
+      if (!state.deptKey){
         assignedEmpty.style.display = '';
         unassignedEmpty.style.display = '';
         return;
@@ -824,25 +1020,30 @@
 
       showLoading(true);
       try{
-        const res = await fetchWithTimeout(API.byDept(deptKey), { headers: authHeaders(false) }, 20000);
+        // ✅ 1) Load users from /api/users, then filter role=technical_assistant
+        await loadMasterTechnicalAssistants(!!opts.reloadUsers);
+
+        // ✅ 2) Split global vs department-wise client-side
+        state.scopeUsers = deriveScopeUsers();
+        buildUsersMap(state.scopeUsers);
+
+        // ✅ 3) Load saved order JSON for selected scope (backend only for order payload)
+        const res = await fetchWithTimeout(API.byDept(state.deptKey), { headers: authHeaders(false) }, 20000);
         const js = await safeJson(res);
 
-        // auth / permissions / non-json handling
         if (res.status === 401){
           window.location.href = '/';
           return;
         }
         if (res.status === 403){
-          // ✅ do not redirect; just show error
           err(js?.message || 'Forbidden: you do not have permission.');
           assignedEmpty.style.display = '';
           unassignedEmpty.style.display = '';
           return;
         }
 
-        // ✅ fallback if controller expects a different key (uuid vs id)
-        if ((res.status === 404 || res.status === 422) && fallbackKey && fallbackKey !== deptKey){
-          await loadDeptData(fallbackKey, null);
+        if ((res.status === 404 || res.status === 422) && fallbackKey && normKey(fallbackKey) !== normKey(state.deptKey)){
+          await loadDeptData(fallbackKey, null, opts); // fallback between uuid/id for order route
           return;
         }
 
@@ -850,36 +1051,31 @@
           throw new Error('Unexpected response (not JSON). Check API middleware/auth for this route.');
         }
 
-        if (!res.ok || js.success === false) throw new Error(js?.message || 'Failed to load department data');
+        // If no saved order exists yet for this scope, treat it as empty list
+if (res.status === 404 || res.status === 422) {
+  state.assignedIdsServer = [];
+  state.assignedIdsLocal = [];
+  renderAll();
+  return;
+}
 
-        const p = normDeptPayload(js);
+if (!res.ok || js.success === false) {
+  throw new Error(js?.message || 'Failed to load saved order');
+}
 
-        const combined = uniqById([...(p.assigned||[]), ...(p.unassigned||[])]);
-        const eligible = combined.filter(eligibleFilter);
+        const p = normOrderPayload(js);
 
-        state.allUsers = eligible;
-        buildUsersMap(eligible);
-
-        const existingSet = new Set(eligible.map(u => Number(u.id)));
-
+        const existingSet = new Set(state.scopeUsers.map(u => Number(u.id)));
         const sanitized = (p.ids || []).filter(id => existingSet.has(Number(id)));
 
         state.assignedIdsServer = sanitized.slice();
         state.assignedIdsLocal  = sanitized.slice();
 
-        if (!state.assignedIdsLocal.length && (p.assigned||[]).length){
-          const inferred = (p.assigned||[])
-            .filter(eligibleFilter)
-            .map(u => Number(u.id))
-            .filter(n => Number.isFinite(n) && existingSet.has(n));
-
-          state.assignedIdsServer = inferred.slice();
-          state.assignedIdsLocal  = inferred.slice();
-        }
-
         renderAll();
       }catch(e){
-        err(e?.name === 'AbortError' ? 'Request timed out' : (e.message || 'Failed'));
+        if (String(e?.message || '') !== '__auth_handled__') {
+          err(e?.name === 'AbortError' ? 'Request timed out' : (e.message || 'Failed'));
+        }
         assignedEmpty.style.display = '';
         unassignedEmpty.style.display = '';
       }finally{
@@ -928,7 +1124,7 @@
 
       const conf = await Swal.fire({
         title: 'Save technical assistant order?',
-        text: 'This will update the saved JSON array for the selected department.',
+        text: 'This will update the saved JSON array for the selected scope.',
         icon: 'question',
         showCancelButton: true,
         confirmButtonText: 'Save',
@@ -939,7 +1135,14 @@
       setBtnLoading(btnSave, true);
 
       try{
-        const payload = { technical_assistant_ids: state.assignedIdsLocal.map(Number) };
+        const ids = state.assignedIdsLocal.map(Number);
+
+        const payload = {
+          technical_assistant_ids: ids,
+          technical_assistant_ids_json: JSON.stringify(ids),
+          clear_all: ids.length === 0 ? 1 : 0,
+          allow_empty: 1
+        };
 
         const res = await fetchWithTimeout(API.save(state.deptKey), {
           method: 'POST',
@@ -959,13 +1162,16 @@
             const k = Object.keys(js.errors)[0];
             if (k && js.errors[k] && js.errors[k][0]) msg = js.errors[k][0];
           }
+
+          if ((ids.length === 0) && isEmptyRequiredError(msg)){
+            msg = 'Cannot save empty assignment list because the API validator is treating an empty array as "required". Update backend validation for technical_assistant_ids to allow empty arrays (e.g., present|array).';
+          }
+
           throw new Error(msg);
         }
 
         ok('Saved successfully');
-
-        // reload with same key (no fallback needed)
-        await loadDeptData(state.deptKey);
+        await loadDeptData(state.deptKey, currentFallbackKey(), { reloadUsers:false });
       }catch(e){
         err(e?.name === 'AbortError' ? 'Request timed out' : (e.message || 'Failed'));
       }finally{
@@ -994,23 +1200,26 @@
     // =========================
     // Events
     // =========================
-
-    // ✅ capture-phase handler to stop any global scripts/form auto-submit
     deptSelect?.addEventListener('change', (e) => {
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
 
+      syncSelectedDeptMeta();
+
       const opt = deptSelect.options[deptSelect.selectedIndex];
-      const v = (deptSelect.value || '').trim();
+      const v = normStr(deptSelect.value);
 
-      // fallback: if value is uuid and controller expects id (or vice versa)
-      const fallbackKey = (opt?.dataset?.id || '').trim() || (opt?.dataset?.uuid || '').trim() || null;
+      let fallbackKey = null;
+      if (v !== GLOBAL_SCOPE_KEY){
+        const alt1 = normStr(opt?.dataset?.id);
+        const alt2 = normStr(opt?.dataset?.uuid);
+        fallbackKey = [alt1, alt2].find(x => x && normKey(x) !== normKey(v)) || null;
+      }
 
-      loadDeptData(v, (fallbackKey && fallbackKey !== v) ? fallbackKey : null);
+      loadDeptData(v, fallbackKey, { reloadUsers:false });
     }, true);
 
-    // also guard if select sits inside a form anywhere (rare, but safe)
     const maybeForm = deptSelect?.closest('form');
     if (maybeForm){
       maybeForm.addEventListener('submit', (e) => {
@@ -1020,10 +1229,8 @@
     }
 
     btnReload?.addEventListener('click', async () => {
-      if (!state.deptKey) { ok('Select a department'); return; }
-      showLoading(true);
-      await loadDeptData(state.deptKey);
-      showLoading(false);
+      const currentKey = state.deptKey || GLOBAL_SCOPE_KEY;
+      await loadDeptData(currentKey, currentFallbackKey(), { reloadUsers:true }); // ✅ reload /api/users too
       ok('Reloaded');
     });
 
@@ -1069,8 +1276,10 @@
         await fetchMe();
         await loadDepartments();
 
-        assignedEmpty.style.display = '';
-        unassignedEmpty.style.display = '';
+        const initialScope = (deptSelect?.value || GLOBAL_SCOPE_KEY).trim() || GLOBAL_SCOPE_KEY;
+        syncSelectedDeptMeta();
+        await loadDeptData(initialScope, null, { reloadUsers:true }); // ✅ initial users from /api/users
+
         updateChips();
         updateButtons();
       }finally{

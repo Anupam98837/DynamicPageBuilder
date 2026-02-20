@@ -68,6 +68,20 @@
 
   .fmx-state{max-width: 1040px;margin: 0 auto;background: var(--fmx-card);border: 1px solid var(--fmx-line);border-radius: 16px;box-shadow: var(--fmx-shadow);padding: 18px;color: var(--fmx-muted);text-align:center;}
 
+  /* ✅ Professional empty-state illustration */
+  .fmx-empty-ill{
+    width: 170px;
+    max-width: 100%;
+    margin: 0 auto 10px;
+    display: block;
+    color: var(--fmx-brand);
+  }
+  .fmx-empty-ill svg{
+    display:block;
+    width:100%;
+    height:auto;
+  }
+
   .fmx-skeleton{display:flex;flex-direction:column;gap: 18px;}
   .fmx-sk{border-radius: 16px;border: 1px solid var(--fmx-line);background: #fff;overflow:hidden;position:relative;box-shadow: 0 10px 24px rgba(2,6,23,.08);height: var(--fmx-card-h);}
   .fmx-sk:before{content:'';position:absolute; inset:0;transform: translateX(-60%);background: linear-gradient(90deg, transparent, rgba(148,163,184,.22), transparent);animation: fmxSkMove 1.15s ease-in-out infinite;}
@@ -87,6 +101,7 @@
     .fmx-search{ min-width: 220px; flex: 1 1 240px; }
     .fmx-select{ min-width: 220px; flex: 1 1 240px; }
     .fmx-grid, .fmx-skeleton, .fmx-state{ max-width: 100%; }
+    .fmx-empty-ill{ width: 146px; }
   }
 
   .dynamic-navbar .navbar-nav .dropdown-menu{position: absolute !important;inset: auto !important;}
@@ -102,19 +117,19 @@
   <div class="fmx-head">
     <div>
       <h1 class="fmx-title"><i class="fa-solid fa-users"></i>Faculty Members</h1>
-      <div class="fmx-sub" id="fmxSub">Select a department to view its faculty members.</div>
+      <div class="fmx-sub" id="fmxSub">Showing faculty members from all departments.</div>
     </div>
 
     <div class="fmx-tools">
       <div class="fmx-search">
         <i class="fa fa-magnifying-glass"></i>
-        <input id="fmxSearch" type="search" placeholder="Select a department to search…" disabled>
+        <input id="fmxSearch" type="search" placeholder="Search faculty (name/designation/qualification)…">
       </div>
 
       <div class="fmx-select" title="Filter by department">
         <i class="fa-solid fa-building-columns fmx-select__icon"></i>
         <select id="fmxDept" aria-label="Filter by department">
-          <option value="">Select Department</option>
+          <option value="__all">All Departments</option>
         </select>
         <i class="fa-solid fa-chevron-down fmx-select__caret"></i>
       </div>
@@ -131,7 +146,6 @@
 </div>
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
-
 <script>
 (() => {
   if (window.__PUBLIC_FACULTY_MEMBERS_DEPT__) return;
@@ -143,6 +157,7 @@
   const PROFILE_BASE = root.getAttribute('data-profile-base') || (window.location.origin + '/user/profile/');
   const PREVIEW_INDEX = root.getAttribute('data-preview-index') || (window.location.origin + '/api/public/faculty-preview-order');
   const PREVIEW_SHOW_BASE = root.getAttribute('data-preview-show-base') || (window.location.origin + '/api/public/faculty-preview-order/');
+  const ALL_DEPTS = '__all';
 
   const $ = (id) => document.getElementById(id);
 
@@ -161,8 +176,8 @@
     perPage: 9,
     lastPage: 1,
     q: '',
-    deptUuid: '',
-    deptName: '',
+    deptUuid: ALL_DEPTS,
+    deptName: 'All Departments',
   };
 
   let activeController = null;
@@ -221,6 +236,26 @@
     const v = (value || '').toString().trim();
     if (!v) return '';
     return `<div class="fmx-line"><b>${esc(label)}:</b> <span>${esc(v)}</span></div>`;
+  }
+
+  // ✅ Professional empty-state illustration (SVG)
+  function emptyStateIllustration(){
+    return `
+      <div class="fmx-empty-ill" aria-hidden="true">
+        <svg viewBox="0 0 220 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="18" width="200" height="112" rx="16" fill="white" stroke="rgba(15,23,42,0.10)"/>
+          <rect x="24" y="32" width="172" height="84" rx="12" fill="rgba(148,163,184,0.08)" stroke="rgba(148,163,184,0.18)"/>
+          <circle cx="70" cy="66" r="16" fill="rgba(158,54,58,0.14)" stroke="currentColor" stroke-width="2"/>
+          <path d="M49 97c5-11 16-16 21-16s16 5 21 16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+          <rect x="100" y="52" width="72" height="8" rx="4" fill="rgba(100,116,139,0.20)"/>
+          <rect x="100" y="68" width="54" height="8" rx="4" fill="rgba(100,116,139,0.16)"/>
+          <rect x="100" y="84" width="64" height="8" rx="4" fill="rgba(100,116,139,0.12)"/>
+          <circle cx="182" cy="26" r="12" fill="rgba(158,54,58,0.10)" stroke="currentColor" stroke-width="1.8"/>
+          <path d="M177.5 26h9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M182 21.5v9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+    `;
   }
 
   function iconForPlatform(platform){
@@ -320,7 +355,7 @@
     });
   }
 
-  function showSelectDeptState(){
+  function showLoadingState(){
     if (els.grid) els.grid.style.display = 'none';
     if (els.pager) els.pager.style.display = 'none';
 
@@ -328,9 +363,9 @@
       els.state.style.display = '';
       els.state.innerHTML = `
         <div style="font-size:34px;opacity:.6;margin-bottom:6px;">
-          <i class="fa-solid fa-building-columns"></i>
+          <i class="fa-solid fa-spinner fa-spin"></i>
         </div>
-        Please select a department to view faculty members.
+        Loading faculty members…
       `;
     }
   }
@@ -377,10 +412,10 @@
     if (!sel) return;
 
     sel.innerHTML = `
-      <option value="">Select Department</option>
+      <option value="${ALL_DEPTS}">All Departments</option>
       <option value="__loading" disabled>Loading departments…</option>
     `;
-    sel.value = '__loading';
+    sel.value = ALL_DEPTS;
 
     try{
       const js = await fetchJson(PREVIEW_INDEX);
@@ -403,11 +438,11 @@
       // keep dropdown clean (no brackets / no extra text)
       depts.sort((a,b) => a.title.localeCompare(b.title));
 
-      sel.innerHTML = `<option value="">Select Department</option>` + depts
+      sel.innerHTML = `<option value="${ALL_DEPTS}">All Departments</option>` + depts
         .map(d => `<option value="${escAttr(d.uuid)}">${esc(d.title)}</option>`)
         .join('');
 
-      sel.value = '';
+      sel.value = ALL_DEPTS;
 
       if (!depts.length){
         if (els.state){
@@ -423,8 +458,8 @@
 
     } catch (e){
       console.warn('Ordered departments load failed:', e);
-      sel.innerHTML = `<option value="">Select Department</option>`;
-      sel.value = '';
+      sel.innerHTML = `<option value="${ALL_DEPTS}">All Departments</option>`;
+      sel.value = ALL_DEPTS;
       if (els.state){
         els.state.style.display = '';
         els.state.innerHTML = `
@@ -453,6 +488,7 @@
     const interest      = (pick(it, ['interest']) || '').toString().trim();
     const administration= (pick(it, ['administration']) || '').toString().trim();
     const research      = (pick(it, ['research_project']) || '').toString().trim();
+    const deptLineTitle = (it?.__department_title || '').toString().trim();
 
     const meta = decodeMaybeJson(it?.metadata) || {};
     const email = (pick(it, ['email']) || meta.email || '').toString().trim();
@@ -482,6 +518,7 @@
           </div>
 
           <div class="fmx-meta">
+            ${state.deptUuid === ALL_DEPTS ? metaLine('Department', deptLineTitle) : ''}
             ${metaLine('Qualification', qualification)}
             ${metaLine('Specification', specification)}
             ${metaLine('Experience', experience)}
@@ -515,7 +552,8 @@
         ).toString().toLowerCase();
 
       const qual = formatQualification(it?.qualification).toLowerCase();
-      return name.includes(q) || desig.includes(q) || qual.includes(q);
+      const dept = (it?.__department_title || '').toString().toLowerCase();
+      return name.includes(q) || desig.includes(q) || qual.includes(q) || dept.includes(q);
     });
   }
 
@@ -540,10 +578,8 @@
       els.grid.style.display = 'none';
       els.state.style.display = '';
       els.state.innerHTML = `
-        <div style="font-size:34px;opacity:.6;margin-bottom:6px;">
-          <i class="fa-regular fa-face-frown"></i>
-        </div>
-        No faculty found for this department.
+        ${emptyStateIllustration()}
+        ${state.deptUuid === ALL_DEPTS ? 'No faculty found.' : 'No faculty found for this department.'}
       `;
       return;
     }
@@ -648,6 +684,13 @@
       .map(x => x.it);
   }
 
+  function uniqueFacultyKey(it){
+    return (
+      (pick(it, ['user_uuid','uuid']) || '').toString().trim() ||
+      String(getUserNumericId(it) ?? '')
+    );
+  }
+
   async function loadAssignedForDept(deptUuid){
     showSkeleton();
 
@@ -660,7 +703,11 @@
 
       // ✅ enforce DB saved order
       const orderIds = extractOrderIds(js);
-      assignedAll = orderByDb(assigned, orderIds);
+      assignedAll = orderByDb(assigned, orderIds).map(it => ({
+        ...it,
+        __department_title: (dept?.title || deptByUuid.get(deptUuid)?.title || '').toString().trim(),
+        __department_uuid: deptUuid
+      }));
 
       // header/subtitle
       state.deptName = (dept?.title || deptByUuid.get(deptUuid)?.title || '').toString().trim();
@@ -668,11 +715,64 @@
         els.sub.textContent = state.deptName ? ('Faculty members of ' + state.deptName) : 'Faculty members';
       }
 
-      // enable search only when dept is selected
-      if (els.search){
-        els.search.disabled = false;
-        els.search.placeholder = 'Search faculty (name/designation/qualification)…';
+      state.page = 1;
+      hideSkeleton();
+      applyAndRender();
+
+    } catch (e){
+      hideSkeleton();
+      if (els.grid) els.grid.style.display = 'none';
+      if (els.pager) els.pager.style.display = 'none';
+
+      if (els.state){
+        els.state.style.display = '';
+        els.state.innerHTML = `
+          <div style="font-size:34px;opacity:.6;margin-bottom:6px;">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+          </div>
+          Faculty list is not available right now.
+        `;
       }
+    }
+  }
+
+  async function loadAssignedForAllDepartments(){
+    showSkeleton();
+
+    try{
+      const depts = Array.from(deptByUuid.values()).sort((a,b) => a.title.localeCompare(b.title));
+      const merged = [];
+      const seen = new Set();
+
+      for (const d of depts){
+        try{
+          const url = PREVIEW_SHOW_BASE + encodeURIComponent(d.uuid) + '?status=active';
+          const js = await fetchJson(url);
+
+          const assigned = Array.isArray(js?.assigned) ? js.assigned : [];
+          const orderIds = extractOrderIds(js);
+          const ordered = orderByDb(assigned, orderIds);
+
+          for (const it of ordered){
+            const key = uniqueFacultyKey(it);
+            if (!key) continue;
+            if (seen.has(key)) continue;
+            seen.add(key);
+
+            merged.push({
+              ...it,
+              __department_title: d.title,
+              __department_uuid: d.uuid
+            });
+          }
+        } catch (err){
+          console.warn('Faculty load failed for dept:', d?.title || d?.uuid, err);
+        }
+      }
+
+      assignedAll = merged;
+      state.deptName = 'All Departments';
+      if (els.sub) els.sub.textContent = 'Faculty members of all departments';
 
       state.page = 1;
       hideSkeleton();
@@ -703,21 +803,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', async () => {
-    showSelectDeptState();
-
-    // dropdown from preview-order public index (only ordered depts)
-    await loadOrderedDepartments();
-
-    // deep-link ?d-{uuid}
-    const deep = extractDeptUuidFromUrl();
-    if (deep && deptByUuid.has(deep)){
-      els.dept.value = deep;
-      state.deptUuid = deep;
-      state.page = 1;
-      state.q = '';
-      if (els.search) els.search.value = '';
-      await loadAssignedForDept(deep);
-    }
+    // ✅ Attach all listeners FIRST (so deep-link load doesn't skip them)
 
     // dept change
     els.dept && els.dept.addEventListener('change', async () => {
@@ -728,15 +814,10 @@
       assignedAll = [];
       if (els.search) els.search.value = '';
 
-      if (!v){
-        state.deptUuid = '';
-        state.deptName = '';
-        if (els.sub) els.sub.textContent = 'Select a department to view its faculty members.';
-        if (els.search){
-          els.search.disabled = true;
-          els.search.placeholder = 'Select a department to search…';
-        }
-        showSelectDeptState();
+      if (!v || v === ALL_DEPTS){
+        state.deptUuid = ALL_DEPTS;
+        await loadAssignedForAllDepartments();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
 
@@ -767,7 +848,7 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
 
-    // card click -> profile
+    // ✅ card click -> profile
     document.addEventListener('click', (e) => {
       if (e.target.closest('[data-stop-card="1"]')) return;
       const card = e.target.closest('.fmx-card[data-href]');
@@ -777,7 +858,7 @@
       window.location.href = href;
     });
 
-    // keyboard open
+    // ✅ keyboard open
     document.addEventListener('keydown', (e) => {
       const card = e.target.closest?.('.fmx-card[data-href]');
       if (!card) return;
@@ -787,6 +868,28 @@
         if (href && href !== '#') window.location.href = href;
       }
     });
+
+    // ✅ Initial load
+    showLoadingState();
+
+    // dropdown from preview-order public index (only ordered depts)
+    await loadOrderedDepartments();
+
+    // deep-link ?d-{uuid}
+    const deep = extractDeptUuidFromUrl();
+    if (deep && deptByUuid.has(deep)){
+      els.dept.value = deep;
+      state.deptUuid = deep;
+      state.page = 1;
+      state.q = '';
+      if (els.search) els.search.value = '';
+      await loadAssignedForDept(deep);
+    } else {
+      // default = all departments
+      state.deptUuid = ALL_DEPTS;
+      if (els.dept) els.dept.value = ALL_DEPTS;
+      await loadAssignedForAllDepartments();
+    }
   });
 
 })();

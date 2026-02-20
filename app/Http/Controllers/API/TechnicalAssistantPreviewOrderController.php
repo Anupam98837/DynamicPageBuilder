@@ -39,7 +39,7 @@ class TechnicalAssistantPreviewOrderController extends Controller
     {
         $a = $this->actor($r);
         if (!$a['role'] || !in_array($a['role'], $allowed, true)) {
-            return response()->json(['success' => false, 'error' => 'Unauthorized Access'], 403);
+            return response()->json(['success' => false, 'error' => 'Unauthorized Access', 'message' => 'Unauthorized Access'], 403);
         }
         return null;
     }
@@ -56,6 +56,12 @@ class TechnicalAssistantPreviewOrderController extends Controller
     private function isUuid(string $v): bool
     {
         return (bool) preg_match('/^[0-9a-fA-F-]{36}$/', $v);
+    }
+
+    private function isGlobalScope(string $v): bool
+    {
+        $v = strtolower(trim($v));
+        return in_array($v, ['__all', 'all', 'global'], true);
     }
 
     private function tableReady(): bool
@@ -238,51 +244,59 @@ class TechnicalAssistantPreviewOrderController extends Controller
     }
 
     /**
-     * Eligible users query for department
-     * (filters to technical assistant roles by default)
+     * Eligible users query
+     * - If $deptId is null => global scope (all departments)
+     * - Filters to technical assistant roles
      */
-    private function eligibleUsersQuery(int $deptId, string $statusFilter = 'active')
+    private function eligibleUsersQuery(?int $deptId = null, string $statusFilter = 'active')
     {
-        $upiHasDept  = Schema::hasTable('user_personal_information') && Schema::hasColumn('user_personal_information', 'department_id');
+        $hasUpiTable = Schema::hasTable('user_personal_information');
+        $upiHasDept  = $hasUpiTable && Schema::hasColumn('user_personal_information', 'department_id');
         $userHasDept = Schema::hasColumn('users', 'department_id');
 
-        $q = DB::table('users as u')
-            ->leftJoin('user_personal_information as upi', 'upi.user_id', '=', 'u.id')
-            ->whereNull('u.deleted_at')
-            ->whereNotIn('u.role', self::EXCLUDED_ROLES)
-            ->whereIn('u.role', self::TA_ROLES)
-            ->where(function ($w) {
-                $w->whereNull('upi.id')->orWhereNull('upi.deleted_at');
-            });
+        $q = DB::table('users as u');
+
+        if ($hasUpiTable) {
+            $q->leftJoin('user_personal_information as upi', 'upi.user_id', '=', 'u.id')
+              ->where(function ($w) {
+                  $w->whereNull('upi.id')->orWhereNull('upi.deleted_at');
+              });
+        }
+
+        $q->whereNull('u.deleted_at')
+          ->whereNotIn('u.role', self::EXCLUDED_ROLES)
+          ->whereIn('u.role', self::TA_ROLES);
 
         // status filter (default active)
         if ($statusFilter !== 'all') {
             $q->where('u.status', $statusFilter === 'inactive' ? 'inactive' : 'active');
         }
 
-        // dept filter (accept either storage)
-        $q->where(function ($w) use ($deptId, $upiHasDept, $userHasDept) {
-            $applied = false;
+        // dept filter only when specific dept is requested
+        if ($deptId !== null) {
+            $q->where(function ($w) use ($deptId, $upiHasDept, $userHasDept) {
+                $applied = false;
 
-            if ($upiHasDept) {
-                $w->orWhere('upi.department_id', $deptId);
-                $applied = true;
-            }
+                if ($upiHasDept) {
+                    $w->orWhere('upi.department_id', $deptId);
+                    $applied = true;
+                }
 
-            if ($userHasDept) {
-                $w->orWhere('u.department_id', $deptId);
-                $applied = true;
-            }
+                if ($userHasDept) {
+                    $w->orWhere('u.department_id', $deptId);
+                    $applied = true;
+                }
 
-            if (!$applied) {
-                $w->whereRaw('1=0');
-            }
-        });
+                if (!$applied) {
+                    $w->whereRaw('1=0');
+                }
+            });
+        }
 
         return $q;
     }
 
-    private function eligibleUsersByIds(int $deptId, array $ids, string $statusFilter = 'active')
+    private function eligibleUsersByIds(?int $deptId, array $ids, string $statusFilter = 'active')
     {
         $ids = array_values(array_unique(array_map('intval', $ids)));
         if (empty($ids)) return collect();
@@ -307,7 +321,11 @@ class TechnicalAssistantPreviewOrderController extends Controller
     public function index(Request $request)
     {
         if (!$this->tableReady()) {
-            return response()->json(['success' => false, 'error' => 'technical_assistant_preview_orders table not found'], 422);
+            return response()->json([
+                'success' => false,
+                'error'   => 'technical_assistant_preview_orders table not found',
+                'message' => 'technical_assistant_preview_orders table not found',
+            ], 422);
         }
 
         if ($resp = $this->requireRole($request, ['admin','director','principal','hod'])) return $resp;
@@ -338,6 +356,11 @@ class TechnicalAssistantPreviewOrderController extends Controller
                 ? json_decode($r->technical_assistant_user_ids_json, true)
                 : ($r->technical_assistant_user_ids_json ?? []);
             $r->technical_assistant_count = is_array($arr) ? count($arr) : 0;
+
+            if ((int)($r->department_id ?? 0) === 0) {
+                $r->department_slug = $r->department_slug ?: '__all';
+                $r->department_title = $r->department_title ?: 'Global (All Departments)';
+            }
         });
 
         return response()->json(['success' => true, 'data' => $rows]);
@@ -345,18 +368,34 @@ class TechnicalAssistantPreviewOrderController extends Controller
 
     /**
      * GET /api/technical-assistant-preview-order/{department}
+     * Supports {department} = __all|all|global
      */
     public function show(Request $request, string $department)
     {
         if (!$this->tableReady()) {
-            return response()->json(['success' => false, 'error' => 'technical_assistant_preview_orders table not found'], 422);
+            return response()->json([
+                'success' => false,
+                'error'   => 'technical_assistant_preview_orders table not found',
+                'message' => 'technical_assistant_preview_orders table not found',
+            ], 422);
         }
 
         if ($resp = $this->requireRole($request, ['admin','director','principal','hod'])) return $resp;
 
-        $dept = $this->resolveDepartment($department);
-        if (!$dept) {
-            return response()->json(['success' => false, 'error' => 'Department not found'], 404);
+        $isGlobal = $this->isGlobalScope($department);
+        $dept = null;
+        $deptId = null;
+
+        if (!$isGlobal) {
+            $dept = $this->resolveDepartment($department);
+            if (!$dept) {
+                return response()->json([
+                    'success' => false,
+                    'error'   => 'Department not found',
+                    'message' => 'Department not found',
+                ], 404);
+            }
+            $deptId = (int)$dept->id;
         }
 
         $statusFilter = strtolower(trim((string)$request->query('status', 'active'))) ?: 'active';
@@ -365,10 +404,14 @@ class TechnicalAssistantPreviewOrderController extends Controller
         $jsonCol   = $this->technicalAssistantJsonCol();
         $activeCol = $this->activeCol();
 
-        $orderRow = DB::table(self::TABLE)
-            ->where('department_id', (int)$dept->id)
-            ->whereNull('deleted_at')
-            ->first();
+        $orderQuery = DB::table(self::TABLE)->whereNull('deleted_at');
+        if ($isGlobal) {
+            $orderQuery->whereNull('department_id');
+        } else {
+            $orderQuery->where('department_id', $deptId);
+        }
+
+        $orderRow = $orderQuery->first();
 
         $assignedIds = [];
         $activeVal   = 1;
@@ -387,7 +430,7 @@ class TechnicalAssistantPreviewOrderController extends Controller
         }
 
         // assigned users (filter eligible + keep order)
-        $assignedRows = $this->eligibleUsersByIds((int)$dept->id, $assignedIds, $statusFilter);
+        $assignedRows = $this->eligibleUsersByIds($deptId, $assignedIds, $statusFilter);
         $assignedMap  = [];
         foreach ($assignedRows as $u) $assignedMap[(int)$u->id] = $u;
 
@@ -397,7 +440,7 @@ class TechnicalAssistantPreviewOrderController extends Controller
         }
 
         // unassigned users = eligible users NOT IN assigned
-        $unassignedQ = $this->eligibleUsersQuery((int)$dept->id, $statusFilter)
+        $unassignedQ = $this->eligibleUsersQuery($deptId, $statusFilter)
             ->select([
                 'u.id', 'u.uuid', 'u.slug', 'u.name', 'u.email',
                 'u.image', 'u.role', 'u.role_short_form', 'u.status',
@@ -414,12 +457,21 @@ class TechnicalAssistantPreviewOrderController extends Controller
 
         return response()->json([
             'success' => true,
-            'department' => [
-                'id'    => (int)$dept->id,
-                'uuid'  => (string)($dept->uuid ?? ''),
-                'slug'  => (string)($dept->slug ?? ''),
-                'title' => (string)($dept->title ?? ''),
-            ],
+            'department' => $isGlobal
+                ? [
+                    'id'        => null,
+                    'uuid'      => null,
+                    'slug'      => '__all',
+                    'title'     => 'Global (All Departments)',
+                    'is_global' => true,
+                ]
+                : [
+                    'id'        => $deptId,
+                    'uuid'      => (string)($dept->uuid ?? ''),
+                    'slug'      => (string)($dept->slug ?? ''),
+                    'title'     => (string)($dept->title ?? ''),
+                    'is_global' => false,
+                ],
             'order' => [
                 'exists'                     => (bool)$orderRow,
                 'active'                     => (int)$activeVal,
@@ -438,12 +490,18 @@ class TechnicalAssistantPreviewOrderController extends Controller
      *   "technical_assistant_ids": [12,5,9],  // ordered ids
      *   "active": 1                            // optional (1/0 or 'active'/'inactive')
      * }
+     *
+     * Supports {department} = __all|all|global (global row saved with department_id = NULL)
      */
     public function save(Request $request, string $department)
     {
         if (!$this->tableReady()) {
             $this->writeActivityLog($request, 'error', self::TABLE, null, null, null, null, 'Target table not found');
-            return response()->json(['success' => false, 'error' => 'technical_assistant_preview_orders table not found'], 422);
+            return response()->json([
+                'success' => false,
+                'error'   => 'technical_assistant_preview_orders table not found',
+                'message' => 'technical_assistant_preview_orders table not found',
+            ], 422);
         }
 
         if ($resp = $this->requireRole($request, ['admin','director','principal','hod'])) {
@@ -451,16 +509,29 @@ class TechnicalAssistantPreviewOrderController extends Controller
             return $resp;
         }
 
-        $dept = $this->resolveDepartment($department);
-        if (!$dept) {
-            $this->writeActivityLog($request, 'error', self::TABLE, null, null, null, null, 'Department not found while saving preview order');
-            return response()->json(['success' => false, 'error' => 'Department not found'], 404);
+        $isGlobal = $this->isGlobalScope($department);
+        $dept = null;
+        $deptId = null;
+        $scopeText = 'global';
+
+        if (!$isGlobal) {
+            $dept = $this->resolveDepartment($department);
+            if (!$dept) {
+                $this->writeActivityLog($request, 'error', self::TABLE, null, null, null, null, 'Department not found while saving preview order');
+                return response()->json([
+                    'success' => false,
+                    'error'   => 'Department not found',
+                    'message' => 'Department not found',
+                ], 404);
+            }
+            $deptId = (int)$dept->id;
+            $scopeText = 'department_id=' . $deptId;
         }
 
         $v = Validator::make($request->all(), [
-            'technical_assistant_ids'   => ['required', 'array'],
-            'technical_assistant_ids.*' => ['required', 'integer', 'min:1'],
-            'active'                   => ['nullable'],
+            'technical_assistant_ids'   => ['present', 'array'], // ✅ allows empty array []
+            'technical_assistant_ids.*' => ['integer', 'min:1'],
+            'active'                    => ['nullable'],
         ]);
 
         if ($v->fails()) {
@@ -472,17 +543,21 @@ class TechnicalAssistantPreviewOrderController extends Controller
                 array_keys($v->errors()->toArray()),
                 null,
                 null,
-                'Validation failed while saving preview order (department_id='.$dept->id.')'
+                'Validation failed while saving preview order (' . $scopeText . ')'
             );
 
-            return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+            return response()->json([
+                'success' => false,
+                'message' => $v->errors()->first(),
+                'errors'  => $v->errors(),
+            ], 422);
         }
 
         $data = $v->validated();
         $taIds = $this->normalizeIds($data['technical_assistant_ids'] ?? []);
 
-        // Validate: only eligible users for this dept (allow active+inactive)
-        $eligible = $this->eligibleUsersByIds((int)$dept->id, $taIds, 'all');
+        // Validate: only eligible users for this scope (allow active+inactive)
+        $eligible = $this->eligibleUsersByIds($deptId, $taIds, 'all');
         $eligibleIds = $eligible->pluck('id')->map(fn($x) => (int)$x)->values()->all();
         $eligibleSet = array_fill_keys($eligibleIds, true);
 
@@ -510,10 +585,14 @@ class TechnicalAssistantPreviewOrderController extends Controller
 
         DB::beginTransaction();
         try {
-            $existing = DB::table(self::TABLE)
-                ->where('department_id', (int)$dept->id)
-                ->whereNull('deleted_at')
-                ->first();
+            $existingQ = DB::table(self::TABLE)->whereNull('deleted_at');
+            if ($isGlobal) {
+                $existingQ->whereNull('department_id');
+            } else {
+                $existingQ->where('department_id', $deptId);
+            }
+
+            $existing = $existingQ->first();
 
             // Old snapshot (for activity log)
             $oldValues = null;
@@ -530,7 +609,8 @@ class TechnicalAssistantPreviewOrderController extends Controller
                 }
 
                 $oldValues = [
-                    'department_id' => (int)$dept->id,
+                    'scope' => $isGlobal ? 'global' : 'department',
+                    'department_id' => $deptId,
                     'technical_assistant_ids' => $oldAssigned,
                     'count' => count($oldAssigned),
                     'active' => $activeCol ? (int)($oldActive ?? 1) : null,
@@ -559,7 +639,7 @@ class TechnicalAssistantPreviewOrderController extends Controller
                 $action = 'update';
             } else {
                 $insert = array_merge([
-                    'department_id' => (int)$dept->id,
+                    'department_id' => $isGlobal ? null : $deptId, // ✅ global row support
                     'created_at'    => $now,
                     'updated_at'    => $now,
                 ], $payload);
@@ -580,14 +660,16 @@ class TechnicalAssistantPreviewOrderController extends Controller
             DB::commit();
 
             $this->logWithActor('msit.technical_assistant_preview_order.save', $request, [
-                'department_id' => (int)$dept->id,
+                'scope'         => $isGlobal ? 'global' : 'department',
+                'department_id' => $deptId,
                 'row_id'        => $rowId,
                 'count'         => count($final),
             ]);
 
             // New snapshot (for activity log)
             $newValues = [
-                'department_id' => (int)$dept->id,
+                'scope' => $isGlobal ? 'global' : 'department',
+                'department_id' => $deptId,
                 'technical_assistant_ids' => $final,
                 'count' => count($final),
                 'active' => $activeCol ? (int)($activeVal ?? 1) : null,
@@ -604,14 +686,15 @@ class TechnicalAssistantPreviewOrderController extends Controller
                 $changed,
                 $oldValues,
                 $newValues,
-                'Saved technical assistant preview order (department_id='.$dept->id.', count='.count($final).')'
+                'Saved technical assistant preview order (' . $scopeText . ', count=' . count($final) . ')'
             );
 
             return response()->json([
                 'success' => true,
                 'message' => 'Technical assistant preview order saved',
                 'data' => [
-                    'department_id'              => (int)$dept->id,
+                    'scope'                      => $isGlobal ? 'global' : 'department',
+                    'department_id'              => $deptId,
                     'technical_assistant_ids'    => $final,
                     'count'                      => count($final),
                     'active'                     => $activeCol ? (int)($activeVal ?? 1) : null,
@@ -622,7 +705,8 @@ class TechnicalAssistantPreviewOrderController extends Controller
             DB::rollBack();
 
             $this->logWithActor('msit.technical_assistant_preview_order.save_failed', $request, [
-                'department_id' => (int)$dept->id,
+                'scope'         => $isGlobal ? 'global' : 'department',
+                'department_id' => $deptId,
                 'error'         => $e->getMessage(),
             ]);
 
@@ -634,22 +718,31 @@ class TechnicalAssistantPreviewOrderController extends Controller
                 null,
                 null,
                 null,
-                'Failed to save technical assistant preview order (department_id='.$dept->id.'): '.$e->getMessage()
+                'Failed to save technical assistant preview order (' . $scopeText . '): ' . $e->getMessage()
             );
 
-            return response()->json(['success' => false, 'error' => 'Failed to save order'], 500);
+            return response()->json([
+                'success' => false,
+                'error'   => 'Failed to save order',
+                'message' => 'Failed to save order',
+            ], 500);
         }
     }
 
     /**
      * POST /api/technical-assistant-preview-order/{department}/toggle-active
      * Body: { "active": 1 } or { "active": 0 }
+     * (Department-specific endpoint; global toggle not implemented here)
      */
     public function toggleActive(Request $request, string $department)
     {
         if (!$this->tableReady()) {
             $this->writeActivityLog($request, 'error', self::TABLE, null, null, null, null, 'Target table not found');
-            return response()->json(['success' => false, 'error' => 'technical_assistant_preview_orders table not found'], 422);
+            return response()->json([
+                'success' => false,
+                'error'   => 'technical_assistant_preview_orders table not found',
+                'message' => 'technical_assistant_preview_orders table not found',
+            ], 422);
         }
 
         if ($resp = $this->requireRole($request, ['admin','director','principal','hod'])) {
@@ -660,13 +753,21 @@ class TechnicalAssistantPreviewOrderController extends Controller
         $activeCol = $this->activeCol();
         if (!$activeCol) {
             $this->writeActivityLog($request, 'error', self::TABLE, null, null, null, null, 'No active/status column found while toggling');
-            return response()->json(['success' => false, 'error' => 'No active/status column found in technical_assistant_preview_orders'], 422);
+            return response()->json([
+                'success' => false,
+                'error'   => 'No active/status column found in technical_assistant_preview_orders',
+                'message' => 'No active/status column found in technical_assistant_preview_orders',
+            ], 422);
         }
 
         $dept = $this->resolveDepartment($department);
         if (!$dept) {
             $this->writeActivityLog($request, 'error', self::TABLE, null, null, null, null, 'Department not found while toggling active');
-            return response()->json(['success' => false, 'error' => 'Department not found'], 404);
+            return response()->json([
+                'success' => false,
+                'error'   => 'Department not found',
+                'message' => 'Department not found',
+            ], 404);
         }
 
         $v = Validator::make($request->all(), [
@@ -681,9 +782,13 @@ class TechnicalAssistantPreviewOrderController extends Controller
                 array_keys($v->errors()->toArray()),
                 null,
                 null,
-                'Validation failed while toggling active (department_id='.$dept->id.')'
+                'Validation failed while toggling active (department_id=' . $dept->id . ')'
             );
-            return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+            return response()->json([
+                'success' => false,
+                'message' => $v->errors()->first(),
+                'errors'  => $v->errors(),
+            ], 422);
         }
 
         $raw = $request->input('active');
@@ -769,7 +874,7 @@ class TechnicalAssistantPreviewOrderController extends Controller
                 [$activeCol],
                 $oldValues,
                 $newValues,
-                'Toggled active for technical assistant preview order (department_id='.$dept->id.', active='.$val.')'
+                'Toggled active for technical assistant preview order (department_id=' . $dept->id . ', active=' . $val . ')'
             );
 
             return response()->json(['success' => true, 'active' => $val]);
@@ -788,21 +893,30 @@ class TechnicalAssistantPreviewOrderController extends Controller
                 null,
                 $oldValues,
                 null,
-                'Failed to toggle active (department_id='.$dept->id.'): '.$e->getMessage()
+                'Failed to toggle active (department_id=' . $dept->id . '): ' . $e->getMessage()
             );
 
-            return response()->json(['success' => false, 'error' => 'Failed to toggle active'], 500);
+            return response()->json([
+                'success' => false,
+                'error'   => 'Failed to toggle active',
+                'message' => 'Failed to toggle active',
+            ], 500);
         }
     }
 
     /**
      * DELETE /api/technical-assistant-preview-order/{department}
+     * (Department-specific endpoint; global delete not implemented here)
      */
     public function destroy(Request $request, string $department)
     {
         if (!$this->tableReady()) {
             $this->writeActivityLog($request, 'error', self::TABLE, null, null, null, null, 'Target table not found');
-            return response()->json(['success' => false, 'error' => 'technical_assistant_preview_orders table not found'], 422);
+            return response()->json([
+                'success' => false,
+                'error'   => 'technical_assistant_preview_orders table not found',
+                'message' => 'technical_assistant_preview_orders table not found',
+            ], 422);
         }
 
         if ($resp = $this->requireRole($request, ['admin','director','principal'])) {
@@ -813,7 +927,11 @@ class TechnicalAssistantPreviewOrderController extends Controller
         $dept = $this->resolveDepartment($department);
         if (!$dept) {
             $this->writeActivityLog($request, 'error', self::TABLE, null, null, null, null, 'Department not found while deleting preview order');
-            return response()->json(['success' => false, 'error' => 'Department not found'], 404);
+            return response()->json([
+                'success' => false,
+                'error'   => 'Department not found',
+                'message' => 'Department not found',
+            ], 404);
         }
 
         $row = DB::table(self::TABLE)
@@ -830,9 +948,13 @@ class TechnicalAssistantPreviewOrderController extends Controller
                 null,
                 null,
                 null,
-                'Order record not found for delete (department_id='.$dept->id.')'
+                'Order record not found for delete (department_id=' . $dept->id . ')'
             );
-            return response()->json(['success' => false, 'error' => 'Order record not found'], 404);
+            return response()->json([
+                'success' => false,
+                'error'   => 'Order record not found',
+                'message' => 'Order record not found',
+            ], 404);
         }
 
         $jsonCol = $this->technicalAssistantJsonCol();
@@ -891,7 +1013,7 @@ class TechnicalAssistantPreviewOrderController extends Controller
                 $changed,
                 $oldValues,
                 $newValues,
-                'Deleted technical assistant preview order (department_id='.$dept->id.', row_id='.$row->id.')'
+                'Deleted technical assistant preview order (department_id=' . $dept->id . ', row_id=' . $row->id . ')'
             );
 
             return response()->json(['success' => true, 'message' => 'Order record removed']);
@@ -911,10 +1033,14 @@ class TechnicalAssistantPreviewOrderController extends Controller
                 null,
                 $oldValues,
                 null,
-                'Failed to delete technical assistant preview order (department_id='.$dept->id.', row_id='.$row->id.'): '.$e->getMessage()
+                'Failed to delete technical assistant preview order (department_id=' . $dept->id . ', row_id=' . $row->id . '): ' . $e->getMessage()
             );
 
-            return response()->json(['success' => false, 'error' => 'Failed to delete order record'], 500);
+            return response()->json([
+                'success' => false,
+                'error'   => 'Failed to delete order record',
+                'message' => 'Failed to delete order record',
+            ], 500);
         }
     }
 
@@ -938,7 +1064,11 @@ class TechnicalAssistantPreviewOrderController extends Controller
     public function publicIndex(Request $request)
     {
         if (!$this->tableReady()) {
-            return response()->json(['success' => false, 'error' => 'technical_assistant_preview_orders table not found'], 422);
+            return response()->json([
+                'success' => false,
+                'error'   => 'technical_assistant_preview_orders table not found',
+                'message' => 'technical_assistant_preview_orders table not found',
+            ], 422);
         }
 
         $activeCol = $this->activeCol();
@@ -947,7 +1077,11 @@ class TechnicalAssistantPreviewOrderController extends Controller
         $rows = DB::table(self::TABLE . ' as tapo')
             ->leftJoin('departments as d', 'd.id', '=', 'tapo.department_id')
             ->whereNull('tapo.deleted_at')
-            ->whereNull('d.deleted_at')
+            ->where(function ($q) {
+                // allow global row (department_id null) OR active department rows
+                $q->whereNull('tapo.department_id')
+                  ->orWhereNull('d.deleted_at');
+            })
             ->select(array_filter([
                 'tapo.id',
                 Schema::hasColumn(self::TABLE, 'uuid') ? 'tapo.uuid' : null,
@@ -959,6 +1093,7 @@ class TechnicalAssistantPreviewOrderController extends Controller
                 'tapo.'.$jsonCol.' as technical_assistant_user_ids_json',
                 'tapo.updated_at',
             ]))
+            ->orderByRaw('CASE WHEN tapo.department_id IS NULL THEN 0 ELSE 1 END')
             ->orderBy('d.title', 'asc')
             ->get();
 
@@ -971,12 +1106,14 @@ class TechnicalAssistantPreviewOrderController extends Controller
             if ($active !== 1) continue;
             if (count($ids) === 0) continue;
 
+            $isGlobal = is_null($r->department_id);
+
             $out[] = [
                 'department' => [
-                    'id'    => (int)($r->department_id ?? 0),
-                    'uuid'  => (string)($r->department_uuid ?? ''),
-                    'slug'  => (string)($r->department_slug ?? ''),
-                    'title' => (string)($r->department_title ?? ''),
+                    'id'    => $isGlobal ? null : (int)($r->department_id ?? 0),
+                    'uuid'  => $isGlobal ? null : (string)($r->department_uuid ?? ''),
+                    'slug'  => $isGlobal ? '__all' : (string)($r->department_slug ?? ''),
+                    'title' => $isGlobal ? 'Global (All Departments)' : (string)($r->department_title ?? ''),
                 ],
                 'order' => [
                     'active'                    => 1,
@@ -990,16 +1127,32 @@ class TechnicalAssistantPreviewOrderController extends Controller
 
     /**
      * GET /api/public/technical-assistant-preview-order/{department}
+     * (Supports __all|all|global too)
      */
     public function publicShow(Request $request, string $department)
     {
         if (!$this->tableReady()) {
-            return response()->json(['success' => false, 'error' => 'technical_assistant_preview_orders table not found'], 422);
+            return response()->json([
+                'success' => false,
+                'error'   => 'technical_assistant_preview_orders table not found',
+                'message' => 'technical_assistant_preview_orders table not found',
+            ], 422);
         }
 
-        $dept = $this->resolveDepartment($department);
-        if (!$dept) {
-            return response()->json(['success' => false, 'error' => 'Department not found'], 404);
+        $isGlobal = $this->isGlobalScope($department);
+        $dept = null;
+        $deptId = null;
+
+        if (!$isGlobal) {
+            $dept = $this->resolveDepartment($department);
+            if (!$dept) {
+                return response()->json([
+                    'success' => false,
+                    'error'   => 'Department not found',
+                    'message' => 'Department not found',
+                ], 404);
+            }
+            $deptId = (int)$dept->id;
         }
 
         $statusFilter = strtolower(trim((string)$request->query('status', 'active'))) ?: 'active';
@@ -1008,10 +1161,11 @@ class TechnicalAssistantPreviewOrderController extends Controller
         $jsonCol   = $this->technicalAssistantJsonCol();
         $activeCol = $this->activeCol();
 
-        $orderRow = DB::table(self::TABLE)
-            ->where('department_id', (int)$dept->id)
-            ->whereNull('deleted_at')
-            ->first();
+        $orderQ = DB::table(self::TABLE)->whereNull('deleted_at');
+        if ($isGlobal) $orderQ->whereNull('department_id');
+        else $orderQ->where('department_id', $deptId);
+
+        $orderRow = $orderQ->first();
 
         $assignedIds = [];
         $activeVal = 1;
@@ -1025,12 +1179,19 @@ class TechnicalAssistantPreviewOrderController extends Controller
         if (!$orderRow || $activeVal !== 1 || empty($assignedIds)) {
             return response()->json([
                 'success' => true,
-                'department' => [
-                    'id'    => (int)$dept->id,
-                    'uuid'  => (string)($dept->uuid ?? ''),
-                    'slug'  => (string)($dept->slug ?? ''),
-                    'title' => (string)($dept->title ?? ''),
-                ],
+                'department' => $isGlobal
+                    ? [
+                        'id'    => null,
+                        'uuid'  => null,
+                        'slug'  => '__all',
+                        'title' => 'Global (All Departments)',
+                    ]
+                    : [
+                        'id'    => $deptId,
+                        'uuid'  => (string)($dept->uuid ?? ''),
+                        'slug'  => (string)($dept->slug ?? ''),
+                        'title' => (string)($dept->title ?? ''),
+                    ],
                 'order' => [
                     'exists'                    => (bool)$orderRow,
                     'active'                    => (int)$activeVal,
@@ -1042,7 +1203,7 @@ class TechnicalAssistantPreviewOrderController extends Controller
         }
 
         // assigned users (eligible + ordered)
-        $assignedRows = $this->eligibleUsersByIds((int)$dept->id, $assignedIds, $statusFilter);
+        $assignedRows = $this->eligibleUsersByIds($deptId, $assignedIds, $statusFilter);
         $assignedMap  = [];
         foreach ($assignedRows as $u) $assignedMap[(int)$u->id] = $u;
 
@@ -1053,12 +1214,19 @@ class TechnicalAssistantPreviewOrderController extends Controller
 
         return response()->json([
             'success' => true,
-            'department' => [
-                'id'    => (int)$dept->id,
-                'uuid'  => (string)($dept->uuid ?? ''),
-                'slug'  => (string)($dept->slug ?? ''),
-                'title' => (string)($dept->title ?? ''),
-            ],
+            'department' => $isGlobal
+                ? [
+                    'id'    => null,
+                    'uuid'  => null,
+                    'slug'  => '__all',
+                    'title' => 'Global (All Departments)',
+                ]
+                : [
+                    'id'    => $deptId,
+                    'uuid'  => (string)($dept->uuid ?? ''),
+                    'slug'  => (string)($dept->slug ?? ''),
+                    'title' => (string)($dept->title ?? ''),
+                ],
             'order' => [
                 'exists'                    => true,
                 'active'                    => 1,

@@ -35,7 +35,7 @@ class FacultyPreviewOrderController extends Controller
         $a = $this->actor($r);
         if (!$a['role'] || !in_array($a['role'], $allowed, true)) {
 
-            // ✅ Audit unauthorized attempts for non-GET only (per your requirement)
+            // ✅ Audit unauthorized attempts for non-GET only
             if (strtoupper($r->method()) !== 'GET') {
                 $this->writeActivityLog(
                     $r,
@@ -152,6 +152,33 @@ class FacultyPreviewOrderController extends Controller
     }
 
     /**
+     * Resolve department using route param first, then request body fallbacks.
+     * This makes save/toggle/destroy compatible with clients that send department_id/uuid/slug in payload.
+     */
+    private function resolveDepartmentFromRequest(Request $request, ?string $routeDepartment = null)
+    {
+        $candidates = [];
+
+        if ($routeDepartment !== null && trim((string)$routeDepartment) !== '') {
+            $candidates[] = trim((string)$routeDepartment);
+        }
+
+        foreach (['department', 'department_id', 'department_uuid', 'department_slug'] as $key) {
+            $val = $request->input($key);
+            if ($val !== null && trim((string)$val) !== '') {
+                $candidates[] = trim((string)$val);
+            }
+        }
+
+        foreach ($candidates as $identifier) {
+            $dept = $this->resolveDepartment((string)$identifier);
+            if ($dept) return $dept;
+        }
+
+        return null;
+    }
+
+    /**
      * Pick the correct JSON column name for stored faculty IDs.
      * (Supports small naming differences without breaking.)
      */
@@ -168,7 +195,7 @@ class FacultyPreviewOrderController extends Controller
             if (Schema::hasColumn(self::TABLE, $c)) return $c;
         }
 
-        // default (your notes say "faculty json array")
+        // default
         return 'faculty_user_ids_json';
     }
 
@@ -298,7 +325,6 @@ class FacultyPreviewOrderController extends Controller
             return response()->json(['success' => false, 'error' => 'faculty_preview_orders table not found'], 422);
         }
 
-        // roles allowed (adjust if you want)
         if ($resp = $this->requireRole($request, ['admin','director','principal','hod'])) return $resp;
 
         $activeCol = $this->activeCol();
@@ -322,9 +348,10 @@ class FacultyPreviewOrderController extends Controller
             ->orderBy('fpo.id', 'desc')
             ->get();
 
-        // add faculty_count
         $rows->each(function ($r) {
-            $arr = is_string($r->faculty_user_ids_json ?? null) ? json_decode($r->faculty_user_ids_json, true) : ($r->faculty_user_ids_json ?? []);
+            $arr = is_string($r->faculty_user_ids_json ?? null)
+                ? json_decode($r->faculty_user_ids_json, true)
+                : ($r->faculty_user_ids_json ?? []);
             $r->faculty_count = is_array($arr) ? count($arr) : 0;
         });
 
@@ -370,7 +397,6 @@ class FacultyPreviewOrderController extends Controller
             $assignedIds = $this->normalizeIds($this->toArray($orderRow->{$jsonCol} ?? null));
             if ($activeCol) {
                 $raw = $orderRow->{$activeCol};
-                // status might be string, but your note says store 1/0
                 $activeVal = is_numeric($raw) ? (int)$raw : (($raw === 'active') ? 1 : 0);
             }
         }
@@ -424,8 +450,9 @@ class FacultyPreviewOrderController extends Controller
      * POST /api/faculty-preview-order/{department}/save
      * Body:
      * {
-     *   "faculty_ids": [12,5,9],   // ordered ids
-     *   "active": 1                // optional (1/0)
+     *   "faculty_ids": [12,5,9],   // ordered ids (can be [])
+     *   "active": 1,               // optional (1/0)
+     *   "department": "cse"        // optional fallback if route param missing/empty
      * }
      */
     public function save(Request $request, string $department)
@@ -448,7 +475,8 @@ class FacultyPreviewOrderController extends Controller
 
         if ($resp = $this->requireRole($request, ['admin','director','principal','hod'])) return $resp;
 
-        $dept = $this->resolveDepartment($department);
+        // ✅ route param first, then request fallbacks (department, department_id, department_uuid, department_slug)
+        $dept = $this->resolveDepartmentFromRequest($request, $department);
         if (!$dept) {
             $this->writeActivityLog(
                 $request,
@@ -458,17 +486,31 @@ class FacultyPreviewOrderController extends Controller
                 null,
                 ['department'],
                 null,
-                ['department' => $department],
+                [
+                    'route_department' => $department,
+                    'department' => $request->input('department'),
+                    'department_id' => $request->input('department_id'),
+                    'department_uuid' => $request->input('department_uuid'),
+                    'department_slug' => $request->input('department_slug'),
+                ],
                 'Save failed: department not found'
             );
 
             return response()->json(['success' => false, 'error' => 'Department not found'], 404);
         }
 
+        // ✅ "present|array" allows [] when everything is unassigned
         $v = Validator::make($request->all(), [
-            'faculty_ids' => ['required', 'array'],
-            'faculty_ids.*' => ['required', 'integer', 'min:1'],
-            'active' => ['nullable'], // we normalize to 1/0 if column exists
+            'faculty_ids' => ['present', 'array'],
+            'faculty_ids.*' => ['integer', 'min:1'],
+
+            // Optional fallback keys for compatibility with clients sending department in body
+            'department'      => ['nullable', 'string'],
+            'department_id'   => ['nullable'],
+            'department_uuid' => ['nullable', 'string'],
+            'department_slug' => ['nullable', 'string'],
+
+            'active' => ['nullable'],
         ]);
 
         if ($v->fails()) {
@@ -478,7 +520,7 @@ class FacultyPreviewOrderController extends Controller
                 'faculty_preview_orders',
                 self::TABLE,
                 null,
-                ['faculty_ids', 'active'],
+                ['faculty_ids', 'active', 'department', 'department_id', 'department_uuid', 'department_slug'],
                 null,
                 ['errors' => $v->errors()->toArray(), 'department_id' => (int)$dept->id],
                 'Save failed: validation errors'
@@ -491,7 +533,7 @@ class FacultyPreviewOrderController extends Controller
         $facultyIds = $this->normalizeIds($data['faculty_ids'] ?? []);
 
         // Ensure all provided IDs belong to eligible users for this dept (and not excluded roles)
-        $eligible = $this->eligibleUsersByIds((int)$dept->id, $facultyIds, 'all'); // allow inactive too for validation
+        $eligible = $this->eligibleUsersByIds((int)$dept->id, $facultyIds, 'all');
         $eligibleIds = $eligible->pluck('id')->map(fn($x) => (int)$x)->values()->all();
         $eligibleSet = array_fill_keys($eligibleIds, true);
 
@@ -500,7 +542,7 @@ class FacultyPreviewOrderController extends Controller
             if (isset($eligibleSet[$id])) $final[] = $id;
         }
 
-        // Active normalization (your note: 1/0)
+        // Active normalization (1/0)
         $activeCol = $this->activeCol();
         $activeVal = null;
         if ($activeCol) {
@@ -525,7 +567,6 @@ class FacultyPreviewOrderController extends Controller
                 ->lockForUpdate()
                 ->first();
 
-            // ✅ snapshot before
             $oldValues = null;
             $oldActive = null;
             $oldJson   = null;
@@ -550,7 +591,7 @@ class FacultyPreviewOrderController extends Controller
                 $payload[$activeCol] = $activeVal;
             }
 
-            // optional audit columns if they exist in your schema
+            // optional audit columns
             if (Schema::hasColumn(self::TABLE, 'updated_by')) {
                 $payload['updated_by'] = $actor['id'] ?: null;
             }
@@ -582,7 +623,6 @@ class FacultyPreviewOrderController extends Controller
 
             DB::commit();
 
-            // ✅ DB activity log (required)
             $changed = [$jsonCol];
             if ($activeCol) $changed[] = $activeCol;
 
@@ -688,7 +728,8 @@ class FacultyPreviewOrderController extends Controller
             return response()->json(['success' => false, 'error' => 'No active/status column found in faculty_preview_orders'], 422);
         }
 
-        $dept = $this->resolveDepartment($department);
+        // ✅ route param first, body fallback supported
+        $dept = $this->resolveDepartmentFromRequest($request, $department);
         if (!$dept) {
             $this->writeActivityLog(
                 $request,
@@ -698,7 +739,13 @@ class FacultyPreviewOrderController extends Controller
                 null,
                 ['department'],
                 null,
-                ['department' => $department],
+                [
+                    'route_department' => $department,
+                    'department' => $request->input('department'),
+                    'department_id' => $request->input('department_id'),
+                    'department_uuid' => $request->input('department_uuid'),
+                    'department_slug' => $request->input('department_slug'),
+                ],
                 'Toggle active failed: department not found'
             );
 
@@ -786,7 +833,6 @@ class FacultyPreviewOrderController extends Controller
             ];
         }
 
-        // ✅ DB activity log (required)
         $this->writeActivityLog(
             $request,
             $action === 'create' ? 'create' : 'update',
@@ -831,7 +877,8 @@ class FacultyPreviewOrderController extends Controller
 
         if ($resp = $this->requireRole($request, ['admin','director','principal'])) return $resp;
 
-        $dept = $this->resolveDepartment($department);
+        // ✅ route param first, body fallback supported
+        $dept = $this->resolveDepartmentFromRequest($request, $department);
         if (!$dept) {
             $this->writeActivityLog(
                 $request,
@@ -841,7 +888,13 @@ class FacultyPreviewOrderController extends Controller
                 null,
                 ['department'],
                 null,
-                ['department' => $department],
+                [
+                    'route_department' => $department,
+                    'department' => $request->input('department'),
+                    'department_id' => $request->input('department_id'),
+                    'department_uuid' => $request->input('department_uuid'),
+                    'department_slug' => $request->input('department_slug'),
+                ],
                 'Destroy failed: department not found'
             );
 
@@ -872,7 +925,6 @@ class FacultyPreviewOrderController extends Controller
         $jsonCol   = $this->facultyJsonCol();
         $activeCol = $this->activeCol();
 
-        // ✅ snapshot before delete
         $oldValues = [
             'department_id' => (int)$dept->id,
             'id' => (int)$row->id,
@@ -907,7 +959,6 @@ class FacultyPreviewOrderController extends Controller
             ];
         }
 
-        // ✅ DB activity log (required)
         $this->writeActivityLog(
             $request,
             'delete',
@@ -978,7 +1029,6 @@ class FacultyPreviewOrderController extends Controller
             $ids = $this->normalizeIds($this->toArray($r->faculty_user_ids_json ?? null));
             $active = $activeCol ? $this->normalizeActive($r->active_raw ?? null) : 1;
 
-            // ✅ only show ACTIVE + has some assigned ids
             if ($active !== 1) continue;
             if (count($ids) === 0) continue;
 
@@ -1077,7 +1127,7 @@ class FacultyPreviewOrderController extends Controller
                 'faculty_ids'   => $assignedIds,
                 'faculty_count' => count($assignedIds),
             ],
-            'assigned' => $assignedOrdered, // ✅ already ordered exactly like DB
+            'assigned' => $assignedOrdered,
         ]);
     }
 }

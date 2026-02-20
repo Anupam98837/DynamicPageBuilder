@@ -164,35 +164,36 @@
     }
 
     /* Card */
-    .pnx-card{
-      width:100%;
-      height: var(--pnx-card-h);
-      position:relative;
-      display:flex;
-      flex-direction:column;
-      border: 1px solid rgba(2,6,23,.08);
-      border-radius: 16px;
-      background: #fff;
-      box-shadow: var(--pnx-shadow);
-      overflow:hidden;
-      transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
-      will-change: transform;
-    }
+    .pnx-card {
+  width: 100%;
+  height: auto;          /* ✅ was: var(--pnx-card-h) — fixed px breaks mobile */
+  min-height: var(--pnx-card-h);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(2,6,23,.08);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: var(--pnx-shadow);
+  overflow: hidden;
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+  will-change: transform;
+}
+
     .pnx-card:hover{
       transform: translateY(-2px);
       box-shadow: 0 16px 34px rgba(2,6,23,.12);
       border-color: rgba(158,54,58,.22);
     }
-
-    .pnx-media{
-      width:100%;
-      height: var(--pnx-media-h);
-      flex: 0 0 auto;
-      background: var(--pnx-brand);
-      position:relative;
-      overflow:hidden;
-      user-select:none;
-    }
+.pnx-media {
+  width: 100%;
+  height: var(--pnx-media-h);
+  flex: 0 0 auto;
+  background: var(--pnx-brand);
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+}
     .pnx-media .pnx-fallback{
       position:absolute;
       inset:0;
@@ -245,22 +246,21 @@
       min-height: 0;
     }
 
-    .pnx-h{
-      font-size: 20px;
-      line-height: 1.25;
-      font-weight: 950;
-      margin: 0 0 10px 0;
-      color: var(--pnx-ink);
+    .pnx-h {
+  font-size: 18px;             /* ✅ slightly smaller so 2 lines fit more text */
+  line-height: 1.3;
+  font-weight: 950;
+  margin: 0 0 10px 0;
+  color: var(--pnx-ink);
 
-      display:-webkit-box;
-      -webkit-line-clamp:2;
-      -webkit-box-orient:vertical;
-      overflow:hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;       /* ✅ was 2 — give it breathing room */
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 
-      overflow-wrap:anywhere;
-      word-break:break-word;
-    }
-
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
     .pnx-meta{
       display:flex;
       flex-direction:column;
@@ -342,15 +342,16 @@
       grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
       gap: 18px;
     }
-    .pnx-sk{
-      border-radius: 16px;
-      border: 1px solid var(--pnx-line);
-      background: #fff;
-      overflow:hidden;
-      position:relative;
-      box-shadow: 0 10px 24px rgba(2,6,23,.08);
-      height: var(--pnx-card-h);
-    }
+   .pnx-sk {
+  border-radius: 16px;
+  border: 1px solid var(--pnx-line);
+  background: #fff;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 10px 24px rgba(2,6,23,.08);
+  height: var(--pnx-card-h);  /* skeleton can keep fixed, it's decorative */
+}
+
     .pnx-sk:before{
       content:'';
       position:absolute; inset:0;
@@ -394,14 +395,42 @@
       color: var(--pnx-brand);
     }
 
-    @media (max-width: 640px){
-      .pnx-title{ font-size: 24px; }
-      .pnx-tools{ flex-wrap: wrap; } /* ✅ on small screens stack is OK */
-      .pnx-search{ min-width: 220px; flex: 1 1 240px; }
-      .pnx-select{ min-width: 220px; flex: 1 1 240px; }
-      .pnx-wrap{ --pnx-media-h: 210px; }
-      .pnx-media .pnx-fallback{ font-size: 22px; }
-    }
+    @media (max-width: 640px) {
+  .pnx-title { font-size: 22px; }
+
+  /* stack search + dept on mobile */
+  .pnx-tools { flex-wrap: wrap; }
+  .pnx-search { min-width: 0; flex: 1 1 100%; }
+  .pnx-select { min-width: 0; flex: 1 1 100%; }
+
+  /* shorter media on mobile so body text has room */
+  .pnx-wrap { --pnx-media-h: 180px; }
+
+  /* card min-height looser on mobile */
+  .pnx-wrap { --pnx-card-h: 380px; }
+
+  .pnx-media .pnx-fallback { font-size: 20px; }
+
+  /* title: 3 lines on mobile */
+  .pnx-h {
+    font-size: 16px;
+    -webkit-line-clamp: 3;
+  }
+
+  /* grid: single column on very small screens */
+  .pnx-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* body padding tighter */
+  .pnx-body { padding: 12px 12px 10px; }
+}
+@media (max-width: 400px) {
+  .pnx-wrap { --pnx-media-h: 160px; --pnx-card-h: 360px; }
+  .pnx-h { font-size: 15px; }
+}
+
+
 
     /* ✅ Guard against Bootstrap overriding mega menu dropdown positioning */
     .dynamic-navbar .navbar-nav .dropdown-menu{
@@ -874,10 +903,22 @@
           : 'All Departments';
 
         st.innerHTML = `
-          <div style="font-size:34px;opacity:.6;margin-bottom:6px;">
-            <i class="fa-regular fa-face-frown"></i>
-          </div>
-          No placement notices found.
+  <div aria-hidden="true" style="width:170px;max-width:100%;margin:0 auto 10px;display:block;color:var(--anx-brand);">
+    <svg viewBox="0 0 220 140" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%;height:auto;">
+      <rect x="10" y="18" width="200" height="112" rx="16" fill="white" stroke="rgba(15,23,42,0.10)"/>
+      <rect x="24" y="32" width="172" height="84" rx="12" fill="rgba(148,163,184,0.08)" stroke="rgba(148,163,184,0.18)"/>
+      <circle cx="70" cy="66" r="16" fill="rgba(158,54,58,0.14)" stroke="currentColor" stroke-width="2"/>
+      <path d="M49 97c5-11 16-16 21-16s16 5 21 16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+      <rect x="100" y="52" width="72" height="8" rx="4" fill="rgba(100,116,139,0.20)"/>
+      <rect x="100" y="68" width="54" height="8" rx="4" fill="rgba(100,116,139,0.16)"/>
+      <rect x="100" y="84" width="64" height="8" rx="4" fill="rgba(100,116,139,0.12)"/>
+      <circle cx="182" cy="26" r="12" fill="rgba(158,54,58,0.10)" stroke="currentColor" stroke-width="1.8"/>
+      <path d="M177.5 26h9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M182 21.5v9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+  </div>
+  No Placsement Notices found.
+ 
           <div style="margin-top:6px;font-size:12.5px;opacity:.95;">Department: <b>${esc(deptLabel)}</b></div>
         `;
         return;

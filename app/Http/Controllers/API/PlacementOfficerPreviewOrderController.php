@@ -15,6 +15,7 @@ class PlacementOfficerPreviewOrderController extends Controller
 {
     private const TABLE = 'placement_officer_preview_orders';
     private const ACTIVITY_LOG_TABLE = 'user_data_activity_log';
+    private const ACTIVITY_MODULE = 'placement_officer_preview_orders';
 
     // Exclude these roles when loading dept users (same pattern)
     private const EXCLUDED_ROLES = ['super_admin', 'admin', 'director', 'student', 'students'];
@@ -38,7 +39,11 @@ class PlacementOfficerPreviewOrderController extends Controller
     {
         $a = $this->actor($r);
         if (!$a['role'] || !in_array($a['role'], $allowed, true)) {
-            return response()->json(['success' => false, 'error' => 'Unauthorized Access'], 403);
+            return response()->json([
+                'success' => false,
+                'error'   => 'Unauthorized Access',
+                'message' => 'Unauthorized Access',
+            ], 403);
         }
         return null;
     }
@@ -55,6 +60,12 @@ class PlacementOfficerPreviewOrderController extends Controller
     private function isUuid(string $v): bool
     {
         return (bool) preg_match('/^[0-9a-fA-F-]{36}$/', $v);
+    }
+
+    private function isGlobalScope(string $v): bool
+    {
+        $v = strtolower(trim($v));
+        return in_array($v, ['__all', 'all', 'global'], true);
     }
 
     private function tableReady(): bool
@@ -91,7 +102,7 @@ class PlacementOfficerPreviewOrderController extends Controller
             $now = Carbon::now();
 
             $payload = [
-                'performed_by'      => (int)($a['id'] ?? 0), // non-nullable in migration
+                'performed_by'      => (int)($a['id'] ?? 0),
                 'performed_by_role' => $a['role'] ? (string)$a['role'] : null,
                 'ip'                => $request->ip(),
                 'user_agent'        => (string)($request->userAgent() ?? ''),
@@ -102,9 +113,9 @@ class PlacementOfficerPreviewOrderController extends Controller
                 'table_name'        => (string)$tableName,
                 'record_id'         => $recordId ? (int)$recordId : null,
 
-                'changed_fields'    => $changedFields ? json_encode(array_values($changedFields)) : null,
-                'old_values'        => $oldValues ? json_encode($oldValues) : null,
-                'new_values'        => $newValues ? json_encode($newValues) : null,
+                'changed_fields'    => $changedFields ? json_encode(array_values($changedFields), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
+                'old_values'        => $oldValues ? json_encode($oldValues, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
+                'new_values'        => $newValues ? json_encode($newValues, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
 
                 'log_note'          => $note,
 
@@ -148,7 +159,7 @@ class PlacementOfficerPreviewOrderController extends Controller
     private function placementOfficerJsonCol(): string
     {
         $candidates = [
-            'placement_officer_user_ids_json',   // your migration column
+            'placement_officer_user_ids_json',
             'placement_officer_ids_json',
             'placement_officers_user_ids_json',
             'placement_officer_json',
@@ -181,7 +192,6 @@ class PlacementOfficerPreviewOrderController extends Controller
     private function normalizeActive($raw): int
     {
         if ($raw === null) return 1;
-
         if (is_numeric($raw)) return ((int)$raw) === 1 ? 1 : 0;
 
         $s = strtolower(trim((string)$raw));
@@ -238,55 +248,63 @@ class PlacementOfficerPreviewOrderController extends Controller
     }
 
     /**
-     * Eligible placement officers query for department
+     * Eligible placement officers query
+     * - $deptId = null => global scope (all departments)
      * - dept mapping supported via users.department_id OR upi.department_id
      * - filters to placement officer roles only
      */
-    private function eligibleUsersQuery(int $deptId, string $statusFilter = 'active')
+    private function eligibleUsersQuery(?int $deptId = null, string $statusFilter = 'active')
     {
-        $upiHasDept  = Schema::hasTable('user_personal_information') && Schema::hasColumn('user_personal_information', 'department_id');
+        $hasUpiTable = Schema::hasTable('user_personal_information');
+        $upiHasDept  = $hasUpiTable && Schema::hasColumn('user_personal_information', 'department_id');
         $userHasDept = Schema::hasColumn('users', 'department_id');
 
-        $q = DB::table('users as u')
-            ->leftJoin('user_personal_information as upi', 'upi.user_id', '=', 'u.id')
-            ->whereNull('u.deleted_at')
-            ->whereNotIn('u.role', self::EXCLUDED_ROLES)
-            ->whereIn('u.role', self::PO_ROLES)
-            ->where(function ($w) {
-                $w->whereNull('upi.id')->orWhereNull('upi.deleted_at');
-            });
+        $q = DB::table('users as u');
+
+        if ($hasUpiTable) {
+            $q->leftJoin('user_personal_information as upi', 'upi.user_id', '=', 'u.id')
+              ->where(function ($w) {
+                  $w->whereNull('upi.id')->orWhereNull('upi.deleted_at');
+              });
+        }
+
+        $q->whereNull('u.deleted_at')
+          ->whereNotIn('u.role', self::EXCLUDED_ROLES)
+          ->whereIn('u.role', self::PO_ROLES);
 
         // status filter (default active)
         if ($statusFilter !== 'all') {
             $q->where('u.status', $statusFilter === 'inactive' ? 'inactive' : 'active');
         }
 
-        // dept filter (accept either storage)
-        $q->where(function ($w) use ($deptId, $upiHasDept, $userHasDept) {
-            $applied = false;
+        // dept filter only when department scope is specific
+        if ($deptId !== null) {
+            $q->where(function ($w) use ($deptId, $upiHasDept, $userHasDept) {
+                $applied = false;
 
-            if ($upiHasDept) {
-                $w->orWhere('upi.department_id', $deptId);
-                $applied = true;
-            }
+                if ($upiHasDept) {
+                    $w->orWhere('upi.department_id', $deptId);
+                    $applied = true;
+                }
 
-            if ($userHasDept) {
-                $w->orWhere('u.department_id', $deptId);
-                $applied = true;
-            }
+                if ($userHasDept) {
+                    $w->orWhere('u.department_id', $deptId);
+                    $applied = true;
+                }
 
-            if (!$applied) {
-                $w->whereRaw('1=0');
-            }
-        });
+                if (!$applied) {
+                    $w->whereRaw('1=0');
+                }
+            });
+        }
 
         return $q;
     }
 
     /**
-     * Fetch placement officers by ids but only if they are eligible for dept
+     * Fetch placement officers by ids but only if they are eligible for scope
      */
-    private function eligibleUsersByIds(int $deptId, array $ids, string $statusFilter = 'active')
+    private function eligibleUsersByIds(?int $deptId, array $ids, string $statusFilter = 'active')
     {
         $ids = array_values(array_unique(array_map('intval', $ids)));
         if (empty($ids)) return collect();
@@ -311,10 +329,14 @@ class PlacementOfficerPreviewOrderController extends Controller
     public function index(Request $request)
     {
         if (!$this->tableReady()) {
-            return response()->json(['success' => false, 'error' => 'placement_officer_preview_orders table not found'], 422);
+            return response()->json([
+                'success' => false,
+                'error'   => 'placement_officer_preview_orders table not found',
+                'message' => 'placement_officer_preview_orders table not found',
+            ], 422);
         }
 
-        if ($resp = $this->requireRole($request, ['admin','director','principal','hod'])) return $resp;
+        if ($resp = $this->requireRole($request, ['admin', 'director', 'principal', 'hod'])) return $resp;
 
         $activeCol = $this->activeCol();
         $jsonCol   = $this->placementOfficerJsonCol();
@@ -329,8 +351,8 @@ class PlacementOfficerPreviewOrderController extends Controller
                 'd.uuid as department_uuid',
                 'd.slug as department_slug',
                 'd.title as department_title',
-                $activeCol ? 'popo.'.$activeCol.' as active_raw' : null,
-                'popo.'.$jsonCol.' as placement_officer_user_ids_json',
+                $activeCol ? 'popo.' . $activeCol . ' as active_raw' : null,
+                'popo.' . $jsonCol . ' as placement_officer_user_ids_json',
                 'popo.created_at',
                 'popo.updated_at',
             ]))
@@ -343,6 +365,11 @@ class PlacementOfficerPreviewOrderController extends Controller
                 : ($r->placement_officer_user_ids_json ?? []);
             $r->placement_officer_count = is_array($arr) ? count($arr) : 0;
             $r->active = $activeCol ? $this->normalizeActive($r->active_raw ?? null) : 1;
+
+            if (is_null($r->department_id)) {
+                $r->department_slug = $r->department_slug ?: '__all';
+                $r->department_title = $r->department_title ?: 'Global (All Departments)';
+            }
         });
 
         return response()->json(['success' => true, 'data' => $rows]);
@@ -350,30 +377,47 @@ class PlacementOfficerPreviewOrderController extends Controller
 
     /**
      * GET /api/placement-officer-preview-order/{department}
+     * Supports {department} = __all|all|global
      */
     public function show(Request $request, string $department)
     {
         if (!$this->tableReady()) {
-            return response()->json(['success' => false, 'error' => 'placement_officer_preview_orders table not found'], 422);
+            return response()->json([
+                'success' => false,
+                'error'   => 'placement_officer_preview_orders table not found',
+                'message' => 'placement_officer_preview_orders table not found',
+            ], 422);
         }
 
-        if ($resp = $this->requireRole($request, ['admin','director','principal','hod'])) return $resp;
+        if ($resp = $this->requireRole($request, ['admin', 'director', 'principal', 'hod'])) return $resp;
 
-        $dept = $this->resolveDepartment($department);
-        if (!$dept) {
-            return response()->json(['success' => false, 'error' => 'Department not found'], 404);
+        $isGlobal = $this->isGlobalScope($department);
+        $dept = null;
+        $deptId = null;
+
+        if (!$isGlobal) {
+            $dept = $this->resolveDepartment($department);
+            if (!$dept) {
+                return response()->json([
+                    'success' => false,
+                    'error'   => 'Department not found',
+                    'message' => 'Department not found',
+                ], 404);
+            }
+            $deptId = (int)$dept->id;
         }
 
         $statusFilter = strtolower(trim((string)$request->query('status', 'active'))) ?: 'active';
-        if (!in_array($statusFilter, ['active','inactive','all'], true)) $statusFilter = 'active';
+        if (!in_array($statusFilter, ['active', 'inactive', 'all'], true)) $statusFilter = 'active';
 
         $jsonCol   = $this->placementOfficerJsonCol();
         $activeCol = $this->activeCol();
 
-        $orderRow = DB::table(self::TABLE)
-            ->where('department_id', (int)$dept->id)
-            ->whereNull('deleted_at')
-            ->first();
+        $orderQ = DB::table(self::TABLE)->whereNull('deleted_at');
+        if ($isGlobal) $orderQ->whereNull('department_id');
+        else $orderQ->where('department_id', $deptId);
+
+        $orderRow = $orderQ->first();
 
         $assignedIds = [];
         $activeVal   = 1;
@@ -384,7 +428,7 @@ class PlacementOfficerPreviewOrderController extends Controller
         }
 
         // assigned users (eligible + reorder in PHP)
-        $assignedRows = $this->eligibleUsersByIds((int)$dept->id, $assignedIds, $statusFilter);
+        $assignedRows = $this->eligibleUsersByIds($deptId, $assignedIds, $statusFilter);
         $assignedMap  = [];
         foreach ($assignedRows as $u) $assignedMap[(int)$u->id] = $u;
 
@@ -394,7 +438,7 @@ class PlacementOfficerPreviewOrderController extends Controller
         }
 
         // unassigned users = eligible users NOT IN assigned
-        $unassignedQ = $this->eligibleUsersQuery((int)$dept->id, $statusFilter)
+        $unassignedQ = $this->eligibleUsersQuery($deptId, $statusFilter)
             ->select([
                 'u.id', 'u.uuid', 'u.slug', 'u.name', 'u.email',
                 'u.image', 'u.role', 'u.role_short_form', 'u.status',
@@ -411,17 +455,26 @@ class PlacementOfficerPreviewOrderController extends Controller
 
         return response()->json([
             'success' => true,
-            'department' => [
-                'id'    => (int)$dept->id,
-                'uuid'  => (string)($dept->uuid ?? ''),
-                'slug'  => (string)($dept->slug ?? ''),
-                'title' => (string)($dept->title ?? ''),
-            ],
+            'department' => $isGlobal
+                ? [
+                    'id'        => null,
+                    'uuid'      => null,
+                    'slug'      => '__all',
+                    'title'     => 'Global (All Departments)',
+                    'is_global' => true,
+                ]
+                : [
+                    'id'        => (int)$dept->id,
+                    'uuid'      => (string)($dept->uuid ?? ''),
+                    'slug'      => (string)($dept->slug ?? ''),
+                    'title'     => (string)($dept->title ?? ''),
+                    'is_global' => false,
+                ],
             'order' => [
-                'exists'                 => (bool)$orderRow,
-                'active'                 => (int)$activeVal,
-                'placement_officer_ids'  => $assignedIds,
-                'placement_officer_count'=> count($assignedIds),
+                'exists'                  => (bool)$orderRow,
+                'active'                  => (int)$activeVal,
+                'placement_officer_ids'   => $assignedIds,
+                'placement_officer_count' => count($assignedIds),
             ],
             'assigned'   => $assignedOrdered,
             'unassigned' => $unassigned,
@@ -435,35 +488,58 @@ class PlacementOfficerPreviewOrderController extends Controller
      *   "placement_officer_ids": [12,5,9],
      *   "active": 1
      * }
+     *
+     * Supports {department} = __all|all|global (saved with department_id = NULL)
      */
     public function save(Request $request, string $department)
     {
         if (!$this->tableReady()) {
-            return response()->json(['success' => false, 'error' => 'placement_officer_preview_orders table not found'], 422);
+            return response()->json([
+                'success' => false,
+                'error'   => 'placement_officer_preview_orders table not found',
+                'message' => 'placement_officer_preview_orders table not found',
+            ], 422);
         }
 
-        if ($resp = $this->requireRole($request, ['admin','director','principal','hod'])) return $resp;
+        if ($resp = $this->requireRole($request, ['admin', 'director', 'principal', 'hod'])) return $resp;
 
-        $dept = $this->resolveDepartment($department);
-        if (!$dept) {
-            return response()->json(['success' => false, 'error' => 'Department not found'], 404);
+        $isGlobal = $this->isGlobalScope($department);
+        $dept = null;
+        $deptId = null;
+        $scopeText = 'global';
+
+        if (!$isGlobal) {
+            $dept = $this->resolveDepartment($department);
+            if (!$dept) {
+                return response()->json([
+                    'success' => false,
+                    'error'   => 'Department not found',
+                    'message' => 'Department not found',
+                ], 404);
+            }
+            $deptId = (int)$dept->id;
+            $scopeText = 'department_id=' . $deptId;
         }
 
         $v = Validator::make($request->all(), [
-            'placement_officer_ids' => ['required', 'array'],
-            'placement_officer_ids.*' => ['required', 'integer', 'min:1'],
-            'active' => ['nullable'],
+            'placement_officer_ids'   => ['present', 'array'], // ✅ allow empty []
+            'placement_officer_ids.*' => ['integer', 'min:1'],
+            'active'                  => ['nullable'],
         ]);
 
         if ($v->fails()) {
-            return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+            return response()->json([
+                'success' => false,
+                'message' => $v->errors()->first(),
+                'errors'  => $v->errors(),
+            ], 422);
         }
 
         $data = $v->validated();
         $ids  = $this->normalizeIds($data['placement_officer_ids'] ?? []);
 
-        // Validate: IDs must be eligible placement officers for this dept
-        $eligible = $this->eligibleUsersByIds((int)$dept->id, $ids, 'all');
+        // Validate: IDs must be eligible placement officers for this scope
+        $eligible = $this->eligibleUsersByIds($deptId, $ids, 'all');
         $eligibleIds = $eligible->pluck('id')->map(fn($x) => (int)$x)->values()->all();
         $eligibleSet = array_fill_keys($eligibleIds, true);
 
@@ -490,15 +566,17 @@ class PlacementOfficerPreviewOrderController extends Controller
         $actor   = $this->actor($request);
 
         // Snapshot BEFORE (for activity log)
-        $beforeRow = DB::table(self::TABLE)
-            ->where('department_id', (int)$dept->id)
-            ->whereNull('deleted_at')
-            ->first();
+        $beforeQ = DB::table(self::TABLE)->whereNull('deleted_at');
+        if ($isGlobal) $beforeQ->whereNull('department_id');
+        else $beforeQ->where('department_id', $deptId);
+
+        $beforeRow = $beforeQ->first();
 
         $beforeValues = [
-            'department_id' => (int)$dept->id,
+            'scope'                 => $isGlobal ? 'global' : 'department',
+            'department_id'         => $deptId,
             'placement_officer_ids' => $beforeRow ? $this->normalizeIds($this->toArray($beforeRow->{$jsonCol} ?? null)) : [],
-            'active' => ($activeCol && $beforeRow) ? (int)$this->normalizeActive($beforeRow->{$activeCol} ?? null) : null,
+            'active'                => ($activeCol && $beforeRow) ? (int)$this->normalizeActive($beforeRow->{$activeCol} ?? null) : null,
         ];
 
         DB::beginTransaction();
@@ -506,8 +584,8 @@ class PlacementOfficerPreviewOrderController extends Controller
             $existing = $beforeRow;
 
             $payload = [
-                $jsonCol      => json_encode($final),
-                'updated_at'  => $now,
+                $jsonCol     => json_encode($final),
+                'updated_at' => $now,
             ];
 
             if (Schema::hasColumn(self::TABLE, 'updated_at_ip')) {
@@ -530,7 +608,7 @@ class PlacementOfficerPreviewOrderController extends Controller
                 $activityType = 'create';
 
                 $insert = array_merge([
-                    'department_id' => (int)$dept->id,
+                    'department_id' => $isGlobal ? null : $deptId, // ✅ global row support
                     'created_at'    => $now,
                     'updated_at'    => $now,
                 ], $payload);
@@ -552,9 +630,10 @@ class PlacementOfficerPreviewOrderController extends Controller
 
             // Snapshot AFTER + compute changes (for activity log)
             $afterValues = [
-                'department_id' => (int)$dept->id,
+                'scope'                 => $isGlobal ? 'global' : 'department',
+                'department_id'         => $deptId,
                 'placement_officer_ids' => $final,
-                'active' => $activeCol ? (int)($activeInt ?? 1) : null,
+                'active'                => $activeCol ? (int)($activeInt ?? 1) : null,
             ];
 
             $changed = [];
@@ -564,85 +643,114 @@ class PlacementOfficerPreviewOrderController extends Controller
             $this->writeActivityLog(
                 $request,
                 $activityType,
-                'placement_officer_preview_orders',
+                self::ACTIVITY_MODULE,
                 self::TABLE,
                 $rowId,
                 $changed ?: null,
                 $beforeValues,
                 $afterValues,
-                'Placement officer preview order saved'
+                'Placement officer preview order saved (' . $scopeText . ')'
             );
 
             $this->logWithActor('msit.placement_officer_preview_order.save', $request, [
-                'department_id' => (int)$dept->id,
-                'row_id' => $rowId,
-                'count' => count($final),
+                'scope'         => $isGlobal ? 'global' : 'department',
+                'department_id' => $deptId,
+                'row_id'        => $rowId,
+                'count'         => count($final),
             ]);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Placement officer preview order saved',
                 'data' => [
-                    'department_id'          => (int)$dept->id,
-                    'placement_officer_ids'  => $final,
-                    'count'                  => count($final),
-                    'active'                 => $activeCol ? (int)($activeInt ?? 1) : null,
+                    'scope'                 => $isGlobal ? 'global' : 'department',
+                    'department_id'         => $deptId,
+                    'placement_officer_ids' => $final,
+                    'count'                 => count($final),
+                    'active'                => $activeCol ? (int)($activeInt ?? 1) : null,
                 ],
             ]);
 
         } catch (\Throwable $e) {
             DB::rollBack();
 
-            // failure activity log (safe)
             $this->writeActivityLog(
                 $request,
                 'error',
-                'placement_officer_preview_orders',
+                self::ACTIVITY_MODULE,
                 self::TABLE,
                 $beforeRow ? (int)$beforeRow->id : null,
                 null,
                 $beforeValues,
                 [
-                    'department_id' => (int)$dept->id,
+                    'scope'                 => $isGlobal ? 'global' : 'department',
+                    'department_id'         => $deptId,
                     'placement_officer_ids' => $final,
-                    'active' => $activeCol ? (int)($activeInt ?? 1) : null,
+                    'active'                => $activeCol ? (int)($activeInt ?? 1) : null,
                 ],
-                'Failed to save order: ' . $e->getMessage()
+                'Failed to save order (' . $scopeText . '): ' . $e->getMessage()
             );
 
             $this->logWithActor('msit.placement_officer_preview_order.save_failed', $request, [
-                'department_id' => (int)$dept->id,
-                'error' => $e->getMessage(),
+                'scope'         => $isGlobal ? 'global' : 'department',
+                'department_id' => $deptId,
+                'error'         => $e->getMessage(),
             ]);
 
-            return response()->json(['success' => false, 'error' => 'Failed to save order'], 500);
+            return response()->json([
+                'success' => false,
+                'error'   => 'Failed to save order',
+                'message' => 'Failed to save order',
+            ], 500);
         }
     }
 
     /**
      * POST /api/placement-officer-preview-order/{department}/toggle-active
      * Body: { "active": 1 } or { "active": 0 }
+     * (Department-specific endpoint; global toggle not implemented here)
      */
     public function toggleActive(Request $request, string $department)
     {
         if (!$this->tableReady()) {
-            return response()->json(['success' => false, 'error' => 'placement_officer_preview_orders table not found'], 422);
+            return response()->json([
+                'success' => false,
+                'error'   => 'placement_officer_preview_orders table not found',
+                'message' => 'placement_officer_preview_orders table not found',
+            ], 422);
         }
 
-        if ($resp = $this->requireRole($request, ['admin','director','principal','hod'])) return $resp;
+        if ($resp = $this->requireRole($request, ['admin', 'director', 'principal', 'hod'])) return $resp;
 
         $activeCol = $this->activeCol();
         if (!$activeCol) {
-            return response()->json(['success' => false, 'error' => 'No active/status column found in placement_officer_preview_orders'], 422);
+            return response()->json([
+                'success' => false,
+                'error'   => 'No active/status column found in placement_officer_preview_orders',
+                'message' => 'No active/status column found in placement_officer_preview_orders',
+            ], 422);
         }
 
         $dept = $this->resolveDepartment($department);
-        if (!$dept) return response()->json(['success' => false, 'error' => 'Department not found'], 404);
+        if (!$dept) {
+            return response()->json([
+                'success' => false,
+                'error'   => 'Department not found',
+                'message' => 'Department not found',
+            ], 404);
+        }
 
         $v = Validator::make($request->all(), [
             'active' => ['required'],
         ]);
-        if ($v->fails()) return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+
+        if ($v->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $v->errors()->first(),
+                'errors'  => $v->errors(),
+            ], 422);
+        }
 
         $raw = $request->input('active');
         $val = 0;
@@ -663,7 +771,7 @@ class PlacementOfficerPreviewOrderController extends Controller
         // Snapshot BEFORE (for activity log)
         $beforeValues = [
             'department_id' => (int)$dept->id,
-            'active' => $existing ? (int)$this->normalizeActive($existing->{$activeCol} ?? null) : null,
+            'active'        => $existing ? (int)$this->normalizeActive($existing->{$activeCol} ?? null) : null,
         ];
 
         try {
@@ -675,21 +783,24 @@ class PlacementOfficerPreviewOrderController extends Controller
                     'created_at' => $now,
                     'updated_at' => $now,
                 ];
+
                 if (Schema::hasColumn(self::TABLE, 'uuid')) $insert['uuid'] = (string) Str::uuid();
                 if (Schema::hasColumn(self::TABLE, 'created_at_ip')) $insert['created_at_ip'] = $request->ip();
                 if (Schema::hasColumn(self::TABLE, 'updated_at_ip')) $insert['updated_at_ip'] = $request->ip();
+                if (Schema::hasColumn(self::TABLE, 'created_by')) $insert['created_by'] = $this->actor($request)['id'] ?: null;
+                if (Schema::hasColumn(self::TABLE, 'updated_by')) $insert['updated_by'] = $this->actor($request)['id'] ?: null;
 
                 $rowId = (int) DB::table(self::TABLE)->insertGetId($insert);
 
                 $afterValues = [
                     'department_id' => (int)$dept->id,
-                    'active' => (int)$val,
+                    'active'        => (int)$val,
                 ];
 
                 $this->writeActivityLog(
                     $request,
                     'create',
-                    'placement_officer_preview_orders',
+                    self::ACTIVITY_MODULE,
                     self::TABLE,
                     $rowId,
                     ['active'],
@@ -699,16 +810,17 @@ class PlacementOfficerPreviewOrderController extends Controller
                 );
             } else {
                 $upd = [
-                    $activeCol => $this->activeDbValue($activeCol, $val),
+                    $activeCol   => $this->activeDbValue($activeCol, $val),
                     'updated_at' => $now,
                 ];
                 if (Schema::hasColumn(self::TABLE, 'updated_at_ip')) $upd['updated_at_ip'] = $request->ip();
+                if (Schema::hasColumn(self::TABLE, 'updated_by')) $upd['updated_by'] = $this->actor($request)['id'] ?: null;
 
                 DB::table(self::TABLE)->where('id', $existing->id)->update($upd);
 
                 $afterValues = [
                     'department_id' => (int)$dept->id,
-                    'active' => (int)$val,
+                    'active'        => (int)$val,
                 ];
 
                 $changed = [];
@@ -717,7 +829,7 @@ class PlacementOfficerPreviewOrderController extends Controller
                 $this->writeActivityLog(
                     $request,
                     'update',
-                    'placement_officer_preview_orders',
+                    self::ACTIVITY_MODULE,
                     self::TABLE,
                     (int)$existing->id,
                     $changed ?: null,
@@ -738,7 +850,7 @@ class PlacementOfficerPreviewOrderController extends Controller
             $this->writeActivityLog(
                 $request,
                 'error',
-                'placement_officer_preview_orders',
+                self::ACTIVITY_MODULE,
                 self::TABLE,
                 $existing ? (int)$existing->id : null,
                 null,
@@ -752,24 +864,39 @@ class PlacementOfficerPreviewOrderController extends Controller
                 'error' => $e->getMessage(),
             ]);
 
-            return response()->json(['success' => false, 'error' => 'Failed to toggle active'], 500);
+            return response()->json([
+                'success' => false,
+                'error'   => 'Failed to toggle active',
+                'message' => 'Failed to toggle active',
+            ], 500);
         }
     }
 
     /**
      * DELETE /api/placement-officer-preview-order/{department}
      * Soft delete if deleted_at exists, else hard delete.
+     * (Department-specific endpoint; global delete not implemented here)
      */
     public function destroy(Request $request, string $department)
     {
         if (!$this->tableReady()) {
-            return response()->json(['success' => false, 'error' => 'placement_officer_preview_orders table not found'], 422);
+            return response()->json([
+                'success' => false,
+                'error'   => 'placement_officer_preview_orders table not found',
+                'message' => 'placement_officer_preview_orders table not found',
+            ], 422);
         }
 
-        if ($resp = $this->requireRole($request, ['admin','director','principal'])) return $resp;
+        if ($resp = $this->requireRole($request, ['admin', 'director', 'principal'])) return $resp;
 
         $dept = $this->resolveDepartment($department);
-        if (!$dept) return response()->json(['success' => false, 'error' => 'Department not found'], 404);
+        if (!$dept) {
+            return response()->json([
+                'success' => false,
+                'error'   => 'Department not found',
+                'message' => 'Department not found',
+            ], 404);
+        }
 
         $row = DB::table(self::TABLE)
             ->where('department_id', (int)$dept->id)
@@ -777,7 +904,11 @@ class PlacementOfficerPreviewOrderController extends Controller
             ->first();
 
         if (!$row) {
-            return response()->json(['success' => false, 'error' => 'Order record not found'], 404);
+            return response()->json([
+                'success' => false,
+                'error'   => 'Order record not found',
+                'message' => 'Order record not found',
+            ], 404);
         }
 
         $now = Carbon::now();
@@ -786,10 +917,10 @@ class PlacementOfficerPreviewOrderController extends Controller
 
         // Snapshot BEFORE (for activity log)
         $beforeValues = [
-            'department_id' => (int)$dept->id,
+            'department_id'         => (int)$dept->id,
             'placement_officer_ids' => $this->normalizeIds($this->toArray($row->{$jsonCol} ?? null)),
-            'active' => $activeCol ? (int)$this->normalizeActive($row->{$activeCol} ?? null) : null,
-            'deleted_at' => null,
+            'active'                => $activeCol ? (int)$this->normalizeActive($row->{$activeCol} ?? null) : null,
+            'deleted_at'            => null,
         ];
 
         try {
@@ -799,6 +930,7 @@ class PlacementOfficerPreviewOrderController extends Controller
                     'updated_at' => $now,
                 ];
                 if (Schema::hasColumn(self::TABLE, 'updated_at_ip')) $upd['updated_at_ip'] = $request->ip();
+                if (Schema::hasColumn(self::TABLE, 'updated_by')) $upd['updated_by'] = $this->actor($request)['id'] ?: null;
 
                 DB::table(self::TABLE)->where('id', $row->id)->update($upd);
 
@@ -808,7 +940,7 @@ class PlacementOfficerPreviewOrderController extends Controller
                 $this->writeActivityLog(
                     $request,
                     'delete',
-                    'placement_officer_preview_orders',
+                    self::ACTIVITY_MODULE,
                     self::TABLE,
                     (int)$row->id,
                     ['deleted_at'],
@@ -825,7 +957,7 @@ class PlacementOfficerPreviewOrderController extends Controller
                 $this->writeActivityLog(
                     $request,
                     'delete',
-                    'placement_officer_preview_orders',
+                    self::ACTIVITY_MODULE,
                     self::TABLE,
                     (int)$row->id,
                     ['deleted'],
@@ -846,7 +978,7 @@ class PlacementOfficerPreviewOrderController extends Controller
             $this->writeActivityLog(
                 $request,
                 'error',
-                'placement_officer_preview_orders',
+                self::ACTIVITY_MODULE,
                 self::TABLE,
                 (int)$row->id,
                 null,
@@ -861,7 +993,11 @@ class PlacementOfficerPreviewOrderController extends Controller
                 'error' => $e->getMessage(),
             ]);
 
-            return response()->json(['success' => false, 'error' => 'Failed to remove order record'], 500);
+            return response()->json([
+                'success' => false,
+                'error'   => 'Failed to remove order record',
+                'message' => 'Failed to remove order record',
+            ], 500);
         }
     }
 
@@ -871,12 +1007,16 @@ class PlacementOfficerPreviewOrderController extends Controller
 
     /**
      * GET /api/public/placement-officer-preview-order
-     * Returns departments that have ACTIVE row + count > 0
+     * Returns departments (and global) that have ACTIVE row + count > 0
      */
     public function publicIndex(Request $request)
     {
         if (!$this->tableReady()) {
-            return response()->json(['success' => false, 'error' => 'placement_officer_preview_orders table not found'], 422);
+            return response()->json([
+                'success' => false,
+                'error'   => 'placement_officer_preview_orders table not found',
+                'message' => 'placement_officer_preview_orders table not found',
+            ], 422);
         }
 
         $activeCol = $this->activeCol();
@@ -885,7 +1025,11 @@ class PlacementOfficerPreviewOrderController extends Controller
         $rows = DB::table(self::TABLE . ' as popo')
             ->leftJoin('departments as d', 'd.id', '=', 'popo.department_id')
             ->whereNull('popo.deleted_at')
-            ->whereNull('d.deleted_at')
+            ->where(function ($q) {
+                // allow global row (department_id null) OR valid department rows
+                $q->whereNull('popo.department_id')
+                  ->orWhereNull('d.deleted_at');
+            })
             ->select(array_filter([
                 'popo.id',
                 Schema::hasColumn(self::TABLE, 'uuid') ? 'popo.uuid' : null,
@@ -893,10 +1037,11 @@ class PlacementOfficerPreviewOrderController extends Controller
                 'd.uuid as department_uuid',
                 'd.slug as department_slug',
                 'd.title as department_title',
-                $activeCol ? 'popo.'.$activeCol.' as active_raw' : null,
-                'popo.'.$jsonCol.' as placement_officer_user_ids_json',
+                $activeCol ? 'popo.' . $activeCol . ' as active_raw' : null,
+                'popo.' . $jsonCol . ' as placement_officer_user_ids_json',
                 'popo.updated_at',
             ]))
+            ->orderByRaw('CASE WHEN popo.department_id IS NULL THEN 0 ELSE 1 END')
             ->orderBy('d.title', 'asc')
             ->get();
 
@@ -908,12 +1053,14 @@ class PlacementOfficerPreviewOrderController extends Controller
             if ($active !== 1) continue;
             if (count($ids) === 0) continue;
 
+            $isGlobal = is_null($r->department_id);
+
             $out[] = [
                 'department' => [
-                    'id'    => (int)($r->department_id ?? 0),
-                    'uuid'  => (string)($r->department_uuid ?? ''),
-                    'slug'  => (string)($r->department_slug ?? ''),
-                    'title' => (string)($r->department_title ?? ''),
+                    'id'    => $isGlobal ? null : (int)($r->department_id ?? 0),
+                    'uuid'  => $isGlobal ? null : (string)($r->department_uuid ?? ''),
+                    'slug'  => $isGlobal ? '__all' : (string)($r->department_slug ?? ''),
+                    'title' => $isGlobal ? 'Global (All Departments)' : (string)($r->department_title ?? ''),
                 ],
                 'order' => [
                     'active'                  => 1,
@@ -928,28 +1075,45 @@ class PlacementOfficerPreviewOrderController extends Controller
     /**
      * GET /api/public/placement-officer-preview-order/{department}
      * Public: returns ONLY assigned users (ordered) + ids
+     * Supports __all|all|global
      */
     public function publicShow(Request $request, string $department)
     {
         if (!$this->tableReady()) {
-            return response()->json(['success' => false, 'error' => 'placement_officer_preview_orders table not found'], 422);
+            return response()->json([
+                'success' => false,
+                'error'   => 'placement_officer_preview_orders table not found',
+                'message' => 'placement_officer_preview_orders table not found',
+            ], 422);
         }
 
-        $dept = $this->resolveDepartment($department);
-        if (!$dept) {
-            return response()->json(['success' => false, 'error' => 'Department not found'], 404);
+        $isGlobal = $this->isGlobalScope($department);
+        $dept = null;
+        $deptId = null;
+
+        if (!$isGlobal) {
+            $dept = $this->resolveDepartment($department);
+            if (!$dept) {
+                return response()->json([
+                    'success' => false,
+                    'error'   => 'Department not found',
+                    'message' => 'Department not found',
+                ], 404);
+            }
+            $deptId = (int)$dept->id;
         }
 
         $statusFilter = strtolower(trim((string)$request->query('status', 'active'))) ?: 'active';
-        if (!in_array($statusFilter, ['active','inactive','all'], true)) $statusFilter = 'active';
+        if (!in_array($statusFilter, ['active', 'inactive', 'all'], true)) $statusFilter = 'active';
 
         $jsonCol   = $this->placementOfficerJsonCol();
         $activeCol = $this->activeCol();
 
-        $orderRow = DB::table(self::TABLE)
-            ->where('department_id', (int)$dept->id)
-            ->whereNull('deleted_at')
-            ->first();
+        $orderQ = DB::table(self::TABLE)->whereNull('deleted_at');
+        if ($isGlobal) $orderQ->whereNull('department_id');
+        else $orderQ->where('department_id', $deptId);
+
+        $orderRow = $orderQ->first();
 
         $assignedIds = [];
         $activeVal = 1;
@@ -962,24 +1126,31 @@ class PlacementOfficerPreviewOrderController extends Controller
         if (!$orderRow || $activeVal !== 1 || empty($assignedIds)) {
             return response()->json([
                 'success' => true,
-                'department' => [
-                    'id'    => (int)$dept->id,
-                    'uuid'  => (string)($dept->uuid ?? ''),
-                    'slug'  => (string)($dept->slug ?? ''),
-                    'title' => (string)($dept->title ?? ''),
-                ],
+                'department' => $isGlobal
+                    ? [
+                        'id'    => null,
+                        'uuid'  => null,
+                        'slug'  => '__all',
+                        'title' => 'Global (All Departments)',
+                    ]
+                    : [
+                        'id'    => (int)$dept->id,
+                        'uuid'  => (string)($dept->uuid ?? ''),
+                        'slug'  => (string)($dept->slug ?? ''),
+                        'title' => (string)($dept->title ?? ''),
+                    ],
                 'order' => [
-                    'exists'                 => (bool)$orderRow,
-                    'active'                 => (int)$activeVal,
-                    'placement_officer_ids'  => $assignedIds,
-                    'placement_officer_count'=> count($assignedIds),
+                    'exists'                  => (bool)$orderRow,
+                    'active'                  => (int)$activeVal,
+                    'placement_officer_ids'   => $assignedIds,
+                    'placement_officer_count' => count($assignedIds),
                 ],
                 'assigned' => [],
             ]);
         }
 
         // assigned users (eligible + ordered)
-        $assignedRows = $this->eligibleUsersByIds((int)$dept->id, $assignedIds, $statusFilter);
+        $assignedRows = $this->eligibleUsersByIds($deptId, $assignedIds, $statusFilter);
         $assignedMap  = [];
         foreach ($assignedRows as $u) $assignedMap[(int)$u->id] = $u;
 
@@ -990,17 +1161,24 @@ class PlacementOfficerPreviewOrderController extends Controller
 
         return response()->json([
             'success' => true,
-            'department' => [
-                'id'    => (int)$dept->id,
-                'uuid'  => (string)($dept->uuid ?? ''),
-                'slug'  => (string)($dept->slug ?? ''),
-                'title' => (string)($dept->title ?? ''),
-            ],
+            'department' => $isGlobal
+                ? [
+                    'id'    => null,
+                    'uuid'  => null,
+                    'slug'  => '__all',
+                    'title' => 'Global (All Departments)',
+                ]
+                : [
+                    'id'    => (int)$dept->id,
+                    'uuid'  => (string)($dept->uuid ?? ''),
+                    'slug'  => (string)($dept->slug ?? ''),
+                    'title' => (string)($dept->title ?? ''),
+                ],
             'order' => [
-                'exists'                 => true,
-                'active'                 => 1,
-                'placement_officer_ids'  => $assignedIds,
-                'placement_officer_count'=> count($assignedIds),
+                'exists'                  => true,
+                'active'                  => 1,
+                'placement_officer_ids'   => $assignedIds,
+                'placement_officer_count' => count($assignedIds),
             ],
             'assigned' => $assignedOrdered,
         ]);

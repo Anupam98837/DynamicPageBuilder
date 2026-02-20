@@ -67,6 +67,20 @@
 
   .fmx-state{max-width: 1040px;margin: 0 auto;background: var(--fmx-card);border: 1px solid var(--fmx-line);border-radius: 16px;box-shadow: var(--fmx-shadow);padding: 18px;color: var(--fmx-muted);text-align:center;}
 
+  /* ✅ Professional empty-state illustration (replaces emoji) */
+  .fmx-empty-ill{
+    width: 170px;
+    max-width: 100%;
+    margin: 0 auto 10px;
+    display: block;
+    color: var(--fmx-brand);
+  }
+  .fmx-empty-ill svg{
+    display:block;
+    width:100%;
+    height:auto;
+  }
+
   .fmx-skeleton{display:flex;flex-direction:column;gap: 18px;}
   .fmx-sk{border-radius: 16px;border: 1px solid var(--fmx-line);background: #fff;overflow:hidden;position:relative;box-shadow: 0 10px 24px rgba(2,6,23,.08);height: var(--fmx-card-h);}
   .fmx-sk:before{content:'';position:absolute; inset:0;transform: translateX(-60%);background: linear-gradient(90deg, transparent, rgba(148,163,184,.22), transparent);animation: fmxSkMove 1.15s ease-in-out infinite;}
@@ -86,6 +100,7 @@
     .fmx-search{ min-width: 220px; flex: 1 1 240px; }
     .fmx-select{ min-width: 220px; flex: 1 1 240px; }
     .fmx-grid, .fmx-skeleton, .fmx-state{ max-width: 100%; }
+    .fmx-empty-ill{ width: 146px; }
   }
 
   .dynamic-navbar .navbar-nav .dropdown-menu{position: absolute !important;inset: auto !important;}
@@ -101,19 +116,19 @@
   <div class="fmx-head">
     <div>
       <h1 class="fmx-title"><i class="fa-solid fa-users"></i>Placement Officers</h1>
-      <div class="fmx-sub" id="fmxSub">Select a department to view its placement officers.</div>
+      <div class="fmx-sub" id="fmxSub">Showing placement officers from all departments.</div>
     </div>
 
     <div class="fmx-tools">
       <div class="fmx-search">
         <i class="fa fa-magnifying-glass"></i>
-        <input id="fmxSearch" type="search" placeholder="Select a department to search…" disabled>
+        <input id="fmxSearch" type="search" placeholder="Search placement officer (name/designation/qualification)…">
       </div>
 
       <div class="fmx-select" title="Filter by department">
         <i class="fa-solid fa-building-columns fmx-select__icon"></i>
         <select id="fmxDept" aria-label="Filter by department">
-          <option value="">Select Department</option>
+          <option value="__all">All Departments</option>
         </select>
         <i class="fa-solid fa-chevron-down fmx-select__caret"></i>
       </div>
@@ -142,6 +157,11 @@
   const PROFILE_BASE = root.getAttribute('data-profile-base') || (window.location.origin + '/user/profile/');
   const PREVIEW_INDEX = root.getAttribute('data-preview-index') || (window.location.origin + '/api/public/placement-officer-preview-order');
   const PREVIEW_SHOW_BASE = root.getAttribute('data-preview-show-base') || (window.location.origin + '/api/public/placement-officer-preview-order/');
+  const ALL_DEPTS = '__all';
+
+  // ✅ NEW: global / no-department scope handling
+  const GLOBAL_SCOPE = '__global';
+  const GLOBAL_LABEL = 'Global (No Department)';
 
   const $ = (id) => document.getElementById(id);
 
@@ -160,8 +180,8 @@
     perPage: 9,
     lastPage: 1,
     q: '',
-    deptUuid: '',
-    deptName: '',
+    deptUuid: ALL_DEPTS,
+    deptName: 'All Departments',
   };
 
   let activeController = null;
@@ -171,6 +191,10 @@
 
   // current assigned list (ordered, must match DB saved order)
   let assignedAll = [];
+
+  // ✅ NEW: cache + hints for global/no-department placement officers
+  let globalScopeHints = [];
+  let globalAssignedCache = null;
 
   function esc(str){
     return (str ?? '').toString().replace(/[&<>"']/g, s => ({
@@ -220,6 +244,26 @@
     const v = (value || '').toString().trim();
     if (!v) return '';
     return `<div class="fmx-line"><b>${esc(label)}:</b> <span>${esc(v)}</span></div>`;
+  }
+
+  // ✅ Professional empty-state illustration (SVG image)
+  function emptyStateIllustration(){
+    return `
+      <div class="fmx-empty-ill" aria-hidden="true">
+        <svg viewBox="0 0 220 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="18" width="200" height="112" rx="16" fill="white" stroke="rgba(15,23,42,0.10)"/>
+          <rect x="24" y="32" width="172" height="84" rx="12" fill="rgba(148,163,184,0.08)" stroke="rgba(148,163,184,0.18)"/>
+          <circle cx="70" cy="66" r="16" fill="rgba(158,54,58,0.14)" stroke="currentColor" stroke-width="2"/>
+          <path d="M49 97c5-11 16-16 21-16s16 5 21 16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+          <rect x="100" y="52" width="72" height="8" rx="4" fill="rgba(100,116,139,0.20)"/>
+          <rect x="100" y="68" width="54" height="8" rx="4" fill="rgba(100,116,139,0.16)"/>
+          <rect x="100" y="84" width="64" height="8" rx="4" fill="rgba(100,116,139,0.12)"/>
+          <circle cx="182" cy="26" r="12" fill="rgba(158,54,58,0.10)" stroke="currentColor" stroke-width="1.8"/>
+          <path d="M177.5 26h9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M182 21.5v9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+    `;
   }
 
   function iconForPlatform(platform){
@@ -316,7 +360,7 @@
     });
   }
 
-  function showSelectDeptState(){
+  function showLoadingState(){
     if (els.grid) els.grid.style.display = 'none';
     if (els.pager) els.pager.style.display = 'none';
 
@@ -324,9 +368,9 @@
       els.state.style.display = '';
       els.state.innerHTML = `
         <div style="font-size:34px;opacity:.6;margin-bottom:6px;">
-          <i class="fa-solid fa-building-columns"></i>
+          <i class="fa-solid fa-spinner fa-spin"></i>
         </div>
-        Please select a department to view placement officers.
+        Loading placement officers…
       `;
     }
   }
@@ -367,20 +411,141 @@
     return m ? m[1] : '';
   }
 
+  // ✅ NEW: tolerant count extractor
+  function previewCountFromRow(r){
+    return parseInt(
+      r?.order?.placement_officer_count ??
+      r?.order?.officer_count ??
+      r?.order?.placement_count ??
+      r?.order?.count ??
+      0,
+      10
+    ) || 0;
+  }
+
+  // ✅ NEW: infer global/no-department scope keys from index rows
+  function collectGlobalScopeHints(rows){
+    const vals = [];
+
+    const add = (v) => {
+      if (v === null || v === undefined) return;
+      const s = String(v).trim();
+      if (!s) return;
+      vals.push(s);
+    };
+
+    for (const r of (Array.isArray(rows) ? rows : [])){
+      const deptUuid = (r?.department?.uuid ?? '').toString().trim();
+      const hasDept = !!deptUuid;
+      const count = previewCountFromRow(r);
+
+      // only inspect rows that look like a global/no-dept bucket
+      if (hasDept || count <= 0) continue;
+
+      add(r?.scope);
+      add(r?.scope_key);
+      add(r?.bucket);
+      add(r?.bucket_key);
+      add(r?.key);
+      add(r?.slug);
+      add(r?.uuid);
+      add(r?.id);
+
+      add(r?.order?.scope);
+      add(r?.order?.scope_key);
+      add(r?.order?.bucket);
+      add(r?.order?.bucket_key);
+      add(r?.order?.key);
+      add(r?.order?.slug);
+      add(r?.order?.uuid);
+      add(r?.order?.id);
+    }
+
+    vals.push(GLOBAL_SCOPE, 'global', 'common', 'unassigned', 'no-department', 'no_department', 'without-department', 'without_department', 'none', 'null', '0');
+    return Array.from(new Set(vals.map(v => String(v).trim()).filter(Boolean)));
+  }
+
+  // ✅ NEW: load global/no-department placement officers once
+  async function loadGlobalAssignedList(){
+    if (Array.isArray(globalAssignedCache)){
+      return globalAssignedCache.map(x => ({ ...x }));
+    }
+
+    const candidates = Array.from(new Set([
+      ...(Array.isArray(globalScopeHints) ? globalScopeHints : []),
+      GLOBAL_SCOPE, 'global', 'common', 'unassigned', 'no-department', 'no_department',
+      'without-department', 'without_department', 'none', 'null', '0'
+    ].map(v => String(v).trim()).filter(Boolean)));
+
+    for (const key of candidates){
+      try{
+        const url = PREVIEW_SHOW_BASE + encodeURIComponent(key) + '?status=active';
+        const js = await fetchJson(url);
+
+        const assigned = Array.isArray(js?.assigned) ? js.assigned : [];
+        if (!assigned.length) continue;
+
+        const orderIds = extractOrderIds(js);
+        const ordered = orderByDb(assigned, orderIds);
+
+        const label =
+          (js?.department?.title ??
+           js?.scope_title ??
+           js?.title ??
+           GLOBAL_LABEL).toString().trim() || GLOBAL_LABEL;
+
+        globalAssignedCache = ordered.map(it => ({
+          ...it,
+          __department_title: label,
+          __department_uuid: GLOBAL_SCOPE
+        }));
+
+        return globalAssignedCache.map(x => ({ ...x }));
+      } catch (e){
+        // try next candidate
+      }
+    }
+
+    globalAssignedCache = [];
+    return [];
+  }
+
+  // ✅ NEW: dedupe merge helper
+  function pushUniqueItems(target, items){
+    const seen = new Set(
+      (Array.isArray(target) ? target : [])
+        .map(uniqueOfficerKey)
+        .filter(Boolean)
+    );
+
+    for (const it of (Array.isArray(items) ? items : [])){
+      const key = uniqueOfficerKey(it);
+      if (!key) continue;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      target.push(it);
+    }
+    return target;
+  }
+
   // ✅ load ONLY ordered departments (active + has count)
   async function loadOrderedDepartments(){
     const sel = els.dept;
     if (!sel) return;
 
     sel.innerHTML = `
-      <option value="">Select Department</option>
+      <option value="${ALL_DEPTS}">All Departments</option>
       <option value="__loading" disabled>Loading departments…</option>
     `;
-    sel.value = '__loading';
+    sel.value = ALL_DEPTS;
 
     try{
       const js = await fetchJson(PREVIEW_INDEX);
       const rows = Array.isArray(js?.data) ? js.data : [];
+
+      // ✅ capture possible global bucket keys
+      globalScopeHints = collectGlobalScopeHints(rows);
+      globalAssignedCache = null;
 
       // rows:
       // { department:{id,uuid,slug,title}, order:{active,placement_officer_count} }
@@ -390,16 +555,7 @@
           uuid: (r?.department?.uuid ?? '').toString().trim(),
           slug: (r?.department?.slug ?? '').toString().trim(),
           title:(r?.department?.title ?? '').toString().trim(),
-          // tolerant to multiple naming styles
-          count:
-            parseInt(
-              r?.order?.placement_officer_count ??
-              r?.order?.officer_count ??
-              r?.order?.placement_count ??
-              r?.order?.count ??
-              0,
-              10
-            ) || 0,
+          count: previewCountFromRow(r),
         }))
         .filter(d => d.uuid && d.title && d.count > 0);
 
@@ -407,28 +563,18 @@
 
       depts.sort((a,b) => a.title.localeCompare(b.title));
 
-      sel.innerHTML = `<option value="">Select Department</option>` + depts
+      sel.innerHTML = `<option value="${ALL_DEPTS}">All Departments</option>` + depts
         .map(d => `<option value="${escAttr(d.uuid)}">${esc(d.title)}</option>`)
         .join('');
 
-      sel.value = '';
+      sel.value = ALL_DEPTS;
 
-      if (!depts.length){
-        if (els.state){
-          els.state.style.display = '';
-          els.state.innerHTML = `
-            <div style="font-size:34px;opacity:.6;margin-bottom:6px;">
-              <i class="fa-solid fa-users"></i>
-            </div>
-            Placement officer list is not available right now.
-          `;
-        }
-      }
+      // ✅ Do not show "not available" here; final data loaders decide (important for GLOBAL-only records)
 
     } catch (e){
       console.warn('Ordered departments load failed:', e);
-      sel.innerHTML = `<option value="">Select Department</option>`;
-      sel.value = '';
+      sel.innerHTML = `<option value="${ALL_DEPTS}">All Departments</option>`;
+      sel.value = ALL_DEPTS;
       if (els.state){
         els.state.style.display = '';
         els.state.innerHTML = `
@@ -457,6 +603,7 @@
     const interest      = (pick(it, ['interest']) || '').toString().trim();
     const administration= (pick(it, ['administration']) || '').toString().trim();
     const research      = (pick(it, ['research_project']) || '').toString().trim();
+    const deptLineTitle = (it?.__department_title || '').toString().trim();
 
     const meta = decodeMaybeJson(it?.metadata) || {};
     const email = (pick(it, ['email']) || meta.email || '').toString().trim();
@@ -486,6 +633,7 @@
           </div>
 
           <div class="fmx-meta">
+            ${state.deptUuid === ALL_DEPTS ? metaLine('Department', deptLineTitle) : ''}
             ${metaLine('Qualification', qualification)}
             ${metaLine('Specification', specification)}
             ${metaLine('Experience', experience)}
@@ -518,7 +666,8 @@
         ).toString().toLowerCase();
 
       const qual = formatQualification(it?.qualification).toLowerCase();
-      return name.includes(q) || desig.includes(q) || qual.includes(q);
+      const dept = (it?.__department_title || '').toString().toLowerCase();
+      return name.includes(q) || desig.includes(q) || qual.includes(q) || dept.includes(q);
     });
   }
 
@@ -543,10 +692,8 @@
       els.grid.style.display = 'none';
       els.state.style.display = '';
       els.state.innerHTML = `
-        <div style="font-size:34px;opacity:.6;margin-bottom:6px;">
-          <i class="fa-regular fa-face-frown"></i>
-        </div>
-        No placement officer found for this department.
+        ${emptyStateIllustration()}
+        ${state.deptUuid === ALL_DEPTS ? 'No placement officers found.' : 'No placement officer found for this department.'}
       `;
       return;
     }
@@ -662,6 +809,13 @@
       .map(x => x.it);
   }
 
+  function uniqueOfficerKey(it){
+    return (
+      (pick(it, ['user_uuid','uuid']) || '').toString().trim() ||
+      String(getUserNumericId(it) ?? '')
+    );
+  }
+
   async function loadAssignedForDept(deptUuid){
     showSkeleton();
 
@@ -673,17 +827,109 @@
       const assigned = Array.isArray(js?.assigned) ? js.assigned : [];
 
       const orderIds = extractOrderIds(js);
-      assignedAll = orderByDb(assigned, orderIds);
+      assignedAll = orderByDb(assigned, orderIds).map(it => ({
+        ...it,
+        __department_title: (dept?.title || deptByUuid.get(deptUuid)?.title || '').toString().trim(),
+        __department_uuid: deptUuid
+      }));
+
+      // ✅ include GLOBAL / no-department officers in each department view
+      try{
+        const globals = await loadGlobalAssignedList();
+        pushUniqueItems(
+          assignedAll,
+          globals.map(it => ({
+            ...it,
+            __department_title: GLOBAL_LABEL,
+            __department_uuid: GLOBAL_SCOPE
+          }))
+        );
+      } catch (e){
+        // keep dept load working even if global bucket is not available
+      }
 
       state.deptName = (dept?.title || deptByUuid.get(deptUuid)?.title || '').toString().trim();
       if (els.sub) {
         els.sub.textContent = state.deptName ? ('Placement officers of ' + state.deptName) : 'Placement officers';
       }
 
-      if (els.search){
-        els.search.disabled = false;
-        els.search.placeholder = 'Search placement officer (name/designation/qualification)…';
+      state.page = 1;
+      hideSkeleton();
+      applyAndRender();
+
+    } catch (e){
+      hideSkeleton();
+      if (els.grid) els.grid.style.display = 'none';
+      if (els.pager) els.pager.style.display = 'none';
+
+      if (els.state){
+        els.state.style.display = '';
+        els.state.innerHTML = `
+          <div style="font-size:34px;opacity:.6;margin-bottom:6px;">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+          </div>
+          Placement officer list is not available right now.
+        `;
       }
+    }
+  }
+
+  async function loadAssignedForAllDepartments(){
+    showSkeleton();
+
+    try{
+      const depts = Array.from(deptByUuid.values()).sort((a,b) => a.title.localeCompare(b.title));
+      const merged = [];
+      const seen = new Set();
+
+      for (const d of depts){
+        try{
+          const url = PREVIEW_SHOW_BASE + encodeURIComponent(d.uuid) + '?status=active';
+          const js = await fetchJson(url);
+
+          const assigned = Array.isArray(js?.assigned) ? js.assigned : [];
+          const orderIds = extractOrderIds(js);
+          const ordered = orderByDb(assigned, orderIds);
+
+          for (const it of ordered){
+            const key = uniqueOfficerKey(it);
+            if (!key) continue;
+            if (seen.has(key)) continue;
+            seen.add(key);
+
+            merged.push({
+              ...it,
+              __department_title: d.title,
+              __department_uuid: d.uuid
+            });
+          }
+        } catch (err){
+          console.warn('Placement officer load failed for dept:', d?.title || d?.uuid, err);
+        }
+      }
+
+      // ✅ include GLOBAL / no-department officers in "All Departments"
+      try{
+        const globals = await loadGlobalAssignedList();
+        for (const it of globals){
+          const key = uniqueOfficerKey(it);
+          if (!key) continue;
+          if (seen.has(key)) continue;
+          seen.add(key);
+
+          merged.push({
+            ...it,
+            __department_title: (it?.__department_title || GLOBAL_LABEL),
+            __department_uuid: GLOBAL_SCOPE
+          });
+        }
+      } catch (e){
+        // ignore, dept-wise records should still show
+      }
+
+      assignedAll = merged;
+      state.deptName = 'All Departments';
+      if (els.sub) els.sub.textContent = 'Placement officers of all departments';
 
       state.page = 1;
       hideSkeleton();
@@ -714,18 +960,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', async () => {
-    showSelectDeptState();
-    await loadOrderedDepartments();
-
-    const deep = extractDeptUuidFromUrl();
-    if (deep && deptByUuid.has(deep)){
-      els.dept.value = deep;
-      state.deptUuid = deep;
-      state.page = 1;
-      state.q = '';
-      if (els.search) els.search.value = '';
-      await loadAssignedForDept(deep);
-    }
+    // listeners first
 
     els.dept && els.dept.addEventListener('change', async () => {
       const v = (els.dept.value || '').toString().trim();
@@ -735,15 +970,10 @@
       assignedAll = [];
       if (els.search) els.search.value = '';
 
-      if (!v){
-        state.deptUuid = '';
-        state.deptName = '';
-        if (els.sub) els.sub.textContent = 'Select a department to view its placement officers.';
-        if (els.search){
-          els.search.disabled = true;
-          els.search.placeholder = 'Select a department to search…';
-        }
-        showSelectDeptState();
+      if (!v || v === ALL_DEPTS){
+        state.deptUuid = ALL_DEPTS;
+        await loadAssignedForAllDepartments();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
 
@@ -790,6 +1020,24 @@
         if (href && href !== '#') window.location.href = href;
       }
     });
+
+    // initial load
+    showLoadingState();
+    await loadOrderedDepartments();
+
+    const deep = extractDeptUuidFromUrl();
+    if (deep && deptByUuid.has(deep)){
+      els.dept.value = deep;
+      state.deptUuid = deep;
+      state.page = 1;
+      state.q = '';
+      if (els.search) els.search.value = '';
+      await loadAssignedForDept(deep);
+    } else {
+      state.deptUuid = ALL_DEPTS;
+      if (els.dept) els.dept.value = ALL_DEPTS;
+      await loadAssignedForAllDepartments();
+    }
   });
 
 })();

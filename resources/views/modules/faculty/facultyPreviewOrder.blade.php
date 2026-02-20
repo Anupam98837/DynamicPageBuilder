@@ -6,13 +6,6 @@
 <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}">
 
 <style>
-/* =========================
-  Faculty Preview Order (Admin)
-  - UI inspired by Hero Carousel Settings (reference)
-  - Dept select -> Assigned/Unassigned tabs
-  - Drag reorder + Up/Down controls
-========================= */
-
 .fpo-wrap{max-width:1200px;margin:18px auto 48px;padding:0 12px;overflow:visible}
 .fpo-wrap .tab-content,.fpo-wrap .tab-pane{overflow:visible}
 
@@ -920,7 +913,10 @@
       setBtnLoading(btnSave, true);
 
       try{
-        const payload = { faculty_ids: state.assignedIdsLocal.map(Number) };
+        const payload = {
+  faculty_ids: state.assignedIdsLocal.map(Number),
+  department: state.deptKey, // fallback for older APIs
+};
         const res = await fetchWithTimeout(API.save(state.deptKey), {
           method: 'POST', // change to PUT/PATCH if your API expects it
           headers: authHeaders(true),
@@ -929,7 +925,7 @@
 
         const js = await res.json().catch(()=> ({}));
         if (!res.ok || js.success === false){
-          let msg = js?.message || 'Save failed';
+          let msg = js?.error || js?.message || 'Save failed';
           if (js?.errors){
             const k = Object.keys(js.errors)[0];
             if (k && js.errors[k] && js.errors[k][0]) msg = js.errors[k][0];
