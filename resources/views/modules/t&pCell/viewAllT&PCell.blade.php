@@ -62,7 +62,6 @@
       justify-content: space-between;
 
       /* ✅ keep one row (desktop) */
-      flex-wrap: nowrap;
     }
     .pox-title{
       margin: 0;

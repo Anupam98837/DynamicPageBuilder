@@ -59,7 +59,6 @@
       justify-content: space-between;
 
       /* ✅ keep header in one row (desktop) */
-      flex-wrap: nowrap;
     }
     .sa-head > div:first-child{ flex: 0 0 auto; }
 

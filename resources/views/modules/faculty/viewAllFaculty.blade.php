@@ -14,7 +14,7 @@
     --fmx-card-h: 250px;max-width: 1320px;margin: 18px auto 54px;padding: 0 12px;background: transparent;position: relative;overflow: visible;
   }
 
-  .fmx-head{background: var(--fmx-card);border: 1px solid var(--fmx-line);border-radius: 16px;box-shadow: var(--fmx-shadow);padding: 14px 16px;margin-bottom: 16px;display:flex;gap: 12px;align-items: center;justify-content: space-between;flex-wrap: nowrap;}
+  .fmx-head{background: var(--fmx-card);border: 1px solid var(--fmx-line);border-radius: 16px;box-shadow: var(--fmx-shadow);padding: 14px 16px;margin-bottom: 16px;display:flex;gap: 12px;align-items: center;justify-content: space-between;}
   .fmx-title{margin: 0;font-weight: 950;letter-spacing: .2px;color: var(--fmx-ink);font-size: 28px;display:flex;align-items:center;gap: 10px;white-space: nowrap;}
   .fmx-title i{ color: var(--fmx-brand); }
   .fmx-sub{margin: 6px 0 0;color: var(--fmx-muted);font-size: 14px;}

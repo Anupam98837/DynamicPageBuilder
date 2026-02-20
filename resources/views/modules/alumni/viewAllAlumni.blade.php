@@ -42,7 +42,7 @@
   justify-content:space-between;
 
   /* ✅ keep one row (desktop) */
-  flex-wrap: nowrap;
+
 }
 .alx-title{
   margin:0;

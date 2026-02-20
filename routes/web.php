@@ -29,6 +29,10 @@ Route::get('/user/manage', function () {
 Route::get('/user/profile/{uuid?}', function () {
     return view('modules.users.userProfile');
 });
+Route::get('/user/basic-profile/{uuid?}', function () {
+    return view('modules.users.basicUserProfile');
+})->name('user.basic-profile');
+
 Route::get('/user/profile/edit/{uuid?}', function () {
     return view('modules.users.editUserProfile');
 });

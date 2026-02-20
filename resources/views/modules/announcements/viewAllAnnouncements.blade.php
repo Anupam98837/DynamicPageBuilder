@@ -58,7 +58,6 @@
       gap: 12px;
       align-items: center;        /* ✅ one-row friendly */
       justify-content: space-between;
-      flex-wrap: nowrap;          /* ✅ keep one row on desktop */
     }
     .anx-title{
       margin: 0;

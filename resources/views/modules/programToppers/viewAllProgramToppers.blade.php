@@ -42,7 +42,6 @@
   justify-content:space-between;
 
   /* ✅ keep one row (desktop) */
-  flex-wrap: nowrap;
 }
 .ptp-title{
   margin:0;

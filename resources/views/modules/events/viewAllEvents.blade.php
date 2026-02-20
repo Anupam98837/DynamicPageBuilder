@@ -414,12 +414,12 @@
     data-dept-api="{{ url('/api/public/departments') }}"
   >
     <div class="evx-head">
-      <div>
+      {{-- <div>
         <h1 class="evx-title"><i class="fa-solid fa-calendar-days"></i>Events</h1>
         <div class="evx-sub" id="evxSub">Workshops, seminars, fests, and campus activities.</div>
-      </div>
+      </div> --}}
 
-      <div class="evx-tools">
+      {{-- <div class="evx-tools"> --}}
         <div class="evx-search">
           <i class="fa fa-magnifying-glass"></i>
           <input id="evxSearch" type="search" placeholder="Search events (title/location/description)…">
@@ -434,7 +434,7 @@
         </div>
 
         {{-- ✅ Count chip removed --}}
-      </div>
+      {{-- </div> --}}
     </div>
 
     <div id="evxGrid" class="evx-grid" style="display:none;"></div>

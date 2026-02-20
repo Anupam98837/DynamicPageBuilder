@@ -60,7 +60,7 @@
       justify-content: space-between;
 
       /* ✅ keep in one row on desktop */
-      flex-wrap: nowrap;
+
     }
     .ss-head > div:first-child{
       flex: 1 1 auto;
