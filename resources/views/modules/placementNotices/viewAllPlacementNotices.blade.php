@@ -14,18 +14,6 @@
   <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}">
 
   <style>
-    /* =========================================================
-      ✅ Placement Notices (Scoped / No :root / No global body rules)
-      - UI structure matches reference announcements page
-      - Dept dropdown UI improved (pill, icon, caret)
-      - Dept filtering FIXED for multi-dept notices:
-          match selected dept by:
-            - item.department_ids includes selected dept id
-            - OR item.departments contains selected dept uuid
-      - Deep-link ?d-{uuid} auto-selects dept and filters
-      - If no department selected -> DO NOT show data (as requested)
-    ========================================================= */
-
     .pnx-wrap{
       /* scoped tokens */
       --pnx-brand: var(--primary-color, #9E363A);
@@ -80,19 +68,21 @@
       font-size: 14px;
     }
 
+    /* ✅ FIX: keep search + dropdown side-by-side (no wrapping on desktop) */
     .pnx-tools{
       display:flex;
       gap: 10px;
       align-items:center;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;     /* ✅ was wrap */
     }
 
     /* Search */
     .pnx-search{
       position: relative;
-      min-width: 260px;
-      max-width: 520px;
-      flex: 1 1 320px;
+      min-width: 220px;      /* ✅ was 260 */
+      max-width: 360px;
+      flex: 1 1 0;           /* ✅ was 0 1 320 */
+      min-width: 0;          /* ✅ allow shrinking inside nowrap flex row */
     }
     .pnx-search i{
       position:absolute;
@@ -121,9 +111,10 @@
     /* ✅ Dept dropdown */
     .pnx-select{
       position: relative;
-      min-width: 260px;
+      min-width: 220px;      /* ✅ was 260 */
       max-width: 360px;
-      flex: 0 1 320px;
+      flex: 1 1 0;           /* ✅ was 0 1 320 */
+      min-width: 0;          /* ✅ allow shrinking */
     }
     .pnx-select__icon{
       position:absolute;
@@ -162,23 +153,6 @@
     .pnx-select select:focus{
       border-color: rgba(201,75,80,.55);
       box-shadow: 0 0 0 4px rgba(201,75,80,.18);
-    }
-
-    /* Chip */
-    .pnx-chip{
-      display:flex;
-      align-items:center;
-      gap: 8px;
-      height: 42px;
-      padding: 0 12px;
-      border-radius: 999px;
-      border: 1px solid var(--pnx-line);
-      background: var(--pnx-card);
-      box-shadow: 0 8px 18px rgba(2,6,23,.06);
-      color: var(--pnx-ink);
-      font-size: 13px;
-      font-weight: 900;
-      white-space: nowrap;
     }
 
     /* Grid */
@@ -422,6 +396,7 @@
 
     @media (max-width: 640px){
       .pnx-title{ font-size: 24px; }
+      .pnx-tools{ flex-wrap: wrap; } /* ✅ on small screens stack is OK */
       .pnx-search{ min-width: 220px; flex: 1 1 240px; }
       .pnx-select{ min-width: 220px; flex: 1 1 240px; }
       .pnx-wrap{ --pnx-media-h: 210px; }
@@ -449,26 +424,21 @@
     <div class="pnx-head">
       <div>
         <h1 class="pnx-title"><i class="fa-solid fa-bullhorn"></i>Placement Notices</h1>
-        <div class="pnx-sub" id="pnxSub">Select a department to view placement notices.</div>
+        <div class="pnx-sub" id="pnxSub">Showing placement notices for all departments.</div>
       </div>
 
       <div class="pnx-tools">
         <div class="pnx-search">
           <i class="fa fa-magnifying-glass"></i>
-          <input id="pnxSearch" type="search" placeholder="Search notices (title/role/eligibility)…" disabled>
+          <input id="pnxSearch" type="search" placeholder="Search notices (title/role/eligibility)…">
         </div>
 
         <div class="pnx-select" title="Filter by department">
           <i class="fa-solid fa-building-columns pnx-select__icon"></i>
           <select id="pnxDept" aria-label="Filter by department">
-            <option value="">Select Department</option>
+            <option value="">All Departments</option>
           </select>
           <i class="fa-solid fa-chevron-down pnx-select__caret"></i>
-        </div>
-
-        <div class="pnx-chip" title="Total results">
-          <i class="fa-regular fa-rectangle-list" style="opacity:.85"></i>
-          <span id="pnxCount">—</span>
         </div>
       </div>
     </div>
@@ -506,7 +476,6 @@
       pager: $('pnxPager'),
       search: $('pnxSearch'),
       dept: $('pnxDept'),
-      count: $('pnxCount'),
       sub: $('pnxSub'),
     };
 
@@ -516,7 +485,7 @@
       lastPage: 1,
       total: 0,
       q: '',
-      deptUuid: '',
+      deptUuid: '',   // empty => All Departments
       deptId: null,
       deptName: '',
     };
@@ -736,18 +705,14 @@
 
       if (!sel) return;
 
+      // ✅ All Departments
       if (!uuid){
         sel.value = '';
         state.deptUuid = '';
         state.deptId = null;
         state.deptName = '';
 
-        if (els.sub) els.sub.textContent = 'Select a department to view placement notices.';
-        if (els.search){
-          els.search.value = '';
-          els.search.disabled = true;
-        }
-        state.q = '';
+        if (els.sub) els.sub.textContent = 'Showing placement notices for all departments.';
         return;
       }
 
@@ -761,12 +726,8 @@
 
       if (els.sub){
         els.sub.textContent = state.deptName
-          ? ('Placement notices for ' + state.deptName)
-          : 'Placement notices (filtered)';
-      }
-
-      if (els.search){
-        els.search.disabled = false;
+          ? ('Showing placement notices for ' + state.deptName + '.')
+          : 'Showing placement notices (filtered).';
       }
     }
 
@@ -789,7 +750,7 @@
       depts.sort((a,b) => a.title.localeCompare(b.title));
 
       sel.innerHTML =
-        `<option value="">Select Department</option>` +
+        `<option value="">All Departments</option>` +
         depts.map(d => `<option value="${escAttr(d.uuid)}" data-id="${escAttr(d.id ?? '')}">${esc(d.title)}</option>`).join('');
 
       // keep current selection if still valid
@@ -804,11 +765,12 @@
       const sel = els.dept;
       if (!sel) return;
 
+      // ✅ Keep All Departments selected while loading
       sel.innerHTML = `
-        <option value="">Select Department</option>
+        <option value="">All Departments</option>
         <option value="__loading" disabled>Loading departments…</option>
       `;
-      sel.value = '__loading';
+      sel.value = '';
 
       try{
         const res = await fetch(DEPT_API, { headers: { 'Accept':'application/json' } });
@@ -823,7 +785,7 @@
         if (Array.isArray(lookupsDepts) && lookupsDepts.length){
           populateDeptSelectFromList(lookupsDepts);
         } else {
-          sel.innerHTML = `<option value="">Select Department</option>`;
+          sel.innerHTML = `<option value="">All Departments</option>`;
           sel.value = '';
         }
       }
@@ -862,29 +824,28 @@
     function applyFilterAndSearch(){
       const q = (state.q || '').toString().trim().toLowerCase();
 
-      // ✅ as requested: if no dept selected -> show nothing
-      if (!state.deptUuid) return [];
-
       let items = Array.isArray(allNotices) ? allNotices.slice() : [];
 
+      // ✅ Department filter only when a specific dept is selected
       const deptUuidStr = String(state.deptUuid || '').trim();
       const deptIdStr = (state.deptId === null || state.deptId === undefined || state.deptId === '')
         ? ''
         : String(state.deptId);
 
-      // ✅ MULTI-DEPT FILTER FIX:
-      // match selected dept via department_ids array OR departments[] uuid list
-      items = items.filter(it => {
-        const ids = Array.isArray(it?.department_ids) ? it.department_ids.map(x => String(x)) : [];
-        const okById = deptIdStr ? ids.includes(deptIdStr) : false;
+      if (deptUuidStr){
+        // match selected dept via department_ids array OR departments[] uuid list
+        items = items.filter(it => {
+          const ids = Array.isArray(it?.department_ids) ? it.department_ids.map(x => String(x)) : [];
+          const okById = deptIdStr ? ids.includes(deptIdStr) : false;
 
-        const deps = Array.isArray(it?.departments) ? it.departments : [];
-        const okByUuid = deptUuidStr
-          ? deps.some(d => String(d?.uuid || '').trim() === deptUuidStr)
-          : false;
+          const deps = Array.isArray(it?.departments) ? it.departments : [];
+          const okByUuid = deptUuidStr
+            ? deps.some(d => String(d?.uuid || '').trim() === deptUuidStr)
+            : false;
 
-        return okById || okByUuid;
-      });
+          return okById || okByUuid;
+        });
+      }
 
       // search on title + role + recruiter + eligibility/description
       if (q){
@@ -902,33 +863,22 @@
     }
 
     function render(items){
-      const grid = els.grid, st = els.state, count = els.count;
+      const grid = els.grid, st = els.state;
       if (!grid || !st) return;
-
-      if (count) count.textContent = String(state.total || 0);
-
-      if (!state.deptUuid){
-        grid.style.display = 'none';
-        st.style.display = '';
-        st.innerHTML = `
-          <div style="font-size:34px;opacity:.6;margin-bottom:6px;">
-            <i class="fa-regular fa-hand-pointer"></i>
-          </div>
-          Please select a department to view placement notices.
-        `;
-        return;
-      }
 
       if (!items.length){
         grid.style.display = 'none';
         st.style.display = '';
-        const deptLine = state.deptName ? `<div style="margin-top:6px;font-size:12.5px;opacity:.95;">Department: <b>${esc(state.deptName)}</b></div>` : '';
+        const deptLabel = state.deptUuid
+          ? (state.deptName ? state.deptName : 'Selected Department')
+          : 'All Departments';
+
         st.innerHTML = `
           <div style="font-size:34px;opacity:.6;margin-bottom:6px;">
             <i class="fa-regular fa-face-frown"></i>
           </div>
           No placement notices found.
-          ${deptLine}
+          <div style="margin-top:6px;font-size:12.5px;opacity:.95;">Department: <b>${esc(deptLabel)}</b></div>
         `;
         return;
       }
@@ -942,12 +892,6 @@
     function renderPager(){
       const pager = els.pager;
       if (!pager) return;
-
-      if (!state.deptUuid){
-        pager.style.display = 'none';
-        pager.innerHTML = '';
-        return;
-      }
 
       const last = state.lastPage || 1;
       const cur  = state.page || 1;
@@ -1005,15 +949,7 @@
       renderPager();
     }
 
-    async function loadAndPaintIfReady(){
-      // if no dept selected -> show prompt state (no API call needed)
-      if (!state.deptUuid){
-        state.total = 0;
-        if (els.count) els.count.textContent = '0';
-        repaint();
-        return;
-      }
-
+    async function loadAndPaint(){
       if (!allNotices){
         await ensureNoticesLoaded(false);
       }
@@ -1029,11 +965,11 @@
       if (deepDeptUuid && deptByUuid.has(deepDeptUuid)){
         setDeptSelection(deepDeptUuid);
       } else {
-        setDeptSelection('');
+        setDeptSelection(''); // ✅ All Departments
       }
 
-      // initial render
-      await loadAndPaintIfReady();
+      // initial render (All Departments)
+      await loadAndPaint();
 
       // search (debounced)
       let t = null;
@@ -1051,14 +987,10 @@
         const v = (els.dept.value || '').toString();
         if (v === '__loading') return;
 
-        if (!v){
-          setDeptSelection('');
-        } else {
-          setDeptSelection(v);
-        }
+        setDeptSelection(v); // empty => All Departments
 
         state.page = 1;
-        await loadAndPaintIfReady();
+        await loadAndPaint();
         window.scrollTo({ top: 0, behavior: 'smooth' });
       });
 

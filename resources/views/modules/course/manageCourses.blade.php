@@ -445,6 +445,13 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
                 <div class="form-text">Auto-generated from title until you edit this field manually.</div>
               </div>
 
+              {{-- ✅ NEW: Summary --}}
+              <div class="col-12">
+                <label class="form-label">Summary (optional)</label>
+                <textarea class="form-control" id="summary" rows="3" maxlength="600" placeholder="Short summary for home/cards…"></textarea>
+                <div class="form-text">This is used for short previews (ex: home featured cards).</div>
+              </div>
+
               <div class="col-md-6">
                 <label class="form-label">Department <span class="text-danger">*</span></label>
                 <select id="department_id" class="form-select" required>
@@ -476,6 +483,13 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
   <option value="draft">Draft</option>
   <option value="archived">Archived</option>
 </select>
+              </div>
+
+              {{-- ✅ NEW: Sort Order --}}
+              <div class="col-md-6">
+                <label class="form-label">Sort Order</label>
+                <input type="number" class="form-control" id="sort_order" min="0" step="1" value="0" placeholder="0">
+                <div class="form-text">Lower comes first (used for ordering on home/listing).</div>
               </div>
 
               <div class="col-12">
@@ -737,6 +751,53 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
     return (v ?? '').toString().trim();
   }
 
+  // ✅ NEW: featured + summary + sort_order extraction
+  function getFeaturedFromRow(r){
+    let v =
+      r?.is_featured_home ??
+      r?.featured_home ??
+      r?.is_featured ??
+      r?.featured ??
+      r?.meta?.is_featured_home ??
+      r?.metadata?.is_featured_home ??
+      '';
+
+    if (typeof v === 'boolean') return v;
+    if (typeof v === 'number') return v === 1;
+
+    const s = String(v ?? '').toLowerCase().trim();
+    return ['1','true','yes','y','on'].includes(s);
+  }
+
+  function getSummaryFromRow(r){
+    let v =
+      r?.summary ??
+      r?.course_summary ??
+      r?.short_description ??
+      r?.short_desc ??
+      r?.meta?.summary ??
+      r?.metadata?.summary ??
+      '';
+
+    if (v && typeof v === 'object'){
+      v = v.text || v.value || v.summary || '';
+    }
+    return (v ?? '').toString();
+  }
+
+  function getSortOrderFromRow(r){
+    let v =
+      r?.sort_order ??
+      r?.sortOrder ??
+      r?.order ??
+      r?.meta?.sort_order ??
+      r?.metadata?.sort_order ??
+      0;
+
+    const n = parseInt((v ?? 0), 10);
+    return Number.isFinite(n) ? n : 0;
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     const token = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
     if (!token) { window.location.href = '/'; return; }
@@ -802,6 +863,8 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
     const titleInput = $('title');
     const codeInput = $('code');
     const slugInput = $('slug');
+    const summaryInput = $('summary');            // ✅ NEW
+    const sortOrderInput = $('sort_order');       // ✅ NEW
     const deptSel = $('department_id');
     const levelSel = $('level');
     const durationInput = $('duration');
@@ -1132,6 +1195,8 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
         const updated = fmtDate(r.updated_at || r.updatedAt || r.created_at || r.createdAt);
         const deleted = fmtDate(r.deleted_at || r.deletedAt);
 
+        const isFeaturedHome = getFeaturedFromRow(r); // ✅ NEW
+
         // ✅ UUID cell with copy button (replaces Code/Slug)
         const uuidCell = uuidRaw
           ? `
@@ -1205,6 +1270,12 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
                 ${canEdit ? `
                   <button type="button" class="dropdown-item" data-action="edit">
                     <i class="fa-regular fa-pen-to-square"></i> Edit
+                  </button>
+
+                  {{-- ✅ NEW: Featured Home toggle in actions menu --}}
+                  <button type="button" class="dropdown-item" data-action="toggle_featured" data-featured="${isFeaturedHome ? '1' : '0'}">
+                    <i class="${isFeaturedHome ? 'fa-solid' : 'fa-regular'} fa-star"></i>
+                    ${isFeaturedHome ? 'Remove from Home' : 'Feature on Home'}
                   </button>
                 ` : ``}
                 ${moveBtns.length ? `<div class="dropdown-divider"></div>${moveBtns.join('')}` : ``}
@@ -1654,6 +1725,10 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
       codeInput.value = r.code || r.course_code || '';
       slugInput.value = r.slug || r.course_slug || '';
 
+      // ✅ NEW: summary + sort_order
+      if (summaryInput) summaryInput.value = getSummaryFromRow(r) || '';
+      if (sortOrderInput) sortOrderInput.value = String(getSortOrderFromRow(r));
+
       const rawDid = r.department_id || r.dept_id || r.department?.id || r.department?.uuid || '';
       const did = resolveDepartmentId(String(rawDid || ''), state.departments);
       if (deptSel) deptSel.value = did ? String(did) : '';
@@ -1784,6 +1859,37 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
       }
     }
 
+    // ✅ NEW: featured home toggle helper
+    async function updateFeaturedHome(uuid, isFeatured){
+      const fd = new FormData();
+      fd.append('_method', 'PATCH');
+      fd.append('is_featured_home', String(isFeatured ? 1 : 0));
+
+      showLoading(true);
+      try{
+        const res = await fetchWithTimeout(API.update(uuid), {
+          method: 'POST',
+          headers: authHeaders(),
+          body: fd
+        }, 15000);
+
+        const js = await res.json().catch(()=> ({}));
+        if (!res.ok || js.success === false) throw new Error(js?.message || 'Update failed');
+
+        ok(isFeatured ? 'Featured on home' : 'Removed from home');
+        await Promise.all([
+          loadTab('published'),
+          loadTab('draft'),
+          loadTab('archived'),
+          loadTab('bin')
+        ]);
+      }catch(ex){
+        err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
+      }finally{
+        showLoading(false);
+      }
+    }
+
     // ---------- row actions ----------
     document.addEventListener('click', async (e) => {
       const btn = e.target.closest('button[data-action]');
@@ -1806,6 +1912,25 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
         if (itemModalTitle) itemModalTitle.textContent = act === 'view' ? 'View Course' : 'Edit Course';
         fillFormFromRow(row || {}, act === 'view');
         itemModal && itemModal.show();
+        return;
+      }
+
+      // ✅ NEW: toggle featured home
+      if (act === 'toggle_featured'){
+        if (!canEdit) return;
+        const current = (btn.dataset.featured || '0') === '1';
+        const next = current ? 0 : 1;
+
+        const conf = await Swal.fire({
+          title: current ? 'Remove from Home?' : 'Feature on Home?',
+          text: current ? 'This course will no longer be featured on home.' : 'This course will be featured on home.',
+          icon: 'question',
+          showCancelButton: true,
+          confirmButtonText: current ? 'Remove' : 'Feature'
+        });
+        if (!conf.isConfirmed) return;
+
+        await updateFeaturedHome(uuid, next);
         return;
       }
 
@@ -1967,6 +2092,11 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
         const code = (codeInput.value || '').trim();
         const slug = (slugInput.value || '').trim();
 
+        // ✅ NEW: summary + sort_order
+        const summary = (summaryInput?.value || '').trim();
+        const sortOrderRaw = (sortOrderInput?.value || '').toString().trim();
+        const sortOrder = Number.isFinite(parseInt(sortOrderRaw, 10)) ? parseInt(sortOrderRaw, 10) : 0;
+
         const deptRaw = (deptSel?.value || '').trim();
         const deptId = resolveDepartmentId(deptRaw, state.departments);
 
@@ -1988,6 +2118,10 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
         fd.append('title', title);
         if (code) fd.append('code', code);
         if (slug) fd.append('slug', slug);
+
+        // ✅ NEW fields
+        fd.append('summary', summary || '');
+        fd.append('sort_order', String(sortOrder));
 
         if (deptId) fd.append('department_id', String(parseInt(deptId, 10)));
 

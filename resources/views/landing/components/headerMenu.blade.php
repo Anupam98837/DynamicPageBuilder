@@ -78,7 +78,7 @@
     .dynamic-navbar .mega-col:not([data-col="0"])::before{content:"";position:absolute;left:0;top:0;bottom:0;width:1px;background: rgba(255,255,255,0.14);}
     .dynamic-navbar .mega-list{list-style:none;margin:0;padding: 4px;max-height: calc(100vh - 180px);overflow:auto;scrollbar-width: none;-ms-overflow-style: none;}
     .dynamic-navbar .mega-list::-webkit-scrollbar{ width:0; height:0; display:none; }
-.dynamic-navbar .dropdown-item{display:flex;align-items:center;justify-content:space-between;gap: 10px;padding: .62rem .95rem;color:#fff !important;font-weight: 400;font-size: .93rem;text-decoration:none;white-space: normal;word-break: break-word;line-height: 1.35;border: 0;background: transparent;cursor:pointer;width:100%;text-align:left;border-radius: 10px;outline: 1px solid rgba(255,255,255,0.00);transition: background-color .25s ease, transform .25s ease, outline-color .25s ease;will-change: transform;}    .dynamic-navbar .dropdown-item:hover{background: rgba(255,255,255,0.10);outline-color: rgba(255,255,255,0.10);transform: translateX(2px);}
+    .dynamic-navbar .dropdown-item{display:flex;align-items:center;justify-content:space-between;gap: 10px;padding: .62rem .95rem;color:#fff !important;font-weight: 400;font-size: .93rem;text-decoration:none;white-space: normal;word-break: break-word;line-height: 1.35;border: 0;background: transparent;cursor:pointer;width:100%;text-align:left;border-radius: 10px;outline: 1px solid rgba(255,255,255,0.00);transition: background-color .25s ease, transform .25s ease, outline-color .25s ease;will-change: transform;}    .dynamic-navbar .dropdown-item:hover{background: rgba(255,255,255,0.10);outline-color: rgba(255,255,255,0.10);transform: translateX(2px);}
     .dynamic-navbar .dropdown-item.is-active{background: rgba(255,255,255,0.13);outline: 1px solid rgba(255,255,255,0.16);position: relative;}
     .dynamic-navbar .dropdown-item.is-active::before{content:"";position:absolute;left: 8px;top: 50%;transform: translateY(-50%);width: 3px;height: 18px;border-radius: 3px;background: #f1c40f;opacity: .95;}
 
@@ -150,6 +150,16 @@
 
     /* Ensure active states are visible */
     .nav-link.active {background-color: var(--secondary-color, #6B2528) !important;color: #fff !important;font-weight: 500 !important;}
+    .dynamic-navbar .nav-item.has-dropdown::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    height: 16px;
+    z-index: 9998;
+    pointer-events: auto; /* ✅ THIS was missing — bridge must catch mouse events */
+}
 </style>
 
 <!-- LOADING OVERLAY -->
@@ -1036,7 +1046,7 @@ if (keys.includes(target)) return [n];
                     clearTimeout(closeTimer);
                     closeTimer = setTimeout(() => {
                         this.unportalizeDropdown(dropdown);
-                    }, 140);
+                    }, 600);
                 };
 
                 li.addEventListener('mouseenter', open);
@@ -1044,6 +1054,19 @@ if (keys.includes(target)) return [n];
 
                 dropdown.addEventListener('mouseenter', () => clearTimeout(closeTimer));
                 dropdown.addEventListener('mouseleave', scheduleClose);
+                const panel = dropdown.querySelector('.mega-panel');
+if (panel) {
+    panel.addEventListener('mouseenter', () => clearTimeout(closeTimer));
+    panel.addEventListener('mouseleave', scheduleClose);
+}
+
+// ✅ Prevent scroll inside dropdown from triggering mouseleave close
+dropdown.addEventListener('wheel', () => clearTimeout(closeTimer), { passive: true });
+
+// ✅ Also keep open when mouse is anywhere inside the portal dropdown
+dropdown.addEventListener('mousemove', () => clearTimeout(closeTimer), { passive: true });
+
+
             });
 
             this.bindFullWidthHoverJquery();
