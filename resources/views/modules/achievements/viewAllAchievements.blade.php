@@ -21,6 +21,7 @@
       - Dept filtering (frontend filter by department_id / department_uuid)
       - Deep-link ?d-{uuid} auto-selects dept and filters
       - ✅ Count chip removed + header kept in ONE ROW (desktop)
+      - ✅ Toolbar overflow fix (search + dropdown always fit)
     ========================================================= */
 
     .achx-wrap{
@@ -56,9 +57,15 @@
 
       display:flex;
       gap: 12px;
-      align-items: center;          /* ✅ one-row friendly */
+      align-items:flex-start;
       justify-content: space-between;
+      flex-wrap: wrap; /* ✅ prevents overflow inside narrower parent layouts */
     }
+    .achx-head > div:first-child{
+      flex: 1 1 280px;
+      min-width: 0;
+    }
+
     .achx-title{
       margin: 0;
       font-weight: 950;
@@ -77,21 +84,26 @@
       font-size: 14px;
     }
 
+    /* ✅ robust toolbar layout */
     .achx-tools{
-      display:flex;
+      display:grid;
+      grid-template-columns: minmax(0,1fr) minmax(220px,360px);
       gap: 10px;
       align-items:center;
-      flex-wrap: nowrap;            /* ✅ keep one row on desktop */
-      justify-content: flex-end;
-      min-width: 520px;
+      justify-content:end;
+      min-width: 0;
+      flex: 1 1 620px;
+      width: min(100%, 920px);
     }
+    .achx-tools > *{ min-width:0; }
 
     /* Search */
     .achx-search{
       position: relative;
-      min-width: 240px;            /* ✅ slightly smaller to avoid wrapping */
-      max-width: 520px;
-      flex: 1 1 340px;
+      min-width: 0;
+      max-width: none;
+      flex: initial;
+      width:100%;
     }
     .achx-search i{
       position:absolute;
@@ -104,6 +116,7 @@
     }
     .achx-search input{
       width:100%;
+      max-width:100%;
       height: 42px;
       border-radius: 999px;
       padding: 11px 12px 11px 42px;
@@ -117,12 +130,13 @@
       box-shadow: 0 0 0 4px rgba(201,75,80,.18);
     }
 
-    /* ✅ Dept dropdown (nicer UI) */
+    /* ✅ Dept dropdown (nicer UI + overflow-safe) */
     .achx-select{
       position: relative;
-      min-width: 220px;            /* ✅ slightly smaller to avoid wrapping */
-      max-width: 360px;
-      flex: 0 0 300px;
+      min-width: 0;
+      max-width: none;
+      flex: initial;
+      width:100%;
     }
     .achx-select__icon{
       position:absolute;
@@ -146,6 +160,7 @@
     }
     .achx-select select{
       width: 100%;
+      max-width:100%;
       height: 42px;
       border-radius: 999px;
       padding: 10px 38px 10px 42px; /* left icon + right caret */
@@ -157,6 +172,10 @@
       appearance: none;
       -webkit-appearance: none;
       -moz-appearance: none;
+
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .achx-select select:focus{
       border-color: rgba(201,75,80,.55);
@@ -347,18 +366,20 @@
       color: var(--achx-brand);
     }
 
-    /* ✅ Responsive: allow wrapping on smaller widths */
+    /* ✅ Responsive: stack toolbar cleanly */
     @media (max-width: 980px){
-      .achx-head{ flex-wrap: wrap; align-items: flex-end; }
-      .achx-tools{ flex-wrap: wrap; min-width: 0; width: 100%; justify-content: flex-start; }
-      .achx-search{ flex: 1 1 280px; }
-      .achx-select{ flex: 1 1 260px; max-width: none; }
+      .achx-head{ align-items:flex-end; }
+      .achx-tools{
+        grid-template-columns: 1fr;
+        width: 100%;
+        flex: 1 1 100%;
+      }
+      .achx-search,.achx-select{ width:100%; max-width:none; }
     }
 
     @media (max-width: 640px){
-      .achx-title{ font-size: 24px; }
-      .achx-search{ min-width: 220px; flex: 1 1 240px; }
-      .achx-select{ min-width: 220px; flex: 1 1 240px; }
+      .achx-title{ font-size: 24px; white-space: normal; }
+      .achx-search,.achx-select{ min-width: 0; }
       .achx-wrap{ --achx-media-h: 210px; }
       .achx-media .achx-fallback{ font-size: 22px; }
     }
@@ -371,18 +392,19 @@
     .dynamic-navbar .dropdown-menu.is-portaled{
       position: fixed !important;
     }
+
     .achx-empty-ill{
-  width: 170px;
-  max-width: 100%;
-  margin: 0 auto 10px;
-  display: block;
-  color: var(--achx-brand);
-}
-.achx-empty-ill svg{
-  display:block;
-  width:100%;
-  height:auto;
-}
+      width: 170px;
+      max-width: 100%;
+      margin: 0 auto 10px;
+      display: block;
+      color: var(--achx-brand);
+    }
+    .achx-empty-ill svg{
+      display:block;
+      width:100%;
+      height:auto;
+    }
   </style>
 </head>
 <body>
@@ -755,23 +777,23 @@
         st.style.display = '';
         const deptLine = state.deptName ? `<div style="margin-top:6px;font-size:12.5px;opacity:.95;">Department: <b>${esc(state.deptName)}</b></div>` : '';
         st.innerHTML = `
-  <div class="achx-empty-ill" aria-hidden="true" style="width:170px;max-width:100%;margin:0 auto 10px;display:block;color:var(--achx-brand);">
-    <svg viewBox="0 0 220 140" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%;height:auto;">
-      <rect x="10" y="18" width="200" height="112" rx="16" fill="white" stroke="rgba(15,23,42,0.10)"/>
-      <rect x="24" y="32" width="172" height="84" rx="12" fill="rgba(148,163,184,0.08)" stroke="rgba(148,163,184,0.18)"/>
-      <circle cx="70" cy="66" r="16" fill="rgba(158,54,58,0.14)" stroke="currentColor" stroke-width="2"/>
-      <path d="M49 97c5-11 16-16 21-16s16 5 21 16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
-      <rect x="100" y="52" width="72" height="8" rx="4" fill="rgba(100,116,139,0.20)"/>
-      <rect x="100" y="68" width="54" height="8" rx="4" fill="rgba(100,116,139,0.16)"/>
-      <rect x="100" y="84" width="64" height="8" rx="4" fill="rgba(100,116,139,0.12)"/>
-      <circle cx="182" cy="26" r="12" fill="rgba(158,54,58,0.10)" stroke="currentColor" stroke-width="1.8"/>
-      <path d="M177.5 26h9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-      <path d="M182 21.5v9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-    </svg>
-  </div>
-  No achievements found.
-  ${deptLine}
-`;
+          <div class="achx-empty-ill" aria-hidden="true" style="width:170px;max-width:100%;margin:0 auto 10px;display:block;color:var(--achx-brand);">
+            <svg viewBox="0 0 220 140" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%;height:auto;">
+              <rect x="10" y="18" width="200" height="112" rx="16" fill="white" stroke="rgba(15,23,42,0.10)"/>
+              <rect x="24" y="32" width="172" height="84" rx="12" fill="rgba(148,163,184,0.08)" stroke="rgba(148,163,184,0.18)"/>
+              <circle cx="70" cy="66" r="16" fill="rgba(158,54,58,0.14)" stroke="currentColor" stroke-width="2"/>
+              <path d="M49 97c5-11 16-16 21-16s16 5 21 16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+              <rect x="100" y="52" width="72" height="8" rx="4" fill="rgba(100,116,139,0.20)"/>
+              <rect x="100" y="68" width="54" height="8" rx="4" fill="rgba(100,116,139,0.16)"/>
+              <rect x="100" y="84" width="64" height="8" rx="4" fill="rgba(100,116,139,0.12)"/>
+              <circle cx="182" cy="26" r="12" fill="rgba(158,54,58,0.10)" stroke="currentColor" stroke-width="1.8"/>
+              <path d="M177.5 26h9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <path d="M182 21.5v9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          No achievements found.
+          ${deptLine}
+        `;
         return;
       }
 

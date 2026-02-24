@@ -372,6 +372,7 @@
 </head>
 
 <body>
+@include('landing.components.topHeaderMenu')
   @include('landing.components.header')
   @include('landing.components.headerMenu')
 
@@ -476,6 +477,9 @@
       <div class="attachments-list" id="attachmentsList"></div>
     </section>
   </main>
+
+  {{-- Footer --}}
+@include('landing.components.footer')
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 

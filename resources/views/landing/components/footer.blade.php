@@ -102,7 +102,8 @@
     /* ===== Brand row ===== */
     .ft-brand-row{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:6px 0;}
     .ft-brand-left{display:flex;align-items:center;gap:14px;min-width:0;}
-    .ft-brand-logo{width:92px;height:92px;object-fit:contain;border-radius:999px;background:rgba(255,255,255,.12);padding:8px;}
+    /* ✅ FIXED: Increased logo size, used object-fit:cover, border-radius:50%, reduced padding, added flex-shrink:0 */
+    .ft-brand-logo{width:120px;height:120px;object-fit:cover;border-radius:50%;background:rgba(255,255,255,.12);padding:6px;flex-shrink:0;}
     .ft-brand-text{ min-width:0; display:flex; flex-direction:column; gap:4px; }
     .ft-brand-title{font-family: var(--font-head, var(--font-sans, inherit));font-weight:800;font-size:1.35rem;line-height:1.15;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     .ft-brand-rotate{color:var(--ft-ink-soft);font-size:.98rem;line-height:1.25;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:opacity .18s ease, transform .18s ease;}
@@ -133,54 +134,51 @@
     @media (max-width: 780px){
       .ft-inline-links{ justify-content:flex-start; }
       .ft-blocks{ grid-template-columns:1fr; gap:14px; }
-      /* .ft-brand-row{ flex-direction:column; align-items:flex-start; } */
       .ft-copy{ text-align:left; white-space:normal; }
     }
     @media (prefers-reduced-motion: reduce){
       .ft-brand-rotate{ transition:none !important; }
     }
     @media (max-width: 780px){
-  .ft-inline-links{ justify-content:flex-start; }
-  .ft-blocks{ grid-template-columns:1fr; gap:14px; }
-  .ft-brand-row{
-    flex-direction:column;
-    align-items:center;
-    text-align:center;
-  }
+      .ft-inline-links{ justify-content:flex-start; }
+      .ft-blocks{ grid-template-columns:1fr; gap:14px; }
+      .ft-brand-row{
+        flex-direction:column;
+        align-items:center;
+        text-align:center;
+      }
 
-  .ft-brand-left{
-    flex-direction:column;
-    align-items:center;
-    justify-content:center;
-    width:100%;
-    gap:10px;
-  }
+      .ft-brand-left{
+        flex-direction:column;
+        align-items:center;
+        justify-content:center;
+        width:100%;
+        gap:10px;
+      }
 
-  .ft-brand-text{
-    align-items:center;
-    width:100%;
-  }
+      .ft-brand-text{
+        align-items:center;
+        width:100%;
+      }
 
-  .ft-brand-title,
-  .ft-brand-rotate{
-    text-align:center;
-    white-space:normal;     
-    overflow:visible;
-    text-overflow:clip;
-  }
-  .ft-brand-rotate{
-      margin-top:8px;
+      .ft-brand-title,
+      .ft-brand-rotate{
+        text-align:center;
+        white-space:normal;
+        overflow:visible;
+        text-overflow:clip;
+      }
+      .ft-brand-rotate{
+        margin-top:8px;
+      }
 
-  }
-
-  .ft-social{
-    width:100%;
-    justify-content:center;
-    margin-top:8px;
-  }
-  .ft-copy{ text-align:left; white-space:normal; }
-}
-
+      .ft-social{
+        width:100%;
+        justify-content:center;
+        margin-top:8px;
+      }
+      .ft-copy{ text-align:left; white-space:normal; }
+    }
   </style>
 @endonce
 
@@ -189,7 +187,11 @@
   id="ftBar"
   data-endpoint="{{ url('/api/footer-components') }}"
   data-header-endpoint="{{ url('/api/header-components') }}"
-  data-menu-endpoint="{{ url('/api/header-menus') }}"
+  data-menu-endpoint="{{ url('/api/public/header-menus/tree') }}"
+  data-public-departments-endpoint="{{ url('/api/public/departments') }}"
+  data-departments-endpoint="{{ url('/api/departments') }}"
+  data-site-base="{{ url('/') }}"
+  data-page-base="{{ url('/page') }}"
 >
   <div class="ft-inner">
 
@@ -281,6 +283,42 @@
     address: $('ftAddress'),
   };
 
+  /* ===== ✅ SITE_BASE and PAGE_BASE from Blade (always absolute) ===== */
+  const SITE_BASE = (els.bar?.getAttribute('data-site-base') || window.location.origin).replace(/\/+$/, '');
+  const PAGE_BASE = (els.bar?.getAttribute('data-page-base') || (SITE_BASE + '/page')).replace(/\/+$/, '');
+
+  /* ===== ✅ Known direct routes (non /page/ routes from web.php) ===== */
+  const KNOWN_DIRECT_ROUTES = [
+    '/', '/login', '/dashboard',
+    '/announcements', '/achievements', '/notices', '/student-activities',
+    '/gallery', '/gallery/all-images', '/our-recruiters', '/success-stories',
+    '/courses', '/events', '/faculty-members', '/technical-assistants',
+    '/placement-officers', '/placed-students', '/alumni', '/program-toppers',
+    '/tp-cell', '/placement-notices', '/statistics', '/contact-us', '/enquiry',
+    '/career-notices', '/why-us', '/scholarships',
+  ];
+
+  /**
+   * ✅ Check if a path matches a known direct route (not /page/{slug})
+   */
+  function isKnownDirectRoute(path) {
+    const p = String(path || '').replace(/\/+$/, '').toLowerCase();
+    if (!p || p === '/') return true;
+
+    // Exact match
+    if (KNOWN_DIRECT_ROUTES.includes(p)) return true;
+
+    // Routes with UUID params (e.g. /courses/view/{uuid}, /department/view/{uuid})
+    if (/^\/(courses|department|curriculum-syllabus|announcements|achievements|notices|student-activities|gallery|placed-students|placement-notices|successful-entrepreneurs|career-notices|why-us|scholarships|success-stories)\/view\/[^\/]+$/i.test(p)) return true;
+
+    // /user/ routes
+    if (p.startsWith('/user/')) return true;
+    // /department/ routes
+    if (p.startsWith('/department/')) return true;
+
+    return false;
+  }
+
   const PLACEHOLDER_LOGO = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
     <svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">
       <rect width="120" height="120" rx="60" fill="rgba(255,255,255,.14)"/>
@@ -289,10 +327,14 @@
     </svg>
   `);
 
+  /* ===== Department + Menu UUID map (for same behavior as header) ===== */
+  const __ftDeptUuidById = new Map();
+  let __ftDeptMapLoaded = false;
+
   function normalizeUrl(u){
     const s = (u || '').toString().trim();
     if (!s) return '';
-    if (/^(data:|blob:|https?:\/\/|mailto:|tel:)/i.test(s)) return s;
+    if (/^(data:|blob:|https?:\/\/|mailto:|tel:|sms:|whatsapp:)/i.test(s)) return s;
     if (s.startsWith('/')) return window.location.origin + s;
     return window.location.origin + '/' + s;
   }
@@ -389,6 +431,30 @@
     }[s]));
   }
 
+  /* ===== ✅ hardNavigate (same approach as header menu) ===== */
+  function hardNavigate(e, href, openNewTab) {
+    if (!href || href === '#') return;
+
+    // allow ctrl/cmd click new tabs
+    if (e && (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button === 1)) return;
+
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+
+    if (openNewTab) {
+      window.open(href, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    try {
+      // ✅ CRITICAL: resolve relative to ORIGIN, not current href
+      const target = new URL(href, window.location.origin);
+      window.location.href = target.href;
+    } catch (error) {
+      window.location.href = href;
+    }
+  }
+
   function renderInlineLinks(container, links, alignLeft=false){
     if (!container) return 0;
     removeSkel(container);
@@ -404,20 +470,34 @@
       })
       .filter(Boolean);
 
-    container.innerHTML = clean.map((it) => {
-      const hasUrl = !!it.url && it.url !== '#';
-      const href = hasUrl ? normalizeUrl(it.url) : 'javascript:void(0)';
+    container.innerHTML = '';
 
-      let extra = '';
-      if (hasUrl){
+    clean.forEach((it) => {
+      const hasUrl = !!it.url && it.url !== '#';
+      const a = document.createElement('a');
+      a.className = 'ft-link';
+      a.textContent = it.title;
+
+      if (hasUrl) {
+        const href = normalizeUrl(it.url);
+        a.href = href;
+
         const isExternal = /^https?:\/\//i.test(href) && !href.startsWith(window.location.origin);
-        if (isExternal) extra = ` target="_blank" rel="noopener"`;
+        if (isExternal) {
+          a.target = '_blank';
+          a.rel = 'noopener';
+        } else {
+          // ✅ internal links use hardNavigate to prevent 404 issues
+          a.addEventListener('click', (e) => hardNavigate(e, href, false));
+        }
       } else {
-        extra = ` style="pointer-events:none;opacity:.9"`;
+        a.href = 'javascript:void(0)';
+        a.style.pointerEvents = 'none';
+        a.style.opacity = '.9';
       }
 
-      return `<a class="ft-link" href="${href}"${extra}>${escapeHtml(it.title)}</a>`;
-    }).join('');
+      container.appendChild(a);
+    });
 
     return clean.length;
   }
@@ -431,25 +511,92 @@
     return [];
   }
 
-  // ✅ fetch header menus WITH children (tries multiple endpoints/shapes)
+  function firstNonEmptyArray(...candidates){
+    for (const c of candidates){
+      const arr = safeArray(c);
+      if (arr.length) return arr;
+    }
+    return [];
+  }
+
+  function normalizeDepartmentsPayload(payload){
+    let data = payload;
+    if (data && typeof data === 'object' && data.success !== undefined) data = data.data;
+
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.items)) return data.items;
+    if (Array.isArray(data?.data)) return data.data;
+    return [];
+  }
+
+  function buildDeptMap(list){
+    __ftDeptUuidById.clear();
+    (list || []).forEach(d => {
+      const id = Number(d?.id);
+      const uuid = (d?.uuid ?? d?.department_uuid ?? d?.dept_uuid ?? '').toString().trim();
+      if (id && uuid) __ftDeptUuidById.set(id, uuid);
+    });
+    __ftDeptMapLoaded = true;
+  }
+
+  async function ensureDeptMap(){
+    if (__ftDeptMapLoaded) return;
+
+    const publicEp = els.bar?.getAttribute('data-public-departments-endpoint') || '/api/public/departments';
+    const privateEp = els.bar?.getAttribute('data-departments-endpoint') || '/api/departments';
+
+    const token = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+    const headers = { 'Accept': 'application/json' };
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+
+    try{
+      // 1) try public
+      let res = await fetch(publicEp, { headers: { 'Accept':'application/json' } });
+      let js = await res.json().catch(() => ({}));
+
+      if (res.ok){
+        buildDeptMap(normalizeDepartmentsPayload(js));
+        return;
+      }
+
+      // 2) fallback private (if auth exists)
+      res = await fetch(privateEp, { headers });
+      js = await res.json().catch(() => ({}));
+
+      if (res.ok){
+        buildDeptMap(normalizeDepartmentsPayload(js));
+        return;
+      }
+    }catch(_){}
+
+    // no hard fail
+    buildDeptMap([]);
+  }
+
+  /**
+   * ✅ FIXED: fetch header menus WITH children
+   *
+   * CRITICAL CHANGE: Try the base /tree endpoint FIRST (not /options).
+   * The /tree endpoint returns complete data including page_slug.
+   * The /options endpoint may omit page_slug, causing fallback to menu slug.
+   */
   async function fetchHeaderMenus(){
-    // You can set on #ftBar:
-    // data-header-menus-endpoint="/api/header-menus"
-    // data-menu-endpoint="/api/header-menus" (fallback)
     const base =
       els.bar?.getAttribute('data-header-menus-endpoint') ||
       els.bar?.getAttribute('data-menu-endpoint') ||
-      '/api/header-menus';
+      '/api/public/header-menus/tree';
 
     const b = base.replace(/\/+$/,'');
 
+    // ✅ FIXED ORDER: Try base /tree endpoints FIRST (they include page_slug),
+    //    then fall back to /options endpoints (which may omit page_slug).
     const candidates = [
-      // common patterns
-      b + '/options?include_children=1&only_active=1',
-      b + '/options?include_children=1',
       b + '?include_children=1&only_active=1&per_page=200',
       b + '?include_children=1&per_page=200',
       b + '?per_page=200',
+      b,
+      b + '/options?include_children=1&only_active=1',
+      b + '/options?include_children=1',
       b + '/options',
     ];
 
@@ -467,22 +614,30 @@
         if (!list.length) continue;
 
         const map = new Map();
-        list.forEach(m => {
-          const id = Number(m?.id ?? m?.header_menu_id);
-          if (!Number.isFinite(id) || id <= 0) return;
 
-          // normalize title + children keys
-          const title = (m?.title ?? m?.name ?? m?.label ?? m?.menu_title ?? '').toString().trim();
+        /**
+         * ✅ FIXED: Recursively index ALL menu items (parents + children at all depths)
+         * into the map so that any item can be looked up by ID with full data
+         * including page_slug, page_url, slug, department_uuid, etc.
+         */
+        function indexMenuTree(items) {
+          (items || []).forEach(m => {
+            const id = Number(m?.id ?? m?.header_menu_id);
+            if (!Number.isFinite(id) || id <= 0) return;
 
-          const children =
-            safeArray(m?.children) ||
-            safeArray(m?.submenus) ||
-            safeArray(m?.childs) ||
-            safeArray(m?.items) ||
-            [];
+            const title = (m?.title ?? m?.name ?? m?.label ?? m?.menu_title ?? '').toString().trim();
+            const children = firstNonEmptyArray(m?.children, m?.submenus, m?.childs, m?.items);
 
-          map.set(id, { ...m, id, title, children });
-        });
+            map.set(id, { ...m, id, title, children });
+
+            // Recurse into children so they're also indexed with full data
+            if (children.length) {
+              indexMenuTree(children);
+            }
+          });
+        }
+
+        indexMenuTree(list);
 
         if (map.size) return map;
       }catch(_){}
@@ -491,34 +646,287 @@
     return new Map();
   }
 
-  // ✅ MODIFIED: Special href function for footer block items only
-  function childHrefForFooterBlock(ch){
-    const u = (ch?.url_full ?? ch?.url ?? ch?.link ?? ch?.href ?? ch?.path ?? ch?.full_url ?? '').toString().trim();
-    if (u) return normalizeUrl(u);
+  /* ===== Footer submenu link resolution (same style as header) ===== */
 
-    const slug = (ch?.slug ?? ch?.page_slug ?? '').toString().trim();
-    if (slug) {
-      // ✅ FIX: Add /page/ prefix for slug-based URLs in footer blocks
-      const normalizedSlug = slug.startsWith('/') ? slug : '/' + slug;
-      // Check if it already starts with /page/
-      if (!normalizedSlug.startsWith('/page/')) {
-        return normalizeUrl('/page' + normalizedSlug);
-      }
-      return normalizeUrl(normalizedSlug);
+  function getItemDeptUuid(item){
+    const direct =
+      (item?.department_uuid ?? item?.dept_uuid ?? '') ||
+      (item?.department?.uuid ?? item?.department?.department_uuid ?? item?.department?.dept_uuid ?? '');
+    const directTrim = (direct || '').toString().trim();
+    if (directTrim) return directTrim;
+
+    const did = item?.department_id;
+    if (did !== undefined && did !== null) {
+      const mapped = __ftDeptUuidById.get(Number(did));
+      if (mapped) return mapped;
     }
-
-    return 'javascript:void(0)';
+    return '';
   }
 
-  // ✅ Original childHref function (kept for other uses if needed)
-  function childHref(ch){
-    const u = (ch?.url_full ?? ch?.url ?? ch?.link ?? ch?.href ?? ch?.path ?? ch?.full_url ?? '').toString().trim();
-    if (u) return normalizeUrl(u);
+  function getItemMenuUuid(item){
+    const uuid = (item?.uuid ?? item?.menu_uuid ?? '').toString().trim();
+    return uuid || '';
+  }
 
-    const slug = (ch?.slug ?? ch?.page_slug ?? '').toString().trim();
-    if (slug) return normalizeUrl('/' + slug.replace(/^\/+/,''));
+  function applyDepartmentUuid(url, deptUuid) {
+    deptUuid = (deptUuid || '').toString().trim();
+    if (!deptUuid) return url;
+    if (!url || url === '#') return url;
 
-    return 'javascript:void(0)';
+    let u;
+    try {
+      u = new URL(url, window.location.origin);
+    } catch (e) {
+      const token = `d-${deptUuid}`;
+      const sep = url.includes('?') ? '&' : '?';
+      return `${url}${sep}${token}`;
+    }
+
+    if (u.origin !== window.location.origin) return url;
+
+    const token = `d-${deptUuid}`;
+    const raw = (u.search || '').replace(/^\?/, '');
+    const parts = raw ? raw.split('&').filter(Boolean) : [];
+
+    const kept = parts.filter(p => {
+      const key = (p.split('=')[0] || '').trim();
+      if (!key) return false;
+      if (key === 'department_uuid') return false;
+      if (key.startsWith('d-')) return false;
+      return true;
+    });
+
+    const newSearch = kept.length ? (`?${kept.join('&')}&${token}`) : (`?${token}`);
+    return `${u.origin}${u.pathname}${newSearch}${u.hash || ''}`;
+  }
+
+  function applyHeaderMenuHUuid(url, hUuid) {
+    hUuid = (hUuid || '').toString().trim();
+    if (!hUuid) return url;
+    if (!url || url === '#') return url;
+
+    let u;
+    try {
+      u = new URL(url, window.location.origin);
+    } catch (e) {
+      const sep = url.includes('?') ? '&' : '?';
+      return `${url}${sep}h-${hUuid}`;
+    }
+
+    if (u.origin !== window.location.origin) return url;
+
+    const raw = (u.search || '').replace(/^\?/, '');
+    const parts = raw ? raw.split('&').filter(Boolean) : [];
+
+    const kept = parts.filter(p => {
+      const key = (p.split('=')[0] || '').trim();
+      if (!key) return false;
+      if (key === 'header_menu_id') return false;
+      if (/^h-[a-zA-Z0-9_-]+$/.test(key)) return false;
+      return true;
+    });
+
+    const token = `h-${hUuid}`;
+    const newSearch = kept.length ? `?${kept.join('&')}&${token}` : `?${token}`;
+    return `${u.origin}${u.pathname}${newSearch}${u.hash || ''}`;
+  }
+
+  function getNodeLink(item){
+    return (item?.page_url ?? item?.link ?? item?.url ?? item?.href ?? '').toString().trim();
+  }
+  function getNodePageSlug(item){
+    return (item?.page_slug ?? '').toString().trim();
+  }
+  function getNodeMenuSlug(item){
+    return (item?.slug ?? '').toString().trim();
+  }
+  function getNodeShortcode(item){
+    return (item?.shortcode ?? item?.page_shortcode ?? item?.short_code ?? '').toString().trim();
+  }
+
+  /**
+   * ✅ FIXED: Resolve link URL always relative to SITE ORIGIN, not current href.
+   * This prevents 404 errors when navigating from /page/x to another link.
+   */
+  function resolveLinkUrl(rawUrl){
+    rawUrl = (rawUrl || '').toString().trim();
+    if (!rawUrl) return '';
+
+    // Already absolute
+    if (/^https?:\/\//i.test(rawUrl)) return rawUrl;
+
+    // Special protocols
+    if (/^(mailto:|tel:|sms:|whatsapp:|data:|blob:)/i.test(rawUrl)) return rawUrl;
+
+    // ✅ CRITICAL FIX: Always resolve relative to ORIGIN, not current page href
+    try {
+      if (rawUrl.startsWith('/')) {
+        return window.location.origin + rawUrl;
+      }
+      return window.location.origin + '/' + rawUrl;
+    } catch(e) {
+      return rawUrl;
+    }
+  }
+
+  function isSameOrigin(url){
+    try{
+      return new URL(url, window.location.origin).origin === window.location.origin;
+    }catch(e){
+      return false;
+    }
+  }
+
+  function isSpecialProtocol(url){
+    return /^(mailto:|tel:|sms:|whatsapp:)/i.test((url || '').toString().trim());
+  }
+
+  /**
+   * ✅ Determine if a link value is a direct route or should go through /page/{slug}
+   */
+  function isDirectLink(rawUrl) {
+    const s = (rawUrl || '').toString().trim();
+    if (!s) return false;
+
+    // Absolute external URLs are always direct
+    if (/^https?:\/\//i.test(s)) return true;
+
+    // Special protocols
+    if (/^(mailto:|tel:|sms:|whatsapp:)/i.test(s)) return true;
+
+    // If it already starts with /page/ treat as direct (already has /page prefix)
+    if (s.toLowerCase().startsWith('/page/')) return true;
+
+    // Normalize to a path for route matching
+    let path = s;
+    if (!path.startsWith('/')) path = '/' + path;
+
+    // Remove query strings and hashes for matching
+    const cleanPath = path.split('?')[0].split('#')[0].replace(/\/+$/, '').toLowerCase();
+
+    // Check against known routes
+    if (isKnownDirectRoute(cleanPath)) return true;
+
+    // Check if it looks like a path with segments (e.g. /courses/view/xxx)
+    // These are likely direct routes, not page slugs
+    if (cleanPath.split('/').filter(Boolean).length >= 2) return true;
+
+    return false;
+  }
+
+  /**
+   * ✅ FIXED: Priority for resolving the best navigation target from a menu item.
+   *
+   * Priority order:
+   *   1. page_url (link) — if it exists and is not empty / "#"
+   *   2. page_slug        — navigate to /page/{page_slug}
+   *   3. slug (menu_slug) — fallback to /page/{slug}
+   *   4. shortcode        — fallback to /page/{shortcode}
+   *   5. First descendant with any valid target
+   *
+   * KEY FIX: link="#" is SKIPPED (treated as empty), so page_slug takes over.
+   * This ensures items like "About Us" (slug="about-us", page_slug="about-us-3")
+   * navigate to /page/about-us-3 instead of /page/about-us.
+   */
+  function findBestTarget(item){
+    if (!item) return { type:'', value:'' };
+
+    // 1. Check page_url / link first — but SKIP if it's just "#"
+    const link = getNodeLink(item);
+    if (link && link !== '#') return { type:'link', value: link };
+
+    // 2. Check page_slug (THIS IS THE KEY — use page_slug before menu slug)
+    const ps = getNodePageSlug(item);
+    if (ps) return { type:'page_slug', value: ps };
+
+    // 3. Fallback to menu slug
+    const ms = getNodeMenuSlug(item);
+    if (ms) return { type:'menu_slug', value: ms };
+
+    // 4. Fallback to shortcode
+    const sc = getNodeShortcode(item);
+    if (sc) return { type:'shortcode', value: sc };
+
+    // 5. Fallback: find first child that has any valid target (same priority)
+    const kids = Array.isArray(item.children) ? item.children : [];
+    if (!kids.length) return { type:'', value:'' };
+
+    const sortedKids = [...kids].sort((a,b) => (a.position||0) - (b.position||0));
+    for (const child of sortedKids){
+      const found = findBestTarget(child);
+      if (found && found.value) return found;
+    }
+    return { type:'', value:'' };
+  }
+
+  /**
+   * ✅ Build internal page URL using absolute PAGE_BASE from Blade
+   */
+  function normalizeInternalPageUrl(identifier){
+    identifier = (identifier || '').toString().trim();
+    if (!identifier) return '#';
+    return PAGE_BASE + '/' + encodeURIComponent(identifier);
+  }
+
+  /**
+   * ✅ FIXED: Main URL builder for footer menu items.
+   *
+   * Rules:
+   *  - If target is a "link" (page_url):
+   *      - If it's external or special protocol => use as-is
+   *      - If it matches a known direct route => resolve as direct: /{link}
+   *      - If it already contains /page/ => resolve as direct (already prefixed)
+   *      - Otherwise => treat as a dynamic page: /page/{link}
+   *  - If target is page_slug => /page/{page_slug}
+   *  - If target is menu_slug / shortcode => /page/{slug}
+   *  - Then append d-{uuid} and h-{uuid} for same-origin URLs
+   */
+  function getFooterMenuItemUrl(item){
+    let url = '#';
+    const target = findBestTarget(item);
+
+    if (target.type === 'link'){
+      const rawLink = target.value;
+
+      // Special protocol => return directly
+      if (isSpecialProtocol(rawLink)) return rawLink;
+
+      // External absolute URL => return directly
+      if (/^https?:\/\//i.test(rawLink) && !rawLink.startsWith(window.location.origin)) {
+        return rawLink;
+      }
+
+      // ✅ Determine if this is a direct route or a dynamic page slug
+      if (isDirectLink(rawLink)) {
+        // Direct route: resolve as /{link}
+        url = resolveLinkUrl(rawLink) || '#';
+      } else {
+        // Not a known direct route => treat as dynamic page: /page/{link}
+        url = normalizeInternalPageUrl(rawLink);
+      }
+    }
+    else if (target.type === 'page_slug'){
+      url = normalizeInternalPageUrl(target.value);
+    }
+    else if (target.type === 'menu_slug'){
+      url = normalizeInternalPageUrl(target.value);
+    }
+    else if (target.type === 'shortcode'){
+      url = normalizeInternalPageUrl(target.value);
+    }
+
+    if (!url || url === '#') return '#';
+
+    // ✅ Only mutate same-origin URLs with dept/header_menu_id
+    if (isSameOrigin(url)) {
+      const deptUuid = getItemDeptUuid(item);
+      url = applyDepartmentUuid(url, deptUuid);
+
+      const hUuid = getItemMenuUuid(item);
+      url = applyHeaderMenuHUuid(url, hUuid);
+    }
+
+    return url;
   }
 
   function renderSection2(container, section2Blocks, menuMap, titleOverride){
@@ -528,13 +936,9 @@
 
     const blocks = safeArray(section2Blocks);
 
-    // supports BOTH shapes:
-    // A) stored tree: [{id,title,submenus:[...]}]
-    // B) your current API: [{header_menu_id:3, child_ids:[]}]
     const normalized = blocks
       .slice(0, 4)
       .map(b => {
-        // A) already has title + submenus/children
         const hasTitle = (b?.title || b?.menu_title || b?.name || b?.label);
         const hasKids  = Array.isArray(b?.submenus) || Array.isArray(b?.children) || Array.isArray(b?.childs);
 
@@ -544,7 +948,6 @@
           return { title, kids, headerMenuId: Number(b?.id ?? b?.header_menu_id ?? 0), childIdSet: null };
         }
 
-        // B) id-only block
         const headerMenuId = Number(b?.header_menu_id ?? b?.menu_id ?? b?.id ?? 0);
         const childIds = safeArray(b?.child_ids ?? b?.children_ids ?? b?.submenu_ids ?? []);
         const childIdSet = new Set(childIds.map(x => Number(x)).filter(n => Number.isFinite(n)));
@@ -557,11 +960,6 @@
     normalized.forEach((b) => {
       const menu = menuMap.get(b.headerMenuId) || null;
 
-      // title priority:
-      // 1) stored title (tree)
-      // 2) section2_title_override (if ONLY one block selected)
-      // 3) menu.title from header menus endpoint
-      // 4) fallback
       const resolvedTitle =
         (b.title || '').trim() ||
         ((titleOverride && normalized.length === 1) ? String(titleOverride).trim() : '') ||
@@ -581,6 +979,33 @@
         }
       }
 
+      /**
+       * ✅ FIXED: Enrich each child item with full data from menuMap.
+       * The footer's section2 blocks may only store IDs/basic info.
+       * The menuMap (from /tree endpoint) has the full item including page_slug.
+       * Merge them so getFooterMenuItemUrl sees page_slug correctly.
+       *
+       * Priority: menuMap's page_slug is authoritative (from the /tree API).
+       * If the child already has page_slug, keep it. Otherwise fill from menuMap.
+       */
+      kids = (kids || []).map(ch => {
+        const childId = Number(ch?.id);
+        if (childId && menuMap.has(childId)) {
+          const fullItem = menuMap.get(childId);
+          // Merge: start with full API data, overlay with child-specific data,
+          // but always prefer the non-empty page_slug from API tree
+          return {
+            ...fullItem,
+            ...ch,
+            page_slug: fullItem.page_slug || ch.page_slug || '',
+            page_url: ch.page_url !== undefined ? ch.page_url : fullItem.page_url,
+            department_uuid: ch.department_uuid || fullItem.department_uuid || '',
+            department_id: ch.department_id ?? fullItem.department_id,
+          };
+        }
+        return ch;
+      });
+
       const wrap = document.createElement('div');
       wrap.className = 'ft-block';
 
@@ -588,7 +1013,6 @@
       h.className = 'ft-block-title';
       h.textContent = resolvedTitle;
 
-      // ✅ now styled as vertical column list (CSS handles it)
       const grid = document.createElement('div');
       grid.className = 'ft-block-grid';
 
@@ -596,18 +1020,28 @@
         const label = (ch?.title || ch?.name || ch?.label || 'Menu').toString().trim();
         if (!label) return;
 
-        // ✅ FIX: Use special href function for footer block items
-        const href = childHrefForFooterBlock(ch);
+        // ✅ FIXED: use same URL resolution as header — page_slug takes priority over slug
+        const href = getFooterMenuItemUrl(ch);
 
         const a = document.createElement('a');
         a.className = 'ft-block-item';
         a.textContent = label;
-        a.href = href;
+        a.href = href || 'javascript:void(0)';
 
-        if (/^https?:\/\//i.test(href) && !href.startsWith(window.location.origin)){
+        if (!href || href === '#') {
+          a.href = 'javascript:void(0)';
+          a.style.pointerEvents = 'none';
+          a.style.opacity = '.9';
+        } else if (/^https?:\/\//i.test(a.href) && !a.href.startsWith(window.location.origin)){
           a.target = '_blank';
           a.rel = 'noopener';
+        } else if (isSpecialProtocol(a.href)) {
+          // mailto/tel — let browser handle naturally
+        } else {
+          // ✅ CRITICAL: use hardNavigate for all internal links
+          a.addEventListener('click', (e) => hardNavigate(e, a.href, false));
         }
+
         grid.appendChild(a);
       });
 
@@ -631,12 +1065,9 @@
     return 'fa-solid fa-link';
   }
 
-  // ✅ uses icon class from API (x.icon) and creates boxes dynamically
   function renderSocial(container, socials){
     if (!container) return 0;
     removeSkel(container);
-
-    // IMPORTANT: remove any static boxes in HTML
     container.innerHTML = '';
 
     const list = Array.isArray(socials) ? socials : [];
@@ -644,7 +1075,7 @@
       .map(x => {
         const url = (x?.url_full ?? x?.url ?? x?.link ?? x?.href ?? '').toString().trim();
         const platform = (x?.platform ?? x?.title ?? x?.label ?? '').toString().trim();
-        const icon = (x?.icon ?? '').toString().trim(); // <-- from API
+        const icon = (x?.icon ?? '').toString().trim();
         if (!url) return null;
         return { url, platform, icon };
       })
@@ -659,7 +1090,6 @@
       a.setAttribute('aria-label', s.platform || 'social');
 
       const i = document.createElement('i');
-      // ✅ use API icon if provided; else fallback by platform
       i.className = s.icon ? s.icon : iconFromPlatform(s.platform);
       a.appendChild(i);
 
@@ -731,6 +1161,9 @@
     const topCount = renderInlineLinks(els.topLinks, s1, false);
     toggleRule(els.rule1, true);
 
+    // ✅ build dept map first (so footer submenu links can append d-{uuid} like header)
+    await ensureDeptMap();
+
     // ✅ SECTION 2 (resolve header menu title + children via header menus endpoint)
     const s2blocks = safeArray(
       item?.section2_header_menus_resolved ??
@@ -773,7 +1206,7 @@
     setText(els.brandTitle, brandTitle);
     startRotate(rotateLines);
 
-    // ✅ SOCIALS (use API icon class, boxes dynamic)
+    // ✅ SOCIALS
     const socials = safeArray(item?.social_links ?? item?.social_links_json ?? []);
     renderSocial(els.social, socials);
     toggleRule(els.rule4, true);
@@ -799,9 +1232,16 @@
 
       const hasUrl = !!it.url && it.url !== '#';
       if (hasUrl){
-        a.href = normalizeUrl(it.url);
-        const isExternal = /^https?:\/\//i.test(a.href) && !a.href.startsWith(window.location.origin);
-        if (isExternal){ a.target = '_blank'; a.rel = 'noopener'; }
+        const href = normalizeUrl(it.url);
+        a.href = href;
+        const isExternal = /^https?:\/\//i.test(href) && !href.startsWith(window.location.origin);
+        if (isExternal){
+          a.target = '_blank';
+          a.rel = 'noopener';
+        } else {
+          // ✅ internal links use hardNavigate
+          a.addEventListener('click', (e) => hardNavigate(e, href, false));
+        }
       } else {
         a.href = 'javascript:void(0)';
         a.style.pointerEvents = 'none';
@@ -836,7 +1276,6 @@
       }
     }
 
-    // ✅ dev hints (won't break anything)
     if (!blockCount){
       console.warn('[Footer] Section2: No header menu blocks rendered. Check: (1) footer row section2_header_menu_json, (2) #ftBar data-header-menus-endpoint, (3) header menus API returns children.');
       console.warn('[Footer] Section2 raw:', s2blocks);

@@ -14,15 +14,6 @@
   <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}">
 
   <style>
-    /* =========================================================
-      ✅ Success Stories (Scoped / No :root / No global body rules)
-      - UI structure matches Announcements reference
-      - Dept dropdown UI improved (pill, icon, caret)
-      - Dept filtering (frontend filter by department_id / department_uuid)
-      - Deep-link ?d-{uuid} auto-selects dept and filters
-      - ✅ Count chip removed + head kept in one row (desktop)
-    ========================================================= */
-
     .ss-wrap{
       /* scoped tokens */
       --ss-brand: var(--primary-color, #9E363A);

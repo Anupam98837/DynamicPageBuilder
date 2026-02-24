@@ -381,6 +381,7 @@
 </head>
 
 <body>
+@include('landing.components.topHeaderMenu')
   @include('landing.components.header')
   @include('landing.components.headerMenu')
 
@@ -487,6 +488,9 @@
     </section>
   </main>
 
+  {{-- Footer --}}
+@include('landing.components.footer')
+
   <script>
     (function () {
       const $ = (id) => document.getElementById(id);
@@ -505,11 +509,27 @@
       // - supports /{dept}/courses/{identifier}
       // - supports /departments/{dept}/courses/{identifier}
       function getIdentifierFromUrl() {
-        const parts = window.location.pathname.split('/').filter(Boolean);
-        const idx = parts.lastIndexOf('courses');
-        if (idx !== -1 && parts[idx + 1]) return parts[idx + 1];
-        return parts[parts.length - 1] || '';
-      }
+  const parts = window.location.pathname.split('/').filter(Boolean);
+
+  // supports:
+  // /courses/{identifier}
+  // /courses/view/{identifier}
+  // /{dept}/courses/{identifier}
+  // /departments/{dept}/courses/{identifier}
+  const coursesIdx = parts.indexOf('courses');
+  if (coursesIdx !== -1) {
+    // handle /courses/view/{identifier}
+    if (parts[coursesIdx + 1] === 'view' && parts[coursesIdx + 2]) {
+      return parts[coursesIdx + 2];
+    }
+    // handle /courses/{identifier}
+    if (parts[coursesIdx + 1]) {
+      return parts[coursesIdx + 1];
+    }
+  }
+
+  return parts[parts.length - 1] || '';
+}
 
       // department:
       // - /departments/{dept}/courses/{id}
@@ -815,10 +835,11 @@
 
         // ✅ Public show candidates (matches your controller naming style)
         const candidates = [
-          `/api/public/courses/${encodeURIComponent(identifier)}`,
-          `/public/courses/${encodeURIComponent(identifier)}`,
-          `/api/courses/${encodeURIComponent(identifier)}`
-        ];
+  `/api/public/courses/${encodeURIComponent(identifier)}`,
+  `/api/public/courses/view/${encodeURIComponent(identifier)}`, // add this if route exists
+  `/public/courses/${encodeURIComponent(identifier)}`,
+  `/api/courses/${encodeURIComponent(identifier)}`
+];
 
         // Dept-aware candidates (if you expose such routes)
         if (dept) {

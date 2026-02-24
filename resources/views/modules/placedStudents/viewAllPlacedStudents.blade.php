@@ -41,8 +41,16 @@
   align-items:center;
   justify-content:space-between;
 
-  /* ✅ keep one row (desktop) */
+  /* ✅ FIX: allow automatic wrapping when content area is narrow (sidebar layouts) */
+  flex-wrap: wrap;
 }
+
+/* ✅ FIX: let title block shrink instead of forcing overflow */
+.psx-head > div:first-child{
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
 .psx-title{
   margin:0;
   font-weight: 950;
@@ -65,15 +73,18 @@
   display:flex;
   gap: 10px;
   align-items:center;
-
-  /* ✅ keep one row (desktop) */
   flex-wrap: nowrap;
+
+  /* ✅ FIX: allow tools area to shrink/grow without overflowing */
+  flex: 1 1 560px;
+  min-width: 0;
+  justify-content: flex-end;
 }
 
 /* Search */
 .psx-search{
   position: relative;
-  min-width: 260px;
+  min-width: 0;               /* ✅ FIX */
   max-width: 520px;
   flex: 1 1 320px;
 }
@@ -95,6 +106,7 @@
   background: var(--psx-card);
   color: var(--psx-ink);
   outline: none;
+  min-width: 0;               /* ✅ FIX */
 }
 .psx-search input:focus{
   border-color: rgba(201,75,80,.55);
@@ -104,9 +116,9 @@
 /* ✅ Dept dropdown (same nicer UI) */
 .psx-select{
   position: relative;
-  min-width: 260px;
-  max-width: 360px;
-  flex: 0 1 320px;
+  min-width: 0;               /* ✅ FIX */
+  max-width: 320px;           /* ✅ slightly tighter to avoid overflow */
+  flex: 0 1 280px;            /* ✅ FIX: can shrink inside narrow content */
 }
 .psx-select__icon{
   position:absolute;
@@ -141,6 +153,12 @@
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
+
+  /* ✅ FIX: text stays inside control */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .psx-select select:focus{
   border-color: rgba(201,75,80,.55);
@@ -240,7 +258,7 @@
   z-index: 2;
   padding: 6px 10px;
   border-radius: 999px;
-  font-size: 11.5px;          /* ✅ smaller */
+  font-size: 11.5px;
   font-weight: 900;
   letter-spacing:.15px;
   color:#fff;
@@ -248,7 +266,6 @@
   border: 1px solid rgba(255,255,255,.20);
   backdrop-filter: blur(6px);
 
-  /* ✅ prevent breaking & keep UI clean */
   max-width: calc(100% - 24px);
   white-space: nowrap;
   overflow: hidden;
@@ -345,16 +362,19 @@
   color: var(--psx-brand);
 }
 
-/* ✅ allow wrapping on smaller screens (keeps desktop one-row as requested) */
+/* ✅ responsive fallback */
 @media (max-width: 992px){
-  .psx-head{ flex-wrap: wrap; align-items: flex-end; }
-  .psx-tools{ flex-wrap: wrap; }
+  .psx-head{ align-items: flex-end; }
+  .psx-tools{ flex-wrap: wrap; justify-content: flex-start; }
 }
 
 @media (max-width: 640px){
-  .psx-title{ font-size: 24px; }
-  .psx-search{ min-width: 220px; flex: 1 1 240px; }
-  .psx-select{ min-width: 220px; flex: 1 1 240px; }
+  .psx-title{
+    font-size: 24px;
+    white-space: normal;   /* ✅ avoid title causing overflow on very small widths */
+  }
+  .psx-search{ min-width: 100%; max-width: 100%; flex: 1 1 100%; }
+  .psx-select{ min-width: 100%; max-width: 100%; flex: 1 1 100%; }
 }
 
 /* ✅ Guard against Bootstrap overriding mega menu dropdown positioning */
@@ -863,7 +883,7 @@
       st.style.display = '';
       const deptLine = state.deptName ? `<div style="margin-top:6px;font-size:12.5px;opacity:.95;">Department: <b>${esc(state.deptName)}</b></div>` : '';
       st.innerHTML = `
-  <div aria-hidden="true" style="width:170px;max-width:100%;margin:0 auto 10px;display:block;color:var(--anx-brand);">
+  <div aria-hidden="true" style="width:170px;max-width:100%;margin:0 auto 10px;display:block;color:var(--psx-brand);">
     <svg viewBox="0 0 220 140" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%;height:auto;">
       <rect x="10" y="18" width="200" height="112" rx="16" fill="white" stroke="rgba(15,23,42,0.10)"/>
       <rect x="24" y="32" width="172" height="84" rx="12" fill="rgba(148,163,184,0.08)" stroke="rgba(148,163,184,0.18)"/>

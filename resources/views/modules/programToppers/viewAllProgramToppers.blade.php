@@ -5,7 +5,6 @@
 
 <style>
 .ptp-wrap{
-  /* scoped tokens */
   --ptp-brand: var(--primary-color, #9E363A);
   --ptp-ink: #0f172a;
   --ptp-muted: #64748b;
@@ -14,7 +13,6 @@
   --ptp-line: var(--line-soft, rgba(15,23,42,.10));
   --ptp-shadow: 0 10px 24px rgba(2,6,23,.08);
 
-  /* fixed card sizing (same as Alumni) */
   --ptp-card-w: 247px;
   --ptp-card-h: 329px;
   --ptp-radius: 18px;
@@ -39,43 +37,29 @@
   display:flex;
   gap: 12px;
   align-items:center;
-  justify-content:space-between;
-
-  /* ✅ keep one row (desktop) */
-}
-.ptp-title{
-  margin:0;
-  font-weight: 950;
-  letter-spacing: .2px;
-  color: var(--ptp-ink);
-  font-size: 28px;
-  display:flex;
-  align-items:center;
-  gap: 10px;
-  white-space: nowrap;
-}
-.ptp-title i{ color: var(--ptp-brand); }
-.ptp-sub{
-  margin: 6px 0 0;
-  color: var(--ptp-muted);
-  font-size: 14px;
+  justify-content:stretch;
+  min-width: 0;
 }
 
+/* Tools row only (title/sub removed) */
 .ptp-tools{
   display:flex;
   gap: 10px;
   align-items:center;
-
-  /* ✅ keep one row (desktop) */
   flex-wrap: nowrap;
+  width: 100%;
+  min-width: 0;
+  justify-content: space-between; /* ✅ aligned from both sides */
 }
+.ptp-tools > *{ min-width: 0; }
 
 /* Search */
 .ptp-search{
   position: relative;
-  min-width: 260px;
-  max-width: 520px;
-  flex: 1 1 320px;
+  min-width: 0;
+  flex: 1 1 auto;
+  width: auto;
+  max-width: none;
 }
 .ptp-search i{
   position:absolute;
@@ -95,6 +79,7 @@
   background: var(--ptp-card);
   color: var(--ptp-ink);
   outline: none;
+  min-width: 0;
 }
 .ptp-search input:focus{
   border-color: rgba(201,75,80,.55);
@@ -104,9 +89,10 @@
 /* Dept dropdown */
 .ptp-select{
   position: relative;
-  min-width: 260px;
+  min-width: 0;
+  flex: 0 0 clamp(220px, 30vw, 360px);
+  width: clamp(220px, 30vw, 360px);
   max-width: 360px;
-  flex: 0 1 320px;
 }
 .ptp-select__icon{
   position:absolute;
@@ -141,6 +127,12 @@
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
+
+  display:block;
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
 }
 .ptp-select select:focus{
   border-color: rgba(201,75,80,.55);
@@ -220,10 +212,7 @@
   text-shadow: 0 6px 16px rgba(0,0,0,.35);
   line-height: 1.2;
 }
-.ptp-meta .dot{
-  opacity: .85;
-  padding: 0 6px;
-}
+.ptp-meta .dot{ opacity:.85; padding:0 6px; }
 .ptp-submeta{
   margin: 7px 0 0;
   font-size: 12.5px;
@@ -380,18 +369,30 @@
   color: var(--ptp-brand);
 }
 
-/* ✅ allow wrapping on smaller screens */
+@media (max-width: 1200px){
+  .ptp-head{ flex-wrap: wrap; align-items: flex-end; }
+  .ptp-tools{
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+  .ptp-search{ flex: 1 1 340px; }
+  .ptp-select{
+    flex: 1 1 280px;
+    width: auto;
+    max-width: none;
+  }
+}
 @media (max-width: 992px){
   .ptp-head{ flex-wrap: wrap; align-items: flex-end; }
   .ptp-tools{ flex-wrap: wrap; }
 }
 @media (max-width: 640px){
-  .ptp-title{ font-size: 24px; }
   .ptp-search{ min-width: 220px; flex: 1 1 240px; }
   .ptp-select{ min-width: 220px; flex: 1 1 240px; }
 }
 
-/* ===== Modal (same structure as Alumni) ===== */
+/* ===== Modal ===== */
 .ptp-modal{
   position: fixed;
   inset: 0;
@@ -428,7 +429,6 @@
   transform: translateY(0) scale(1);
 }
 
-/* Close button */
 .ptp-modal__close{
   position: absolute;
   top: 14px;
@@ -451,7 +451,6 @@
   transform: scale(1.08);
 }
 
-/* Left: Hero */
 .ptp-modal__hero{
   flex: 0 0 420px;
   position: relative;
@@ -545,7 +544,6 @@
   backdrop-filter: blur(4px);
 }
 
-/* Right: Details */
 .ptp-modal__details{
   flex: 1;
   overflow-y: auto;
@@ -590,7 +588,6 @@
   padding: 16px 24px 28px;
 }
 
-/* Section titles */
 .ptp-msection{ margin-top: 20px; }
 .ptp-msection:first-child{ margin-top: 0; }
 .ptp-msection-title{
@@ -604,7 +601,6 @@
   border-bottom: 1px solid rgba(15,23,42,.06);
 }
 
-/* Field rows */
 .ptp-mrow{
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -643,7 +639,6 @@
 }
 .ptp-mfield-full{ grid-column: 1 / -1; }
 
-/* Chips */
 .ptp-mchips{ display:flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
 .ptp-mchip{
   display:inline-flex;
@@ -659,7 +654,6 @@
 }
 .ptp-mchip i{ color: var(--ptp-brand, #9E363A); font-size: 10px; }
 
-/* Note block */
 .ptp-mnote{
   margin-top: 8px;
   padding: 14px 16px;
@@ -688,7 +682,6 @@
   font-style: italic;
 }
 
-/* Modal Responsive */
 @media (max-width: 860px){
   .ptp-modal__panel{
     flex-direction: column;
@@ -753,7 +746,7 @@ html.theme-dark .ptp-mnote{
 }
 html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
 
-/* ✅ Guard against Bootstrap overriding mega menu dropdown positioning */
+/* Guard against Bootstrap dropdown overrides */
 .dynamic-navbar .navbar-nav .dropdown-menu{
   position: absolute !important;
   inset: auto !important;
@@ -769,11 +762,6 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
   data-dept-api="{{ url('/api/public/departments') }}"
 >
   <div class="ptp-head">
-    <div>
-      <h1 class="ptp-title"><i class="fa-solid fa-award"></i>Program Toppers</h1>
-      <div class="ptp-sub" id="ptpSub">Meet our top achievers.</div>
-    </div>
-
     <div class="ptp-tools">
       <div class="ptp-search">
         <i class="fa fa-magnifying-glass"></i>
@@ -835,7 +823,7 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
     pager: $('ptpPager'),
     search: $('ptpSearch'),
     dept: $('ptpDept'),
-    sub: $('ptpSub'),
+    sub: $('ptpSub'), // title/sub removed, safe to stay null
     modal: $('ptpModal'),
     modalHero: $('ptpModalHero'),
     modalDetails: $('ptpModalDetails'),
@@ -851,7 +839,6 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
     deptName: '',
   };
 
-  // cache
   let allToppers = null;
   let topperByKey = new Map();
   let deptByUuid = new Map();
@@ -914,7 +901,6 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
     return s;
   }
 
-  // ====== Resolvers (very tolerant) ======
   function resolveKey(item){
     const u = String(pick(item, ['uuid','topper_uuid','program_topper_uuid']) || '').trim();
     if (looksLikeUuidLoose(u)) return u;
@@ -938,111 +924,58 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
     );
   }
   function resolveDepartmentId(item){
-    const did =
-      pick(item, ['department_id','dept_id']) ||
-      pick(item?.department, ['id']) || '';
+    const did = pick(item, ['department_id','dept_id']) || pick(item?.department, ['id']) || '';
     return (did === null || did === undefined) ? '' : String(did);
   }
   function resolveDepartmentUuid(item){
-    const du =
-      pick(item, ['department_uuid','dept_uuid']) ||
-      pick(item?.department, ['uuid']) || '';
+    const du = pick(item, ['department_uuid','dept_uuid']) || pick(item?.department, ['uuid']) || '';
     return (du === null || du === undefined) ? '' : String(du);
   }
 
   function resolveProgram(item){
-    return String(
-      pick(item, ['program','degree','course']) ||
-      pick(item?.metadata, ['program','degree']) ||
-      ''
-    );
+    return String(pick(item, ['program','degree','course']) || pick(item?.metadata, ['program','degree']) || '');
   }
   function resolveSpecialization(item){
-    return String(
-      pick(item, ['specialization','branch','stream']) ||
-      pick(item?.metadata, ['specialization','branch']) ||
-      ''
-    );
+    return String(pick(item, ['specialization','branch','stream']) || pick(item?.metadata, ['specialization','branch']) || '');
   }
   function resolveAdmissionYear(item){
-    const y = pick(item, ['admission_year','start_year','joining_year','batch_start_year']) ||
-              pick(item?.metadata, ['admission_year','start_year']) || '';
+    const y = pick(item, ['admission_year','start_year','joining_year','batch_start_year']) || pick(item?.metadata, ['admission_year','start_year']) || '';
     return (y === null || y === undefined) ? '' : String(y);
   }
   function resolvePassingYear(item){
-    const y = pick(item, ['passing_year','passout_year','graduation_year','completion_year','batch_end_year']) ||
-              pick(item?.metadata, ['passing_year','passout_year']) || '';
+    const y = pick(item, ['passing_year','passout_year','graduation_year','completion_year','batch_end_year']) || pick(item?.metadata, ['passing_year','passout_year']) || '';
     return (y === null || y === undefined) ? '' : String(y);
   }
-
   function resolveYearTopper(item){
-    const y = pick(item, ['year_topper','topper_year','year_of_topper']) ||
-              pick(item?.metadata, ['year_topper','topper_year']) || '';
+    const y = pick(item, ['year_topper','topper_year','year_of_topper']) || pick(item?.metadata, ['year_topper','topper_year']) || '';
     return (y === null || y === undefined) ? '' : String(y);
   }
-
   function resolveYGPA(item){
-    const v = pick(item, ['ygpa','year_gpa','year_gpa_score','yearly_gpa']) ||
-              pick(item?.metadata, ['ygpa','year_gpa']) || '';
+    const v = pick(item, ['ygpa','year_gpa','year_gpa_score','yearly_gpa']) || pick(item?.metadata, ['ygpa','year_gpa']) || '';
     return format2(v);
   }
-
   function resolveRank(item){
     const r = pick(item, ['rank','position','top_rank','merit_rank']) || pick(item?.metadata, ['rank','position']) || '';
     return (r === null || r === undefined) ? '' : String(r);
   }
-
-  // keep generic score resolver for backward compatibility, but prefer ygpa
   function resolveScore(item){
     const yg = resolveYGPA(item);
     if (yg) return yg;
-    return String(
-      pick(item, ['cgpa','gpa','percentage','score','marks','result']) ||
-      pick(item?.metadata, ['cgpa','percentage','score']) ||
-      ''
-    );
+    return String(pick(item, ['cgpa','gpa','percentage','score','marks','result']) || pick(item?.metadata, ['cgpa','percentage','score']) || '');
   }
-
   function resolveAchievement(item){
-    return String(
-      pick(item, ['achievement','achievements','award','title','note','about','bio','summary']) ||
-      pick(item?.metadata, ['achievement','achievements','award','note','about']) ||
-      ''
-    );
+    return String(pick(item, ['achievement','achievements','award','title','note','about','bio','summary']) || pick(item?.metadata, ['achievement','achievements','award','note','about']) || '');
   }
-
   function resolveSkills(item){
     const s = item?.metadata?.skills;
     if (Array.isArray(s)) return s.map(x => String(x || '').trim()).filter(Boolean);
     const s2 = pick(item, ['skills']) || pick(item?.metadata, ['skills']) || '';
     if (Array.isArray(s2)) return s2.map(x => String(x || '').trim()).filter(Boolean);
-    if (typeof s2 === 'string' && s2.trim()){
-      return s2.split(',').map(x => x.trim()).filter(Boolean);
-    }
+    if (typeof s2 === 'string' && s2.trim()) return s2.split(',').map(x => x.trim()).filter(Boolean);
     return [];
   }
-
-  // kept for compatibility (even though DB cols were removed)
-  function resolveCompany(item){
-    return String(
-      pick(item, ['current_company','company','company_name']) ||
-      pick(item?.metadata, ['company','current_company']) ||
-      ''
-    );
-  }
-  function resolveRoleTitle(item){
-    return String(
-      pick(item, ['current_role_title','current_role','designation','role_title','job_title','position_title']) ||
-      pick(item?.metadata, ['role_title','designation']) ||
-      ''
-    );
-  }
-
   function resolveImage(item){
-    const img =
-      pick(item, ['user_image','image','image_url','photo_url','profile_image_url','avatar_url']) ||
-      pick(item?.user, ['image','photo_url','image_url']) ||
-      '';
+    const img = pick(item, ['user_image','image','image_url','photo_url','profile_image_url','avatar_url']) || pick(item?.user, ['image','photo_url','image_url']) || '';
     return normalizeUrl(img);
   }
 
@@ -1060,7 +993,6 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
     if (grid) grid.style.display = 'none';
     if (pager) pager.style.display = 'none';
     if (st) st.style.display = 'none';
-
     if (!sk) return;
     sk.style.display = '';
     sk.innerHTML = Array.from({length: 12}).map(() => `<div class="ptp-sk"></div>`).join('');
@@ -1107,9 +1039,7 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
     state.deptName = meta.title ?? '';
 
     if (els.sub){
-      els.sub.textContent = state.deptName
-        ? ('Program toppers of ' + state.deptName)
-        : 'Program toppers (filtered)';
+      els.sub.textContent = state.deptName ? ('Program toppers of ' + state.deptName) : 'Program toppers (filtered)';
     }
   }
 
@@ -1167,13 +1097,10 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
 
   async function ensureToppersLoaded(force=false){
     if (allToppers && !force) return;
-
     showSkeleton();
 
     try{
       let js = null;
-
-      // best-effort query params (safe if backend ignores)
       try{
         const u = new URL(API, window.location.origin);
         u.searchParams.set('status', 'active');
@@ -1186,7 +1113,6 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
       }
 
       allToppers = Array.isArray(toItems(js)) ? toItems(js) : [];
-
       topperByKey = new Map();
       for (const it of allToppers){
         const k = resolveKey(it);
@@ -1217,11 +1143,9 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
     const q = (state.q || '').toString().trim().toLowerCase();
     let items = Array.isArray(allToppers) ? allToppers.slice() : [];
 
-    // department filter (by id or uuid)
     if (state.deptUuid && state.deptId !== null && state.deptId !== undefined && String(state.deptId) !== ''){
       const deptIdStr = String(state.deptId);
       const deptUuidStr = String(state.deptUuid);
-
       items = items.filter(it => {
         const did = resolveDepartmentId(it);
         const duu = resolveDepartmentUuid(it);
@@ -1247,22 +1171,13 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
         const ach = resolveAchievement(it).toLowerCase();
 
         return (
-          name.includes(q) ||
-          dept.includes(q) ||
-          program.includes(q) ||
-          spec.includes(q) ||
-          ay.includes(q) ||
-          py.includes(q) ||
-          yearTopper.includes(q) ||
-          ygpa.includes(q) ||
-          rank.includes(q) ||
-          score.includes(q) ||
-          ach.includes(q)
+          name.includes(q) || dept.includes(q) || program.includes(q) || spec.includes(q) ||
+          ay.includes(q) || py.includes(q) || yearTopper.includes(q) || ygpa.includes(q) ||
+          rank.includes(q) || score.includes(q) || ach.includes(q)
         );
       });
     }
 
-    // optional: prefer rank ascending if available
     items.sort((a,b) => {
       const ra = parseFloat(resolveRank(a));
       const rb = parseFloat(resolveRank(b));
@@ -1288,7 +1203,6 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
     const ygpa = resolveYGPA(it);
     const rank = resolveRank(it);
     const img = resolveImage(it);
-
     const key = resolveKey(it);
 
     const deptPill = deptName ? `<div class="ptp-pill" title="${escAttr(deptName)}">${esc(deptName)}</div>` : '';
@@ -1305,26 +1219,17 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
     const subParts = [];
     if (admissionYear) subParts.push(`Batch: ${esc(admissionYear)}${passingYear ? '–' + esc(passingYear) : ''}`);
     else if (passingYear) subParts.push(`Passout: ${esc(passingYear)}`);
-
     if (yearTopper) subParts.push(`${esc(ordinal(yearTopper) ? (ordinal(yearTopper) + ' Year Topper') : ('Year Topper ' + yearTopper))}`);
     if (ygpa) subParts.push(`YGPA: ${esc(ygpa)}`);
 
     const subLine = subParts.length ? `<p class="ptp-submeta">${subParts.join(`<span class="dot">•</span>`)}</p>` : '';
 
     const inner = !img
-      ? `
-        <div class="ptp-placeholder">
-          <div class="ptp-initials">${esc(initials(name))}</div>
-        </div>
-      `
+      ? `<div class="ptp-placeholder"><div class="ptp-initials">${esc(initials(name))}</div></div>`
       : `<div class="bg" style="background-image:url('${escAttr(img)}')"></div>`;
 
     return `
-      <a class="ptp-card"
-         href="#"
-         data-key="${escAttr(key)}"
-         role="button"
-         aria-label="${escAttr(name)} details (opens modal)">
+      <a class="ptp-card" href="#" data-key="${escAttr(key)}" role="button" aria-label="${escAttr(name)} details (opens modal)">
         ${inner}
         ${deptPill}
         ${yearPill}
@@ -1348,23 +1253,23 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
       st.style.display = '';
       const deptLine = state.deptName ? `<div style="margin-top:6px;font-size:12.5px;opacity:.95;">Department: <b>${esc(state.deptName)}</b></div>` : '';
       st.innerHTML = `
-  <div aria-hidden="true" style="width:170px;max-width:100%;margin:0 auto 10px;display:block;color:var(--anx-brand);">
-    <svg viewBox="0 0 220 140" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%;height:auto;">
-      <rect x="10" y="18" width="200" height="112" rx="16" fill="white" stroke="rgba(15,23,42,0.10)"/>
-      <rect x="24" y="32" width="172" height="84" rx="12" fill="rgba(148,163,184,0.08)" stroke="rgba(148,163,184,0.18)"/>
-      <circle cx="70" cy="66" r="16" fill="rgba(158,54,58,0.14)" stroke="currentColor" stroke-width="2"/>
-      <path d="M49 97c5-11 16-16 21-16s16 5 21 16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
-      <rect x="100" y="52" width="72" height="8" rx="4" fill="rgba(100,116,139,0.20)"/>
-      <rect x="100" y="68" width="54" height="8" rx="4" fill="rgba(100,116,139,0.16)"/>
-      <rect x="100" y="84" width="64" height="8" rx="4" fill="rgba(100,116,139,0.12)"/>
-      <circle cx="182" cy="26" r="12" fill="rgba(158,54,58,0.10)" stroke="currentColor" stroke-width="1.8"/>
-      <path d="M177.5 26h9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-      <path d="M182 21.5v9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-    </svg>
-  </div>
-  No programme toppers found.
-  ${deptLine}
-`;
+        <div aria-hidden="true" style="width:170px;max-width:100%;margin:0 auto 10px;display:block;color:var(--anx-brand);">
+          <svg viewBox="0 0 220 140" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%;height:auto;">
+            <rect x="10" y="18" width="200" height="112" rx="16" fill="white" stroke="rgba(15,23,42,0.10)"/>
+            <rect x="24" y="32" width="172" height="84" rx="12" fill="rgba(148,163,184,0.08)" stroke="rgba(148,163,184,0.18)"/>
+            <circle cx="70" cy="66" r="16" fill="rgba(158,54,58,0.14)" stroke="currentColor" stroke-width="2"/>
+            <path d="M49 97c5-11 16-16 21-16s16 5 21 16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+            <rect x="100" y="52" width="72" height="8" rx="4" fill="rgba(100,116,139,0.20)"/>
+            <rect x="100" y="68" width="54" height="8" rx="4" fill="rgba(100,116,139,0.16)"/>
+            <rect x="100" y="84" width="64" height="8" rx="4" fill="rgba(100,116,139,0.12)"/>
+            <circle cx="182" cy="26" r="12" fill="rgba(158,54,58,0.10)" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M177.5 26h9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path d="M182 21.5v9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        No programme toppers found.
+        ${deptLine}
+      `;
       return;
     }
 
@@ -1404,9 +1309,7 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
       if (start > 2) html += `<span style="opacity:.6;padding:0 4px;">…</span>`;
     }
 
-    for (let p=start; p<=end; p++){
-      html += btn(String(p), p, { active: p===cur });
-    }
+    for (let p=start; p<=end; p++) html += btn(String(p), p, { active: p===cur });
 
     if (end < last){
       if (end < last - 1) html += `<span style="opacity:.6;padding:0 4px;">…</span>`;
@@ -1421,18 +1324,14 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
 
   function repaint(){
     const filtered = applyFilterAndSearch();
-
     state.lastPage = Math.max(1, Math.ceil(filtered.length / state.perPage));
     if (state.page > state.lastPage) state.page = state.lastPage;
-
     const start = (state.page - 1) * state.perPage;
     const pageItems = filtered.slice(start, start + state.perPage);
-
     render(pageItems);
     renderPager();
   }
 
-  // ===== Modal helpers =====
   let lastFocusEl = null;
 
   function closeModal(){
@@ -1442,10 +1341,7 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
     m.setAttribute('aria-hidden','true');
     document.documentElement.style.overflow = '';
     document.body.style.overflow = '';
-
-    if (lastFocusEl && typeof lastFocusEl.focus === 'function') {
-      try{ lastFocusEl.focus(); }catch(_){}
-    }
+    if (lastFocusEl && typeof lastFocusEl.focus === 'function') { try{ lastFocusEl.focus(); }catch(_){} }
     lastFocusEl = null;
   }
 
@@ -1487,13 +1383,11 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
     const yearTopper = resolveYearTopper(it);
     const ygpa = resolveYGPA(it);
     const rank = resolveRank(it);
-    const score = resolveScore(it); // fallback
+    const score = resolveScore(it);
     const ach = resolveAchievement(it);
     const skills = resolveSkills(it);
-
     const img = resolveImage(it);
 
-    // HERO subtitle
     const heroSub = [];
     if (rank) heroSub.push('Rank ' + rank);
     if (yearTopper) heroSub.push((ordinal(yearTopper) ? (ordinal(yearTopper) + ' Year Topper') : ('Year Topper ' + yearTopper)));
@@ -1503,14 +1397,9 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
     const batch = admissionYear ? (admissionYear + (passingYear ? ('–' + passingYear) : '')) : (passingYear || '');
     if (batch) heroSub.push('Batch ' + batch);
 
-    const heroSubHtml = heroSub.length
-      ? heroSub.map(s => `<span>${esc(s)}</span>`).join('<span class="sep">•</span>')
-      : '';
-
+    const heroSubHtml = heroSub.length ? heroSub.map(s => `<span>${esc(s)}</span>`).join('<span class="sep">•</span>') : '';
     const quoteText = ach || (ygpa ? ('YGPA: ' + ygpa) : (score ? ('Score: ' + score) : ''));
-    const quoteHtml = quoteText
-      ? `<div class="ptp-modal__hero-quote">"${esc(quoteText)}"</div>`
-      : '';
+    const quoteHtml = quoteText ? `<div class="ptp-modal__hero-quote">"${esc(quoteText)}"</div>` : '';
 
     if (img) {
       els.modalHero.innerHTML = `
@@ -1536,7 +1425,6 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
       `;
     }
 
-    // right header tagline
     const tagParts = [];
     if (dept) tagParts.push(dept);
     if (program) tagParts.push(program + (spec ? (' · ' + spec) : ''));
@@ -1544,11 +1432,8 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
     if (rank) tagParts.push('Rank ' + rank);
     if (ygpa) tagParts.push('YGPA ' + ygpa);
 
-    const tagHtml = tagParts.length
-      ? tagParts.map(t => `<span>${esc(t)}</span>`).join('<span class="tsep">•</span>')
-      : '';
+    const tagHtml = tagParts.length ? tagParts.map(t => `<span>${esc(t)}</span>`).join('<span class="tsep">•</span>') : '';
 
-    // Academic fields (updated to include year_topper & ygpa)
     const acadFields = [
       mFieldHtml('Program', 'fa-solid fa-graduation-cap', program),
       mFieldHtml('Specialization', 'fa-solid fa-diagram-project', spec),
@@ -1560,7 +1445,6 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
     ].filter(Boolean);
 
     const skillsHtml = mChipsHtml('Skills', 'fa-solid fa-wand-magic-sparkles', skills);
-
     const noteHtml = ach ? `
       <div class="ptp-mnote">
         <div class="ptp-mnote-label"><i class="fa-solid fa-star"></i>Highlight</div>
@@ -1584,7 +1468,6 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
         </div>
       `;
     }
-
     if (skillsHtml){
       detailsHtml += `
         <div class="ptp-msection">
@@ -1593,19 +1476,13 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
         </div>
       `;
     }
-
     if (noteHtml){
-      detailsHtml += `
-        <div class="ptp-msection">
-          ${noteHtml}
-        </div>
-      `;
+      detailsHtml += `<div class="ptp-msection">${noteHtml}</div>`;
     }
 
-    detailsHtml += `</div>`; // close dcontent
+    detailsHtml += `</div>`;
     els.modalDetails.innerHTML = detailsHtml;
 
-    // show modal
     lastFocusEl = document.activeElement;
     els.modal.classList.add('show');
     els.modal.setAttribute('aria-hidden','false');
@@ -1619,14 +1496,11 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
   function onCardClick(e){
     const card = e.target.closest('.ptp-card');
     if (!card) return;
-
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-
     e.preventDefault();
 
     const key = (card.getAttribute('data-key') || '').trim();
     if (!key) return;
-
     const it = topperByKey.get(key);
     if (!it) return;
 
@@ -1650,25 +1524,20 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
   document.addEventListener('DOMContentLoaded', async () => {
     await loadDepartments();
 
-    // dept deep-link: ?d-<uuid>  OR slug in path (same pattern as alumni page)
     const deepDeptUuid = extractDeptUuidFromUrl();
     if (deepDeptUuid && deptByUuid.has(deepDeptUuid)){
       setDeptSelection(deepDeptUuid);
     } else {
       const slug = readDeptSlugFromPath();
       const uuidFromSlug = slug ? (deptBySlug.get(slug) || '') : '';
-      if (uuidFromSlug && deptByUuid.has(uuidFromSlug)){
-        setDeptSelection(uuidFromSlug);
-      } else {
-        setDeptSelection('');
-      }
+      if (uuidFromSlug && deptByUuid.has(uuidFromSlug)) setDeptSelection(uuidFromSlug);
+      else setDeptSelection('');
     }
 
     await ensureToppersLoaded(false);
     repaint();
 
     document.addEventListener('click', onCardClick);
-
     els.modal && els.modal.addEventListener('click', onModalClick);
     document.addEventListener('keydown', onEsc);
 
@@ -1686,11 +1555,8 @@ html.theme-dark .ptp-mnote-val{ color: #cbd5e1; }
       const v = (els.dept.value || '').toString();
       if (v === '__loading') return;
 
-      if (!v){
-        setDeptSelection('');
-      } else {
-        setDeptSelection(v);
-      }
+      if (!v) setDeptSelection('');
+      else setDeptSelection(v);
 
       state.page = 1;
       repaint();

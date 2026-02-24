@@ -518,3 +518,15 @@ Route::get('/activity-logs', fn () => view('pages.users.pages.userActivityLogs.u
 Route::get('/meta-tags/manage', function () {
     return view('pages.users.pages.metaTags.manageMetaTags');
 });
+
+
+
+
+
+
+
+// S.E Routes
+ 
+Route::get('/public/institute/contact-us', function () {
+    return view('landing.pages.contactUs.viewContactUs');
+});

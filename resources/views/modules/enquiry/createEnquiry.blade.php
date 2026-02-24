@@ -175,6 +175,71 @@
     filter: grayscale(.05);
   }
 
+  /* ✅ Top-right toast (replaces SweetAlert) */
+  .cu-toast-wrap{
+    position:fixed;
+    top:16px;
+    right:16px;
+    z-index:200000; /* above modals */
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    width:min(380px, calc(100vw - 24px));
+    pointer-events:none;
+  }
+  .cu-toast{
+    pointer-events:auto;
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+    background:#fff;
+    border:1px solid #e8edf2;
+    border-radius:14px;
+    box-shadow:0 18px 40px rgba(16,24,40,.16);
+    padding:10px 12px;
+    transform:translateY(-8px);
+    opacity:0;
+    transition:all .2s ease;
+    overflow:hidden;
+    position:relative;
+  }
+  .cu-toast.show{ transform:translateY(0); opacity:1; }
+  .cu-toast::before{
+    content:"";
+    position:absolute;
+    left:0; top:0; bottom:0;
+    width:4px;
+    background:#c94b50;
+  }
+  .cu-toast.success::before{ background:#16a34a; }
+  .cu-toast.error::before{ background:#dc2626; }
+  .cu-toast.info::before{ background:#2563eb; }
+
+  .cu-toast-icon{
+    width:28px; height:28px; border-radius:999px;
+    display:inline-flex; align-items:center; justify-content:center;
+    flex:0 0 28px; margin-top:2px;
+    background:#f3f4f6; color:#111827; font-size:13px;
+  }
+  .cu-toast.success .cu-toast-icon{ background:#ecfdf3; color:#15803d; }
+  .cu-toast.error .cu-toast-icon{ background:#fef2f2; color:#b91c1c; }
+  .cu-toast.info .cu-toast-icon{ background:#eff6ff; color:#1d4ed8; }
+
+  .cu-toast-body{ min-width:0; flex:1 1 auto; }
+  .cu-toast-title{
+    font-weight:900; color:#111827; font-size:13.5px; line-height:1.2; margin:0 0 2px;
+  }
+  .cu-toast-text{
+    color:#475569; font-size:13px; line-height:1.35; margin:0;
+    word-break:break-word;
+  }
+  .cu-toast-close{
+    border:none; background:transparent; color:#64748b;
+    font-size:16px; line-height:1; cursor:pointer; padding:2px;
+    border-radius:6px; flex:0 0 auto;
+  }
+  .cu-toast-close:hover{ background:#f1f5f9; color:#0f172a; }
+
   @media(max-width: 900px){
     .cu-form{ grid-template-columns:1fr; }
   }
@@ -278,11 +343,12 @@
 
 {{-- Submit form --}}
 @if($show_form)
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
   (function(){
     const form = document.getElementById('contactForm');
     const btn  = document.getElementById('submitBtn');
+
+    if(!form || !btn) return;
 
     const firstNameEl = document.getElementById('first_name');
     const lastNameEl  = document.getElementById('last_name');
@@ -304,6 +370,99 @@
     // ✅ texts must be posted as discussed
     const LEGAL_TEXT_1 = @json($legalText1);
     const LEGAL_TEXT_2 = @json($legalText2);
+
+    function ensureToastWrap(){
+      let wrap = document.getElementById('cuToastWrap');
+      if(!wrap){
+        wrap = document.createElement('div');
+        wrap.id = 'cuToastWrap';
+        wrap.className = 'cu-toast-wrap';
+        document.body.appendChild(wrap);
+      }
+      return wrap;
+    }
+
+    function toastIcon(type){
+      if(type === 'success') return 'fa-solid fa-circle-check';
+      if(type === 'error') return 'fa-solid fa-circle-exclamation';
+      return 'fa-solid fa-circle-info';
+    }
+
+    function showToast(type, title, message){
+      const wrap = ensureToastWrap();
+      const el = document.createElement('div');
+      el.className = `cu-toast ${type || 'info'}`;
+      el.innerHTML = `
+        <div class="cu-toast-icon"><i class="${toastIcon(type)}"></i></div>
+        <div class="cu-toast-body">
+          <p class="cu-toast-title">${title || ''}</p>
+          <p class="cu-toast-text">${message || ''}</p>
+        </div>
+        <button type="button" class="cu-toast-close" aria-label="Close">&times;</button>
+      `;
+      wrap.appendChild(el);
+
+      requestAnimationFrame(() => el.classList.add('show'));
+
+      let t1 = null, t2 = null;
+      const removeToast = () => {
+        clearTimeout(t1); clearTimeout(t2);
+        el.classList.remove('show');
+        t2 = setTimeout(() => { try{ el.remove(); }catch(_){} }, 220);
+      };
+
+      el.querySelector('.cu-toast-close')?.addEventListener('click', removeToast);
+      t1 = setTimeout(removeToast, 3500);
+      return removeToast;
+    }
+
+    // ✅ Close any parent/open modal safely (Bootstrap or fallback)
+    function hardHideModal(modal){
+      if(!modal) return;
+      modal.classList.remove('show');
+      modal.style.display = 'none';
+      modal.setAttribute('aria-hidden', 'true');
+      modal.removeAttribute('aria-modal');
+      try { modal.dispatchEvent(new Event('hidden.bs.modal', { bubbles:true })); } catch(_) {}
+    }
+
+    function cleanupModalBackdrop(){
+      document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+      document.body.classList.remove('modal-open');
+      document.body.style.removeProperty('overflow');
+      document.body.style.removeProperty('padding-right');
+    }
+
+    function closeAnyParentModals(){
+      const modals = new Set();
+
+      // direct parent modal(s) of the form
+      let p = form.parentElement;
+      while(p){
+        if(p.classList && p.classList.contains('modal')) modals.add(p);
+        p = p.parentElement;
+      }
+
+      // any currently open modals (safer for nested include cases)
+      document.querySelectorAll('.modal.show').forEach(m => modals.add(m));
+
+      modals.forEach(modal => {
+        try{
+          if(window.bootstrap && window.bootstrap.Modal){
+            const inst = window.bootstrap.Modal.getInstance(modal) || new window.bootstrap.Modal(modal);
+            inst.hide();
+          }else{
+            hardHideModal(modal);
+          }
+        }catch(_){
+          hardHideModal(modal);
+        }
+      });
+
+      // Cleanup in case backdrop remains
+      setTimeout(cleanupModalBackdrop, 350);
+      setTimeout(cleanupModalBackdrop, 700);
+    }
 
     function rand(min, max){ return Math.floor(Math.random() * (max - min + 1)) + min; }
 
@@ -422,20 +581,20 @@
       const message    = msgEl.value.trim();
 
       if(!first_name || !email || !message){
-        Swal.fire('Error','Please fill all required fields','error');
+        showToast('error','Error','Please fill all required fields');
         return;
       }
 
       // ✅ Hard requirement: both must be checked
       if(!(termsEl.checked && promoEl.checked)){
-        Swal.fire('Error','Please accept the required agreements to continue.','error');
+        showToast('error','Error','Please accept the required agreements to continue.');
         syncBtn();
         return;
       }
 
       // ✅ Captcha check (case-sensitive + ALL CAPS required)
       if(!captchaOk()){
-        Swal.fire('Error','Captcha does not match. Use CAPITAL letters only.','error');
+        showToast('error','Error','Captcha does not match. Use CAPITAL letters only.');
         refreshCaptcha();
         syncBtn();
         return;
@@ -472,7 +631,10 @@
         const data = await res.json().catch(() => ({}));
 
         if(res.ok){
-          Swal.fire('Success','Message sent successfully','success');
+          // ✅ Close modal first (if this include is rendered inside any modal)
+          closeAnyParentModals();
+
+          showToast('success','Success','Message sent successfully');
           form.reset();
 
           // ✅ Refresh captcha + force-disable after reset
@@ -491,14 +653,14 @@
             }
           }
 
-          Swal.fire('Error', msg, 'error');
+          showToast('error','Error', msg);
           console.error(data);
           refreshCaptcha();
           syncBtn();
         }
       }catch(err){
         console.error(err);
-        Swal.fire('Error','Something went wrong. Please try again.','error');
+        showToast('error','Error','Something went wrong. Please try again.');
         refreshCaptcha();
         syncBtn();
       }finally{
