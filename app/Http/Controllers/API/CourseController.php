@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Log;
 
 class CourseController extends Controller
 {
@@ -1216,33 +1217,58 @@ class CourseController extends Controller
     }
 
     public function publicShow(Request $request, $identifier)
-    {
-        $actor = $this->actor($request);
-        $ac = $this->accessControl($actor['id']);
+{
+    try {
+        Log::info('Course publicShow called', [
+            'identifier' => (string) $identifier,
+            'path'       => $request->path(),
+            'ip'         => $request->ip(),
+            'query'      => $request->query(),
+        ]);
 
-        if ($ac['mode'] === 'not_allowed') {
-            return response()->json(['success' => false, 'message' => 'Not allowed'], 403);
-        }
-        if ($ac['mode'] === 'none') {
+        // ✅ UUID-only public show
+        if (!Str::isUuid((string) $identifier)) {
+            Log::warning('Course publicShow rejected: identifier is not UUID', [
+                'identifier' => (string) $identifier,
+                'ip'         => $request->ip(),
+            ]);
+
             return response()->json(['message' => 'Course not found'], 404);
         }
 
-        $includeDeleted = filter_var($request->query('with_trashed', false), FILTER_VALIDATE_BOOLEAN);
-        $deptId = ($ac['mode'] === 'department') ? (int)$ac['department_id'] : null;
+        // ✅ Public route should NOT depend on accessControl()/logged-in user
+        // Resolve by UUID (resolveCourse already supports UUID if identifier is UUID)
+        $row = $this->resolveCourse($request, (string) $identifier, false);
+        if (! $row) {
+            Log::warning('Course publicShow: course not found', [
+                'identifier' => (string) $identifier,
+                'ip'         => $request->ip(),
+            ]);
 
-        $row = $this->resolveCourse($request, $identifier, $includeDeleted, $deptId);
-        if (!$row) return response()->json(['message' => 'Course not found'], 404);
-
-        $row = $this->resolveCourse($request, $identifier, false);
-        if (! $row) return response()->json(['message' => 'Course not found'], 404);
+            return response()->json(['message' => 'Course not found'], 404);
+        }
 
         $now = now();
+
+        $publishAt = !empty($row->publish_at) ? Carbon::parse($row->publish_at) : null;
+        $expireAt  = !empty($row->expire_at)  ? Carbon::parse($row->expire_at)  : null;
+
         $isVisible =
-            ($row->status === 'published') &&
-            (empty($row->publish_at) || Carbon::parse($row->publish_at)->lte($now)) &&
-            (empty($row->expire_at)  || Carbon::parse($row->expire_at)->gt($now));
+            ((string) $row->status === 'published') &&
+            (!$publishAt || $publishAt->lte($now)) &&
+            (!$expireAt  || $expireAt->gt($now));
 
         if (! $isVisible) {
+            Log::info('Course publicShow: course not visible', [
+                'identifier' => (string) $identifier,
+                'course_id'  => (int) $row->id,
+                'uuid'       => (string) ($row->uuid ?? ''),
+                'status'     => (string) ($row->status ?? ''),
+                'publish_at' => $row->publish_at,
+                'expire_at'  => $row->expire_at,
+                'now'        => $now->toDateTimeString(),
+            ]);
+
             return response()->json(['message' => 'Course not available'], 404);
         }
 
@@ -1256,9 +1282,33 @@ class CourseController extends Controller
             $row->views_count = ((int) ($row->views_count ?? 0)) + 1;
         }
 
+        Log::info('Course publicShow success', [
+            'course_id'   => (int) $row->id,
+            'uuid'        => (string) ($row->uuid ?? ''),
+            'title'       => (string) ($row->title ?? ''),
+            'views_count' => (int) ($row->views_count ?? 0),
+            'inc_view'    => (bool) $inc,
+        ]);
+
         return response()->json([
             'success' => true,
             'item'    => $this->normalizeRow($row),
         ]);
+
+    } catch (\Throwable $e) {
+        Log::error('Course publicShow exception', [
+            'identifier' => (string) $identifier,
+            'ip'         => $request->ip(),
+            'message'    => $e->getMessage(),
+            'file'       => $e->getFile(),
+            'line'       => $e->getLine(),
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Something went wrong while loading the course.',
+        ], 500);
     }
+}
+
 }
