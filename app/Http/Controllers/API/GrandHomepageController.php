@@ -57,9 +57,13 @@ class GrandHomepageController extends Controller
         [$deptId, $limit, $now] = $this->baseParams($request);
         $legacy = filter_var($request->query('legacy', false), FILTER_VALIDATE_BOOLEAN);
 
-        $cacheKey = $this->cacheKey('full', $deptId, $limit);
+        // ✅ courses can have its own limit (keeps featured but doesn't cap at 12)
+        $coursesLimit = $this->coursesLimit($request);
 
-        $raw = Cache::remember($cacheKey, now()->addSeconds(60), function () use ($now, $deptId, $limit) {
+        // ✅ include courses_limit in full cache key
+        $cacheKey = $this->cacheKey('full', $deptId, $limit) . ':courses_limit:' . $coursesLimit;
+
+        $raw = Cache::remember($cacheKey, now()->addSeconds(60), function () use ($now, $deptId, $limit, $coursesLimit) {
             // 1) Notice Marquee + Hero
             $noticeMarquee = $this->fetchNoticeMarquee($now);
             $heroCarousel  = $this->fetchHeroCarousel($now, $limit);
@@ -80,7 +84,8 @@ class GrandHomepageController extends Controller
             $placementNotices  = $this->placementNoticesList($now, $deptId, $limit);
 
             // 5) Courses / Stats
-            $courses = $this->fetchCourses($now, $deptId, $limit);
+            // ✅ use coursesLimit here (featured first, then rest)
+            $courses = $this->fetchCourses($now, $deptId, $coursesLimit);
             $stats   = $this->fetchStats($now);
 
             // 6) Entrepreneurs / Alumni / Success Stories / Recruiters
@@ -230,8 +235,12 @@ class GrandHomepageController extends Controller
     {
         [$deptId, $limit, $now] = $this->baseParams($request);
 
-        $cacheKey = $this->cacheKey('courses', $deptId, $limit);
-        $data = Cache::remember($cacheKey, now()->addSeconds(60), fn() => $this->fetchCourses($now, $deptId, $limit));
+        // ✅ courses can have its own limit (default 50, up to 200)
+        $coursesLimit = $this->coursesLimit($request);
+
+        // ✅ cache key must use coursesLimit, not the shared homepage $limit
+        $cacheKey = $this->cacheKey('courses', $deptId, $coursesLimit);
+        $data = Cache::remember($cacheKey, now()->addSeconds(60), fn() => $this->fetchCourses($now, $deptId, $coursesLimit));
 
         return response()->json(['success' => true, 'courses' => $data]);
     }
@@ -298,8 +307,6 @@ class GrandHomepageController extends Controller
     /* =========================================================
      | Fetchers (section data)
      |========================================================= */
-
-    // GrandHomepageController.php
 
     private function fetchNoticeMarquee($now): ?array
     {
@@ -506,6 +513,9 @@ class GrandHomepageController extends Controller
                 'sort_order' => (int) $this->getVal($r, 'sort_order', 0),
                 'status' => $this->getVal($r, 'status'),
 
+                // ✅ NEW COLUMN: approvals (VARCHAR(255) NULL)
+                'approvals' => $this->getVal($r, 'approvals'),
+
                 'publish_at' => $this->iso($this->getVal($r, 'publish_at')),
                 'expire_at' => $this->iso($this->getVal($r, 'expire_at')),
                 'views_count' => (int) $this->getVal($r, 'views_count', 0),
@@ -517,28 +527,50 @@ class GrandHomepageController extends Controller
             ];
         };
 
-        $fetch = function ($q) use ($limit, $map) {
-            // homepage ordering (featured first + sort_order + latest)
+        // ✅ shared ordering (featured first + sort_order + latest)
+        $fetchRows = function ($q, int $take) {
             if ($this->hasColumn('courses', 'is_featured_home')) $q->orderBy('is_featured_home', 'desc');
             if ($this->hasColumn('courses', 'sort_order'))       $q->orderBy('sort_order', 'asc');
 
             $q->orderByRaw('COALESCE(publish_at, created_at) desc');
 
             return $q->orderByDesc('id')
-                ->limit($limit)
-                ->get()
-                ->map($map)
-                ->values()
-                ->all();
+                ->limit($take)
+                ->get();
         };
 
-        // ✅ try featured-only first, fallback to all published
+        // ✅ KEEP featured functionality BUT do NOT restrict to featured-only
         if ($this->hasColumn('courses', 'is_featured_home')) {
-            $featuredRows = $fetch((clone $base)->where('is_featured_home', 1));
-            if (!empty($featuredRows)) return $featuredRows;
+            // 1) fetch featured up to $limit
+            $featuredRows = $fetchRows((clone $base)->where('is_featured_home', 1), $limit);
+
+            $need = $limit - (int) $featuredRows->count();
+            if ($need > 0) {
+                // 2) fill remaining with non-featured (includes 0/NULL), excluding featured IDs
+                $excludeIds = $featuredRows->pluck('id')->filter()->values()->all();
+
+                $restQ = (clone $base)->where(function ($qq) {
+                    $qq->whereNull('is_featured_home')
+                        ->orWhere('is_featured_home', '<>', 1);
+                });
+
+                if (!empty($excludeIds)) {
+                    $restQ->whereNotIn('id', $excludeIds);
+                }
+
+                $restRows = $fetchRows($restQ, $need);
+
+                $rows = $featuredRows->concat($restRows);
+            } else {
+                $rows = $featuredRows;
+            }
+
+            return $rows->map($map)->values()->all();
         }
 
-        return $fetch($base);
+        // no featured column => normal fetch
+        $rows = $fetchRows($base, $limit);
+        return $rows->map($map)->values()->all();
     }
 
     private function fetchStats($now): ?array
@@ -884,7 +916,7 @@ class GrandHomepageController extends Controller
     }
 
     /* =========================================================
-     | Legacy builder (unchanged from yours)
+     | Legacy builder (unchanged from yours, + approvals passthrough)
      |========================================================= */
 
     private function buildFrontendPayload(array $raw): array
@@ -984,6 +1016,9 @@ class GrandHomepageController extends Controller
                 'peo_link'     => $url,
                 'faculty_link' => $url,
                 'dept_link'    => $url,
+
+                // ✅ NEW passthrough for legacy consumers (won't break old UI)
+                'approvals'    => $this->text($this->getVal($c, 'approvals')),
             ];
         }
 
@@ -1256,10 +1291,29 @@ class GrandHomepageController extends Controller
         return [$deptId, $limit, now()];
     }
 
+    // ✅ NEW: coursesLimit is separate from homepage "limit"
+    // - default: 50 (shows all 16 etc)
+    // - max: 200
+    // - priority: courses_limit, else explicit limit, else default
+    private function coursesLimit(Request $request, int $default = 50): int
+    {
+        $raw = null;
+
+        if ($request->has('courses_limit')) $raw = $request->query('courses_limit');
+        elseif ($request->has('limit'))     $raw = $request->query('limit');
+
+        $n = (int) ($raw ?? $default);
+
+        if ($n < 1) $n = $default;
+        if ($n > 200) $n = 200;
+
+        return $n;
+    }
+
     private function cacheKey(string $section, ?int $deptId, int $limit): string
     {
         // bump version when response shapes change
-        return 'grand_homepage:v3:' . $section . ':' . ($deptId ? ('dept:' . $deptId) : 'dept:all') . ':limit:' . $limit;
+        return 'grand_homepage:v4:' . $section . ':' . ($deptId ? ('dept:' . $deptId) : 'dept:all') . ':limit:' . $limit;
     }
 
     private function json($value, $default)

@@ -358,6 +358,8 @@ class CourseController extends Controller
 
     protected function baseQuery(Request $request, bool $includeDeleted = false)
     {
+        $hasApprovals = Schema::hasColumn('courses', 'approvals');
+
         $q = DB::table('courses as c')
             ->leftJoin('departments as d', 'd.id', '=', 'c.department_id')
             ->select([
@@ -374,12 +376,16 @@ class CourseController extends Controller
         // ?q=
         if ($request->filled('q')) {
             $term = '%' . trim((string) $request->query('q')) . '%';
-            $q->where(function ($sub) use ($term) {
+            $q->where(function ($sub) use ($term, $hasApprovals) {
                 $sub->where('c.title', 'like', $term)
                     ->orWhere('c.slug', 'like', $term)
                     ->orWhere('c.summary', 'like', $term)
                     ->orWhere('c.body', 'like', $term)
                     ->orWhere('c.career_scope', 'like', $term);
+
+                if ($hasApprovals) {
+                    $sub->orWhere('c.approvals', 'like', $term);
+                }
             });
         }
 
@@ -571,6 +577,8 @@ class CourseController extends Controller
 
     public function store(Request $request)
     {
+        $hasApprovals = Schema::hasColumn('courses', 'approvals');
+
         $actor = $this->actor($request);
         $ac = $this->accessControl($actor['id']);
 
@@ -609,6 +617,7 @@ class CourseController extends Controller
             'sort_order'        => ['nullable', 'integer', 'min:0'],
 
             'status'            => ['nullable', 'in:draft,published,archived'],
+            'approvals'         => ['nullable', 'string', 'max:255'], // ✅ NEW
             'publish_at'        => ['nullable', 'date'],
             'expire_at'         => ['nullable', 'date'],
 
@@ -742,6 +751,11 @@ class CourseController extends Controller
             'metadata'         => $metadata !== null ? json_encode($metadata) : null,
         ];
 
+        // ✅ NEW approvals (safe if migration not run yet)
+        if ($hasApprovals) {
+            $insert['approvals'] = $validated['approvals'] ?? null;
+        }
+
         $id = DB::table('courses')->insertGetId($insert);
 
         $row = DB::table('courses')->where('id', $id)->first();
@@ -778,6 +792,8 @@ class CourseController extends Controller
 
     public function update(Request $request, $identifier)
     {
+        $hasApprovals = Schema::hasColumn('courses', 'approvals');
+
         $actor = $this->actor($request);
         $ac = $this->accessControl($actor['id']);
 
@@ -824,6 +840,7 @@ class CourseController extends Controller
             'sort_order'         => ['nullable', 'integer', 'min:0'],
 
             'status'             => ['nullable', 'in:draft,published,archived'],
+            'approvals'          => ['nullable', 'string', 'max:255'], // ✅ NEW
             'publish_at'         => ['nullable', 'date'],
             'expire_at'          => ['nullable', 'date'],
             'metadata'           => ['nullable'],
@@ -856,11 +873,16 @@ class CourseController extends Controller
         foreach ([
             'title','summary','body','program_level','program_type','mode',
             'duration_value','duration_unit','credits','eligibility','highlights',
-            'syllabus_url','career_scope','status','sort_order'
+            'syllabus_url','career_scope','status','sort_order',
         ] as $k) {
             if (array_key_exists($k, $validated)) {
                 $update[$k] = $validated[$k];
             }
+        }
+
+        // ✅ NEW approvals (safe if migration not run yet)
+        if ($hasApprovals && array_key_exists('approvals', $validated)) {
+            $update['approvals'] = $validated['approvals'];
         }
 
         if (array_key_exists('department_id', $validated)) {
@@ -997,7 +1019,11 @@ class CourseController extends Controller
 
         // ✅ ACTIVITY LOG (update)
         $after = $fresh ? (array) $fresh : null;
-        $onlyKeys = array_values(array_unique(array_merge(array_keys($update), ['attachments_json', 'cover_image', 'metadata', 'department_id', 'slug'])));
+        $onlyKeys = array_values(array_unique(array_merge(
+            array_keys($update),
+            ['attachments_json', 'cover_image', 'metadata', 'department_id', 'slug'],
+            $hasApprovals ? ['approvals'] : []
+        )));
         [$changedFields, $oldVals, $newVals] = $this->computeDiff($before, $after, $onlyKeys);
         $this->logActivity(
             $request,
@@ -1217,98 +1243,97 @@ class CourseController extends Controller
     }
 
     public function publicShow(Request $request, $identifier)
-{
-    try {
-        Log::info('Course publicShow called', [
-            'identifier' => (string) $identifier,
-            'path'       => $request->path(),
-            'ip'         => $request->ip(),
-            'query'      => $request->query(),
-        ]);
+    {
+        try {
+            Log::info('Course publicShow called', [
+                'identifier' => (string) $identifier,
+                'path'       => $request->path(),
+                'ip'         => $request->ip(),
+                'query'      => $request->query(),
+            ]);
 
-        // ✅ UUID-only public show
-        if (!Str::isUuid((string) $identifier)) {
-            Log::warning('Course publicShow rejected: identifier is not UUID', [
+            // ✅ UUID-only public show
+            if (!Str::isUuid((string) $identifier)) {
+                Log::warning('Course publicShow rejected: identifier is not UUID', [
+                    'identifier' => (string) $identifier,
+                    'ip'         => $request->ip(),
+                ]);
+
+                return response()->json(['message' => 'Course not found'], 404);
+            }
+
+            // ✅ Public route should NOT depend on accessControl()/logged-in user
+            // Resolve by UUID (resolveCourse already supports UUID if identifier is UUID)
+            $row = $this->resolveCourse($request, (string) $identifier, false);
+            if (! $row) {
+                Log::warning('Course publicShow: course not found', [
+                    'identifier' => (string) $identifier,
+                    'ip'         => $request->ip(),
+                ]);
+
+                return response()->json(['message' => 'Course not found'], 404);
+            }
+
+            $now = now();
+
+            $publishAt = !empty($row->publish_at) ? Carbon::parse($row->publish_at) : null;
+            $expireAt  = !empty($row->expire_at)  ? Carbon::parse($row->expire_at)  : null;
+
+            $isVisible =
+                ((string) $row->status === 'published') &&
+                (!$publishAt || $publishAt->lte($now)) &&
+                (!$expireAt  || $expireAt->gt($now));
+
+            if (! $isVisible) {
+                Log::info('Course publicShow: course not visible', [
+                    'identifier' => (string) $identifier,
+                    'course_id'  => (int) $row->id,
+                    'uuid'       => (string) ($row->uuid ?? ''),
+                    'status'     => (string) ($row->status ?? ''),
+                    'publish_at' => $row->publish_at,
+                    'expire_at'  => $row->expire_at,
+                    'now'        => $now->toDateTimeString(),
+                ]);
+
+                return response()->json(['message' => 'Course not available'], 404);
+            }
+
+            // default public view increment (can disable with ?inc_view=0)
+            $inc = $request->has('inc_view')
+                ? filter_var($request->query('inc_view'), FILTER_VALIDATE_BOOLEAN)
+                : true;
+
+            if ($inc) {
+                DB::table('courses')->where('id', (int) $row->id)->increment('views_count');
+                $row->views_count = ((int) ($row->views_count ?? 0)) + 1;
+            }
+
+            Log::info('Course publicShow success', [
+                'course_id'   => (int) $row->id,
+                'uuid'        => (string) ($row->uuid ?? ''),
+                'title'       => (string) ($row->title ?? ''),
+                'views_count' => (int) ($row->views_count ?? 0),
+                'inc_view'    => (bool) $inc,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'item'    => $this->normalizeRow($row),
+            ]);
+
+        } catch (\Throwable $e) {
+            Log::error('Course publicShow exception', [
                 'identifier' => (string) $identifier,
                 'ip'         => $request->ip(),
+                'message'    => $e->getMessage(),
+                'file'       => $e->getFile(),
+                'line'       => $e->getLine(),
             ]);
 
-            return response()->json(['message' => 'Course not found'], 404);
+            return response()->json([
+                'success' => false,
+                'message' => 'Something went wrong while loading the course.',
+            ], 500);
         }
-
-        // ✅ Public route should NOT depend on accessControl()/logged-in user
-        // Resolve by UUID (resolveCourse already supports UUID if identifier is UUID)
-        $row = $this->resolveCourse($request, (string) $identifier, false);
-        if (! $row) {
-            Log::warning('Course publicShow: course not found', [
-                'identifier' => (string) $identifier,
-                'ip'         => $request->ip(),
-            ]);
-
-            return response()->json(['message' => 'Course not found'], 404);
-        }
-
-        $now = now();
-
-        $publishAt = !empty($row->publish_at) ? Carbon::parse($row->publish_at) : null;
-        $expireAt  = !empty($row->expire_at)  ? Carbon::parse($row->expire_at)  : null;
-
-        $isVisible =
-            ((string) $row->status === 'published') &&
-            (!$publishAt || $publishAt->lte($now)) &&
-            (!$expireAt  || $expireAt->gt($now));
-
-        if (! $isVisible) {
-            Log::info('Course publicShow: course not visible', [
-                'identifier' => (string) $identifier,
-                'course_id'  => (int) $row->id,
-                'uuid'       => (string) ($row->uuid ?? ''),
-                'status'     => (string) ($row->status ?? ''),
-                'publish_at' => $row->publish_at,
-                'expire_at'  => $row->expire_at,
-                'now'        => $now->toDateTimeString(),
-            ]);
-
-            return response()->json(['message' => 'Course not available'], 404);
-        }
-
-        // default public view increment (can disable with ?inc_view=0)
-        $inc = $request->has('inc_view')
-            ? filter_var($request->query('inc_view'), FILTER_VALIDATE_BOOLEAN)
-            : true;
-
-        if ($inc) {
-            DB::table('courses')->where('id', (int) $row->id)->increment('views_count');
-            $row->views_count = ((int) ($row->views_count ?? 0)) + 1;
-        }
-
-        Log::info('Course publicShow success', [
-            'course_id'   => (int) $row->id,
-            'uuid'        => (string) ($row->uuid ?? ''),
-            'title'       => (string) ($row->title ?? ''),
-            'views_count' => (int) ($row->views_count ?? 0),
-            'inc_view'    => (bool) $inc,
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'item'    => $this->normalizeRow($row),
-        ]);
-
-    } catch (\Throwable $e) {
-        Log::error('Course publicShow exception', [
-            'identifier' => (string) $identifier,
-            'ip'         => $request->ip(),
-            'message'    => $e->getMessage(),
-            'file'       => $e->getFile(),
-            'line'       => $e->getLine(),
-        ]);
-
-        return response()->json([
-            'success' => false,
-            'message' => 'Something went wrong while loading the course.',
-        ], 500);
     }
-}
-
 }

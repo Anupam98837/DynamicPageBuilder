@@ -2132,81 +2132,144 @@ container.querySelectorAll('img.success-img').forEach(img => attachImgFallback(i
 }
 
 function renderCourses(arr){
-const container = document.getElementById('coursesContainer');
-if(!container) return;
+  const container = document.getElementById('coursesContainer');
+  if(!container) return;
 
-const items = Array.isArray(arr) ? arr : [];
-if(!items.length){
-container.innerHTML = `<div class="col-12"><p class="muted-note">Courses not available right now.</p></div>`;
-return;
+  const items = Array.isArray(arr) ? arr : [];
+  if(!items.length){
+    container.innerHTML = `<div class="col-12"><p class="muted-note">Courses not available right now.</p></div>`;
+    return;
+  }
+
+  // ✅ ORDER:
+  // 1) featured first (desc)
+  // 2) sort_order asc
+  // 3) latest (publish_at/created_at) desc
+  const sorted = items.slice().sort((a,b) => {
+    const fa = (Number(b?.is_featured_home || 0) - Number(a?.is_featured_home || 0));
+    if(fa !== 0) return fa;
+
+    const sa = (Number(a?.sort_order ?? 0) - Number(b?.sort_order ?? 0));
+    if(sa !== 0) return sa;
+
+    const ta = Date.parse(b?.publish_at || b?.created_at || '') - Date.parse(a?.publish_at || a?.created_at || '');
+    if(Number.isFinite(ta) && ta !== 0) return ta;
+
+    return String(a?.title || '').localeCompare(String(b?.title || ''));
+  });
+
+  container.innerHTML = sorted.map(course => {
+    const img  = course.cover_image || course.image_url || course.image || PLACEHOLDERS.image;
+    const name = course.title || course.name || 'Course';
+    const desc = course.summary || course.blurb || course.description || '';
+
+    const baseUrl = safeHref(course.url || (course.uuid ? `/courses/view/${course.uuid}` : '#'));
+
+    const links = Array.isArray(course.links) ? course.links : [
+      { text: 'Vision & Mission', url: baseUrl },
+      { text: 'PEO, PSO, PO',     url: baseUrl },
+      { text: 'Faculty',         url: baseUrl },
+      { text: 'Department',      url: baseUrl },
+    ];
+
+    return `
+      <div class="col-lg-3 col-md-6">
+        <div class="course-card">
+          <img src="${esc(img)}" loading="lazy" alt="${esc(name)}" class="course-img">
+          <h3 class="course-title">${esc(name)}</h3>
+          <p class="course-desc">${esc(desc || '—')}</p>
+          <div class="course-links">
+            ${links.slice(0,4).map(l => `
+              <a href="${esc(safeHref(l.url || l.href))}" class="course-link">${esc(l.text || l.title || 'Link')}</a>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  container.querySelectorAll('img.course-img').forEach(img => attachImgFallback(img, 'image'));
 }
 
-container.innerHTML = items.slice(0, 8).map(course => {
-const img = course.cover_image || course.image_url || course.image || PLACEHOLDERS.image;
-const name = course.title || course.name || 'Course';
-const desc = course.summary || course.blurb || course.description || '';
+function isUgCourse(c){
+  const v = c?.program_level ?? c?.programLevel ?? c?.level ?? c?.course_level ?? '';
+  const s = String(v || '').trim().toLowerCase();
+  return s === 'ug' || s === 'undergraduate';
+}
 
-const baseUrl = safeHref(course.url || course.vision_link || course.dept_link || '#');
+function hasAICTEApproval(c){
+  const v = c?.approvals ?? c?.approval ?? c?.approved_by ?? c?.approvedBy ?? '';
 
-const links = Array.isArray(course.links) ? course.links : [
-{ text: 'Vision & Mission', url: baseUrl },
-{ text: 'PEO, PSO, PO', url: baseUrl },
-{ text: 'Faculty', url: baseUrl },
-{ text: 'Department', url: baseUrl },
-];
+  // approvals: ["AICTE", "NBA"]
+  if(Array.isArray(v)){
+    return v.some(x => String(x || '').toLowerCase().includes('aicte'));
+  }
 
-return `
-<div class="col-lg-3 col-md-6">
-<div class="course-card">
-<img src="${esc(img)}" loading="lazy" alt="${esc(name)}" class="course-img">
-<h3 class="course-title">${esc(name)}</h3>
-<p class="course-desc">${esc(desc || '—')}</p>
-<div class="course-links">
-${links.slice(0,4).map(l => `
-<a href="${esc(safeHref(l.url || l.href))}" class="course-link">${esc(l.text || l.title || 'Link')}</a>
-`).join('')}
-</div>
-</div>
-</div>
-`;
-}).join('');
+  // approvals: { items: [...] } OR any object containing AICTE somewhere
+  if(v && typeof v === 'object'){
+    const arr = v.items || v.list || v.values || v.approvals;
+    if(Array.isArray(arr)){
+      return arr.some(x => String(x || '').toLowerCase().includes('aicte'));
+    }
+    try{ return JSON.stringify(v).toLowerCase().includes('aicte'); }catch(e){ return false; }
+  }
 
-container.querySelectorAll('img.course-img').forEach(img => attachImgFallback(img, 'image'));
+  // approvals: "AICTE" OR "AICTE, NBA"
+  return String(v || '').toLowerCase().includes('aicte');
 }
 
 /* ✅ NEW (ONLY): render UG courses (program_level === "ug") */
 function renderUgCourses(arr){
-const container = document.getElementById('ugCoursesContainer');
-if(!container) return;
+  const container = document.getElementById('ugCoursesContainer');
+  if(!container) return;
 
-const items = Array.isArray(arr) ? arr : [];
+  const items = Array.isArray(arr) ? arr : [];
 
-const ug = items.filter(c => String(c?.program_level ?? '').toLowerCase() === 'ug');
-if(!ug.length){
-container.innerHTML = `<div class="col-12"><p class="muted-note" style="color:#fff;">No UG courses available.</p></div>`;
-return;
-}
+  // ✅ filter UG
+  // ✅ filter: ONLY AICTE + UG
+const ug = items
+  .filter(c => isUgCourse(c) && hasAICTEApproval(c))
+  // ✅ apply ordering: featured first -> sort_order -> latest
+  .slice()
+  .sort((a,b) => {
+    const f = (Number(b?.is_featured_home || 0) - Number(a?.is_featured_home || 0));
+    if(f !== 0) return f;
 
-container.innerHTML = ug.slice(0, 12).map(course => {
-const img = course.cover_image || course.image_url || course.image || PLACEHOLDERS.image;
-const title = course.title || course.name || 'UG Course';
+    const s = (Number(a?.sort_order ?? 0) - Number(b?.sort_order ?? 0));
+    if(s !== 0) return s;
 
-const href = safeHref(course.url || (course.uuid ? `/courses/view/${course.uuid}` : '#'));
-const uuid = String(course.uuid || '').trim();
-const open = uuid ? `<a class="ugc-card" href="${esc(href)}">` : `<div class="ugc-card">`;
-const close = uuid ? `</a>` : `</div>`;
+    const t = Date.parse(b?.publish_at || b?.created_at || '') - Date.parse(a?.publish_at || a?.created_at || '');
+    if(Number.isFinite(t) && t !== 0) return t;
 
-return `
-<div class="col-lg-4 col-md-6">
-${open}
-<img src="${esc(img)}" loading="lazy" alt="${esc(title)}" class="ugc-img">
-<div class="ugc-title">${esc(title)}</div>
-${close}
-</div>
-`;
-}).join('');
+    return String(a?.title || '').localeCompare(String(b?.title || ''));
+  });
 
-container.querySelectorAll('img.ugc-img').forEach(img => attachImgFallback(img, 'image'));
+  if(!ug.length){
+    container.innerHTML = `<div class="col-12"><p class="muted-note" style="color:#fff;">No UG courses available.</p></div>`;
+    return;
+  }
+
+  // ✅ show all UG (remove slice if you want everything)
+  container.innerHTML = ug.map(course => {
+    const img = course.cover_image || course.image_url || course.image || PLACEHOLDERS.image;
+    const title = course.title || course.name || 'UG Course';
+
+    const href = safeHref(course.url || (course.uuid ? `/courses/view/${course.uuid}` : '#'));
+    const uuid = String(course.uuid || '').trim();
+    const open = uuid ? `<a class="ugc-card" href="${esc(href)}">` : `<div class="ugc-card">`;
+    const close = uuid ? `</a>` : `</div>`;
+
+    return `
+      <div class="col-lg-4 col-md-6">
+        ${open}
+          <img src="${esc(img)}" loading="lazy" alt="${esc(title)}" class="ugc-img">
+          <div class="ugc-title">${esc(title)}</div>
+        ${close}
+      </div>
+    `;
+  }).join('');
+
+  container.querySelectorAll('img.ugc-img').forEach(img => attachImgFallback(img, 'image'));
 }
 
 let FIRST_API_ERROR = null;

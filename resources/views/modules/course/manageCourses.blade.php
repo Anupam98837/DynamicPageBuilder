@@ -8,10 +8,10 @@
 <style>
 /* Dropdowns inside table */
 .table-wrap .dropdown{position:relative}
-.table-responsive .dropdown{position:relative} /* ✅ same as reference page */
+.table-responsive .dropdown{position:relative}
 
 .dropdown .dd-toggle{border-radius:10px}
-.dropdown-menu{border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:230px;z-index:99999; /* ✅ higher to avoid being behind / clipped feeling */}
+.dropdown-menu{border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:230px;z-index:99999;}
 .dropdown-menu.show{display:block !important}
 .dropdown-item{display:flex;align-items:center;gap:.6rem}
 .dropdown-item i{width:16px;text-align:center}
@@ -34,12 +34,12 @@
 td .fw-semibold{color:var(--ink)}
 .small{font-size:12.5px}
 
-/* ✅ UUID column smaller + ellipsis (replaces Code/Slug) */
+/* UUID column */
 th.col-code, td.col-code{width:320px;max-width:320px}
 td.col-code{overflow:hidden}
 td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom;}
 
-/* ✅ UUID cell layout + copy button */
+/* UUID cell layout + copy button */
 .uuid-cell{display:flex;align-items:center;gap:8px;}
 .uuid-copy{border-radius:10px;padding:6px 10px;line-height:1;display:inline-flex;align-items:center;justify-content:center;}
 .uuid-copy i{font-size:14px;opacity:.85}
@@ -52,7 +52,6 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
 .badge-soft-danger{background:color-mix(in oklab, var(--danger-color) 12%, transparent);color:var(--danger-color)}
 
 /* Loading overlay */
-/* .loading-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.45);display:flex;justify-content:center;align-items:center;z-index:9999;backdrop-filter:blur(2px)} */
 .loading-spinner{background:var(--surface);padding:20px 22px;border-radius:14px;display:flex;flex-direction:column;align-items:center;gap:10px;box-shadow:0 10px 26px rgba(0,0,0,0.3)}
 .spinner{width:40px;height:40px;border-radius:50%;border:4px solid rgba(148,163,184,0.3);border-top:4px solid var(--primary-color);animation:spin 1s linear infinite}
 @keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
@@ -116,6 +115,17 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
 .cover-box .cover-body{padding:12px;}
 .cover-box img{width:100%;max-height:260px;object-fit:cover;border-radius:12px;border:1px solid var(--line-soft);background:#fff;}
 .cover-meta{font-size:12.5px;color:var(--muted-color);margin-top:10px}
+
+/* ✅ Drag-and-drop sort order */
+.drag-handle{cursor:grab;padding:4px 8px;color:var(--muted-color);font-size:15px;user-select:none;}
+.drag-handle:hover{color:var(--ink)}
+.drag-handle:active{cursor:grabbing}
+.sortable-ghost{opacity:.4;background:color-mix(in oklab, var(--primary-color) 8%, transparent) !important;}
+.sortable-chosen{background:color-mix(in oklab, var(--primary-color) 6%, transparent) !important;}
+.sort-order-badge{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:22px;padding:0 6px;border-radius:6px;background:color-mix(in oklab, var(--muted-color) 10%, transparent);color:var(--muted-color);font-size:11px;font-weight:600;}
+.btn-save-order{transition:all .2s ease;}
+.btn-save-order.has-changes{animation:pulse-order 1.5s ease infinite;}
+@keyframes pulse-order{0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,.4)}50%{box-shadow:0 0 0 6px rgba(59,130,246,0)}}
 </style>
 @endpush
 
@@ -187,7 +197,12 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
           </button>
         </div>
 
-        <div class="col-12 col-lg-auto ms-lg-auto d-flex justify-content-lg-end">
+        <div class="col-12 col-lg-auto ms-lg-auto d-flex justify-content-lg-end gap-2">
+          {{-- ✅ Save Order button (hidden until drag changes) --}}
+          <button type="button" class="btn btn-success btn-save-order" id="btnSaveOrder" style="display:none;">
+            <i class="fa fa-arrows-up-down me-1"></i> Save Order
+          </button>
+
           <div id="writeControls" style="display:none;">
             <button type="button" class="btn btn-primary" id="btnAddItem">
               <i class="fa fa-plus me-1"></i> Add Course
@@ -203,6 +218,7 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
             <table class="table table-hover table-borderless align-middle mb-0">
               <thead class="sticky-top">
                 <tr>
+                  <th style="width:42px;"></th>
                   <th>Title</th>
                   <th class="col-code">UUID</th>
                   <th style="width:170px;">Department</th>
@@ -214,7 +230,7 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
                 </tr>
               </thead>
               <tbody id="tbody-published">
-                <tr><td colspan="8" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+                <tr><td colspan="9" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -232,7 +248,7 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
       </div>
     </div>
 
-    {{-- INACTIVE TAB --}}
+    {{-- DRAFT TAB --}}
     <div class="tab-pane fade" id="tab-draft" role="tabpanel">
       <div class="card table-wrap">
         <div class="card-body p-0">
@@ -240,6 +256,7 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
             <table class="table table-hover table-borderless align-middle mb-0">
               <thead class="sticky-top">
                 <tr>
+                  <th style="width:42px;"></th>
                   <th>Title</th>
                   <th class="col-code">UUID</th>
                   <th style="width:170px;">Department</th>
@@ -251,7 +268,7 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
                 </tr>
               </thead>
               <tbody id="tbody-draft">
-                <tr><td colspan="8" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+                <tr><td colspan="9" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -277,6 +294,7 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
         <table class="table table-hover table-borderless align-middle mb-0">
           <thead class="sticky-top">
             <tr>
+              <th style="width:42px;"></th>
               <th>Title</th>
               <th class="col-code">UUID</th>
               <th style="width:170px;">Department</th>
@@ -288,7 +306,7 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
             </tr>
           </thead>
           <tbody id="tbody-archived">
-            <tr><td colspan="8" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+            <tr><td colspan="9" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -396,8 +414,8 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
               <option value="-updated_at">Recently Updated</option>
               <option value="title">Title A-Z</option>
               <option value="-title">Title Z-A</option>
-              <option value="code">Code A-Z</option>
-              <option value="-code">Code Z-A</option>
+              <option value="sort_order">Sort Order (Asc)</option>
+              <option value="-sort_order">Sort Order (Desc)</option>
             </select>
           </div>
         </div>
@@ -445,7 +463,7 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
                 <div class="form-text">Auto-generated from title until you edit this field manually.</div>
               </div>
 
-              {{-- ✅ NEW: Summary --}}
+              {{-- Summary --}}
               <div class="col-12">
                 <label class="form-label">Summary (optional)</label>
                 <textarea class="form-control" id="summary" rows="3" maxlength="600" placeholder="Short summary for home/cards…"></textarea>
@@ -485,11 +503,21 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
 </select>
               </div>
 
-              {{-- ✅ NEW: Sort Order --}}
+              {{-- ✅ Approvals dropdown --}}
+              <div class="col-md-6">
+                <label class="form-label">Approvals</label>
+                <select class="form-select" id="approvals">
+                  <option value="">— None —</option>
+                  <option value="AICTE">AICTE</option>
+                </select>
+                <div class="form-text">Optional. Select if the course is AICTE approved.</div>
+              </div>
+
+              {{-- Sort Order --}}
               <div class="col-md-6">
                 <label class="form-label">Sort Order</label>
                 <input type="number" class="form-control" id="sort_order" min="0" step="1" value="0" placeholder="0">
-                <div class="form-text">Lower comes first (used for ordering on home/listing).</div>
+                <div class="form-text">Lower comes first. Use drag &amp; drop on the table to reorder visually.</div>
               </div>
 
               <div class="col-12">
@@ -613,6 +641,8 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+{{-- ✅ SortableJS for drag-and-drop --}}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
 
 <script>
 (() => {
@@ -623,17 +653,17 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
   const debounce = (fn, ms = 300) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 
   // =========================
-  // ✅ API Map (edit here if your routes differ)
+  // API Map
   // =========================
   const API = {
     me:          () => '/api/users/me',
     departments: () => '/api/departments',
     list:        () => '/api/courses',
     create:      () => '/api/courses',
-    update:      (id) => `/api/courses/${encodeURIComponent(id)}`,         // PATCH via _method
-    remove:      (id) => `/api/courses/${encodeURIComponent(id)}`,         // DELETE (soft delete -> bin)
-    restore:     (id) => `/api/courses/${encodeURIComponent(id)}/restore`, // POST
-    force:       (id) => `/api/courses/${encodeURIComponent(id)}/force`    // DELETE (permanent)
+    update:      (id) => `/api/courses/${encodeURIComponent(id)}`,
+    remove:      (id) => `/api/courses/${encodeURIComponent(id)}`,
+    restore:     (id) => `/api/courses/${encodeURIComponent(id)}/restore`,
+    force:       (id) => `/api/courses/${encodeURIComponent(id)}/force`
   };
 
   function esc(str){
@@ -687,7 +717,6 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
     }
   }
 
-  // ✅ department id must be integer
   function isIntString(v){
     return typeof v === 'string' && /^\d+$/.test(v.trim());
   }
@@ -701,7 +730,6 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
     return (id !== null && id !== undefined) ? String(id) : '';
   }
 
-  // ✅ robust level extraction (controller uses program_level)
   function getLevelFromRow(r){
     let v =
       r?.program_level ??
@@ -712,7 +740,6 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
       r?.level_code ??
       r?.level_name ??
       r?.course_level_name ??
-      r?.program_level ??
       r?.meta?.level ??
       r?.meta?.course_level ??
       r?.metadata?.level ??
@@ -725,7 +752,6 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
     return (v ?? '').toString().trim();
   }
 
-  // ✅ duration from controller: duration_value + duration_unit
   function getDurationFromRow(r){
     let v =
       r?.duration ??
@@ -751,7 +777,6 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
     return (v ?? '').toString().trim();
   }
 
-  // ✅ NEW: featured + summary + sort_order extraction
   function getFeaturedFromRow(r){
     let v =
       r?.is_featured_home ??
@@ -798,6 +823,33 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
     return Number.isFinite(n) ? n : 0;
   }
 
+  // ✅ Approvals extraction
+  function getApprovalsFromRow(r){
+    let v =
+      r?.approvals ??
+      r?.approval ??
+      r?.meta?.approvals ??
+      r?.metadata?.approvals ??
+      '';
+
+    if (v && typeof v === 'object'){
+      v = v.value || v.name || v.label || '';
+    }
+    return (v ?? '').toString().trim();
+  }
+
+  // ✅ Robust UUID resolver (fixes id-vs-uuid mismatch)
+  function getUuidFromRow(r){
+    return (
+      r?.uuid ??
+      r?.course_uuid ??
+      r?.courseUuid ??
+      r?.identifier ??
+      r?.id ??      // last fallback only if your API supports numeric id
+      ''
+    ).toString().trim();
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     const token = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
     if (!token) { window.location.href = '/'; return; }
@@ -823,8 +875,8 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
     const btnApplyFilters = $('btnApplyFilters');
     const writeControls = $('writeControls');
     const btnAddItem = $('btnAddItem');
+    const btnSaveOrder = $('btnSaveOrder');
 
-    // ✅ NEW TAB DOM IDS
     const tbodyPublished = $('tbody-published');
     const tbodyDraft     = $('tbody-draft');
     const tbodyArchived  = $('tbody-archived');
@@ -846,14 +898,14 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
     const infoBin        = $('resultsInfo-bin');
 
     const filterModalEl = $('filterModal');
-    const filterModal = filterModalEl ? bootstrap.Modal.getOrCreateInstance(filterModalEl) : null; // ✅ keep single instance
-    const modalStatus = $('modal_status'); // optional: used to jump to a tab
+    const filterModal = filterModalEl ? bootstrap.Modal.getOrCreateInstance(filterModalEl) : null;
+    const modalStatus = $('modal_status');
     const modalSort = $('modal_sort');
     const modalDepartment = $('modal_department');
     const modalLevel = $('modal_level');
 
     const itemModalEl = $('itemModal');
-    const itemModal = itemModalEl ? bootstrap.Modal.getOrCreateInstance(itemModalEl) : null; // ✅ keep single instance
+    const itemModal = itemModalEl ? bootstrap.Modal.getOrCreateInstance(itemModalEl) : null;
     const itemModalTitle = $('itemModalTitle');
     const itemForm = $('itemForm');
     const saveBtn = $('saveBtn');
@@ -863,8 +915,9 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
     const titleInput = $('title');
     const codeInput = $('code');
     const slugInput = $('slug');
-    const summaryInput = $('summary');            // ✅ NEW
-    const sortOrderInput = $('sort_order');       // ✅ NEW
+    const summaryInput = $('summary');
+    const sortOrderInput = $('sort_order');
+    const approvalsSelect = $('approvals');
     const deptSel = $('department_id');
     const levelSel = $('level');
     const durationInput = $('duration');
@@ -882,21 +935,15 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
     const btnOpenCover = $('btnOpenCover');
 
     // =========================
-    // ✅ FIX: remove any leftover modal backdrop after closing Filter modal
-    // (without affecting other modals)
+    // Backdrop cleanup
     // =========================
     function cleanupDanglingModalBackdrops(){
-      // if any modal is still open, do nothing
       if (document.querySelector('.modal.show')) return;
-
       document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
       document.body.classList.remove('modal-open');
-
-      // restore body styles bootstrap may leave behind when close is interrupted
       document.body.style.removeProperty('padding-right');
       document.body.style.removeProperty('overflow');
     }
-
     filterModalEl?.addEventListener('hidden.bs.modal', cleanupDanglingModalBackdrops);
 
     // ---------- permissions ----------
@@ -936,7 +983,8 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
         archived:  { page:1, lastPage:1, items:[] },
         bin:       { page:1, lastPage:1, items:[] }
       },
-      departments: []
+      departments: [],
+      orderDirty: false
     };
 
     const getTabKey = () => {
@@ -976,16 +1024,12 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
       params.set('direction', s.startsWith('-') ? 'desc' : 'asc');
 
       if (state.filters.department) params.set('department', state.filters.department);
-
-      // ✅ controller expects program_level (NOT level)
       if (state.filters.level) params.set('program_level', state.filters.level);
 
-      // ✅ strict tab filters: prevents "same course in multiple tabs"
       if (tabKey === 'published') params.set('status', 'published');
       if (tabKey === 'draft')     params.set('status', 'draft');
       if (tabKey === 'archived')  params.set('status', 'archived');
 
-      // ✅ bin = soft deleted
       if (tabKey === 'bin') params.set('only_trashed', '1');
 
       return `${API.list()}?${params.toString()}`;
@@ -1067,14 +1111,8 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
       return found ? (found.title || found.name || '—') : '—';
     }
 
-    function codeSlug(r){
-      const code = r.code || r.course_code || '';
-      const slug = r.slug || r.course_slug || '';
-      return (code || slug || '—');
-    }
-
     // =========================
-    // ✅ ACTION DROPDOWN FIX (popper fixed)
+    // Dropdown fix
     // =========================
     function dropdownInstance(toggle){
       return bootstrap.Dropdown.getOrCreateInstance(toggle, {
@@ -1096,7 +1134,6 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
       });
     }
 
-    // Toggle on click
     document.addEventListener('click', (e) => {
       const toggle = e.target.closest('.dd-toggle');
       if (!toggle) return;
@@ -1112,20 +1149,18 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
       }catch(_){}
     });
 
-    // Close when clicking outside
     document.addEventListener('click', (e) => {
       if (e.target.closest('.dropdown')) return;
       closeAllDropdownsExcept(null);
     }, { capture:true });
 
     // =========================
-    // ✅ NEW: Copy UUID button handler
+    // Copy UUID
     // =========================
     async function copyTextToClipboard(text){
       const t = (text || '').toString();
       if (!t) return false;
 
-      // modern
       try{
         if (navigator.clipboard && window.isSecureContext){
           await navigator.clipboard.writeText(t);
@@ -1133,7 +1168,6 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
         }
       }catch(_){}
 
-      // fallback
       try{
         const ta = document.createElement('textarea');
         ta.value = t;
@@ -1165,11 +1199,207 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
       else err('Copy failed');
     });
 
+    // =========================
+    // ✅ Drag-and-drop sort order
+    // =========================
+    let sortableInstances = {};
+
+    function markOrderDirty(){
+      state.orderDirty = true;
+      if (btnSaveOrder){
+        btnSaveOrder.style.display = '';
+        btnSaveOrder.classList.add('has-changes');
+      }
+    }
+
+    function markOrderClean(){
+      state.orderDirty = false;
+      if (btnSaveOrder){
+        btnSaveOrder.style.display = 'none';
+        btnSaveOrder.classList.remove('has-changes');
+      }
+    }
+
+    function initSortable(tabKey){
+      const { tbody } = tabEls(tabKey);
+      if (!tbody || tabKey === 'bin') return;
+
+      if (sortableInstances[tabKey]){
+        try { sortableInstances[tabKey].destroy(); } catch(_){}
+      }
+
+      sortableInstances[tabKey] = new Sortable(tbody, {
+        handle: '.drag-handle',
+        animation: 180,
+        ghostClass: 'sortable-ghost',
+        chosenClass: 'sortable-chosen',
+        onEnd: function(evt){
+          if (evt.oldIndex === evt.newIndex) return;
+
+          const items = state.tabs[tabKey].items;
+          if (!items || !items.length) return;
+
+          const movedItem = items.splice(evt.oldIndex, 1)[0];
+          items.splice(evt.newIndex, 0, movedItem);
+
+          const base = ((state.tabs[tabKey].page || 1) - 1) * state.perPage; // ✅ offset
+
+          const rows = tbody.querySelectorAll('tr[data-uuid]');
+          rows.forEach((row, idx) => {
+            const badge = row.querySelector('.sort-order-badge');
+            if (badge) badge.textContent = String(base + idx + 1);
+          });
+
+          // (Optional) Keep in-memory sort_order aligned
+          items.forEach((it, i) => { it.sort_order = base + i + 1; });
+
+          markOrderDirty();
+        }
+      });
+    }
+
+    // ✅ PATCH helper with proper error message extraction
+    async function patchSortOrder(uuid, value){
+      const fd = new FormData();
+      fd.append('_method', 'PATCH');
+      fd.append('sort_order', String(value));
+
+      const res = await fetchWithTimeout(API.update(uuid), {
+        method: 'POST',
+        headers: authHeaders(),
+        body: fd
+      }, 15000);
+
+      let js = null;
+      try { js = await res.json(); } catch(_) {}
+
+      if (!res.ok || js?.success === false){
+        let msg = js?.message || '';
+        if (!msg && js?.errors){
+          const k = Object.keys(js.errors)[0];
+          msg = (k && js.errors[k] && js.errors[k][0]) ? js.errors[k][0] : '';
+        }
+        throw new Error(msg || `${res.status} ${res.statusText}`);
+      }
+      return true;
+    }
+
+    // ✅ Save Order button handler (page-safe + collision-safe)
+    btnSaveOrder?.addEventListener('click', async () => {
+      if (!state.orderDirty) return;
+      if (!canEdit){ err('No permission to reorder'); return; }
+
+      const tabKey = getTabKey();
+      if (tabKey === 'bin') return;
+
+      const items = state.tabs[tabKey].items || [];
+      if (!items.length) return;
+
+      const resolved = items.map(it => ({
+        uuid: getUuidFromRow(it),
+        title: (it?.title || it?.name || '').toString().trim() || '(untitled)'
+      }));
+
+      const missing = resolved.filter(x => !x.uuid);
+      if (missing.length){
+        err(`Cannot save: ${missing.length} row(s) missing UUID`);
+        Swal.fire({
+          title: 'Missing UUID(s)',
+          icon: 'error',
+          html: `<div style="text-align:left">
+            These rows do not have a UUID from the API, so reorder cannot be saved.<br><br>
+            <ul style="margin:0;padding-left:18px">
+              ${missing.slice(0,6).map(x => `<li>${esc(x.title)}</li>`).join('')}
+            </ul>
+            ${missing.length > 6 ? `<div class="small text-muted mt-2">+${missing.length-6} more…</div>` : ''}
+          </div>`
+        });
+        return;
+      }
+
+      const conf = await Swal.fire({
+        title: 'Save new order?',
+        text: `This will update the sort order for ${items.length} course(s) in the ${tabKey} tab.`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Save Order'
+      });
+      if (!conf.isConfirmed) return;
+
+      showLoading(true);
+
+      const page = state.tabs[tabKey].page || 1;
+      const offset = (page - 1) * state.perPage;       // ✅ page-safe
+      const tempBase = 100000 + offset;                // ✅ avoids unique collisions
+      const failMap = new Map();
+
+      try{
+        // Phase 1: temporary unique values (sequential to avoid collisions)
+        for (let i = 0; i < resolved.length; i++){
+          const { uuid, title } = resolved[i];
+          try{
+            await patchSortOrder(uuid, tempBase + i + 1);
+          }catch(e){
+            failMap.set(uuid, { title, msg: e.message });
+          }
+        }
+
+        // Phase 2: final values with offset
+        for (let i = 0; i < resolved.length; i++){
+          const { uuid, title } = resolved[i];
+          if (failMap.has(uuid)) continue;
+
+          try{
+            await patchSortOrder(uuid, offset + i + 1);
+          }catch(e){
+            failMap.set(uuid, { title, msg: e.message });
+          }
+        }
+
+        const failCount = failMap.size;
+        const successCount = resolved.length - failCount;
+
+        if (failCount === 0){
+          ok(`Order saved for ${successCount} course(s)`);
+          markOrderClean();
+        } else {
+          state.orderDirty = true;
+          if (btnSaveOrder){
+            btnSaveOrder.style.display = '';
+            btnSaveOrder.classList.add('has-changes');
+          }
+          err(`Saved ${successCount}, failed ${failCount}`);
+
+          const fails = Array.from(failMap.values()).slice(0, 6);
+          Swal.fire({
+            title: 'Some updates failed',
+            icon: 'error',
+            html: `<div style="text-align:left">
+              <div class="small text-muted mb-2">Open DevTools → Network → failed /api/courses/* requests to see exact status.</div>
+              <ul style="margin:0;padding-left:18px">
+                ${fails.map(f => `<li><b>${esc(f.title)}</b><br><span class="small text-muted">${esc(f.msg || '')}</span></li>`).join('')}
+              </ul>
+              ${failCount > 6 ? `<div class="small text-muted mt-2">+${failCount-6} more…</div>` : ''}
+            </div>`
+          });
+        }
+
+        await loadTab(tabKey);
+      }catch(ex){
+        err(ex?.message || 'Failed to save order');
+      }finally{
+        showLoading(false);
+      }
+    });
+
     function renderTable(tabKey){
       const { tbody } = tabEls(tabKey);
       if (!tbody) return;
 
       const rows = state.tabs[tabKey].items || [];
+
+      // ✅ base offset for badge numbering on paginated pages
+      const base = ((state.tabs[tabKey].page || 1) - 1) * state.perPage;
 
       if (!rows.length){
         tbody.innerHTML = '';
@@ -1181,8 +1411,8 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
 
       const isBin = tabKey === 'bin';
 
-      const html = rows.map(r => {
-        const uuidRaw = String(r.uuid || r.id || r.identifier || '');
+      const html = rows.map((r, rowIdx) => {
+        const uuidRaw = getUuidFromRow(r);
         const uuidEsc = esc(uuidRaw || '—');
 
         const title = esc(r.title || r.name || '—');
@@ -1195,9 +1425,10 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
         const updated = fmtDate(r.updated_at || r.updatedAt || r.created_at || r.createdAt);
         const deleted = fmtDate(r.deleted_at || r.deletedAt);
 
-        const isFeaturedHome = getFeaturedFromRow(r); // ✅ NEW
+        const isFeaturedHome = getFeaturedFromRow(r);
+        const sortOrd = getSortOrderFromRow(r);
+        const badgeVal = sortOrd || (base + rowIdx + 1); // ✅ offset-aware fallback
 
-        // ✅ UUID cell with copy button (replaces Code/Slug)
         const uuidCell = uuidRaw
           ? `
             <div class="uuid-cell">
@@ -1234,7 +1465,6 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
             `;
           }
 
-          // non-bin tabs
           const moveBtns = [];
           if (canEdit && status !== 'published'){
             moveBtns.push(`
@@ -1272,7 +1502,6 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
                     <i class="fa-regular fa-pen-to-square"></i> Edit
                   </button>
 
-                  {{-- ✅ NEW: Featured Home toggle in actions menu --}}
                   <button type="button" class="dropdown-item" data-action="toggle_featured" data-featured="${isFeaturedHome ? '1' : '0'}">
                     <i class="${isFeaturedHome ? 'fa-solid' : 'fa-regular'} fa-star"></i>
                     ${isFeaturedHome ? 'Remove from Home' : 'Feature on Home'}
@@ -1304,7 +1533,8 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
 
         return `
           <tr data-uuid="${esc(uuidRaw)}">
-            <td><div class="fw-semibold">${title}</div></td>
+            <td><span class="drag-handle" title="Drag to reorder"><i class="fa-solid fa-grip-vertical"></i></span></td>
+            <td><div class="fw-semibold">${title}</div><span class="sort-order-badge" title="Sort order">${badgeVal}</span></td>
             <td class="col-code">${uuidCell}</td>
             <td>${dept}</td>
             <td>${statusBadge(status)}</td>
@@ -1318,13 +1548,17 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
 
       tbody.innerHTML = html;
       renderPager(tabKey);
+
+      if (canEdit && tabKey !== 'bin'){
+        initSortable(tabKey);
+      }
     }
 
     async function loadTab(tabKey){
       const { tbody, info } = tabEls(tabKey);
 
       if (tbody){
-        const cols = (tabKey === 'bin') ? 5 : 8;
+        const cols = (tabKey === 'bin') ? 5 : 9;
         tbody.innerHTML = `<tr><td colspan="${cols}" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>`;
       }
 
@@ -1385,7 +1619,6 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
     });
 
     filterModalEl?.addEventListener('show.bs.modal', () => {
-      // status filter is used as "jump to tab" (optional)
       if (modalStatus) modalStatus.value = '';
       if (modalSort) modalSort.value = state.filters.sort || '-created_at';
       if (modalDepartment) modalDepartment.value = state.filters.department || '';
@@ -1393,7 +1626,7 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
     });
 
     btnApplyFilters?.addEventListener('click', () => {
-      const jump = (modalStatus?.value || '').trim().toLowerCase(); // published/draft/archived (optional)
+      const jump = (modalStatus?.value || '').trim().toLowerCase();
 
       state.filters.sort = modalSort?.value || '-created_at';
       state.filters.department = modalDepartment?.value || '';
@@ -1403,7 +1636,6 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
 
       filterModal && filterModal.hide();
 
-      // ✅ FIX: if backdrop gets stuck (edge cases), clean it after modal finishes closing
       setTimeout(cleanupDanglingModalBackdrops, 250);
 
       if (jump && ['published','draft','archived'].includes(jump)){
@@ -1428,10 +1660,10 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
       reloadCurrent();
     });
 
-    document.querySelector('a[href="#tab-published"]')?.addEventListener('shown.bs.tab', () => loadTab('published'));
-    document.querySelector('a[href="#tab-draft"]')?.addEventListener('shown.bs.tab', () => loadTab('draft'));
-    document.querySelector('a[href="#tab-archived"]')?.addEventListener('shown.bs.tab', () => loadTab('archived'));
-    document.querySelector('a[href="#tab-bin"]')?.addEventListener('shown.bs.tab', () => loadTab('bin'));
+    document.querySelector('a[href="#tab-published"]')?.addEventListener('shown.bs.tab', () => { markOrderClean(); loadTab('published'); });
+    document.querySelector('a[href="#tab-draft"]')?.addEventListener('shown.bs.tab', () => { markOrderClean(); loadTab('draft'); });
+    document.querySelector('a[href="#tab-archived"]')?.addEventListener('shown.bs.tab', () => { markOrderClean(); loadTab('archived'); });
+    document.querySelector('a[href="#tab-bin"]')?.addEventListener('shown.bs.tab', () => { markOrderClean(); loadTab('bin'); });
 
     // ---------- Departments ----------
     function fillDeptSelects(){
@@ -1701,6 +1933,8 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
       if (currentAttachmentsInfo) currentAttachmentsInfo.style.display = 'none';
       if (currentAttachmentsText) currentAttachmentsText.textContent = '—';
 
+      if (approvalsSelect) approvalsSelect.value = '';
+
       clearCoverPreview(true);
 
       itemForm?.querySelectorAll('input,select,textarea').forEach(el => {
@@ -1718,16 +1952,20 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
     }
 
     function fillFormFromRow(r, viewOnly=false){
-      itemUuid.value = r.uuid || r.id || r.identifier || '';
+      itemUuid.value = getUuidFromRow(r);
       itemId.value = r.id || '';
 
       titleInput.value = r.title || r.name || '';
       codeInput.value = r.code || r.course_code || '';
       slugInput.value = r.slug || r.course_slug || '';
 
-      // ✅ NEW: summary + sort_order
       if (summaryInput) summaryInput.value = getSummaryFromRow(r) || '';
       if (sortOrderInput) sortOrderInput.value = String(getSortOrderFromRow(r));
+
+      if (approvalsSelect){
+        const appr = getApprovalsFromRow(r);
+        approvalsSelect.value = (appr === 'AICTE') ? 'AICTE' : '';
+      }
 
       const rawDid = r.department_id || r.dept_id || r.department?.id || r.department?.uuid || '';
       const did = resolveDepartmentId(String(rawDid || ''), state.departments);
@@ -1738,7 +1976,6 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
 
       durationInput.value = getDurationFromRow(r) || '';
 
-      // ✅ status is ONLY: draft/published/archived
       const st = (r.status || '').toString().toLowerCase().trim();
       statusSel.value = (st === 'published' || st === 'draft' || st === 'archived') ? st : 'draft';
 
@@ -1796,7 +2033,7 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
         ...(state.tabs.archived.items || []),
         ...(state.tabs.bin.items || []),
       ];
-      return all.find(x => String(x?.uuid || x?.id || x?.identifier) === String(uuid)) || null;
+      return all.find(x => String(getUuidFromRow(x)) === String(uuid)) || null;
     }
 
     // auto slug while creating
@@ -1828,11 +2065,11 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
       if (coverObjectUrl){ try{ URL.revokeObjectURL(coverObjectUrl); }catch(_){ } coverObjectUrl=null; }
     });
 
-    // ✅ NEW: status update helper (draft/published/archived)
+    // status update helper
     async function updateStatus(uuid, status){
       const fd = new FormData();
       fd.append('_method', 'PATCH');
-      fd.append('status', status); // controller accepts only these
+      fd.append('status', status);
 
       showLoading(true);
       try{
@@ -1859,7 +2096,7 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
       }
     }
 
-    // ✅ NEW: featured home toggle helper
+    // featured home toggle helper
     async function updateFeaturedHome(uuid, isFeatured){
       const fd = new FormData();
       fd.append('_method', 'PATCH');
@@ -1902,7 +2139,6 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
 
       const row = findRowByUuid(uuid);
 
-      // close dropdown
       const toggle = btn.closest('.dropdown')?.querySelector('.dd-toggle');
       if (toggle) { try { dropdownInstance(toggle).hide(); } catch (_) {} }
 
@@ -1915,7 +2151,6 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
         return;
       }
 
-      // ✅ NEW: toggle featured home
       if (act === 'toggle_featured'){
         if (!canEdit) return;
         const current = (btn.dataset.featured || '0') === '1';
@@ -1934,7 +2169,6 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
         return;
       }
 
-      // ✅ status moves
       if (act === 'mark_published'){
         if (!canEdit) return;
         const conf = await Swal.fire({
@@ -1974,7 +2208,6 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
         return;
       }
 
-      // soft delete -> bin
       if (act === 'delete'){
         if (!canDelete) return;
         const conf = await Swal.fire({
@@ -2007,7 +2240,6 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
         return;
       }
 
-      // restore from bin
       if (act === 'restore'){
         const conf = await Swal.fire({
           title: 'Restore this item?',
@@ -2037,7 +2269,6 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
         return;
       }
 
-      // permanent delete
       if (act === 'force'){
         if (!canDelete) return;
 
@@ -2092,10 +2323,11 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
         const code = (codeInput.value || '').trim();
         const slug = (slugInput.value || '').trim();
 
-        // ✅ NEW: summary + sort_order
         const summary = (summaryInput?.value || '').trim();
         const sortOrderRaw = (sortOrderInput?.value || '').toString().trim();
         const sortOrder = Number.isFinite(parseInt(sortOrderRaw, 10)) ? parseInt(sortOrderRaw, 10) : 0;
+
+        const approvals = (approvalsSelect?.value || '').trim();
 
         const deptRaw = (deptSel?.value || '').trim();
         const deptId = resolveDepartmentId(deptRaw, state.departments);
@@ -2103,7 +2335,6 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
         const level = (levelSel?.value || 'ug').trim();
         const durationText = (durationInput.value || '').trim();
 
-        // ✅ status is ONLY: draft/published/archived (no active/inactive)
         const statusToSend = (statusSel?.value || 'draft').trim().toLowerCase();
 
         const rawDesc = (rte.mode === 'code') ? (rte.code.value || '') : (rte.editor.innerHTML || '');
@@ -2119,16 +2350,14 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
         if (code) fd.append('code', code);
         if (slug) fd.append('slug', slug);
 
-        // ✅ NEW fields
         fd.append('summary', summary || '');
         fd.append('sort_order', String(sortOrder));
+        fd.append('approvals', approvals);
 
         if (deptId) fd.append('department_id', String(parseInt(deptId, 10)));
 
-        // ✅ controller expects program_level
         fd.append('program_level', level);
 
-        // ✅ duration_value + duration_unit (best-effort; won't break if empty)
         if (durationText){
           const m = durationText.match(/(\d+)/);
           if (m) fd.append('duration_value', m[1]);
@@ -2190,7 +2419,6 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
         await fetchMe();
         await loadDepartments();
 
-        // initial loads (safe)
         await Promise.all([
           loadTab('published'),
           loadTab('draft'),
@@ -2205,6 +2433,5 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
     })();
   });
 })();
-
 </script>
 @endpush

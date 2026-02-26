@@ -388,7 +388,7 @@ Route::get('/courses', function () {
  
 Route::get('/courses/view/{uuid}', function () {
 
-    return view('modules.course.viewcourses');
+    return view('modules.course.viewCourses');
 
 });
  
