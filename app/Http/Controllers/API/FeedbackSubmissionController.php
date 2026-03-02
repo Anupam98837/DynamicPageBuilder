@@ -515,67 +515,101 @@ class FeedbackSubmissionController extends Controller
      | 1) LIST available posts for current user
      | GET /api/feedback-posts/available
      |========================================================= */
-    public function available(Request $r)
-    {
-        if ($resp = $this->requireAuth($r)) return $resp;
-
-        $a = $this->actor($r);
-
-        $q = $this->basePostsQuery(false);
-        $this->applyCurrentWindow($q);
-        $this->applyStudentScope($r, $q);
-
-        // optional filters
-        if ($r->filled('course_id'))   $q->where('fp.course_id', (int)$r->query('course_id'));
-        if ($r->filled('semester_id')) $q->where('fp.semester_id', (int)$r->query('semester_id'));
-        if ($r->filled('subject_id'))  $q->where('fp.subject_id', (int)$r->query('subject_id'));
-        if ($r->filled('section_id'))  $q->where('fp.section_id', (int)$r->query('section_id'));
-        if ($r->filled('year'))        $q->where('fp.year', (int)$r->query('year'));
-        if ($r->filled('academic_year')) $q->where('fp.academic_year', (string)$r->query('academic_year'));
-
-        $q->orderBy('fp.sort_order', 'asc')->orderBy('fp.id', 'asc');
-        $posts = $q->get();
-
-        $postIds = $posts->pluck('id')->map(fn($x)=>(int)$x)->values()->all();
-
-        $subByPost = [];
-        if (!empty($postIds)) {
-            // Student: include their submission
-            if ($this->isStudent($r)) {
-                $rows = DB::table(self::SUBS)
-                    ->whereIn('feedback_post_id', $postIds)
-                    ->where('student_id', (int)$a['id'])
-                    ->whereNull('deleted_at')
-                    ->select(['id','uuid','feedback_post_id','student_id','status','submitted_at','answers','metadata','created_at','updated_at'])
-                    ->get();
-
-                foreach ($rows as $s) {
-                    $subByPost[(int)$s->feedback_post_id] = [
-                        'id' => (int)$s->id,
-                        'uuid' => (string)$s->uuid,
-                        'feedback_post_id' => (int)$s->feedback_post_id,
-                        'student_id' => (int)$s->student_id,
-                        'status' => (string)($s->status ?? 'submitted'),
-                        'submitted_at' => $s->submitted_at,
-                        'answers' => $this->normalizeJson($s->answers),
-                        'metadata' => $this->normalizeJson($s->metadata),
-                        'updated_at' => $s->updated_at,
-                        'created_at' => $s->created_at,
-                    ];
-                }
-            }
-        }
-
-        $data = $posts->map(function ($row) use ($subByPost) {
-            $arr = $this->postToArray($row);
-            $pid = (int)$arr['id'];
-            $arr['is_submitted'] = isset($subByPost[$pid]);
-            $arr['submission'] = $subByPost[$pid] ?? null;
-            return $arr;
-        })->values();
-
-        return response()->json(['success' => true, 'data' => $data]);
-    }
+     public function available(Request $r)
+     {
+         if ($resp = $this->requireAuth($r)) return $resp;
+     
+         $a = $this->actor($r);
+     
+         $q = $this->basePostsQuery(false);
+         $this->applyCurrentWindow($q);
+         $this->applyStudentScope($r, $q);
+     
+         // optional filters
+         if ($r->filled('course_id'))     $q->where('fp.course_id', (int)$r->query('course_id'));
+         if ($r->filled('semester_id'))   $q->where('fp.semester_id', (int)$r->query('semester_id'));
+         if ($r->filled('subject_id'))    $q->where('fp.subject_id', (int)$r->query('subject_id'));
+         if ($r->filled('section_id'))    $q->where('fp.section_id', (int)$r->query('section_id'));
+         if ($r->filled('year'))          $q->where('fp.year', (int)$r->query('year'));
+         if ($r->filled('academic_year')) $q->where('fp.academic_year', (string)$r->query('academic_year'));
+     
+         $q->orderBy('fp.sort_order', 'asc')->orderBy('fp.id', 'asc');
+         $posts = $q->get();
+     
+         $postIds = $posts->pluck('id')->map(fn($x)=>(int)$x)->values()->all();
+     
+         // submissions (same as before)
+         $subByPost = [];
+         if (!empty($postIds) && $this->isStudent($r)) {
+             $rows = DB::table(self::SUBS)
+                 ->whereIn('feedback_post_id', $postIds)
+                 ->where('student_id', (int)$a['id'])
+                 ->whereNull('deleted_at')
+                 ->select(['id','uuid','feedback_post_id','student_id','status','submitted_at','answers','metadata','created_at','updated_at'])
+                 ->get();
+     
+             foreach ($rows as $s) {
+                 $subByPost[(int)$s->feedback_post_id] = [
+                     'id' => (int)$s->id,
+                     'uuid' => (string)$s->uuid,
+                     'feedback_post_id' => (int)$s->feedback_post_id,
+                     'student_id' => (int)$s->student_id,
+                     'status' => (string)($s->status ?? 'submitted'),
+                     'submitted_at' => $s->submitted_at,
+                     'answers' => $this->normalizeJson($s->answers),
+                     'metadata' => $this->normalizeJson($s->metadata),
+                     'updated_at' => $s->updated_at,
+                     'created_at' => $s->created_at,
+                 ];
+             }
+         }
+     
+         // 1) convert rows -> arrays (same shape)
+         $dataArr = $posts->map(function ($row) use ($subByPost) {
+             $arr = $this->postToArray($row);
+             $pid = (int)$arr['id'];
+             $arr['is_submitted'] = isset($subByPost[$pid]);
+             $arr['submission']   = $subByPost[$pid] ?? null;
+             return $arr;
+         })->values()->all();
+     
+         // 2) collect faculty ids from ALL posts
+         $allFacultyIds = [];
+         foreach ($dataArr as $p) {
+             $allFacultyIds = array_merge($allFacultyIds, $this->extractFacultyIdsFromPost($p));
+         }
+         $allFacultyIds = array_values(array_unique($allFacultyIds));
+     
+         // 3) fetch faculty map once
+         $facultyMap = $this->fetchFacultyMap($allFacultyIds);
+     
+         // 4) attach faculty_users into each post
+         foreach ($dataArr as &$p) {
+             $fids = (isset($p['faculty_ids']) && is_array($p['faculty_ids'])) ? $p['faculty_ids'] : [];
+             $out = [];
+             foreach ($fids as $fid) {
+                 $id = is_numeric($fid) ? (int)$fid : 0;
+                 if ($id <= 0) continue;
+     
+                 $out[] = $facultyMap[$id] ?? [
+                     'id' => $id,
+                     'uuid' => null,
+                     'name' => 'Faculty #' . $id,
+                     'name_short_form' => null,
+                     'employee_id' => null,
+                 ];
+             }
+             $p['faculty_users'] = $out; // ✅ NEW
+         }
+         unset($p);
+     
+         // ✅ return faculty_map too (so frontend can map ids from question_faculty too)
+         return response()->json([
+             'success' => true,
+             'data' => $dataArr,
+             'faculty_map' => $facultyMap,
+         ]);
+     }
 
     /* =========================================================
      | 2) SUBMIT / UPDATE feedback (UPSERT)
@@ -950,4 +984,90 @@ class FeedbackSubmissionController extends Controller
 
         return response()->json(['success'=>true,'message'=>'Deleted']);
     }
+
+    /**
+ * Collect faculty ids from a single post array:
+ * - post.faculty_ids
+ * - post.question_faculty[*].faculty_ids
+ */
+private function extractFacultyIdsFromPost(array $post): array
+{
+    $ids = [];
+
+    // from faculty_ids
+    if (!empty($post['faculty_ids']) && is_array($post['faculty_ids'])) {
+        foreach ($post['faculty_ids'] as $x) {
+            $n = is_numeric($x) ? (int)$x : 0;
+            if ($n > 0) $ids[] = $n;
+        }
+    }
+
+    // from question_faculty rules
+    $qf = $post['question_faculty'] ?? null;
+    if (is_array($qf)) {
+        foreach ($qf as $rule) {
+            if ($rule === null) continue;
+            if (!is_array($rule)) continue;
+
+            // if faculty_ids === null => means "use global" (already covered above)
+            if (!array_key_exists('faculty_ids', $rule)) continue;
+            if ($rule['faculty_ids'] === null) continue;
+
+            if (is_array($rule['faculty_ids'])) {
+                foreach ($rule['faculty_ids'] as $fid) {
+                    $n = is_numeric($fid) ? (int)$fid : 0;
+                    if ($n > 0) $ids[] = $n;
+                }
+            }
+        }
+    }
+
+    $ids = array_values(array_unique($ids));
+    sort($ids);
+    return $ids;
+}
+
+/**
+ * Fetch faculty details for ids (single query).
+ * Returns map: [id => ['id'=>..,'uuid'=>..,'name'=>..,'name_short_form'=>..,'employee_id'=>..]]
+ */
+private function fetchFacultyMap(array $ids): array
+{
+    $ids = array_values(array_unique(array_filter(array_map(function ($v) {
+        $n = is_numeric($v) ? (int)$v : 0;
+        return $n > 0 ? $n : null;
+    }, $ids))));
+
+    if (empty($ids)) return [];
+    if (!Schema::hasTable('users')) return [];
+
+    $q = DB::table('users')->whereIn('id', $ids);
+
+    if (Schema::hasColumn('users', 'deleted_at')) $q->whereNull('deleted_at');
+    if (Schema::hasColumn('users', 'role'))       $q->where('role', 'faculty');
+    if (Schema::hasColumn('users', 'status'))     $q->where('status', 'active');
+
+    $select = ['id', 'name'];
+    if (Schema::hasColumn('users', 'uuid'))            $select[] = 'uuid';
+    if (Schema::hasColumn('users', 'name_short_form')) $select[] = 'name_short_form';
+    if (Schema::hasColumn('users', 'employee_id'))     $select[] = 'employee_id';
+
+    $rows = $q->select($select)->get();
+
+    $map = [];
+    foreach ($rows as $u) {
+        $id = (int)($u->id ?? 0);
+        if ($id <= 0) continue;
+
+        $map[$id] = [
+            'id'              => $id,
+            'uuid'            => property_exists($u, 'uuid') ? (string)($u->uuid ?? '') : null,
+            'name'            => (string)($u->name ?? ''),
+            'name_short_form' => property_exists($u, 'name_short_form') ? (string)($u->name_short_form ?? '') : null,
+            'employee_id'     => property_exists($u, 'employee_id') ? (string)($u->employee_id ?? '') : null,
+        ];
+    }
+
+    return $map;
+}
 }

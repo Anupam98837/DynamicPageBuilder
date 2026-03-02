@@ -420,7 +420,6 @@
   const API = {
     available: () => '/api/feedback-posts/available',
     questionsCurrent: () => '/api/feedback-questions/current',
-    users: () => '/api/users',
     submit: (idOrUuid) => `/api/feedback-posts/${idOrUuid}/submit`,
   };
 
@@ -501,6 +500,9 @@
 
     questionsById: new Map(),
     usersById: new Map(),
+
+    // ✅ NEW: faculty map from available api
+    facultyMap: {},
   };
 
   function qLabel(q){ return String(q?.question_title || q?.title || q?.name || (`Question #${q?.id}`) || 'Question'); }
@@ -515,6 +517,50 @@
     if (String(fid) === '0') return 'Overall';
     const u = state.usersById.get(idNum(fid));
     return u ? userLabel(u) : `Faculty #${fid}`;
+  }
+
+  /* ======================================================
+   ✅ NEW: Build "users" (faculty list) ONLY from available API
+   - Uses per-post faculty_users + root faculty_map
+   - Keeps existing functionality intact (state.users/usersById are still used)
+  ====================================================== */
+  function buildFacultyUsersFromAvailable(jsAvail){
+    const out = [];
+    const seen = new Set();
+
+    const pushOne = (u, forcedId=null) => {
+      const id = idNum(u?.id ?? forcedId);
+      if (!id || id <= 0) return;
+
+      const key = String(id);
+      if (seen.has(key)) return;
+      seen.add(key);
+
+      out.push({
+        id,
+        uuid: (u?.uuid ?? null),
+        name: (u?.name ?? u?.full_name ?? `Faculty #${id}`),
+        full_name: (u?.full_name ?? null),
+        name_short_form: (u?.name_short_form ?? ''),
+        employee_id: (u?.employee_id ?? ''),
+        role: 'faculty',
+        status: 'active',
+      });
+    };
+
+    // from posts[].faculty_users
+    const posts = normalizeList(jsAvail) || [];
+    posts.forEach(p => {
+      pickArray(p?.faculty_users).forEach(fu => pushOne(fu));
+    });
+
+    // from root faculty_map
+    const fmap = (jsAvail && typeof jsAvail === 'object' && jsAvail.faculty_map && typeof jsAvail.faculty_map === 'object')
+      ? jsAvail.faculty_map
+      : {};
+    Object.keys(fmap || {}).forEach(k => pushOne(fmap[k], k));
+
+    return out;
   }
 
   /* ======================================================
@@ -833,9 +879,23 @@
       return [{ id: 0, name: 'Overall', _overall: true }];
     }
 
+    // Prefer per-post faculty_users if present (still keeps old fallback)
+    const perPost = pickArray(post?.faculty_users);
+
     const tabs = ids.map(fid => {
-      const u = allFaculty.find(x => String(x?.id) === String(fid));
-      return { id: fid, name: u ? userLabel(u) : 'Faculty not found', _missing: !u };
+      let u = null;
+
+      // per-post list
+      if (perPost.length){
+        u = perPost.find(x => String(x?.id) === String(fid)) || null;
+      }
+
+      // global map
+      if (!u){
+        u = allFaculty.find(x => String(x?.id) === String(fid)) || null;
+      }
+
+      return { id: fid, name: u ? userLabel(u) : `Faculty #${fid}`, _missing: !u };
     });
 
     return tabs.length ? tabs : [{ id: 0, name: 'Overall', _overall: true }];
@@ -1316,29 +1376,34 @@
     }
   }
 
-  async function loadBase(){
-    const [resAvail, resQ, resU] = await Promise.all([
+  async function loadBase(_keepOpen){
+    const [resAvail, resQ] = await Promise.all([
       fetchWithTimeout(API.available(), { headers: authHeaders() }, 20000),
       fetchWithTimeout(API.questionsCurrent(), { headers: authHeaders() }, 20000),
-      fetchWithTimeout(API.users(), { headers: authHeaders() }, 20000),
     ]);
 
-    if (resAvail.status === 401 || resQ.status === 401 || resU.status === 401){
+    if (resAvail.status === 401 || resQ.status === 401){
       window.location.href = '/';
       return;
     }
 
     const jsAvail = await resAvail.json().catch(()=> ({}));
     const jsQ     = await resQ.json().catch(()=> ({}));
-    const jsU     = await resU.json().catch(()=> ({}));
 
     if (!resAvail.ok) throw new Error(jsAvail?.message || 'Failed to load available posts');
     if (!resQ.ok) throw new Error(jsQ?.message || 'Failed to load questions');
-    if (!resU.ok) throw new Error(jsU?.message || 'Failed to load users');
 
     state.posts = normalizeList(jsAvail) || [];
     state.questions = normalizeList(jsQ) || [];
-    state.users = (normalizeList(jsU) || []).filter(u => String(u?.status || 'active').toLowerCase() !== 'inactive');
+
+    // ✅ NEW: faculty map + faculty users list from available API
+    state.facultyMap = (jsAvail && typeof jsAvail === 'object' && jsAvail.faculty_map && typeof jsAvail.faculty_map === 'object')
+      ? jsAvail.faculty_map
+      : {};
+
+    // build users list (faculty only) from available api
+    state.users = buildFacultyUsersFromAvailable(jsAvail)
+      .filter(u => String(u?.status || 'active').toLowerCase() !== 'inactive');
 
     state.questionsById = new Map((state.questions || []).map(q => [idNum(q?.id), q]).filter(x => x[0] !== null));
     state.usersById = new Map((state.users || []).map(u => [idNum(u?.id), u]).filter(x => x[0] !== null));
