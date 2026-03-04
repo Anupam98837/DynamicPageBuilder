@@ -1,12 +1,346 @@
 {{-- resources/views/test.blade.php --}}
+@php
+    use Illuminate\Support\Facades\DB;
+    use Illuminate\Support\Facades\Schema;
+    use Illuminate\Support\Str;
+
+    /* ============================================================
+     | ✅ 1) Resolve page by matching CURRENT URL against pages.page_link (and page_url fallback)
+     |     ✅ 2) Pull meta tags server-side so they appear in "View Page Source"
+     |     ✅ 3) Same for submenus (&submenu=... in path OR ?submenu=...)
+     |
+     | NOTE: For this to work for header links like /about-us, your route should point those
+     | URLs to THIS view (catch-all or explicit routes).
+     * ============================================================ */
+
+    if (!function_exists('dp_try_json')) {
+        function dp_try_json($v): ?array {
+            if ($v === null) return null;
+            if (is_array($v)) return $v;
+            if (!is_string($v)) return null;
+            $s = trim($v);
+            if ($s === '' || strtolower($s) === 'null') return null;
+            $d = json_decode($s, true);
+            return is_array($d) ? $d : null;
+        }
+    }
+
+    if (!function_exists('dp_pick_obj')) {
+        function dp_pick_obj($obj, array $keys, $default = null) {
+            if (!$obj) return $default;
+            foreach ($keys as $k) {
+                if (is_object($obj) && isset($obj->{$k}) && $obj->{$k} !== null && $obj->{$k} !== '') return $obj->{$k};
+                if (is_array($obj) && array_key_exists($k, $obj) && $obj[$k] !== null && $obj[$k] !== '') return $obj[$k];
+            }
+            return $default;
+        }
+    }
+
+    if (!function_exists('dp_norm_link_candidates')) {
+        function dp_norm_link_candidates(string $path, string $baseUrl): array {
+    $p = '/' . ltrim($path, '/');
+    $pNoTrail = rtrim($p, '/') ?: '/';
+    $pTrail   = ($pNoTrail === '/') ? '/' : ($pNoTrail . '/');
+
+    $c = [
+        $pNoTrail,
+        ltrim($pNoTrail, '/'),
+        $pTrail,
+        ltrim($pTrail, '/'),
+    ];
+
+    try {
+        $c[] = rtrim($baseUrl, '/') . $pNoTrail;
+        $c[] = rtrim($baseUrl, '/') . $pTrail;
+        $c[] = url($pNoTrail);
+        $c[] = url($pTrail);
+    } catch (\Throwable $e) {}
+
+    return array_values(array_unique(array_filter(array_map('strval', $c))));
+}
+    }
+
+    if (!function_exists('dp_build_meta_html')) {
+        function dp_build_meta_html(array $m, string $fallbackTitle, string $fallbackUrl): array {
+            $title = trim((string)($m['title'] ?? $m['meta_title'] ?? $fallbackTitle));
+            $desc  = trim((string)($m['description'] ?? $m['meta_description'] ?? ''));
+            $keys  = trim((string)($m['keywords'] ?? $m['meta_keywords'] ?? ''));
+            $robots= trim((string)($m['robots'] ?? ''));
+            $canon = trim((string)($m['canonical'] ?? $m['canonical_url'] ?? $fallbackUrl));
+
+            $og = (is_array($m['og'] ?? null) ? $m['og'] : []);
+            $tw = (is_array($m['twitter'] ?? null) ? $m['twitter'] : []);
+
+            $ogTitle = trim((string)($og['title'] ?? $m['og_title'] ?? $title));
+            $ogDesc  = trim((string)($og['description'] ?? $m['og_description'] ?? $desc));
+            $ogImage = trim((string)($og['image'] ?? $m['og_image'] ?? ''));
+            $ogUrl   = trim((string)($og['url'] ?? $m['og_url'] ?? $canon));
+            $ogType  = trim((string)($og['type'] ?? $m['og_type'] ?? 'website'));
+            $ogSite  = trim((string)($og['site_name'] ?? $m['og_site_name'] ?? config('app.name', '')));
+
+            $twCard  = trim((string)($tw['card'] ?? $m['twitter_card'] ?? 'summary_large_image'));
+            $twTitle = trim((string)($tw['title'] ?? $m['twitter_title'] ?? $ogTitle));
+            $twDesc  = trim((string)($tw['description'] ?? $m['twitter_description'] ?? $ogDesc));
+            $twImage = trim((string)($tw['image'] ?? $m['twitter_image'] ?? $ogImage));
+
+            $out = [];
+
+            // Canonical
+            if ($canon) $out[] = '<link rel="canonical" href="'.e($canon).'" data-dp-dynamic-meta="1">';
+
+            // Basic SEO
+            if ($desc)  $out[] = '<meta name="description" content="'.e($desc).'" data-dp-dynamic-meta="1">';
+            if ($keys)  $out[] = '<meta name="keywords" content="'.e($keys).'" data-dp-dynamic-meta="1">';
+            if ($robots)$out[] = '<meta name="robots" content="'.e($robots).'" data-dp-dynamic-meta="1">';
+
+            // Open Graph
+            if ($ogTitle) $out[] = '<meta property="og:title" content="'.e($ogTitle).'" data-dp-dynamic-meta="1">';
+            if ($ogDesc)  $out[] = '<meta property="og:description" content="'.e($ogDesc).'" data-dp-dynamic-meta="1">';
+            if ($ogImage) $out[] = '<meta property="og:image" content="'.e($ogImage).'" data-dp-dynamic-meta="1">';
+            if ($ogUrl)   $out[] = '<meta property="og:url" content="'.e($ogUrl).'" data-dp-dynamic-meta="1">';
+            if ($ogType)  $out[] = '<meta property="og:type" content="'.e($ogType).'" data-dp-dynamic-meta="1">';
+            if ($ogSite)  $out[] = '<meta property="og:site_name" content="'.e($ogSite).'" data-dp-dynamic-meta="1">';
+
+            // Twitter
+            if ($twCard)  $out[] = '<meta name="twitter:card" content="'.e($twCard).'" data-dp-dynamic-meta="1">';
+            if ($twTitle) $out[] = '<meta name="twitter:title" content="'.e($twTitle).'" data-dp-dynamic-meta="1">';
+            if ($twDesc)  $out[] = '<meta name="twitter:description" content="'.e($twDesc).'" data-dp-dynamic-meta="1">';
+            if ($twImage) $out[] = '<meta name="twitter:image" content="'.e($twImage).'" data-dp-dynamic-meta="1">';
+
+            return [$title ?: $fallbackTitle, implode("\n    ", $out), $canon ?: $fallbackUrl];
+        }
+    }
+
+    // --------- Detect base path + submenu slug from URL ----------
+    $dpRequestUri = request()->getRequestUri(); // includes query
+    $dpPathOnly   = parse_url($dpRequestUri, PHP_URL_PATH) ?? '/';
+    $dpPathOnly   = '/' . ltrim($dpPathOnly, '/');
+    $dpPathOnly   = rtrim($dpPathOnly, '/') ?: '/';
+
+    $dpSubmenuSlug = '';
+    $dpBasePath = $dpPathOnly;
+
+    // Pattern: /something&submenu=slug
+    if (preg_match('/^(.*)&submenu=([^\/\?#]+)/', $dpPathOnly, $m)) {
+        $dpBasePath = rtrim($m[1], '/') ?: '/';
+        $dpSubmenuSlug = urldecode($m[2] ?? '');
+    }
+
+    // Also allow ?submenu=slug
+    if (!$dpSubmenuSlug) {
+        $dpSubmenuSlug = (string) request()->query('submenu', '');
+    }
+    $dpSubmenuSlug = trim($dpSubmenuSlug);
+
+    // --------- Resolve a page by matching pages.page_url (page_link doesn't exist) ----------
+$dpResolvedPage = null;
+$dpPageSlugCandidate = trim(Str::afterLast($dpBasePath, '/'));
+$dpBaseUrl = request()->getSchemeAndHttpHost();
+$dpLinkCandidates = dp_norm_link_candidates($dpBasePath, $dpBaseUrl);
+
+try {
+    if (Schema::hasTable('pages')) {
+        $hasUrl  = Schema::hasColumn('pages', 'page_url');
+        $hasSlug = Schema::hasColumn('pages', 'slug');
+
+        if ($hasUrl) {
+            $dpResolvedPage = DB::table('pages')
+                ->whereIn('page_url', $dpLinkCandidates)
+                ->orderByDesc('id')
+                ->first();
+        }
+    }
+} catch (\Throwable $e) {
+    $dpResolvedPage = null;
+}
+
+    // --------- Resolve submenu (if present) for meta-tags ----------
+    $dpResolvedSubmenu = null;
+    try {
+        $submenuTables = ['page_submenus', 'page_sub_menus', 'page_submenu'];
+        $submenuTable = null;
+        foreach ($submenuTables as $t) {
+            if (Schema::hasTable($t)) { $submenuTable = $t; break; }
+        }
+
+        if ($submenuTable && $dpSubmenuSlug) {
+            $q = DB::table($submenuTable)->where('slug', $dpSubmenuSlug);
+
+            // If submenu table has page_id and we resolved page, scope it
+            if ($dpResolvedPage && Schema::hasColumn($submenuTable, 'page_id')) {
+                $q->where('page_id', (int)($dpResolvedPage->id ?? 0));
+            }
+
+            $dpResolvedSubmenu = $q->orderByDesc('id')->first();
+        }
+    } catch (\Throwable $e) {
+        $dpResolvedSubmenu = null;
+    }
+
+    // --------- Load meta tags from a meta table (if exists) ----------
+    $dpMetaArr = [];
+    $dpMetaRow = null;
+    $dpMetaTable = null;
+
+    try {
+        $metaTables = ['meta_tags', 'meta_tag_managers', 'meta_tag_manager', 'metatags', 'meta_tag'];
+        foreach ($metaTables as $t) {
+            if (Schema::hasTable($t)) { $dpMetaTable = $t; break; }
+        }
+
+        if ($dpMetaTable) {
+            $q = DB::table($dpMetaTable);
+
+            // Prefer submenu-specific meta if possible
+            if ($dpResolvedSubmenu) {
+                if (Schema::hasColumn($dpMetaTable, 'submenu_id')) {
+                    $q->where('submenu_id', (int)($dpResolvedSubmenu->id ?? 0));
+                } elseif (Schema::hasColumn($dpMetaTable, 'page_submenu_id')) {
+                    $q->where('page_submenu_id', (int)($dpResolvedSubmenu->id ?? 0));
+                } elseif (Schema::hasColumn($dpMetaTable, 'submenu_slug')) {
+                    $q->where('submenu_slug', $dpSubmenuSlug);
+                }
+            }
+
+            // Also scope by page if columns exist
+            if ($dpResolvedPage) {
+                $pid = (int)($dpResolvedPage->id ?? 0);
+                $pslug = (string)($dpResolvedPage->slug ?? '');
+                if (Schema::hasColumn($dpMetaTable, 'page_id')) $q->orWhere('page_id', $pid);
+                if ($pslug && Schema::hasColumn($dpMetaTable, 'page_slug')) $q->orWhere('page_slug', $pslug);
+                if (Schema::hasColumn($dpMetaTable, 'page_link')) $q->orWhereIn('page_link', $dpLinkCandidates);
+            } else {
+                // No resolved page: try link candidates (header links still can match meta table directly)
+                if (Schema::hasColumn($dpMetaTable, 'page_link')) $q->whereIn('page_link', $dpLinkCandidates);
+            }
+
+            $dpMetaRow = $q->orderByDesc('id')->first();
+
+            if ($dpMetaRow) {
+                // Try JSON columns first
+                foreach (['meta_json','meta_data','meta','data','payload','json'] as $col) {
+                    if (Schema::hasColumn($dpMetaTable, $col)) {
+                        $arr = dp_try_json($dpMetaRow->{$col});
+                        if ($arr) { $dpMetaArr = array_merge($dpMetaArr, $arr); break; }
+                    }
+                }
+
+                // Merge common scalar columns if present
+                foreach ([
+                    'meta_title' => ['meta_title','title'],
+                    'meta_description' => ['meta_description','description'],
+                    'meta_keywords' => ['meta_keywords','keywords'],
+                    'robots' => ['robots'],
+                    'canonical_url' => ['canonical_url','canonical'],
+                    'og_title' => ['og_title'],
+                    'og_description' => ['og_description'],
+                    'og_image' => ['og_image'],
+                    'og_url' => ['og_url'],
+                    'og_type' => ['og_type'],
+                    'twitter_card' => ['twitter_card'],
+                    'twitter_title' => ['twitter_title'],
+                    'twitter_description' => ['twitter_description'],
+                    'twitter_image' => ['twitter_image'],
+                ] as $target => $cols) {
+                    foreach ($cols as $c) {
+                        if (Schema::hasColumn($dpMetaTable, $c) && !empty($dpMetaRow->{$c})) {
+                            $dpMetaArr[$target] = $dpMetaRow->{$c};
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    } catch (\Throwable $e) {
+        $dpMetaRow = null;
+        $dpMetaTable = null;
+    }
+
+    // --------- As a fallback, try meta columns directly from page/submenu rows ----------
+    $dpMetaContext = $dpResolvedSubmenu ?: $dpResolvedPage;
+    if ($dpMetaContext) {
+        foreach ([
+            'meta_title' => ['meta_title','seo_title','page_title','title'],
+            'meta_description' => ['meta_description','seo_description','description'],
+            'meta_keywords' => ['meta_keywords','seo_keywords','keywords'],
+            'robots' => ['robots'],
+            'canonical_url' => ['canonical_url','canonical'],
+            'og_title' => ['og_title'],
+            'og_description' => ['og_description'],
+            'og_image' => ['og_image'],
+            'og_url' => ['og_url'],
+            'og_type' => ['og_type'],
+            'twitter_card' => ['twitter_card'],
+            'twitter_title' => ['twitter_title'],
+            'twitter_description' => ['twitter_description'],
+            'twitter_image' => ['twitter_image'],
+        ] as $k => $cols) {
+            if (!isset($dpMetaArr[$k]) || $dpMetaArr[$k] === '') {
+                $v = dp_pick_obj($dpMetaContext, $cols, null);
+                if ($v !== null && $v !== '') $dpMetaArr[$k] = $v;
+            }
+        }
+    }
+
+    // --------- Build meta HTML + final <title> for view-source ----------
+    $dpFallbackTitle = (string)(
+        dp_pick_obj($dpResolvedSubmenu, ['title','name','label'], null)
+        ?: dp_pick_obj($dpResolvedPage, ['page_title','title','name'], null)
+        ?: 'Dynamic Page'
+    );
+
+    $dpFallbackUrl = request()->fullUrl();
+    [$dpHeadTitle, $dpMetaHtml, $dpCanonical] = dp_build_meta_html($dpMetaArr, $dpFallbackTitle, $dpFallbackUrl);
+
+    // --------- Provide server page payload to JS (so header-link pages load correctly) ----------
+    $dpServerPageForJs = null;
+    if ($dpResolvedPage) {
+        $dpServerPageForJs = [
+            'id' => (int)($dpResolvedPage->id ?? 0),
+            'slug' => (string)($dpResolvedPage->slug ?? ''),
+            'title' => (string)($dpResolvedPage->title ?? $dpResolvedPage->page_title ?? ''),
+            'content_html' => (string)($dpResolvedPage->content_html ?? $dpResolvedPage->html ?? ''),
+            'page_link' => (string)($dpResolvedPage->page_url ?? ''),
+        ];
+    }
+
+    $dpServerSubmenuForJs = null;
+    if ($dpResolvedSubmenu) {
+        $dpServerSubmenuForJs = [
+            'id' => (int)($dpResolvedSubmenu->id ?? 0),
+            'slug' => (string)($dpResolvedSubmenu->slug ?? ''),
+            'title' => (string)(dp_pick_obj($dpResolvedSubmenu, ['title','name','label'], '') ?? ''),
+        ];
+    }
+@endphp
+@php
+    echo '<!-- Candidates: ' . json_encode($dpLinkCandidates) . ' -->';
+    if ($dpResolvedPage) {
+        echo '<!-- Resolved page: ' . $dpResolvedPage->id . ' -->';
+    } else {
+        echo '<!-- No page resolved -->';
+    }
+@endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    {{-- ✅ Server-side meta tags (SEO + share friendly) --}}
-    @include('landing.components.metaTags')
+    {{-- ✅ Base meta tags --}}
+    @include('landing.components.metaTags', [
+        // If your include supports overrides, these are available:
+        'dpResolvedPage' => $dpResolvedPage,
+        'dpResolvedSubmenu' => $dpResolvedSubmenu,
+        'dpMeta' => $dpMetaArr,
+        'dpCanonical' => $dpCanonical,
+    ])
+
+    {{-- ✅ Dynamic meta tags for CURRENT resolved page/submenu (visible in View Page Source) --}}
+    @if(!empty($dpMetaHtml))
+        {!! $dpMetaHtml !!}
+    @endif
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>@yield('title', 'Dynamic Page')</title>
+    <title>{{ $dpHeadTitle }}</title>
 
     <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('assets/media/images/favicon/msit_logo.jpg') }}">
 
@@ -178,13 +512,21 @@
   $apiBase = rtrim(url('/api'), '/');
 @endphp
 
+{{-- ✅ Expose server-resolved page/submenu so header links also load correctly --}}
+<script>
+    window.__DP_SERVER_PAGE__ = @json($dpServerPageForJs);
+    window.__DP_SERVER_SUBMENU__ = @json($dpServerSubmenuForJs);
+    window.__DP_SERVER_LINK_PATH__ = @json($dpBasePath);
+    window.__DP_SERVER_SUBMENU_SLUG__ = @json($dpSubmenuSlug);
+</script>
+
 <script>
 (function(){
     // ============================================================
     // Carousel initialization (kept as is)
     // ============================================================
     function parseList(raw){
-        return (raw||'').split(/\\r?\\n|\\|/g).map(function(s){return (s||'').trim();}).filter(Boolean);
+        return (raw||'').split(/\r?\n|\|/g).map(function(s){return (s||'').trim();}).filter(Boolean);
     }
 
     function getOpts(car){
@@ -322,20 +664,60 @@
     const SITE_BASE = @json(url('/'));
 
     // ============================================================
+    // ✅ Dynamic meta tag applier (client-side for SPA actions)
+    // ============================================================
+    function clearDynamicMeta(){
+        try {
+            document.querySelectorAll('[data-dp-dynamic-meta="1"]').forEach(n => n.remove());
+        } catch(e){}
+    }
+
+    function applyMetaHtml(html){
+        const raw = String(html || '').trim();
+        if (!raw) return;
+
+        clearDynamicMeta();
+
+        const tpl = document.createElement('template');
+        tpl.innerHTML = raw;
+
+        const nodes = Array.from(tpl.content.childNodes).filter(n => n.nodeType === 1);
+        nodes.forEach(n => {
+            const tag = (n.tagName || '').toUpperCase();
+            if (!['META','LINK','TITLE'].includes(tag)) return;
+
+            if (tag === 'TITLE'){
+                document.title = (n.textContent || document.title);
+                return;
+            }
+
+            n.setAttribute('data-dp-dynamic-meta', '1');
+            document.head.appendChild(n);
+        });
+    }
+
+    function applyMetaFromPayload(payload){
+        // Accept common keys returned by backend
+        const html =
+            payload?.meta_html ||
+            payload?.metaTagsHtml ||
+            payload?.meta_tags_html ||
+            payload?.meta_tags ||
+            payload?.meta;
+
+        if (typeof html === 'string' && (html.includes('<meta') || html.includes('<link') || html.includes('<title'))) {
+            applyMetaHtml(html);
+        }
+    }
+
+    // ============================================================
     // ✅ UUID helpers for header menu identification
     // ============================================================
-    
-    /**
-     * Check if a string is a valid UUID
-     */
     function isUuid(str) {
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         return uuidRegex.test(String(str || '').trim());
     }
 
-    /**
-     * Check if a parameter is a header menu UUID token (h-{uuid})
-     */
     function isHeaderMenuUuidToken(str) {
         const token = String(str || '').trim();
         if (!token.startsWith('h-')) return false;
@@ -343,80 +725,46 @@
         return isUuid(uuid);
     }
 
-    /**
-     * Extract UUID from header menu token (h-{uuid})
-     */
     function extractUuidFromHeaderToken(token) {
         const t = String(token || '').trim();
         if (!t.startsWith('h-')) return '';
         return t.substring(2);
     }
 
-    /**
-     * Create header menu token from UUID
-     */
     function headerMenuTokenFromUuid(uuid) {
         const u = String(uuid || '').trim();
         if (!u) return '';
         return u.startsWith('h-') ? u : ('h-' + u);
     }
 
-    /**
-     * Read header menu UUID from URL (h-{uuid} parameter)
-     */
     function readHeaderMenuUuidFromUrl() {
         try {
             const usp = new URLSearchParams(window.location.search || '');
-            
-            // Look for h-{uuid} parameters
             for (const [key, value] of usp.entries()) {
-                // Check if the key itself is a header token
-                if (isHeaderMenuUuidToken(key)) {
-                    return extractUuidFromHeaderToken(key);
-                }
-                // Check if value is a header token
-                if (isHeaderMenuUuidToken(value)) {
-                    return extractUuidFromHeaderToken(value);
-                }
+                if (isHeaderMenuUuidToken(key)) return extractUuidFromHeaderToken(key);
+                if (isHeaderMenuUuidToken(value)) return extractUuidFromHeaderToken(value);
             }
-            
-            // Legacy fallback: look for header_menu_id parameter
             const legacyId = usp.get('header_menu_id') || usp.get('menu_id') || usp.get('headerMenuId');
-            if (legacyId) {
-                return legacyId;
-            }
+            if (legacyId) return legacyId;
         } catch (e) {}
-        
         return '';
     }
 
-    /**
-     * Build search params with header menu UUID token
-     */
     function buildSearchWithHeaderUuid(params, headerUuid) {
-        // Remove any existing header tokens
         const newParams = new URLSearchParams();
-        
         for (const [key, value] of params.entries()) {
             if (!isHeaderMenuUuidToken(key) && key !== 'header_menu_id' && key !== 'menu_id' && key !== 'headerMenuId') {
                 newParams.append(key, value);
             }
         }
-        
-        // Add the new header token if provided
         if (headerUuid) {
-            // Check if it's a UUID or legacy ID
             if (isUuid(headerUuid)) {
                 const token = headerMenuTokenFromUuid(headerUuid);
-                if (token) {
-                    newParams.append(token, '1');
-                }
+                if (token) newParams.append(token, '1');
             } else {
-                // Legacy ID
                 newParams.append('header_menu_id', headerUuid);
             }
         }
-        
         return newParams;
     }
 
@@ -492,6 +840,21 @@
 
     const sidebarCard = document.getElementById('sidebarCard') || (sidebarCol ? sidebarCol.querySelector('.hallienz-side') : null);
     const contentCard = document.getElementById('contentCard') || (contentCol ? contentCol.querySelector('.dp-card') : null);
+
+    // ============================================================
+    // Helpers
+    // ============================================================
+    function isSameOriginUrl(raw){
+        try{
+            const u = new URL(String(raw||''), window.location.origin);
+            return u.origin === window.location.origin;
+        }catch(e){ return false; }
+    }
+
+    function normalizeToUrl(raw){
+        try { return new URL(String(raw||''), window.location.origin); }
+        catch(e){ return null; }
+    }
 
     // ============================================================
     // Skeleton helpers
@@ -632,7 +995,11 @@
         return m ? decodeURIComponent(m[1]) : '';
     }
 
+    // ✅ NEW: prefer server-resolved page slug for header links
     function getSlugCandidate(){
+        const serverPage = (window.__DP_SERVER_PAGE__ && typeof window.__DP_SERVER_PAGE__ === 'object') ? window.__DP_SERVER_PAGE__ : null;
+        if (serverPage && serverPage.slug) return String(serverPage.slug).trim();
+
         const qs = new URLSearchParams(window.location.search);
         const qSlug = qs.get('slug') || qs.get('page_slug') || qs.get('selfslug') || qs.get('shortcode');
         if (qSlug && String(qSlug).trim()) return String(qSlug).trim();
@@ -684,7 +1051,7 @@
     }
 
     // ============================================================
-    // Smart Sticky Columns
+    // Smart Sticky Columns (kept)
     // ============================================================
     let __dpStickyRaf = 0;
     let __dpStickyRO  = null;
@@ -823,23 +1190,20 @@
 
     function buildSearchWithDept(params, deptToken){
         const newParams = new URLSearchParams();
-        
+
         for (const [key, value] of params.entries()) {
             if (!isDeptToken(key) && key !== 'd' && key !== 'department_uuid') {
                 newParams.append(key, value);
             }
         }
-        
+
         if (deptToken && isDeptToken(deptToken)) {
             newParams.append(deptToken, '1');
         }
-        
+
         return newParams;
     }
 
-    /**
-     * Push URL state with submenu and header UUID
-     */
     function pushUrlStateSubmenu(submenuSlug, headerUuid, deptTokenMaybe){
         const u = new URL(window.location.href);
 
@@ -847,112 +1211,27 @@
         const s = String(submenuSlug || '').trim();
         if (s) path += '&submenu=' + encodeURIComponent(s);
 
-        // Build params with header UUID
         let params = new URLSearchParams(u.search);
-        
-        // Handle header UUID from scope if available
-        const headerUuidFinal = headerUuid || 
-            (window.__DP_PAGE_SCOPE__?.header_menu_uuid) || 
+
+        const headerUuidFinal = headerUuid ||
+            (window.__DP_PAGE_SCOPE__?.header_menu_uuid) ||
             readHeaderMenuUuidFromUrl();
-        
-        // Build search with header UUID
+
         params = buildSearchWithHeaderUuid(params, headerUuidFinal);
-        
-        // Add department token
+
         const deptTokenFinal = (deptTokenMaybe && isDeptToken(deptTokenMaybe))
             ? deptTokenMaybe
             : readDeptTokenFromUrl();
-            
+
         const finalParams = buildSearchWithDept(params, deptTokenFinal);
-        
+
         const search = finalParams.toString() ? '?' + finalParams.toString() : '';
         window.history.pushState({}, '', path + search + u.hash);
     }
 
-    function normalizeDepartmentsPayload(body){
-        if (!body) return [];
-        const root = (body && typeof body === 'object' && 'data' in body) ? body.data : body;
-
-        if (Array.isArray(root)) return root;
-        if (Array.isArray(root?.data)) return root.data;
-        if (Array.isArray(root?.departments)) return root.departments;
-        if (Array.isArray(root?.items)) return root.items;
-        if (Array.isArray(root?.data?.data)) return root.data.data;
-        return [];
-    }
-
-    async function loadPublicDepartmentsMap(){
-        if (window.__DP_DEPT_ID_UUID_MAP__ && Object.keys(window.__DP_DEPT_ID_UUID_MAP__).length) {
-            return window.__DP_DEPT_ID_UUID_MAP__;
-        }
-
-        const u = new URL(API_BASE + '/public/departments', window.location.origin);
-        u.searchParams.set('_ts', Date.now());
-
-        const r = await fetchJsonWithStatus(u.toString());
-        if (!r.ok) {
-            window.__DP_DEPT_ID_UUID_MAP__ = window.__DP_DEPT_ID_UUID_MAP__ || {};
-            return window.__DP_DEPT_ID_UUID_MAP__;
-        }
-
-        const list = normalizeDepartmentsPayload(r.data);
-        const map = {};
-
-        list.forEach(d => {
-            const id = parseInt(d?.id ?? d?.department_id ?? 0, 10);
-            const uuid = String(d?.uuid ?? d?.department_uuid ?? '').trim();
-            if (id > 0 && uuid) map[String(id)] = uuid;
-        });
-
-        window.__DP_DEPT_ID_UUID_MAP__ = map;
-        return map;
-    }
-
-    async function resolvePublicPage(slug, headerUuid = ''){
-        const raw = String(slug || '').trim();
-        if (!raw) return null;
-
-        const u = new URL(API_BASE + '/public/pages/resolve', window.location.origin);
-        u.searchParams.set('slug', raw);
-
-        // Add header UUID if present
-        if (headerUuid) {
-            if (isUuid(headerUuid)) {
-                u.searchParams.set('header_uuid', headerUuid);
-            } else {
-                u.searchParams.set('header_menu_id', headerUuid);
-            }
-        }
-
-        const r = await fetchJsonWithStatus(u.toString());
-        if (r.ok) return r.data?.page || null;
-        if (r.status === 404) return null;
-
-        const msg = (r.data && (r.data.message || r.data.error))
-            ? (r.data.message || r.data.error)
-            : ('Resolve failed: ' + r.status);
-
-        throw new Error(msg);
-    }
-
-    function normalizeTree(treeData){
-        if (!treeData) return [];
-        if (Array.isArray(treeData)) return treeData;
-
-        const arr = pick(treeData, ['tree','items','data','submenus','children','menu']);
-        if (Array.isArray(arr)) return arr;
-
-        if (treeData.data && Array.isArray(treeData.data.items)) return treeData.data.items;
-        if (treeData.data && Array.isArray(treeData.data)) return treeData.data;
-
-        return [];
-    }
-
-    function normalizeChildren(node){
-        const c = pick(node, ['children','nodes','items','submenus']);
-        return normalizeTree(c);
-    }
-
+    // ============================================================
+    // Core content injection helpers (kept)
+    // ============================================================
     function setInnerHTMLWithScripts(el, html){
         el.innerHTML = '';
 
@@ -1089,30 +1368,36 @@
         });
     }
 
-    /**
-     * Parse tree scope from API response
-     */
-    function parseTreeScope(treeBody, requestedHeaderUuid) {
-        const scope = (treeBody && typeof treeBody === 'object' && treeBody.scope) ? treeBody.scope : {};
-        
-        // The API returns the effective header_menu_id (numeric) in scope
-        const effectiveId = parseInt(scope?.header_menu_id ?? 0, 10) || 0;
-        const requestedId = parseInt(scope?.requested_header_menu_id ?? 0, 10) || 0;
-        
-        // Store the UUID if available in the response
-        const headerUuid = scope?.header_menu_uuid || '';
-        
-        return { 
-            effectiveId, 
-            requestedId, 
-            headerUuid,
-            raw: scope || {} 
-        };
+// ============================================================
+// ✅ Page resolver (slug + linkPath support)
+// ============================================================
+async function resolvePublicPage(headerUuid = '', linkPath = ''){
+    const rawLink = String(linkPath || '').trim();
+    if (!rawLink) return null;
+
+    const u = new URL(API_BASE + '/public/pages/resolve', window.location.origin);
+
+    // ✅ ONLY link (path)
+    const pathOnly = (function(){
+        try { return (new URL(rawLink, window.location.origin)).pathname; }
+        catch(e){ return rawLink; }
+    })();
+    u.searchParams.set('link', pathOnly);
+
+    if (headerUuid) {
+        if (isUuid(headerUuid)) u.searchParams.set('header_uuid', headerUuid);
+        else u.searchParams.set('header_menu_id', headerUuid);
     }
 
-    /**
-     * Load submenu content - FIXED VERSION
-     */
+    const r = await fetchJsonWithStatus(u.toString());
+    if (r.ok) return (r.data?.data || r.data?.page || null);
+    if (r.status === 404) return null;
+    throw new Error((r.data && (r.data.message || r.data.error)) ? (r.data.message || r.data.error) : ('Resolve failed: ' + r.status));
+}
+
+    // ============================================================
+    // Submenu renderer (patched to apply meta + internal link routing)
+    // ============================================================
     async function loadSubmenuRightContent(submenuSlug, pageScope, preOpenedWin = null){
         const sslug = String(submenuSlug || '').trim();
         if (!sslug) {
@@ -1125,41 +1410,23 @@
         const u = new URL(API_BASE + '/public/page-submenus/render', window.location.origin);
         u.searchParams.set('slug', sslug);
 
-        // CRITICAL FIX: Always pass header_menu_id if available
-        // First try to get from pageScope (set by loadSidebarIfAny)
+        // Pass header scope if present
         let headerMenuId = null;
-        
-        if (pageScope) {
-            // Try different possible locations for header_menu_id
-            headerMenuId = pageScope.header_menu_id || 
-                          pageScope.requested_header_menu_id || 
-                          pageScope.effective_header_menu_id;
-        }
-        
-        // If not in scope, try to read from URL
+        if (pageScope) headerMenuId = pageScope.header_menu_id || pageScope.requested_header_menu_id || pageScope.effective_header_menu_id;
+
         if (!headerMenuId) {
             const urlParams = new URLSearchParams(window.location.search);
-            headerMenuId = urlParams.get('header_menu_id') || 
-                          urlParams.get('menu_id') || 
-                          urlParams.get('headerMenuId');
-        }
-        
-        // If still no header_menu_id, try to get it from the page scope's requested value
-        if (!headerMenuId && window.__DP_PAGE_SCOPE__) {
-            headerMenuId = window.__DP_PAGE_SCOPE__.requested_header_menu_id || 
-                          window.__DP_PAGE_SCOPE__.header_menu_id;
-        }
-        
-        // Add header_menu_id to request if we have it
-        if (headerMenuId && parseInt(headerMenuId) > 0) {
-            u.searchParams.set('header_menu_id', String(headerMenuId));
+            headerMenuId = urlParams.get('header_menu_id') || urlParams.get('menu_id') || urlParams.get('headerMenuId');
         }
 
-        // Also try to get header UUID
-        const headerUuid = pageScope?.header_menu_uuid || readHeaderMenuUuidFromUrl();
-        if (headerUuid && isUuid(headerUuid)) {
-            u.searchParams.set('header_uuid', headerUuid);
+        if (!headerMenuId && window.__DP_PAGE_SCOPE__) {
+            headerMenuId = window.__DP_PAGE_SCOPE__.requested_header_menu_id || window.__DP_PAGE_SCOPE__.header_menu_id;
         }
+
+        if (headerMenuId && parseInt(headerMenuId) > 0) u.searchParams.set('header_menu_id', String(headerMenuId));
+
+        const headerUuid = pageScope?.header_menu_uuid || readHeaderMenuUuidFromUrl();
+        if (headerUuid && isUuid(headerUuid)) u.searchParams.set('header_uuid', headerUuid);
 
         if (pageScope?.page_id) u.searchParams.set('page_id', pageScope.page_id);
         else if (pageScope?.page_slug) u.searchParams.set('page_slug', pageScope.page_slug);
@@ -1178,6 +1445,10 @@
         }
 
         const payload = r.data || {};
+
+        // ✅ NEW: apply meta tags if backend returns them for submenu
+        applyMetaFromPayload(payload);
+
         const type = payload.type;
 
         elTitle.textContent = payload.title || 'Dynamic Page';
@@ -1221,6 +1492,14 @@
             const rawUrl = payload.url || payload.link || payload.href || '';
             const safeUrl = normalizeExternalUrl(rawUrl) || (rawUrl ? rawUrl : 'about:blank');
 
+            // ✅ NEW: internal links should open in SAME TAB so server can match pages.page_link and render meta in view-source
+            if (safeUrl && safeUrl !== 'about:blank' && isSameOriginUrl(safeUrl)) {
+                try{ if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close(); }catch(e){}
+                window.location.href = safeUrl;
+                return;
+            }
+
+            // External: keep old behavior
             let opened = false;
             try{
                 if (preOpenedWin && !preOpenedWin.closed && safeUrl && safeUrl !== 'about:blank'){
@@ -1255,9 +1534,27 @@
         scheduleStickyUpdate();
     }
 
-    /**
-     * Render sidebar tree
-     */
+    // ============================================================
+    // Tree rendering (patched submenu link routing)
+    // ============================================================
+    function normalizeTree(treeData){
+        if (!treeData) return [];
+        if (Array.isArray(treeData)) return treeData;
+
+        const arr = pick(treeData, ['tree','items','data','submenus','children','menu']);
+        if (Array.isArray(arr)) return arr;
+
+        if (treeData.data && Array.isArray(treeData.data.items)) return treeData.data.items;
+        if (treeData.data && Array.isArray(treeData.data)) return treeData.data;
+
+        return [];
+    }
+
+    function normalizeChildren(node){
+        const c = pick(node, ['children','nodes','items','submenus']);
+        return normalizeTree(c);
+    }
+
     function renderTree(nodes, currentLower, parentUl, level = 0){
         let anyActiveInThisList = false;
 
@@ -1285,16 +1582,6 @@
             const nodeTypeHint = String(pick(node, ['type','content_type','submenu_type','render_type']) || '').toLowerCase().trim();
             if (nodeTypeHint === 'url') a.dataset.submenuType = 'url';
 
-            const nodeDeptId = parseInt(pick(node, ['department_id','dept_id']) || 0, 10);
-            if (nodeDeptId > 0) a.dataset.deptId = String(nodeDeptId);
-
-            const nodeDeptUuid = String(pick(node, ['department_uuid','dept_uuid']) || '').trim();
-            if (nodeDeptUuid) a.dataset.deptUuid = nodeDeptUuid;
-
-            // Store header UUID if available in the node
-            const nodeHeaderUuid = String(pick(node, ['header_menu_uuid', 'menu_uuid']) || '').trim();
-            if (nodeHeaderUuid) a.dataset.headerUuid = nodeHeaderUuid;
-
             const basePad = 14;
             const indent = Math.min(54, level * 14);
             a.style.paddingLeft = (basePad + indent) + 'px';
@@ -1309,9 +1596,37 @@
                 e.preventDefault();
                 e.stopPropagation();
 
+                // ✅ CHANGE: If node has a link:
+                // - INTERNAL -> open in same tab (so server matches pages.page_link and injects meta in view-source)
+                // - EXTERNAL -> open in new tab (old behavior)
                 const directLinkRaw = (a.dataset.submenuLink || '').trim();
                 const directLink = normalizeExternalUrl(directLinkRaw);
+
                 if (directLink){
+                    if (isSameOriginUrl(directLink)){
+                        const u = normalizeToUrl(directLink);
+                        if (u){
+                            // Preserve header token + dept token if needed
+                            let params = new URLSearchParams(u.search || '');
+
+                            const headerUuidFinal =
+                                (a.dataset.headerUuid || '') ||
+                                (window.__DP_PAGE_SCOPE__?.header_menu_uuid) ||
+                                readHeaderMenuUuidFromUrl();
+
+                            params = buildSearchWithHeaderUuid(params, headerUuidFinal);
+
+                            const deptTokenFinal = readDeptTokenFromUrl();
+                            params = buildSearchWithDept(params, deptTokenFinal);
+
+                            u.search = params.toString();
+                            window.location.href = u.toString();
+                            return;
+                        }
+                        window.location.href = directLink;
+                        return;
+                    }
+
                     try { window.open(directLink, '_blank', 'noopener,noreferrer'); } catch(err) {}
 
                     document.querySelectorAll('.hallienz-side__link.active').forEach(x => x.classList.remove('active'));
@@ -1355,18 +1670,7 @@
                 }catch(e2){}
 
                 await loadSubmenuRightContent(sslug, window.__DP_PAGE_SCOPE__ || null, preWin);
-
-                const deptId = parseInt(a.dataset.deptId || '0', 10);
-                const deptUuid =
-                    (a.dataset.deptUuid || '').trim() ||
-                    (deptId > 0 ? (window.__DP_DEPT_ID_UUID_MAP__?.[String(deptId)] || '') : '');
-
-                const deptToken = deptTokenFromUuid(deptUuid);
-                
-                // Get header UUID from node or scope
-                const headerUuid = a.dataset.headerUuid || window.__DP_PAGE_SCOPE__?.header_menu_uuid || '';
-                
-                pushUrlStateSubmenu(sslug, headerUuid, deptToken);
+                pushUrlStateSubmenu(sslug, window.__DP_PAGE_SCOPE__?.header_menu_uuid || '', readDeptTokenFromUrl());
             });
 
             row.appendChild(a);
@@ -1415,61 +1719,12 @@
         return anyActiveInThisList;
     }
 
-    function findFirstSubmenuSlug(nodes){
-        const stack = Array.isArray(nodes) ? [...nodes] : [];
-        while (stack.length){
-            const n = stack.shift();
-            const s = String(pick(n, ['slug']) || '').trim();
-            if (s) return s;
-
-            const children = normalizeChildren(n);
-            if (children.length) stack.unshift(...children);
-        }
-        return '';
-    }
-
-    /**
-     * Filter tree by header menu UUID
-     */
-    function filterTreeByHeaderUuid(nodes, headerUuid) {
-        if (!headerUuid || !Array.isArray(nodes)) return nodes || [];
-
-        const out = [];
-
-        nodes.forEach(n => {
-            const nodeHeaderUuid = String(pick(n, ['header_menu_uuid', 'menu_uuid']) || '').trim();
-            const kids = filterTreeByHeaderUuid(normalizeChildren(n), headerUuid);
-
-            // Keep if node matches UUID or has matching children
-            const keepByUuid = (!nodeHeaderUuid || nodeHeaderUuid === headerUuid);
-
-            if (keepByUuid || kids.length) {
-                const cloned = Object.assign({}, n);
-
-                if (kids.length) {
-                    cloned.children = kids;
-                    cloned.submenus = kids;
-                    cloned.items = kids;
-                    cloned.nodes = kids;
-                }
-
-                out.push(cloned);
-            }
-        });
-
-        return out;
-    }
-
-    /**
-     * Load sidebar with UUID support
-     */
     async function loadSidebarIfAny(page) {
         showSidebarSkeleton();
 
         const pageId   = pick(page, ['id']);
         const pageSlug = pick(page, ['slug']);
 
-        // Get header identifier from URL (UUID or legacy ID)
         const headerFromUrl = readHeaderMenuUuidFromUrl();
 
         if (!pageId && !pageSlug && !headerFromUrl) {
@@ -1483,13 +1738,9 @@
 
         const treeUrl = new URL(API_BASE + '/public/page-submenus/tree', window.location.origin);
 
-        // Send header identifier if present
         if (headerFromUrl) {
-            if (isUuid(headerFromUrl)) {
-                treeUrl.searchParams.set('header_uuid', headerFromUrl);
-            } else {
-                treeUrl.searchParams.set('header_menu_id', headerFromUrl);
-            }
+            if (isUuid(headerFromUrl)) treeUrl.searchParams.set('header_uuid', headerFromUrl);
+            else treeUrl.searchParams.set('header_menu_id', headerFromUrl);
         }
 
         if (pageId) treeUrl.searchParams.set('page_id', pageId);
@@ -1507,27 +1758,7 @@
         }
 
         const body = r.data || {};
-        const scopeParsed = parseTreeScope(body, headerFromUrl);
-
-        // Store in global scope
-        const headerUuidEffective = scopeParsed.headerUuid || (isUuid(headerFromUrl) ? headerFromUrl : '');
-        const headerIdEffective = scopeParsed.effectiveId || (!isUuid(headerFromUrl) ? parseInt(headerFromUrl) : 0);
-
-        window.__DP_PAGE_SCOPE__ = window.__DP_PAGE_SCOPE__ || {};
-        if (!window.__DP_PAGE_SCOPE__.page_id && pageId) window.__DP_PAGE_SCOPE__.page_id = pageId;
-        if (!window.__DP_PAGE_SCOPE__.page_slug && pageSlug) window.__DP_PAGE_SCOPE__.page_slug = pageSlug;
-
-        window.__DP_PAGE_SCOPE__.requested_header_menu_uuid = (isUuid(headerFromUrl) ? headerFromUrl : null) || null;
-        window.__DP_PAGE_SCOPE__.header_menu_uuid = headerUuidEffective || null;
-        window.__DP_PAGE_SCOPE__.requested_header_menu_id = (!isUuid(headerFromUrl) ? parseInt(headerFromUrl) : null) || null;
-        window.__DP_PAGE_SCOPE__.header_menu_id = headerIdEffective || null;
-
         let nodes = normalizeTree(body);
-
-        // Filter using UUID if available
-        if (headerUuidEffective) {
-            nodes = filterTreeByHeaderUuid(nodes, headerUuidEffective);
-        }
 
         if (!nodes.length) {
             hideSidebarSkeleton();
@@ -1549,12 +1780,10 @@
 
         renderTree(nodes, '', submenuList, 0);
 
-        const firstSubmenuSlug = findFirstSubmenuSlug(nodes);
-
         hideSidebarSkeleton();
         scheduleStickyUpdate();
 
-        return { hasSidebar: true, firstSubmenuSlug };
+        return { hasSidebar: true, firstSubmenuSlug: '' };
     }
 
     function openAncestorsOfLink(linkEl){
@@ -1582,34 +1811,21 @@
                 if (!menuUuid) {
                     const href = headerLink.getAttribute('href') || '';
                     const url = new URL(href, window.location.origin);
-                    
-                    // Look for h-{uuid} parameter
+
                     for (const [key, value] of url.searchParams.entries()) {
-                        if (isHeaderMenuUuidToken(key)) {
-                            menuUuid = extractUuidFromHeaderToken(key);
-                            break;
-                        }
-                        if (isHeaderMenuUuidToken(value)) {
-                            menuUuid = extractUuidFromHeaderToken(value);
-                            break;
-                        }
+                        if (isHeaderMenuUuidToken(key)) { menuUuid = extractUuidFromHeaderToken(key); break; }
+                        if (isHeaderMenuUuidToken(value)) { menuUuid = extractUuidFromHeaderToken(value); break; }
                     }
-                    
-                    // Legacy fallback
+
                     if (!menuUuid) {
                         const legacyId = url.searchParams.get('header_menu_id');
-                        if (legacyId) {
-                            menuUuid = legacyId;
-                        }
+                        if (legacyId) menuUuid = legacyId;
                     }
                 }
 
                 if (menuUuid) {
                     const currentUrl = new URL(window.location);
-                    
-                    // Clear existing header params
                     const newParams = buildSearchWithHeaderUuid(currentUrl.searchParams, menuUuid);
-                    
                     currentUrl.search = newParams.toString();
                     currentUrl.searchParams.delete('submenu');
                     window.location.href = currentUrl.toString();
@@ -1619,17 +1835,20 @@
     }
 
     async function init(){
-        hideError();
-        setupStickyObservers();
+    hideError();
+    setupStickyObservers();
 
-        resetSidebarPreloadState();
+    resetSidebarPreloadState();
 
-        const slugCandidate = getSlugCandidate();
-        const currentLower = toLowerSafe(slugCandidate);
+    const slugCandidate = getSlugCandidate();
 
-        if (!slugCandidate) {
+    // ✅ Server resolved link path for header-link routes
+    const serverLinkPath = String(window.__DP_SERVER_LINK_PATH__ || window.location.pathname || '').trim();
+    const headerFromUrl = readHeaderMenuUuidFromUrl();
+
+        if (!slugCandidate && !serverLinkPath) {
             elLoading.classList.add('d-none');
-            showError("No page slug provided. Use /link/page/<slug>  OR  /page/<slug>  OR  ?slug=about-us");
+            showError("No page slug/link provided.");
             hideSidebarSkeleton();
             sidebarCol.classList.add('d-none');
             sidebarCol.classList.remove('dp-side-preload');
@@ -1637,16 +1856,21 @@
             scheduleStickyUpdate();
             return;
         }
-
-        await loadPublicDepartmentsMap();
 
         showLoading('Loading page…');
 
-        const headerFromUrl = readHeaderMenuUuidFromUrl();
-        const page = await resolvePublicPage(slugCandidate, headerFromUrl);
+        // ✅ If server already resolved the page from pages.page_link/page_url, use it
+        const serverPage = (window.__DP_SERVER_PAGE__ && typeof window.__DP_SERVER_PAGE__ === 'object') ? window.__DP_SERVER_PAGE__ : null;
+
+        let page = null;
+        if (serverPage && parseInt(serverPage.id || '0', 10) > 0) {
+            page = serverPage;
+        } else {
+            page = await resolvePublicPage(headerFromUrl, serverLinkPath);
+        }
 
         if (!page) {
-            showNotFound(slugCandidate);
+            showNotFound(slugCandidate || serverLinkPath || '(unknown)');
             hideSidebarSkeleton();
             sidebarCol.classList.add('d-none');
             sidebarCol.classList.remove('dp-side-preload');
@@ -1654,6 +1878,9 @@
             scheduleStickyUpdate();
             return;
         }
+
+        // ✅ Apply meta tags if backend returns in page payload (optional)
+        applyMetaFromPayload(page);
 
         window.__DP_PAGE_SCOPE__ = {
             page_id: pick(page, ['id']) || null,
@@ -1664,10 +1891,10 @@
             requested_header_menu_id: (!isUuid(headerFromUrl) ? parseInt(headerFromUrl) : null) || null
         };
 
-        elTitle.textContent = pick(page, ['title']) || slugCandidate;
+        elTitle.textContent = pick(page, ['title']) || slugCandidate || 'Dynamic Page';
         setMeta('');
 
-        const html = pick(page, ['content_html']) || '';
+        const html = pick(page, ['content_html','html']) || '';
         setInnerHTMLWithScripts(elHtml, html || '<p class="text-muted mb-0">No content_html returned from pages resolve API.</p>');
 
         elLoading.classList.add('d-none');
@@ -1677,6 +1904,7 @@
 
         await loadSidebarIfAny(page);
 
+        // ✅ Submenu load: path &submenu= OR ?submenu=
         let submenuSlug = (readSubmenuFromPathname() || '').trim();
         if (!submenuSlug){
             const qs = new URLSearchParams(window.location.search);

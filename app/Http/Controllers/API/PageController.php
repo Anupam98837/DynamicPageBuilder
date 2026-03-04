@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Schema;
 
 class PageController extends Controller
 {
@@ -95,7 +96,6 @@ class PageController extends Controller
             $o2 = $this->safeValue($o);
             $n2 = $this->safeValue($n);
 
-            // Compare loosely but deterministically
             if ($o2 !== $n2) {
                 $changed[]    = $f;
                 $oldVals[$f]  = $o2;
@@ -212,20 +212,21 @@ class PageController extends Controller
         $pageType       = $request->query('page_type', null);
         $layoutKey      = $request->query('layout_key', null);
         $onlyIncludable = (int) $request->query('only_includable', 0) === 1;
-        $publishedParam = $request->query('published', null); // '1' => published, '0' => not-yet
+        $publishedParam = $request->query('published', null);
 
-        // ✅ MISSING BEFORE (needed for your UI dropdown)
+        // Needed for UI dropdown
         $departmentId   = $request->query('department_id', null);
 
         $sort      = (string) $request->query('sort', 'created_at');
         $direction = strtolower((string) $request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
 
-        $allowedSort = ['created_at', 'updated_at', 'title', 'slug', 'published_at'];
+        // ✅ Added page_title to allowed sorts (optional, but useful)
+        $allowedSort = ['created_at', 'updated_at', 'title', 'page_title', 'slug', 'published_at'];
         if (! in_array($sort, $allowedSort, true)) {
             $sort = 'created_at';
         }
 
-        // ✅ Only Active/Inactive in normal list (Archived blocked)
+        // Only Active/Inactive in normal list
         $base = DB::table('pages')
             ->whereNull('deleted_at')
             ->whereIn('status', ['Active', 'Inactive']);
@@ -233,6 +234,8 @@ class PageController extends Controller
         if ($q !== '') {
             $base->where(function ($x) use ($q) {
                 $x->where('title', 'like', "%{$q}%")
+                    ->orWhere('page_title', 'like', "%{$q}%") // ✅ NEW
+                    ->orWhere('page_url', 'like', "%{$q}%")   // ✅ NEW
                     ->orWhere('slug', 'like', "%{$q}%")
                     ->orWhere('shortcode', 'like', "%{$q}%")
                     ->orWhere('includable_id', 'like', "%{$q}%");
@@ -251,7 +254,6 @@ class PageController extends Controller
             $base->where('layout_key', $layoutKey);
         }
 
-        // ✅ Added dept filter
         if ($departmentId !== null && $departmentId !== '') {
             $base->where('department_id', (int) $departmentId);
         }
@@ -280,7 +282,6 @@ class PageController extends Controller
             ->forPage($page, $per)
             ->get();
 
-        // ✅ Added last_page + current_page + from/to for frontend pager
         $lastPage = (int) ceil(($total ?: 0) / $per);
         $lastPage = max(1, $lastPage);
         $from = $total ? (($page - 1) * $per + 1) : 0;
@@ -292,7 +293,7 @@ class PageController extends Controller
             'pagination' => [
                 'current_page' => $page,
                 'last_page'    => $lastPage,
-                'page'         => $page,     // keep old keys for backward compatibility
+                'page'         => $page,
                 'per_page'     => $per,
                 'total'        => $total,
                 'from'         => $from,
@@ -313,6 +314,8 @@ class PageController extends Controller
         if ($q !== '') {
             $base->where(function ($x) use ($q) {
                 $x->where('title', 'like', "%{$q}%")
+                    ->orWhere('page_title', 'like', "%{$q}%") // ✅ NEW
+                    ->orWhere('page_url', 'like', "%{$q}%")   // ✅ NEW
                     ->orWhere('slug', 'like', "%{$q}%")
                     ->orWhere('shortcode', 'like', "%{$q}%")
                     ->orWhere('includable_id', 'like', "%{$q}%");
@@ -337,7 +340,7 @@ class PageController extends Controller
             'pagination' => [
                 'current_page' => $page,
                 'last_page'    => $lastPage,
-                'page'         => $page,     // keep old keys too
+                'page'         => $page,
                 'per_page'     => $per,
                 'total'        => $total,
                 'from'         => $from,
@@ -346,37 +349,53 @@ class PageController extends Controller
         ]);
     }
 
-    /**
-     * Resolve by slug for frontend rendering.
-     */
-    public function resolve(Request $request)
-    {
-        $slug = $this->normSlug($request->query('slug', ''));
-        if ($slug === '') {
-            return response()->json(['error' => 'Missing slug'], 422);
-        }
 
-        $now = Carbon::now();
 
-        $page = DB::table('pages')
-            ->where('slug', $slug)
-            ->whereNull('deleted_at')
-            ->where('status', 'Active')
-            ->where(function ($q) use ($now) {
-                $q->whereNull('published_at')
-                    ->orWhere('published_at', '<=', $now);
-            })
-            ->first();
+// In app/Http/Controllers/API/PublicPageController.php
 
-        if (! $page) {
-            return response()->json(['error' => 'Not found'], 404);
-        }
-
-        return response()->json([
-            'success' => true,
-            'data'    => $page,
-        ]);
+public function resolve(Request $request)
+{
+    $link = trim((string) $request->query('link', ''));
+    if ($link === '') {
+        return response()->json(['error' => 'Missing link'], 422);
     }
+
+    $now = Carbon::now();
+
+    // Build candidates exactly as in the frontend and admin resolve
+    $path = parse_url($link, PHP_URL_PATH) ?: $link;
+    $path = '/' . ltrim($path, '/');
+    $pathNoTrail = rtrim($path, '/') ?: '/';
+    $pathTrail   = ($pathNoTrail === '/') ? '/' : ($pathNoTrail . '/');
+
+    $base = $request->getSchemeAndHttpHost();
+
+    $candidates = array_values(array_unique(array_filter([
+        $pathNoTrail,
+        ltrim($pathNoTrail, '/'),
+        $pathTrail,
+        ltrim($pathTrail, '/'),
+        rtrim($base, '/') . $pathNoTrail,
+        rtrim($base, '/') . $pathTrail,
+    ])));
+
+    $page = DB::table('pages')
+        ->whereNull('deleted_at')
+        ->where('status', 'Active')
+        ->where(function ($q) use ($now) {
+            $q->whereNull('published_at')
+              ->orWhere('published_at', '<=', $now);
+        })
+        ->whereIn('page_url', $candidates)
+        ->orderByDesc('id')
+        ->first();
+
+    if (!$page) {
+        return response()->json(['error' => 'Not found'], 404);
+    }
+
+    return response()->json(['success' => true, 'page' => $page, 'data' => $page]);
+}
 
     /* ============================================
      | CRUD
@@ -396,6 +415,8 @@ class PageController extends Controller
     {
         $data = $request->validate([
             'title'            => 'required|string|max:200',
+            'page_title'       => 'sometimes|nullable|string|max:200', // ✅ NEW
+            'page_url'         => 'sometimes|nullable|string|max:255', // ✅ NEW
             'slug'             => 'sometimes|nullable|string|max:200',
             'shortcode'        => 'sometimes|nullable|string|max:12',
             'page_type'        => 'sometimes|string|max:30',
@@ -414,10 +435,10 @@ class PageController extends Controller
         $slug     = $this->uniqueSlug($slugBase);
 
         /* ---------------- Shortcode (AUTO) ---------------- */
-        if (!isset($data['shortcode']) || trim($data['shortcode']) === '') {
-            $base = strtoupper(substr(Str::slug($data['title'], ''), 0, 6)); // from title
+        if (!isset($data['shortcode']) || trim((string) $data['shortcode']) === '') {
+            $base = strtoupper(substr(Str::slug($data['title'], ''), 0, 6));
             $suffix = strtoupper(Str::random(3));
-            $shortcode = $base . '_' . $suffix; // e.g. ABOUT_7KD
+            $shortcode = $base . '_' . $suffix;
         } else {
             $shortcode = $data['shortcode'];
         }
@@ -457,6 +478,15 @@ class PageController extends Controller
             $publishedAt = Carbon::parse($data['published_at']);
         }
 
+        // ✅ NEW columns normalize (empty string -> null)
+        $pageTitle = array_key_exists('page_title', $data)
+            ? (trim((string) $data['page_title']) !== '' ? $data['page_title'] : null)
+            : ($data['title'] ?? null); // default to title if not sent
+
+        $pageUrl = array_key_exists('page_url', $data)
+            ? (trim((string) $data['page_url']) !== '' ? $data['page_url'] : null)
+            : null;
+
         $actor = $this->actor($request);
         $now   = Carbon::now();
         $ip    = $request->ip();
@@ -464,8 +494,13 @@ class PageController extends Controller
         /* ---------------- Insert ---------------- */
         $payload = [
             'uuid'               => (string) Str::uuid(),
-            'department_id'      => $request->input('department_id'),
-            'submenu_exists'     => $request->input('submenu_exists', 'no'),
+            'department_id'      => $data['department_id'] ?? null,
+            'submenu_exists'     => $data['submenu_exists'] ?? 'no',
+
+            // ✅ NEW
+            'page_title'         => $pageTitle,
+            'page_url'           => $pageUrl,
+
             'slug'               => $slug,
             'title'              => $data['title'],
             'shortcode'          => $shortcode,
@@ -498,7 +533,7 @@ class PageController extends Controller
                 $payload,
                 'Create failed: DB insert error'
             );
-            throw $e; // keep existing behavior (Laravel will handle)
+            throw $e;
         }
 
         $row = DB::table('pages')->where('id', $id)->first();
@@ -541,6 +576,8 @@ class PageController extends Controller
 
         $data = $request->validate([
             'title'            => 'sometimes|string|max:200',
+            'page_title'       => 'sometimes|nullable|string|max:200', // ✅ NEW
+            'page_url'         => 'sometimes|nullable|string|max:255', // ✅ NEW
             'slug'             => 'sometimes|nullable|string|max:200',
             'shortcode'        => 'sometimes|string|max:12',
             'page_type'        => 'sometimes|string|max:30',
@@ -578,12 +615,12 @@ class PageController extends Controller
         }
 
         /* ---------------- Shortcode (AUTO) ---------------- */
-        if (array_key_exists('shortcode', $data) && trim($data['shortcode']) !== '') {
+        if (array_key_exists('shortcode', $data) && trim((string) $data['shortcode']) !== '') {
             $shortcode = $data['shortcode'];
         } elseif (isset($data['title']) && $data['title'] !== $page->title) {
             $base = strtoupper(substr(Str::slug($data['title'], ''), 0, 6));
             $suffix = strtoupper(Str::random(3));
-            $shortcode = $base . '_' . $suffix; // e.g. ABOUT_X7K
+            $shortcode = $base . '_' . $suffix;
         } else {
             $shortcode = $page->shortcode;
         }
@@ -626,14 +663,34 @@ class PageController extends Controller
 
         $actor = $this->actor($request);
 
+        // ✅ NEW columns normalize:
+        // - if sent as "" => set NULL
+        // - if not sent => keep existing
+        $nextPageTitle = $page->page_title ?? null;
+        if (array_key_exists('page_title', $data)) {
+            $nextPageTitle = (trim((string) $data['page_title']) !== '') ? $data['page_title'] : null;
+        } elseif (isset($data['title']) && ($page->page_title === null || $page->page_title === $page->title)) {
+            // keep nice default behaviour if page_title was basically mirroring title
+            $nextPageTitle = $data['title'];
+        }
+
+        $nextPageUrl = $page->page_url ?? null;
+        if (array_key_exists('page_url', $data)) {
+            $nextPageUrl = (trim((string) $data['page_url']) !== '') ? $data['page_url'] : null;
+        }
+
         /* ---------------- Final update payload ---------------- */
         $update = [
             'title'              => $data['title'] ?? $page->title,
+
+            // ✅ NEW
+            'page_title'         => $nextPageTitle,
+            'page_url'           => $nextPageUrl,
+
             'slug'               => $slug,
             'shortcode'          => $shortcode,
             'page_type'          => $data['page_type'] ?? $page->page_type,
 
-            // Safe HTML update
             'content_html'       => (
                 array_key_exists('content_html', $data) &&
                 trim((string) $data['content_html']) !== ''
@@ -647,11 +704,9 @@ class PageController extends Controller
             'status'             => $data['status'] ?? $page->status,
             'published_at'       => $publishedAt,
 
-            // New fields
             'department_id'      => $data['department_id'] ?? $page->department_id,
             'submenu_exists'     => $data['submenu_exists'] ?? $page->submenu_exists,
 
-            // Audit
             'updated_at'         => Carbon::now(),
             'updated_by_user_id' => $actor['id'] ?: null,
         ];
@@ -662,7 +717,6 @@ class PageController extends Controller
 
         $fresh = DB::table('pages')->where('id', $page->id)->first();
 
-        // Log only meaningful business fields (exclude audit noise)
         $diffFields = array_keys($update);
         $diffFields = array_values(array_diff($diffFields, ['updated_at', 'updated_by_user_id']));
         [$changed, $oldVals, $newVals] = $this->computeDiff($diffFields, $before, $fresh);
@@ -709,13 +763,12 @@ class PageController extends Controller
         DB::table('pages')
             ->where('id', $page->id)
             ->update([
-                'deleted_at'        => Carbon::now(),
-                'updated_at'        => Carbon::now(),
-                'updated_by_user_id'=> $actor['id'] ?: null,
+                'deleted_at'         => Carbon::now(),
+                'updated_at'         => Carbon::now(),
+                'updated_by_user_id' => $actor['id'] ?: null,
             ]);
 
         $after = DB::table('pages')->where('id', $page->id)->first();
-
         [$changed, $oldVals, $newVals] = $this->computeDiff(['deleted_at'], $before, $after);
 
         $this->logActivity(
@@ -757,13 +810,12 @@ class PageController extends Controller
         DB::table('pages')
             ->where('id', $page->id)
             ->update([
-                'deleted_at'        => null,
-                'updated_at'        => Carbon::now(),
-                'updated_by_user_id'=> $actor['id'] ?: null,
+                'deleted_at'         => null,
+                'updated_at'         => Carbon::now(),
+                'updated_by_user_id' => $actor['id'] ?: null,
             ]);
 
         $after = DB::table('pages')->where('id', $page->id)->first();
-
         [$changed, $oldVals, $newVals] = $this->computeDiff(['deleted_at'], $before, $after);
 
         $this->logActivity(
@@ -848,9 +900,9 @@ class PageController extends Controller
         DB::table('pages')
             ->where('id', $page->id)
             ->update([
-                'status'            => $newStatus,
-                'updated_at'        => Carbon::now(),
-                'updated_by_user_id'=> $actor['id'] ?: null,
+                'status'             => $newStatus,
+                'updated_at'         => Carbon::now(),
+                'updated_by_user_id' => $actor['id'] ?: null,
             ]);
 
         $after = DB::table('pages')->where('id', $page->id)->first();
@@ -881,7 +933,10 @@ class PageController extends Controller
             ->where('status', 'Active')
             ->whereNull('deleted_at')
             ->first([
+                // ✅ Keep old fields + add new ones
                 'title',
+                'page_title',
+                'page_url',
                 'meta_description',
                 'content_html'
             ]);
@@ -970,7 +1025,7 @@ class PageController extends Controller
             'pagination' => [
                 'current_page' => $page,
                 'last_page'    => $lastPage,
-                'page'         => $page,    // backward compatible
+                'page'         => $page,
                 'per_page'     => $per,
                 'total'        => $total,
                 'from'         => $from,

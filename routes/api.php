@@ -688,7 +688,8 @@ Route::prefix('/public/page-submenus')->group(function () {
 
 
 Route::prefix('public/pages')->group(function () {
-    Route::get('/resolve', [PublicPageController::class, 'resolve']); // ?slug=
+    // Change from PublicPageController to PageController
+    Route::get('/resolve', [PageController::class, 'resolve']);
 });
 
 // Public

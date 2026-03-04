@@ -898,16 +898,17 @@ addVideoEditors(contentPane, stylePane, block);
   // ✅ read current align from actual block
   const cs = getComputedStyle(block);
   let currentAlign = (block.style.textAlign || cs.textAlign || 'left').toLowerCase();
-  if(!['left','center','right'].includes(currentAlign)) currentAlign = 'left';
+  if(!['left','center','right','justify'].includes(currentAlign)) currentAlign = 'left';
 
   const field = document.createElement('div');
   field.className = 'ce-field';
   field.innerHTML = `
     <label>Horizontal Align</label>
-    <div class="ce-align-group">
-      <button class="ce-align-btn ${currentAlign === 'left' ? 'active' : ''}" data-align="left"><i class="fa-solid fa-align-left"></i></button>
-      <button class="ce-align-btn ${currentAlign === 'center' ? 'active' : ''}" data-align="center"><i class="fa-solid fa-align-center"></i></button>
-      <button class="ce-align-btn ${currentAlign === 'right' ? 'active' : ''}" data-align="right"><i class="fa-solid fa-align-right"></i></button>
+    <div class="ce-align-group" style="display:flex; gap:4px;">
+      <button class="ce-align-btn ${currentAlign === 'left' ? 'active' : ''}" data-align="left" title="Left"><i class="fa-solid fa-align-left"></i></button>
+      <button class="ce-align-btn ${currentAlign === 'center' ? 'active' : ''}" data-align="center" title="Center"><i class="fa-solid fa-align-center"></i></button>
+      <button class="ce-align-btn ${currentAlign === 'right' ? 'active' : ''}" data-align="right" title="Right"><i class="fa-solid fa-align-right"></i></button>
+      <button class="ce-align-btn ${currentAlign === 'justify' ? 'active' : ''}" data-align="justify" title="Justify (equal both sides)"><i class="fa-solid fa-align-justify"></i></button>
     </div>
   `;
 

@@ -167,6 +167,35 @@
 
     .swal2-container.swal-below-topbar{padding-top: 92px !important;align-items:flex-start !important;}
     @media (max-width: 768px){.swal2-container.swal-below-topbar{padding-top: 80px !important;}}
+
+    /* ==========================
+     * ✅ Tabs (Editor / Meta Tags) - visible after save (edit mode)
+     * ========================== */
+    .page-tabs{margin-bottom: 16px;}
+    .page-tabs .nav-link{
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-weight: 800;
+      letter-spacing: .2px;
+      color: var(--text-primary, #111827);
+      background: rgba(0,0,0,.03);
+      border: 1px solid var(--line-strong, rgba(0,0,0,.08));
+      transition: all .2s ease;
+      display:flex;align-items:center;gap:8px;
+    }
+    .page-tabs .nav-link:hover{transform: translateY(-1px); box-shadow: var(--shadow-2, 0 10px 22px rgba(0,0,0,.06));}
+    .page-tabs .nav-link.active{
+      background: linear-gradient(135deg, var(--primary-color, #951eaa) 0%, #6a11cb 100%);
+      color: #fff;
+      border-color: transparent;
+      box-shadow: var(--shadow-2, 0 10px 26px rgba(0,0,0,.10));
+    }
+    html.theme-dark .page-tabs .nav-link{
+      color: rgba(255,255,255,.92);
+      background: rgba(255,255,255,.06);
+      border-color: rgba(255,255,255,.12);
+    }
+    html.theme-dark .page-tabs .nav-link.active{border-color: transparent;}
   </style>
 </head>
 
@@ -222,141 +251,203 @@
 
       <div class="body">
         @csrf
+
         <input type="hidden" id="pageIdentifier" />
+        {{-- helpful for included meta tag manager --}}
+        <input type="hidden" id="metaPageUuid" />
 
-        <!-- PAGE DETAILS -->
-        <div class="form-section">
-          <div class="form-section-title">
-            <i class="fa-solid fa-gear"></i>
-            Page Details
-          </div>
+        <!-- ==========================
+             ✅ Tabs shell (nav visible only in edit mode)
+             ========================== -->
+        <ul class="nav page-tabs gap-2" id="pageTabsNav" role="tablist" style="display:none;">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="tab-editor-btn" data-bs-toggle="tab" data-bs-target="#tabEditor" type="button" role="tab" aria-controls="tabEditor" aria-selected="true">
+              <i class="fa-solid fa-pen-to-square"></i> Editor
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-meta-btn" data-bs-toggle="tab" data-bs-target="#tabMeta" type="button" role="tab" aria-controls="tabMeta" aria-selected="false">
+              <i class="fa-solid fa-tags"></i> Meta Tags
+            </button>
+          </li>
+        </ul>
 
-          <div class="row g-4">
-            <div class="col-lg-8">
-              <div class="row g-4">
+        <div class="tab-content" id="pageTabsContent">
+          <!-- ==========================
+               ✅ Editor Tab (Create/Edit)
+               ========================== -->
+          <div class="tab-pane fade show active" id="tabEditor" role="tabpanel" aria-labelledby="tab-editor-btn" tabindex="0">
 
-                <div class="col-md-8">
-                  <label class="form-label">Title <span class="required-star">*</span></label>
-                  <input type="text" id="pageTitleInput" class="form-control" placeholder="e.g., About Us" required>
-                </div>
-
-                <div class="col-md-4">
-                  <label class="form-label">Page Type</label>
-                  <select id="pageType" class="form-select">
-                    <option value="page">page</option>
-                    <option value="landing">landing</option>
-                    <option value="custom">custom</option>
-                  </select>
-                  <div class="field-hint">You can keep it “page”</div>
-                </div>
-
-                <div class="col-md-8">
-                  <label class="form-label">Slug</label>
-                  <input type="text" id="pageSlug" class="form-control" placeholder="auto-generated-if-empty">
-                  <div class="field-hint"><i class="fa-solid fa-link"></i> URL-friendly version of title</div>
-                </div>
-
-                <div class="col-md-4">
-                  <label class="form-label">Shortcode</label>
-                  <input type="text" id="pageShortcode" class="form-control" placeholder="auto-generated-if-empty">
-                  <div class="field-hint">Used for embedding</div>
-                </div>
-
-                <div class="col-12">
-                  <label class="form-label">Meta Description</label>
-                  <textarea id="metaDescription" class="form-control" rows="3" placeholder="SEO meta description (max 255)"></textarea>
-                </div>
-
-                <div class="col-md-6">
-                  <label class="form-label">Layout Key</label>
-                  <input type="text" id="layoutKey" class="form-control" placeholder="e.g., default-layout">
-                </div>
-
-                <div class="col-md-6">
-                  <label class="form-label">Includable ID</label>
-                  <input type="text" id="includableId" class="form-control" placeholder="optional unique includable id">
-                </div>
-
+            <!-- PAGE DETAILS -->
+            <div class="form-section">
+              <div class="form-section-title">
+                <i class="fa-solid fa-gear"></i>
+                Page Details
               </div>
-            </div>
 
-            <!-- SIDE -->
-            <div class="col-lg-4">
-              <div class="side-panel h-100">
+              <div class="row g-4">
+                <div class="col-lg-8">
+                  <div class="row g-4">
 
-                <div class="mb-3">
-                  <label class="form-label">Status</label>
-                  <select id="pageStatus" class="form-select">
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
-                </div>
+                    <div class="col-md-8">
+                      <label class="form-label">Title <span class="required-star">*</span></label>
+                      <input type="text" id="pageTitleInput" class="form-control" placeholder="e.g., About Us" required>
+                    </div>
 
-                <div class="mb-3">
-                  <label class="form-label">Published At</label>
-                  <input type="datetime-local" id="publishedAt" class="form-control">
-                  <div class="field-hint">Leave empty to keep unpublished</div>
-                </div>
+                    <div class="col-md-4">
+                      <label class="form-label">Page Type</label>
+                      <select id="pageType" class="form-select">
+                        <option value="page">page</option>
+                        <option value="landing">landing</option>
+                        <option value="custom">custom</option>
+                      </select>
+                      <div class="field-hint">You can keep it “page”</div>
+                    </div>
 
-                {{-- ✅ Department dropdown (instead of number input) --}}
-                <div class="mb-3">
-                  <label class="form-label">Department</label>
-                  <select id="departmentId" class="form-select">
-                    <option value="">— Select Department (optional) —</option>
-                  </select>
-                  <div class="field-hint">
-                    <i class="fa-solid fa-building-columns"></i>
-                    Loaded from <code>/api/departments</code>
+                    {{-- ✅ UPDATED: Page Title (no H1 text / no hint) --}}
+                    <div class="col-md-6">
+                      <label class="form-label">Page Title</label>
+                      <input type="text" id="pageHeadingTitle" class="form-control" placeholder="Enter page title">
+                    </div>
+
+                    {{-- ✅ page_url (store only; not used for preview anymore) --}}
+                    <div class="col-md-6">
+                      <label class="form-label">Page URL</label>
+                      <input type="text" id="pageUrl" class="form-control" placeholder="/about-us or https://example.com/about-us">
+                      <div class="field-hint"><i class="fa-solid fa-globe"></i> Optional custom/canonical URL (page_url)</div>
+                    </div>
+
+                    <div class="col-md-8">
+                      <label class="form-label">Slug</label>
+                      <input type="text" id="pageSlug" class="form-control" placeholder="auto-generated-if-empty">
+                      <div class="field-hint"><i class="fa-solid fa-link"></i> URL-friendly version of title</div>
+                    </div>
+
+                    <div class="col-md-4">
+                      <label class="form-label">Shortcode</label>
+                      <input type="text" id="pageShortcode" class="form-control" placeholder="auto-generated-if-empty">
+                      <div class="field-hint">Used for embedding</div>
+                    </div>
+
+                    <div class="col-12">
+                      <label class="form-label">Meta Description</label>
+                      <textarea id="metaDescription" class="form-control" rows="3" placeholder="SEO meta description (max 255)"></textarea>
+                    </div>
+
+                    <div class="col-md-6">
+                      <label class="form-label">Layout Key</label>
+                      <input type="text" id="layoutKey" class="form-control" placeholder="e.g., default-layout">
+                    </div>
+
+                    <div class="col-md-6">
+                      <label class="form-label">Includable ID</label>
+                      <input type="text" id="includableId" class="form-control" placeholder="optional unique includable id">
+                    </div>
+
                   </div>
                 </div>
 
-                <div class="mb-0">
-                  <label class="form-label">Submenu Exists</label>
-                  <select id="submenuExists" class="form-select">
-                    <option value="no">no</option>
-                    <option value="yes">yes</option>
-                  </select>
+                <!-- SIDE -->
+                <div class="col-lg-4">
+                  <div class="side-panel h-100">
+
+                    <div class="mb-3">
+                      <label class="form-label">Status</label>
+                      <select id="pageStatus" class="form-select">
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
+                      </select>
+                    </div>
+
+                    <div class="mb-3">
+                      <label class="form-label">Published At</label>
+                      <input type="datetime-local" id="publishedAt" class="form-control">
+                      <div class="field-hint">Leave empty to keep unpublished</div>
+                    </div>
+
+                    {{-- ✅ Department dropdown (instead of number input) --}}
+                    <div class="mb-3">
+                      <label class="form-label">Department</label>
+                      <select id="departmentId" class="form-select">
+                        <option value="">— Select Department (optional) —</option>
+                      </select>
+                      <div class="field-hint">
+                        <i class="fa-solid fa-building-columns"></i>
+                        Loaded from <code>/api/departments</code>
+                      </div>
+                    </div>
+
+                    <div class="mb-0">
+                      <label class="form-label">Submenu Exists</label>
+                      <select id="submenuExists" class="form-select">
+                        <option value="no">no</option>
+                        <option value="yes">yes</option>
+                      </select>
+                    </div>
+
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- CONTENT -->
+            <div class="form-section">
+              <div class="form-section-title">
+                <i class="fa-solid fa-pen-nib"></i>
+                Page Content
+              </div>
+
+              <div id="editorContainer" class="editor-shell editor-normal">
+                <div class="editor-top">
+                  <div class="left">
+                    <i class="fa-solid fa-keyboard"></i>
+                    <span>Rich Text Editor</span>
+                    <span class="mini-help ms-2">Write your content here</span>
+                  </div>
+
+                  <div class="right">
+                    <button type="button" class="icon-btn" id="btnEditorFullscreen" title="Fullscreen editor">
+                      <i class="fa-solid fa-expand"></i>
+                    </button>
+                  </div>
                 </div>
 
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- CONTENT -->
-        <div class="form-section">
-          <div class="form-section-title">
-            <i class="fa-solid fa-pen-nib"></i>
-            Page Content
-          </div>
-
-          <div id="editorContainer" class="editor-shell editor-normal">
-            <div class="editor-top">
-              <div class="left">
-                <i class="fa-solid fa-keyboard"></i>
-                <span>Rich Text Editor</span>
-                <span class="mini-help ms-2">Write your content here</span>
+                <div class="editor-body">
+                  <div id="page-editor-wrap">
+                    {{-- ✅ Reuse same editor include --}}
+                    @include('modules.pages.editor')
+                  </div>
+                  <textarea id="pageContentHtml" class="d-none"></textarea>
+                </div>
               </div>
 
-              <div class="right">
-                <button type="button" class="icon-btn" id="btnEditorFullscreen" title="Fullscreen editor">
-                  <i class="fa-solid fa-expand"></i>
-                </button>
+              <div class="field-hint mt-2">
+                <i class="fa-solid fa-lightbulb"></i>
+                Use fullscreen for distraction-free editing.
               </div>
             </div>
 
-            <div class="editor-body">
-              <div id="page-editor-wrap">
-                {{-- ✅ Reuse same editor include --}}
-                @include('modules.pages.editor')
-              </div>
-              <textarea id="pageContentHtml" class="d-none"></textarea>
-            </div>
           </div>
 
-          <div class="field-hint mt-2">
-            <i class="fa-solid fa-lightbulb"></i>
-            Use fullscreen for distraction-free editing.
+          <!-- ==========================
+               ✅ Meta Tags Tab (Visible after save / edit mode)
+               ========================== -->
+          <div class="tab-pane fade" id="tabMeta" role="tabpanel" aria-labelledby="tab-meta-btn" tabindex="0">
+            <div class="form-section">
+              <div class="form-section-title">
+                <i class="fa-solid fa-tags"></i>
+                Meta Tags
+              </div>
+
+              <div id="metaTagsNeedSave" class="alert alert-info" style="border-radius:14px;">
+                <i class="fa-solid fa-circle-info me-1"></i>
+                Save the page first to manage meta tags.
+              </div>
+
+              <div id="metaTagsIncludeWrap">
+                @include('modules.metaTags.managePageMetaTags')
+              </div>
+            </div>
           </div>
         </div>
 
@@ -428,7 +519,6 @@
     const sel = document.getElementById('departmentId');
     if(!sel) return;
 
-    // keep usable default option
     sel.innerHTML = `<option value="">— Select Department (optional) —</option>`;
 
     try{
@@ -447,7 +537,6 @@
       });
     }catch(err){
       console.error('Departments load failed', err);
-      // don't break the page; keep the default option
     }
   }
 
@@ -502,6 +591,12 @@
     return ($('#pageContentHtml').val() || '').trim();
   }
 
+  function syncMetaPageIdentifier(){
+    const id = ($('#pageIdentifier').val() || '').trim();
+    $('#metaPageUuid').val(id);
+    window.__PAGE_IDENTIFIER__ = id;
+  }
+
   let lastSaveTime = 0;
   function setSavingState(state) {
     const indicator = $('#savingIndicator');
@@ -534,20 +629,37 @@
     if(mode==='edit'){
       $('#pageTitle').text('Edit Page');
       $('#modeBadge').text('Edit Mode');
-      $('#pageSub').text('Editing existing page (loaded via ?uuid=...)');
+      $('#pageSub').text('Editing existing page (tabs available: Editor + Meta Tags).');
       $('#btnPreview').html('<i class="fa-solid fa-up-right-from-square me-1"></i> Preview');
+
+      // ✅ show tabs after save (edit mode)
+      $('#pageTabsNav').show();
+      $('#metaTagsNeedSave').hide();
+      $('#metaTagsIncludeWrap').show();
     } else {
       $('#pageTitle').text('Create Page');
       $('#modeBadge').text('Create Mode');
       $('#pageSub').text('Write page details and save.');
       $('#btnPreview').html('<i class="fa-solid fa-eye me-1"></i> Preview');
+
+      // ✅ hide tabs in create mode
+      $('#pageTabsNav').hide();
+      $('#metaTagsNeedSave').show();
+      $('#metaTagsIncludeWrap').hide();
+
+      // ensure editor tab is active if coming back
+      const editorBtn = document.getElementById('tab-editor-btn');
+      if(editorBtn){
+        const bsTab = bootstrap.Tab.getOrCreateInstance(editorBtn);
+        bsTab.show();
+      }
     }
   }
 
+  // ✅ Preview must behave like previous editor page (slug-based only)
   function buildPreviewUrl(){
     const slug = ($('#pageSlug').val() || '').trim();
     if(!slug) return '';
-    // If you have a public render route, change it here:
     return `/page/${encodeURIComponent(slug)}?mode=test`;
   }
 
@@ -580,17 +692,19 @@
       $('#pageShortcode').val(p.shortcode || '');
       $('#pageType').val(p.page_type || 'page');
 
+      // ✅ page_title + page_url
+      $('#pageHeadingTitle').val(p.page_title || '');
+      $('#pageUrl').val(p.page_url || '');
+
       $('#metaDescription').val(p.meta_description || '');
       $('#layoutKey').val(p.layout_key || '');
       $('#includableId').val(p.includable_id || '');
 
       $('#pageStatus').val(p.status || 'Active');
 
-      // ✅ set select value
       $('#departmentId').val(p.department_id ?? '');
       $('#submenuExists').val(p.submenu_exists || 'no');
 
-      // published_at -> datetime-local (YYYY-MM-DDTHH:mm)
       if(p.published_at){
         const dt = String(p.published_at).replace(' ', 'T').slice(0,16);
         $('#publishedAt').val(dt);
@@ -599,6 +713,8 @@
       }
 
       setBodyHTML(p.content_html || '');
+
+      syncMetaPageIdentifier();
 
       Swal.close();
       setSavingState('ready');
@@ -622,7 +738,6 @@
       return;
     }
 
-    // Convert datetime-local -> standard string (Laravel can parse)
     const publishedAtVal = ($('#publishedAt').val() || '').trim();
     const published_at = publishedAtVal ? (publishedAtVal.replace('T',' ') + ':00') : null;
 
@@ -637,10 +752,13 @@
       layout_key: ($('#layoutKey').val().trim() || null),
       meta_description: ($('#metaDescription').val().trim() || null),
 
+      // ✅ page_title + page_url (stored in DB)
+      page_title: ($('#pageHeadingTitle').val().trim() || null),
+      page_url: ($('#pageUrl').val().trim() || null),
+
       status: $('#pageStatus').val() || 'Active',
       published_at,
 
-      // ✅ dropdown -> number or null
       department_id: ($('#departmentId').val() ? Number($('#departmentId').val()) : null),
       submenu_exists: $('#submenuExists').val() || 'no',
     };
@@ -679,6 +797,11 @@
         confirmButtonColor: 'var(--primary-color, #951eaa)',
         customClass:{ container:'swal-below-topbar' }
       });
+
+      if(saved && (saved.uuid || saved.id || saved.slug)){
+        $('#pageIdentifier').val(saved.uuid || saved.id || saved.slug);
+        syncMetaPageIdentifier();
+      }
 
     }catch(err){
       setSavingState('error');
@@ -842,10 +965,8 @@
       return;
     }
 
-    // ✅ load departments into dropdown
     loadDepartmentsForPageEditor();
 
-    // Back to manage pages
     $('#btnBack').on('click', function(){
       window.location.href = '/pages/manage';
     });
@@ -876,10 +997,9 @@
     });
 
     initPageEditor().then(() => {
-      const q = getQueryParam('uuid'); // identifier could be uuid/id/slug
+      const q = getQueryParam('uuid');
       if(q){
         setMode('edit');
-        // wait small tick so dropdown loads; still safe even if not loaded yet
         setTimeout(()=> loadPage(q), 50);
       } else {
         setMode('create');
@@ -896,10 +1016,10 @@
     $('#btnSave').on('click', savePage);
 
     // Preview behavior:
-    // - edit: open new tab if you have public route
+    // - edit: open new tab (slug-based)
     // - create: modal preview
     $('#btnPreview').on('click', function(){
-      if(mode === 'edit') return previewDirectNewTab(); // change to previewModal() if you want always modal
+      if(mode === 'edit') return previewDirectNewTab();
       return previewModal();
     });
 
@@ -910,12 +1030,15 @@
         html:`<div style="text-align:left">
                 <ul style="padding-left:20px;margin-bottom:0;">
                   <li><b>Title:</b> required</li>
+                  <li><b>Page Title:</b> optional</li>
+                  <li><b>Page URL:</b> optional (stored in DB)</li>
                   <li><b>Slug:</b> can be auto-generated</li>
                   <li><b>Shortcode:</b> auto if empty</li>
                   <li><b>Published At:</b> leave empty to keep unpublished</li>
                   <li><b>Status:</b> Active/Inactive</li>
                   <li><b>Department:</b> optional, loaded from Departments</li>
                   <li><b>Includable ID:</b> must be unique if used</li>
+                  <li><b>Meta Tags Tab:</b> available after saving (Edit Mode)</li>
                 </ul>
               </div>`,
         width:700,
