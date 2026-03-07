@@ -19,6 +19,14 @@
 @endphp
 
 <style>
+  /* =========================
+   * Enquiry (Public) – derived from Contact Us
+   * Changes:
+   * - home-popup-title: Contact Us -> Enquiry
+   * - removed: cu-hero, cu-info-grid, cu-find
+   * - added: captcha before submit
+   * ========================= */
+
   :root{
     --contact-accent:#8f2d2f;
     --contact-accent-2:#6f2224;
@@ -28,283 +36,151 @@
     --contact-surface:#ffffff;
   }
 
-  .cu-wrap{ max-width: 980px; margin: 0 auto; }
+  .cu-wrap{ max-width: 980px; margin: 0 auto; padding: 28px 16px 44px; }
 
   .cu-form-wrap{
     margin-top: 0;
     background: var(--contact-surface);
     border:1px solid var(--contact-line);
-    border-radius:14px;
-    padding:12px 14px;
+    border-radius:16px;
+    padding:18px;
     box-shadow: 0 14px 30px rgba(16, 24, 40, .06);
   }
-
   .cu-form-head{
     display:flex; align-items:flex-start; justify-content:space-between;
-    gap:8px; margin-bottom:6px;
+    gap:12px; margin-bottom:12px;
   }
-  .cu-form-head h3{ margin:0; font-weight:900; color:var(--contact-ink); font-size:17px; }
-  .cu-form-head p{ margin:2px 0 0; color:var(--contact-muted); font-size:12.5px; }
+  .cu-form-head h3{ margin:0; font-weight:900; color:var(--contact-ink); font-size:18px; }
+  .cu-form-head p{ margin:4px 0 0; color:var(--contact-muted); font-size:13.5px; }
 
-  /* ✅ Tighter grid gaps */
-  .cu-form{ margin-top:6px; display:grid; grid-template-columns:1fr 1fr; gap:7px 12px; }
+  .cu-form{ margin-top:10px; display:grid; grid-template-columns:1fr 1fr; gap:12px; }
   .cu-form .full{ grid-column: 1 / -1; }
-
-  .cu-form label{ display:block; font-weight:800; color:var(--contact-ink); font-size:12px; margin:0 0 3px; }
-
-  .cu-form input, .cu-form textarea, .cu-form select{
+  .cu-form label{ display:block; font-weight:800; color:var(--contact-ink); font-size:13px; margin:0 0 6px; }
+  .cu-form input, .cu-form textarea{
     width:100%;
     border:1px solid var(--contact-line);
-    border-radius:10px;
-    padding:7px 10px;
-    font-size:13px;
+    border-radius:12px;
+    padding:11px 12px;
+    font-size:14px;
     outline:none;
     background:#fff;
-    height:36px;
   }
-  /* ✅ Shorter textarea */
-  .cu-form textarea{
-    min-height:58px;
-    height:58px;
-    resize:vertical;
-    padding:8px 10px;
-  }
-  .cu-form input:focus, .cu-form textarea:focus, .cu-form select:focus{
+  .cu-form textarea{ min-height:120px; resize:vertical; }
+  .cu-form input:focus, .cu-form textarea:focus{
     border-color: rgba(143,45,47,.55);
-    box-shadow: 0 0 0 3px rgba(143,45,47,.12);
+    box-shadow: 0 0 0 3px rgba(143,45,47,.15);
   }
 
-  /* ✅ Compact admission toggle */
-  .cu-toggle{
-    grid-column: 1 / -1;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:10px;
-    padding:7px 12px;
-    border:1px dashed rgba(15,23,42,.14);
-    border-radius:12px;
-    background: rgba(143,45,47,.03);
-  }
-  .cu-toggle .left{
-    display:flex;
-    flex-direction:column;
-    gap:1px;
-    min-width:0;
-  }
-  .cu-toggle .title{
-    font-weight:900;
-    color:var(--contact-ink);
-    font-size:12.5px;
-    line-height:1.2;
-  }
-  .cu-toggle .sub{
-    color:var(--contact-muted);
-    font-size:11.5px;
-    line-height:1.2;
-  }
-
-  /* Switch */
-  .cu-switch{
-    position:relative;
-    width:42px;
-    height:24px;
-    flex:0 0 auto;
-  }
-  .cu-switch input{ display:none; }
-  .cu-switch span{
-    position:absolute; inset:0;
-    background:#e5e7eb;
-    border-radius:999px;
-    transition:.18s ease;
-    cursor:pointer;
-  }
-  .cu-switch span::after{
-    content:"";
-    position:absolute;
-    top:3px; left:3px;
-    width:18px; height:18px;
-    border-radius:999px;
-    background:#fff;
-    box-shadow:0 10px 20px rgba(16,24,40,.12);
-    transition:.18s ease;
-  }
-  .cu-switch input:checked + span{
-    background: rgba(143,45,47,.95);
-    border-color: rgba(143,45,47,.35);
-  }
-  .cu-switch input:checked + span::after{
-    transform: translateX(18px);
-  }
-
-  /* ✅ Better dropdown styling */
-  .cu-form select{
-    appearance: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235b6b76' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 12px center;
-    background-size: 14px;
-    padding-right: 34px;
-    cursor: pointer;
-    color: var(--contact-ink);
-    font-weight: 500;
-    transition: border-color .15s, box-shadow .15s;
-  }
-  .cu-form select:hover{
-    border-color: rgba(143,45,47,.35);
-  }
-  .cu-form select option{
-    padding: 8px 10px;
-    font-size: 13px;
-  }
-  .cu-form select option:checked{
-    background: rgba(143,45,47,.08);
-    font-weight: 600;
-  }
-  /* placeholder-like first option */
-  .cu-form select.placeholder-shown{
-    color: var(--contact-muted);
-  }
-
-  /* ✅ Dept helper text smaller */
-  .cu-dept-hint{
-    margin-top:3px;
-    font-size:11px;
-    color:var(--contact-muted);
-    line-height:1.2;
-  }
-
-  /* ✅ Consent - single row, compact */
   .cu-consent{
     grid-column: 1 / -1;
-    margin-top: 0;
-    padding-top: 6px;
+    margin-top: 6px;
+    padding-top: 8px;
     border-top: 1px dashed rgba(15,23,42,.12);
-    display:grid;
-    gap:4px 14px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
   }
   .cu-check{
     display:flex;
-    gap:7px;
+    gap:10px;
     align-items:flex-start;
-    font-size:11.5px;
+    font-size:13.5px;
     color:#2f3d46;
-    line-height:1.3;
-    margin:0;
+    line-height:1.45;
   }
   .cu-check input{
-    width:15px; height:15px;
-    margin-top:1px;
+    width:18px; height:18px;
+    margin-top:2px;
     accent-color: var(--contact-accent);
     flex:0 0 auto;
   }
 
-  /* ✅ Captcha - compact single row */
+  /* ✅ Captcha */
   .cu-captcha{
     grid-column: 1 / -1;
-    margin-top: 0;
-    padding-top: 6px;
+    margin-top: 2px;
+    padding-top: 10px;
     border-top: 1px dashed rgba(15,23,42,.12);
-  }
-  .cu-captcha > label{
-    margin-bottom: 4px;
   }
   .cu-captcha-row{
     display:flex;
     align-items:center;
-    gap:8px;
-    flex-wrap:nowrap;
+    gap:12px;
+    flex-wrap:wrap;
   }
   .cu-canvas{
-    width:130px;
-    height:42px;
+    width:160px;
+    height:56px;
     border:1px solid var(--contact-line);
-    border-radius:10px;
+    border-radius:12px;
     overflow:hidden;
     background:#fff;
-    box-shadow: 0 6px 14px rgba(16,24,40,.05);
-    flex:0 0 auto;
+    box-shadow: 0 10px 22px rgba(16,24,40,.06);
   }
   .cu-canvas canvas{
-    width:130px;
-    height:42px;
+    width:160px;
+    height:56px;
     display:block;
   }
   .cu-cap-actions{
     display:flex;
     align-items:center;
-    gap:8px;
-    flex:0 0 auto;
+    gap:10px;
   }
   .cu-cap-btn{
     border:1px solid var(--contact-line);
     background:#fff;
-    border-radius:10px;
-    padding:6px 10px;
+    border-radius:12px;
+    padding:10px 12px;
     font-weight:900;
     color:var(--contact-ink);
     cursor:pointer;
     display:inline-flex;
     align-items:center;
-    gap:6px;
-    height:36px;
-    font-size:12.5px;
+    gap:8px;
   }
   .cu-cap-btn:hover{
     border-color: rgba(143,45,47,.35);
     box-shadow: 0 0 0 3px rgba(143,45,47,.10);
   }
   .cu-cap-hint{
-    font-size:11px;
+    font-size:12.5px;
     color:var(--contact-muted);
-    line-height:1.2;
-    flex:0 0 auto;
-    white-space:nowrap;
-  }
-  .cu-cap-input-wrap{
-    flex:1 1 180px;
-    min-width:150px;
-  }
-  .cu-cap-input-wrap input{
-    height:36px;
   }
 
   .cu-actions{
     grid-column: 1 / -1;
     display:flex; gap:10px; align-items:center; justify-content:flex-start;
-    margin-top:2px;
+    margin-top:4px;
   }
   .cu-btn{
     border:none;
     background: var(--contact-accent);
     color:#fff;
-    padding:8px 16px;
-    border-radius:10px;
+    padding:11px 18px;
+    border-radius:12px;
     font-weight:900;
     cursor:pointer;
     display:inline-flex;
     align-items:center;
     gap:8px;
-    height:38px;
-    font-size:13px;
   }
   .cu-btn:hover{ background: var(--contact-accent-2); }
-  .cu-note{ color:var(--contact-muted); font-size:12px; }
+  .cu-note{ color:var(--contact-muted); font-size:13px; }
 
+  /* ✅ Disabled submit styling */
   .cu-btn:disabled{
     opacity:.55;
     cursor:not-allowed;
     filter: grayscale(.05);
   }
 
-  /* Toast */
+  /* ✅ Top-right toast (replaces SweetAlert) */
   .cu-toast-wrap{
     position:fixed;
     top:16px;
     right:16px;
-    z-index:200000;
+    z-index:200000; /* above modals */
     display:flex;
     flex-direction:column;
     gap:10px;
@@ -366,8 +242,6 @@
 
   @media(max-width: 900px){
     .cu-form{ grid-template-columns:1fr; }
-    .cu-consent{ grid-template-columns:1fr; }
-    .cu-captcha-row{ flex-wrap:wrap; }
   }
 </style>
 
@@ -378,13 +252,13 @@
   <div class="cu-form-wrap">
     <div class="cu-form-head">
       <div>
+        {{-- ✅ CHANGE #1: home-popup-title now Contact Us -> Enquiry --}}
         <h3 class="home-popup-title">Enquiry</h3>
-        <p>Fill the form and we'll get back to you as soon as possible.</p>
+        <p>Fill the form and we’ll get back to you as soon as possible.</p>
       </div>
     </div>
 
     <form id="contactForm" class="cu-form" autocomplete="off">
-
       <div>
         <label for="first_name">First Name *</label>
         <input id="first_name" type="text" placeholder="Your first name" required>
@@ -395,40 +269,14 @@
         <input id="last_name" type="text" placeholder="Your last name (optional)">
       </div>
 
-      {{-- ✅ UPDATED: Email nullable --}}
-      <div>
-        <label for="email">Email</label>
-        <input id="email" type="email" placeholder="your@email.com (optional)">
+      <div class="full">
+        <label for="email">Email *</label>
+        <input id="email" type="email" placeholder="your@email.com" required>
       </div>
 
-      {{-- ✅ UPDATED: Phone required --}}
-      <div>
-        <label for="phone">Phone *</label>
-        <input id="phone" type="text" placeholder="Your phone number" required>
-      </div>
-
-      {{-- ✅ Admission toggle + Department INLINE (same row) --}}
-      <div class="cu-toggle">
-        <div class="left">
-          <div class="title">Enquiring for Admission?</div>
-          <div class="sub">Turn ON if you want admission-related help.</div>
-        </div>
-
-        <label class="cu-switch" title="Admission enquiry toggle">
-          <input id="is_admission_enquiry" type="checkbox">
-          <span aria-hidden="true"></span>
-        </label>
-      </div>
-
-      {{-- ✅ Department dropdown (only visible if toggle ON) - now inline in same row --}}
-      <div id="deptWrap" class="full" style="display:none;">
-        <label for="department_id">Interested Department *</label>
-        <select id="department_id" class="placeholder-shown">
-          <option value="">Loading departments...</option>
-        </select>
-        <div class="cu-dept-hint">
-          Select one department (we'll store it as an array with one ID).
-        </div>
+      <div class="full">
+        <label for="phone">Phone</label>
+        <input id="phone" type="text" placeholder="Your phone number (optional)">
       </div>
 
       <div class="full">
@@ -436,7 +284,7 @@
         <textarea id="message" placeholder="Write your message..." required></textarea>
       </div>
 
-      {{-- ✅ Consent checkboxes --}}
+      {{-- ✅ Consent checkboxes (must be checked to enable submit) --}}
       <div class="cu-consent">
         <label class="cu-check" for="consent_terms">
           <input id="consent_terms" type="checkbox">
@@ -445,7 +293,7 @@
 
         <label class="cu-check" for="consent_promotions">
           <input id="consent_promotions" type="checkbox">
-          <span>I agree to receive communication on newsletters, promotional content, offers & events via SMS/RCS *</span>
+          <span>{{ $legalText2 }}</span>
         </label>
       </div>
 
@@ -454,17 +302,19 @@
         <label for="captcha_input">Captcha *</label>
         <div class="cu-captcha-row">
           <div class="cu-canvas" aria-hidden="true">
-            <canvas id="captchaCanvas" width="130" height="42"></canvas>
+            <canvas id="captchaCanvas" width="160" height="56"></canvas>
           </div>
 
           <div class="cu-cap-actions">
             <button id="refreshCaptcha" class="cu-cap-btn" type="button">
               <i class="fa-solid fa-rotate-right"></i> Refresh
             </button>
-            <div class="cu-cap-hint">CAPITAL letters only</div>
+            {{-- ✅ CHANGE: hint clarifies uppercase requirement --}}
+            <div class="cu-cap-hint">Type the code shown in the box (CAPITAL letters only).</div>
           </div>
 
-          <div class="cu-cap-input-wrap">
+          <div style="flex:1 1 240px; min-width:220px;">
+            {{-- ✅ CHANGE: no auto-uppercasing; only enable submit when user typed ALL CAPS --}}
             <input
               id="captcha_input"
               type="text"
@@ -497,6 +347,7 @@
   (function(){
     const form = document.getElementById('contactForm');
     const btn  = document.getElementById('submitBtn');
+
     if(!form || !btn) return;
 
     const firstNameEl = document.getElementById('first_name');
@@ -504,11 +355,6 @@
     const emailEl     = document.getElementById('email');
     const phoneEl     = document.getElementById('phone');
     const msgEl       = document.getElementById('message');
-
-    // ✅ NEW: admission + dept
-    const admissionEl = document.getElementById('is_admission_enquiry');
-    const deptWrapEl  = document.getElementById('deptWrap');
-    const deptEl      = document.getElementById('department_id');
 
     const termsEl     = document.getElementById('consent_terms');
     const promoEl     = document.getElementById('consent_promotions');
@@ -521,13 +367,9 @@
 
     let CAPTCHA_CODE = '';
 
+    // ✅ texts must be posted as discussed
     const LEGAL_TEXT_1 = @json($legalText1);
     const LEGAL_TEXT_2 = @json($legalText2);
-
-    // Departments state
-    let deptLoaded = false;
-    let deptLoading = false;
-    let deptLoadFailed = false;
 
     function ensureToastWrap(){
       let wrap = document.getElementById('cuToastWrap');
@@ -539,11 +381,13 @@
       }
       return wrap;
     }
+
     function toastIcon(type){
       if(type === 'success') return 'fa-solid fa-circle-check';
       if(type === 'error') return 'fa-solid fa-circle-exclamation';
       return 'fa-solid fa-circle-info';
     }
+
     function showToast(type, title, message){
       const wrap = ensureToastWrap();
       const el = document.createElement('div');
@@ -572,7 +416,7 @@
       return removeToast;
     }
 
-    // Modal close helpers
+    // ✅ Close any parent/open modal safely (Bootstrap or fallback)
     function hardHideModal(modal){
       if(!modal) return;
       modal.classList.remove('show');
@@ -581,19 +425,25 @@
       modal.removeAttribute('aria-modal');
       try { modal.dispatchEvent(new Event('hidden.bs.modal', { bubbles:true })); } catch(_) {}
     }
+
     function cleanupModalBackdrop(){
       document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
       document.body.classList.remove('modal-open');
       document.body.style.removeProperty('overflow');
       document.body.style.removeProperty('padding-right');
     }
+
     function closeAnyParentModals(){
       const modals = new Set();
+
+      // direct parent modal(s) of the form
       let p = form.parentElement;
       while(p){
         if(p.classList && p.classList.contains('modal')) modals.add(p);
         p = p.parentElement;
       }
+
+      // any currently open modals (safer for nested include cases)
       document.querySelectorAll('.modal.show').forEach(m => modals.add(m));
 
       modals.forEach(modal => {
@@ -609,175 +459,104 @@
         }
       });
 
+      // Cleanup in case backdrop remains
       setTimeout(cleanupModalBackdrop, 350);
       setTimeout(cleanupModalBackdrop, 700);
     }
 
-    // Captcha helpers
     function rand(min, max){ return Math.floor(Math.random() * (max - min + 1)) + min; }
+
     function genCode(len=6){
-      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // avoid confusing chars like 0/O/1/I
       let out = '';
       for(let i=0;i<len;i++) out += chars[rand(0, chars.length-1)];
       return out;
     }
+
     function drawCaptcha(code){
+      // background
       capCtx.clearRect(0,0,capCanvas.width,capCanvas.height);
       capCtx.fillStyle = '#ffffff';
       capCtx.fillRect(0,0,capCanvas.width,capCanvas.height);
 
-      for(let i=0;i<5;i++){
+      // light noise lines
+      for(let i=0;i<6;i++){
         capCtx.beginPath();
-        capCtx.moveTo(rand(0,capCanvas.width), rand(0,capCanvas.height));
-        capCtx.lineTo(rand(0,capCanvas.width), rand(0,capCanvas.height));
+        capCtx.moveTo(rand(0,160), rand(0,56));
+        capCtx.lineTo(rand(0,160), rand(0,56));
         capCtx.strokeStyle = `rgba(143,45,47,${Math.random()*0.25 + 0.10})`;
         capCtx.lineWidth = rand(1,2);
         capCtx.stroke();
       }
-      for(let i=0;i<28;i++){
+
+      // dots
+      for(let i=0;i<35;i++){
         capCtx.beginPath();
-        capCtx.arc(rand(0,capCanvas.width), rand(0,capCanvas.height), rand(1,2), 0, Math.PI*2);
+        capCtx.arc(rand(0,160), rand(0,56), rand(1,2), 0, Math.PI*2);
         capCtx.fillStyle = `rgba(16,24,40,${Math.random()*0.12 + 0.05})`;
         capCtx.fill();
       }
 
-      capCtx.font = '900 22px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+      // text
+      capCtx.font = '900 28px system-ui, -apple-system, Segoe UI, Roboto, Arial';
       capCtx.textBaseline = 'middle';
 
-      const startX = 10;
-      const gap = 18;
+      const startX = 18;
+      const gap = 22;
 
       for(let i=0;i<code.length;i++){
         const ch = code[i];
         const x = startX + (i * gap);
-        const y = Math.floor(capCanvas.height / 2);
+        const y = 28;
 
         capCtx.save();
         capCtx.translate(x, y);
         capCtx.rotate((Math.random() - 0.5) * 0.45);
+
         capCtx.fillStyle = `rgba(18,33,43,${Math.random()*0.20 + 0.78})`;
         capCtx.fillText(ch, 0, 0);
+
         capCtx.restore();
       }
 
+      // border stroke
       capCtx.strokeStyle = 'rgba(231,234,238,1)';
       capCtx.lineWidth = 2;
       capCtx.strokeRect(1,1,capCanvas.width-2,capCanvas.height-2);
     }
+
     function refreshCaptcha(){
       CAPTCHA_CODE = genCode(6);
       drawCaptcha(CAPTCHA_CODE);
       capInputEl.value = '';
     }
+
+    // ✅ CHANGE (YOUR REQUEST):
+    // - lowercase should NOT work
+    // - enable submit ONLY if user typed ALL CAPS exactly
     function captchaOk(){
-      const typedRaw = (capInputEl.value || '').trim();
+      const typedRaw = (capInputEl.value || '').trim();  // keep user's real case
       if(!typedRaw) return false;
-      if(typedRaw !== typedRaw.toUpperCase()) return false; // no lowercase allowed
+
+      // If user used any small letters -> do NOT allow
+      if(typedRaw !== typedRaw.toUpperCase()) return false;
+
+      // Must match captcha exactly
       return typedRaw === CAPTCHA_CODE;
     }
 
-    // ✅ Departments loader (api/public/departments)
-    async function loadDepartments(){
-      if(deptLoaded || deptLoading) return;
-      deptLoading = true;
-      deptLoadFailed = false;
-
-      try{
-        deptEl.innerHTML = `<option value="">Loading departments...</option>`;
-        deptEl.classList.add('placeholder-shown');
-
-        const res = await fetch('/api/public/ordered-departments', {
-          method: 'GET',
-          headers: { 'Accept': 'application/json' }
-        });
-        const data = await res.json().catch(() => ({}));
-
-        // Try multiple possible shapes
-        let list = [];
-        if (Array.isArray(data)) list = data;
-        else if (Array.isArray(data.data)) list = data.data;
-        else if (Array.isArray(data.departments)) list = data.departments;
-        else if (data.data && Array.isArray(data.data.data)) list = data.data.data;
-
-        if(!res.ok){
-          throw new Error(data.message || 'Failed to load departments');
-        }
-
-        // Build options
-        const opts = [];
-        opts.push(`<option value="">Select a department</option>`);
-
-        list.forEach((d) => {
-          const id = d?.id ?? d?.department_id ?? null;
-          if(id === null || id === undefined) return;
-
-          const name =
-            d?.name ??
-            d?.title ??
-            d?.department_name ??
-            d?.dept_name ??
-            d?.slug ??
-            ('Department #' + id);
-
-          opts.push(`<option value="${String(id)}">${String(name)}</option>`);
-        });
-
-        deptEl.innerHTML = opts.join('') || `<option value="">No departments found</option>`;
-        deptLoaded = true;
-      }catch(err){
-        console.error(err);
-        deptLoadFailed = true;
-        deptEl.innerHTML = `<option value="">Unable to load departments</option>`;
-        showToast('error', 'Error', 'Could not load departments. Please try again.');
-      }finally{
-        deptLoading = false;
-      }
-    }
-
-    // ✅ Admission toggle behaviour
-    function setDeptVisibility(){
-      const on = !!admissionEl.checked;
-
-      if(on){
-        deptWrapEl.style.display = '';
-        loadDepartments();
-      }else{
-        deptWrapEl.style.display = 'none';
-        deptEl.value = '';
-      }
-    }
-
-    // ✅ Update select placeholder class on change
-    deptEl.addEventListener('change', function(){
-      if(deptEl.value){
-        deptEl.classList.remove('placeholder-shown');
-      }else{
-        deptEl.classList.add('placeholder-shown');
-      }
-      syncBtn();
-    });
-
-    // Submit enable logic
     function canSubmit(){
-      const firstOk = !!firstNameEl.value.trim();
-      const phoneOk = !!phoneEl.value.trim();     // ✅ phone required
-      const msgOk   = !!msgEl.value.trim();
-      const consentOk = termsEl.checked && promoEl.checked;
-      const captchaIsOk = captchaOk();
-
-      // ✅ email nullable (no requirement)
-      // ✅ if admission ON, department is required
-      const admissionOn = !!admissionEl.checked;
-      const deptOk = !admissionOn ? true : !!String(deptEl.value || '').trim();
-
-      return !!(firstOk && phoneOk && msgOk && consentOk && captchaIsOk && deptOk);
+      const okRequired = firstNameEl.value.trim() && emailEl.value.trim() && msgEl.value.trim();
+      const okConsent  = termsEl.checked && promoEl.checked;
+      const okCaptcha  = captchaOk();
+      return !!(okRequired && okConsent && okCaptcha);
     }
 
     function syncBtn(){
       btn.disabled = !canSubmit();
     }
 
-    // Init captcha
+    // init captcha
     refreshCaptcha();
 
     capRefresh.addEventListener('click', function(){
@@ -785,15 +564,8 @@
       syncBtn();
     });
 
-    // Init admission toggle
-    setDeptVisibility();
-    admissionEl.addEventListener('change', function(){
-      setDeptVisibility();
-      syncBtn();
-    });
-
-    // Live sync
-    [firstNameEl, lastNameEl, emailEl, phoneEl, msgEl, termsEl, promoEl, capInputEl].forEach(el => {
+    // enable/disable submit live
+    [firstNameEl, emailEl, msgEl, termsEl, promoEl, lastNameEl, phoneEl, capInputEl].forEach(el => {
       el.addEventListener('input', syncBtn);
       el.addEventListener('change', syncBtn);
     });
@@ -804,38 +576,23 @@
 
       const first_name = firstNameEl.value.trim();
       const last_name  = lastNameEl.value.trim();
-      const email      = emailEl.value.trim();       // ✅ nullable
-      const phone      = phoneEl.value.trim();       // ✅ required
+      const email      = emailEl.value.trim();
+      const phone      = phoneEl.value.trim();
       const message    = msgEl.value.trim();
 
-      const admissionOn = !!admissionEl.checked;
-      const deptId = String(deptEl.value || '').trim();
-
-      if(!first_name || !phone || !message){
-        showToast('error','Error','Please fill all required fields (First name, Phone, Message).');
-        syncBtn();
+      if(!first_name || !email || !message){
+        showToast('error','Error','Please fill all required fields');
         return;
       }
 
-      if(admissionOn){
-        if(!deptId){
-          showToast('error','Error','Please select a department.');
-          syncBtn();
-          return;
-        }
-        if(deptLoadFailed){
-          showToast('error','Error','Departments are not loaded. Please refresh and try again.');
-          syncBtn();
-          return;
-        }
-      }
-
+      // ✅ Hard requirement: both must be checked
       if(!(termsEl.checked && promoEl.checked)){
         showToast('error','Error','Please accept the required agreements to continue.');
         syncBtn();
         return;
       }
 
+      // ✅ Captcha check (case-sensitive + ALL CAPS required)
       if(!captchaOk()){
         showToast('error','Error','Captcha does not match. Use CAPITAL letters only.');
         refreshCaptcha();
@@ -843,6 +600,7 @@
         return;
       }
 
+      // ✅ payload updated (first_name/last_name + legal_authority_json)
       const legal_authority_json = [
         { key: 'terms',      text: LEGAL_TEXT_1, accepted: true },
         { key: 'promotions', text: LEGAL_TEXT_2, accepted: true },
@@ -851,11 +609,9 @@
       const payload = {
         first_name,
         last_name: (last_name !== '' ? last_name : null),
-        email: (email !== '' ? email : null),
-        phone,
+        email,
+        phone: (phone !== '' ? phone : null),
         message,
-        is_admission_enquiry: admissionOn ? true : null,
-        department_ids: admissionOn ? [parseInt(deptId, 10)] : null,
         legal_authority_json
       };
 
@@ -875,27 +631,28 @@
         const data = await res.json().catch(() => ({}));
 
         if(res.ok){
+          // ✅ Close modal first (if this include is rendered inside any modal)
           closeAnyParentModals();
 
           showToast('success','Success','Message sent successfully');
           form.reset();
 
-          // reset admission UI
-          deptWrapEl.style.display = 'none';
-          deptEl.value = '';
-          deptEl.classList.add('placeholder-shown');
-
+          // ✅ Refresh captcha + force-disable after reset
           refreshCaptcha();
           btn.disabled = true;
+
           syncBtn();
         }else{
           let msg = data.message || 'Validation failed';
+
+          // Laravel 422 errors pretty message
           if (data.errors && typeof data.errors === 'object') {
             const k = Object.keys(data.errors)[0];
             if (k && Array.isArray(data.errors[k]) && data.errors[k][0]) {
               msg = data.errors[k][0];
             }
           }
+
           showToast('error','Error', msg);
           console.error(data);
           refreshCaptcha();

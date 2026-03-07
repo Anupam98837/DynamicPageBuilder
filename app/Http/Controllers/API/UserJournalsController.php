@@ -143,7 +143,7 @@ class UserJournalsController extends Controller
 
     private function isHighRole(?string $role): bool
     {
-        return in_array($role, ['admin','director','principal','hod','technical_assistant','it_person'], true);
+        return in_array($role, ['admin', 'author','director','principal','hod','technical_assistant','it_person'], true);
     }
 
     private function canAccessUser(Request $request, int $targetUserId): bool
@@ -329,7 +329,7 @@ class UserJournalsController extends Controller
     public function index(Request $request, ?string $user_uuid = null)
     {
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin', 'author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
@@ -355,7 +355,7 @@ class UserJournalsController extends Controller
     public function show(Request $request, ?string $user_uuid = null, string $journal_uuid = '')
     {
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin', 'author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
@@ -395,7 +395,7 @@ class UserJournalsController extends Controller
         $module = 'user_journals';
 
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin', 'author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) {
             $this->dbActivityLog($request, 'create', $module, $this->table, null, null, null, null, 'Unauthorized role');
             return $resp;
@@ -567,7 +567,7 @@ class UserJournalsController extends Controller
         $module = 'user_journals';
 
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin', 'author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) {
             $this->dbActivityLog($request, 'update', $module, $this->table, null, null, null, null, 'Unauthorized role');
             return $resp;
@@ -710,7 +710,7 @@ class UserJournalsController extends Controller
         $module = 'user_journals';
 
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin', 'author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) {
             $this->dbActivityLog($request, 'delete', $module, $this->table, null, null, null, null, 'Unauthorized role');
             return $resp;

@@ -71,6 +71,7 @@ use App\Http\Controllers\API\UserActivityLogsController;
 use App\Http\Controllers\API\MetaTagController;
 use App\Http\Controllers\API\AlumniController;
 use App\Http\Controllers\API\ProgramTopperController;
+use App\Http\Controllers\API\DepartmentEnquirySettingsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -96,27 +97,27 @@ Route::post('/auth/logout', [UserController::class, 'logout'])
 
 Route::get('/auth/check',   [UserController::class, 'authenticateToken']);
 
-Route::middleware('checkRole:admin,director,principal')
+Route::middleware('checkRole:admin,author,director,principal,author')
     ->get('/admin/dashboard', [DashboardController::class, 'adminDashboard']);
 
 // ✅ HOD Dashboard
-Route::middleware('checkRole:hod,admin,director,principal')
+Route::middleware('checkRole:hod,admin,author,director,principal')
     ->get('/hod/dashboard', [DashboardController::class, 'hodDashboard']);
 
 // ✅ Technical Assistant Dashboard
-Route::middleware('checkRole:technical_assistant,admin,director,principal')
+Route::middleware('checkRole:technical_assistant,admin,author,director,principal')
     ->get('/technical-assistant/dashboard', [DashboardController::class, 'technicalAssistantDashboard']);
 
 // ✅ Placement Officer Dashboard
-Route::middleware('checkRole:placement_officer,admin,director,principal')
+Route::middleware('checkRole:placement_officer,admin,author,director,principal')
     ->get('/placement-officer/dashboard', [DashboardController::class, 'placementOfficerDashboard']);
 
 // ✅ IT Person Dashboard
-Route::middleware('checkRole:it_person,admin,director,principal')
+Route::middleware('checkRole:it_person,admin,author,director,principal')
     ->get('/it-person/dashboard', [DashboardController::class, 'itPersonDashboard']);
 
 // ✅ Faculty Dashboard
-Route::middleware('checkRole:faculty,admin,director,principal')
+Route::middleware('checkRole:faculty,admin,author,director,principal')
     ->get('/faculty/dashboard', [DashboardController::class, 'facultyDashboard']);
 
 /*
@@ -138,7 +139,7 @@ Route::middleware(['throttle:10,1'])->group(function () {
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['checkRole:admin,director,principal,hod,student,technical_assistant,placement_officer,it_person,faculty'])
+Route::middleware(['checkRole:admin,author,director,principal,hod,student,technical_assistant,placement_officer,it_person,faculty'])
     ->prefix('users')
     ->group(function () {
         Route::get('/',                  [UserController::class, 'index']);
@@ -155,17 +156,17 @@ Route::middleware(['checkRole:admin,director,principal,hod,student,technical_ass
         Route::delete('/{uuid}',         [UserController::class, 'destroy']);
     });
 
-    Route::get('/me/profile', [UserProfileController::class,'show']);
-    Route::get('/users/{user_uuid}/profile', [UserProfileController::class,'show']);
+Route::get('/me/profile', [UserProfileController::class,'show']);
+Route::get('/users/{user_uuid}/profile', [UserProfileController::class,'show']);
     
-    // ✅ Other user's profile (protected)
-        Route::middleware(['checkRole:admin,director,principal,hod'])->prefix('users')->group(function () {
-            Route::post('/{user_uuid}/profile',  [UserProfileController::class,'store']);
-            Route::put('/{user_uuid}/profile',   [UserProfileController::class,'update']);
-            Route::patch('/{user_uuid}/profile', [UserProfileController::class,'update']);
-        });
+// ✅ Other user's profile (protected)
+Route::middleware(['checkRole:admin,author,director,principal,hod'])->prefix('users')->group(function () {
+    Route::post('/{user_uuid}/profile',  [UserProfileController::class,'store']);
+    Route::put('/{user_uuid}/profile',   [UserProfileController::class,'update']);
+    Route::patch('/{user_uuid}/profile', [UserProfileController::class,'update']);
+});
 
-Route::middleware(['checkRole:admin,director,principal,hod'])->group(function () {
+Route::middleware(['checkRole:admin,author,director,principal,hod'])->group(function () {
     Route::get('/users/{user_uuid}/personal-info', [UserPersonalInformationController::class, 'show']);
     Route::post('/users/{user_uuid}/personal-info', [UserPersonalInformationController::class, 'store']);
     Route::match(['put','patch'], '/users/{user_uuid}/personal-info', [UserPersonalInformationController::class, 'update']);
@@ -174,7 +175,7 @@ Route::middleware(['checkRole:admin,director,principal,hod'])->group(function ()
     Route::post('/users/{user_uuid}/personal-info/restore', [UserPersonalInformationController::class, 'restore']);
 });
     
-Route::middleware(['checkRole:admin,director,principal,hod'])->group(function () {
+Route::middleware(['checkRole:admin,author,director,principal,hod'])->group(function () {
 
     // ===========================
     // Honors (Active)
@@ -215,7 +216,7 @@ Route::middleware(['checkRole:admin,director,principal,hod'])->group(function ()
 
 
 
-Route::middleware(['checkRole:admin,director,principal,hod'])->group(function () {
+Route::middleware(['checkRole:admin,author,director,principal,hod'])->group(function () {
 
     // ✅ Active (CRUD)
     Route::get('/users/{user_uuid}/journals', [UserJournalsController::class, 'index']);
@@ -233,7 +234,7 @@ Route::middleware(['checkRole:admin,director,principal,hod'])->group(function ()
 
 
 
-Route::middleware(['checkRole:admin,director,principal,hod'])->group(function () {
+Route::middleware(['checkRole:admin,author,director,principal,hod'])->group(function () {
 
     // ✅ Active (CRUD)
     Route::get('/users/{user_uuid}/teaching-engagements', [UserTeachingEngagementsController::class, 'index']);
@@ -251,7 +252,7 @@ Route::middleware(['checkRole:admin,director,principal,hod'])->group(function ()
 
 
 
-Route::middleware(['checkRole:admin,director,principal,hod'])->group(function () {
+Route::middleware(['checkRole:admin,author,director,principal,hod'])->group(function () {
 
     Route::get(
         '/users/{user_uuid}/conference-publications',
@@ -298,7 +299,7 @@ Route::middleware(['checkRole:admin,director,principal,hod'])->group(function ()
 });
 
 
-Route::middleware(['checkRole:admin,director,principal,hod'])->group(function () {
+Route::middleware(['checkRole:admin,author,director,principal,hod'])->group(function () {
 
     Route::get('/users/{user_uuid}/educations', [UserEducationsController::class, 'index']);
     Route::post('/users/{user_uuid}/educations', [UserEducationsController::class, 'store']);
@@ -326,7 +327,7 @@ Route::middleware(['checkRole:admin,director,principal,hod'])->group(function ()
 
 
 
-Route::middleware(['checkRole:admin,director,principal,hod'])->group(function () {
+Route::middleware(['checkRole:admin,author,director,principal,hod'])->group(function () {
 
     /* ============================
      * Trash routes (MUST BE FIRST)
@@ -384,7 +385,7 @@ Route::middleware(['checkRole:admin,director,principal,hod'])->group(function ()
 |--------------------------------------------------------------------------
 */
 
-Route::middleware('checkRole:admin,super_admin,director,principal,hod')
+Route::middleware('checkRole:admin,author,super_admin,director,principal,hod')
     ->group(function () {
 
         /*
@@ -395,7 +396,7 @@ Route::middleware('checkRole:admin,super_admin,director,principal,hod')
         Route::prefix('dashboard-menus')->group(function () {
             // Collection
             Route::get('/',          [DashboardMenuController::class, 'index'])->name('modules.index');
-                    Route::get('/tree',    [DashboardMenuController::class, 'tree']);
+            Route::get('/tree',    [DashboardMenuController::class, 'tree']);
 
             Route::get('/archived',  [DashboardMenuController::class, 'archived'])->name('modules.archived');
             Route::get('/bin',       [DashboardMenuController::class, 'bin'])->name('modules.bin');
@@ -573,7 +574,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify departments
-Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')
+Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')
     ->group(function () {
         Route::post('/departments',                         [DepartmentController::class, 'store']);
         Route::get('/departments-trash',                    [DepartmentController::class, 'trash']);
@@ -621,7 +622,7 @@ Route::middleware('checkRole:director,principal,hod,faculty,technical_assistant,
 */
 
 Route::prefix('/header-menus')
-    ->middleware('checkRole:admin,super_admin,director')
+    ->middleware('checkRole:admin,author,super_admin,director')
     ->group(function () {
         Route::get('/',        [HeaderMenuController::class, 'index']);
         Route::get('/tree',    [HeaderMenuController::class, 'tree']);
@@ -653,7 +654,7 @@ Route::prefix('/public/header-menus')->group(function () {
 |--------------------------------------------------------------------------
 */
 Route::prefix('/page-submenus')
-    ->middleware('checkRole:admin,super_admin,director')
+    ->middleware('checkRole:admin,author,super_admin,director')
     ->group(function () {
 
         Route::get('/pages', [PageSubmenuController::class, 'pages']);
@@ -688,14 +689,13 @@ Route::prefix('/public/page-submenus')->group(function () {
 
 
 Route::prefix('public/pages')->group(function () {
-    // Change from PublicPageController to PageController
-    Route::get('/resolve', [PageController::class, 'resolve']);
+    Route::get('/resolve', [PageController::class, 'resolve']); // ?slug=
 });
 
 // Public
 Route::get('/public/pages/{identifier}', [PageController::class, 'publicApi']);
  
-Route::middleware('checkRole:admin,super_admin,director')->group(function () {
+Route::middleware('checkRole:admin,author,super_admin,director')->group(function () {
  
     // ===== LISTING (STATIC FIRST) =====
     Route::get('/pages', [PageController::class, 'index']);
@@ -753,7 +753,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
     // Create
     Route::post('/curriculum-syllabuses', [CurriculumSyllabusController::class, 'store']);
 
@@ -797,7 +797,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
     Route::post('/announcements', [AnnouncementController::class, 'store']);
     Route::post('/departments/{department}/announcements', [AnnouncementController::class, 'storeForDepartment']);
 
@@ -838,7 +838,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
     Route::post('/achievements', [AchievementController::class, 'store']);
     Route::post('/departments/{department}/achievements', [AchievementController::class, 'storeForDepartment']);
 
@@ -876,7 +876,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
     Route::post('/notices', [NoticeController::class, 'store']);
     Route::post('/departments/{department}/notices', [NoticeController::class, 'storeForDepartment']);
 
@@ -915,7 +915,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
     Route::post('/student-activities', [StudentActivityController::class, 'store']);
     Route::post('/departments/{department}/student-activities', [StudentActivityController::class, 'storeForDepartment']);
 
@@ -958,7 +958,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
     Route::post('/gallery', [GalleryController::class, 'store']);
     Route::post('/departments/{department}/gallery', [GalleryController::class, 'storeForDepartment']);
 
@@ -990,7 +990,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
     Route::post('/courses', [CourseController::class, 'store']);
     Route::post('/departments/{department}/courses', [CourseController::class, 'storeForDepartment']);
 
@@ -1035,9 +1035,9 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
     // Bulk import (CSV)
-Route::post('/course-semesters/import', [CourseSemesterController::class, 'importCsv']);
+    Route::post('/course-semesters/import', [CourseSemesterController::class, 'importCsv']);
 
     // Create (global)
     Route::post('/course-semesters', [CourseSemesterController::class, 'store']);
@@ -1089,7 +1089,7 @@ Route::middleware('checkRole')->prefix('course-semester-sections')->group(functi
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')
+Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')
     ->prefix('course-semester-sections')
     ->group(function () {
 
@@ -1105,31 +1105,31 @@ Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assi
     });
     
 
-    // ===============================
-    // Subjects Routes
-    // ===============================
-    
-    // Read-only (authenticated)
-    Route::middleware('checkRole')
-        ->prefix('subjects')
-        ->group(function () {
-            Route::get('/',        [SubjectController::class, 'index']);
-            Route::get('/current', [SubjectController::class, 'current']);
-            Route::get('/trash',   [SubjectController::class, 'trash']);
-            Route::get('/{idOrUuid}', [SubjectController::class, 'show']);
-        });
-    
-    // Modify (authenticated role-based)
-    Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')
-        ->prefix('subjects')
-        ->group(function () {
-            Route::post('/', [SubjectController::class, 'store']);
-            Route::match(['put','patch'], '/{idOrUuid}', [SubjectController::class, 'update']);
-    
-            Route::delete('/{idOrUuid}', [SubjectController::class, 'destroy']);
-            Route::post('/{idOrUuid}/restore', [SubjectController::class, 'restore']);
-            Route::delete('/{idOrUuid}/force', [SubjectController::class, 'forceDelete']);
-        });
+// ===============================
+// Subjects Routes
+// ===============================
+
+// Read-only (authenticated)
+Route::middleware('checkRole')
+    ->prefix('subjects')
+    ->group(function () {
+        Route::get('/',        [SubjectController::class, 'index']);
+        Route::get('/current', [SubjectController::class, 'current']);
+        Route::get('/trash',   [SubjectController::class, 'trash']);
+        Route::get('/{idOrUuid}', [SubjectController::class, 'show']);
+    });
+
+// Modify (authenticated role-based)
+Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')
+    ->prefix('subjects')
+    ->group(function () {
+        Route::post('/', [SubjectController::class, 'store']);
+        Route::match(['put','patch'], '/{idOrUuid}', [SubjectController::class, 'update']);
+
+        Route::delete('/{idOrUuid}', [SubjectController::class, 'destroy']);
+        Route::post('/{idOrUuid}/restore', [SubjectController::class, 'restore']);
+        Route::delete('/{idOrUuid}/force', [SubjectController::class, 'forceDelete']);
+    });
     
 // ===============================
 // Course Semester members Routes (MINIMAL / REQUIRED ONLY)
@@ -1143,7 +1143,7 @@ Route::middleware('checkRole')
   });
 
 // Bulk push user_ids -> individual rows
-Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person,student')
+Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person,student')
   ->prefix('semester-members')
   ->group(function () {
     Route::post('/bulk-import', [CourseSemesterMemberController::class, 'bulkImport']);
@@ -1173,7 +1173,7 @@ Route::middleware('checkRole')
 
 
 // ✅ Create + Update (restricted roles)
-Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person,student')
+Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person,student')
 ->prefix('feedbacks')
 ->group(function () {
 
@@ -1185,16 +1185,6 @@ Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assi
         ->where('idOrUuid', '[0-9]+|[0-9a-fA-F\-]{36}');
 });
 
-/* =========================================================
-| Optional: "My Feedback" convenience routes (viewer-scoped)
-| If you implement these in controller
-|========================================================= */
-// Route::middleware('checkRole')->prefix('feedbacks')->group(function () {
-//     Route::get('/me/given',    [FeedbackController::class, 'myGiven']);
-//     Route::get('/me/received', [FeedbackController::class, 'myReceived']);
-// });
-
-
 // Read-only (authenticated)
 Route::middleware('checkRole')->prefix('feedback-questions')->group(function () {
     Route::get('/',        [FeedbackQuestionController::class, 'index']);
@@ -1205,7 +1195,7 @@ Route::middleware('checkRole')->prefix('feedback-questions')->group(function () 
 });
 
 // Modify (role-based)
-Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')
+Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')
     ->prefix('feedback-questions')
     ->group(function () {
         Route::post('/', [FeedbackQuestionController::class, 'store']);
@@ -1243,7 +1233,7 @@ Route::middleware('checkRole')
 
 
 // ✅ Create + Update + Delete + Restore + Force (restricted roles)
-Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')
+Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')
 ->prefix('feedback-posts')
 ->group(function () {
 
@@ -1270,36 +1260,30 @@ Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assi
 /* =========================================================
  | Feedback Submissions (Student submit + view)
  |========================================================= */
-Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person,student')
+Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person,student')
     ->prefix('feedback-posts')
     ->group(function () {
 
-        // ✅ list available posts for current user
-        // student => only assigned + current window
-        // staff/admin => current window (all)
         Route::get('/available', [FeedbackSubmissionController::class, 'available']);
 
-        // ✅ submit once per user per post
         Route::post('/{idOrUuid}/submit', [FeedbackSubmissionController::class, 'submit'])
             ->where('idOrUuid', '[0-9]+|[0-9a-fA-F\-]{36}');
     });
 
-Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person,student')
+Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person,student')
     ->prefix('feedback-submissions')
     ->group(function () {
 
-        // view submissions
         Route::get('/', [FeedbackSubmissionController::class, 'index']);
         Route::get('/{idOrUuid}', [FeedbackSubmissionController::class, 'show'])
             ->where('idOrUuid', '[0-9]+|[0-9a-fA-F\-]{36}');
 
-        // optional admin delete
         Route::delete('/{idOrUuid}', [FeedbackSubmissionController::class, 'destroy'])
             ->where('idOrUuid', '[0-9]+|[0-9a-fA-F\-]{36}');
     });
 
 
-    Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')
+Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')
     ->group(function () {
         Route::get('/feedback-results', [FeedbackResultsController::class, 'results']);
     });
@@ -1316,7 +1300,6 @@ Route::middleware('checkRole')->group(function () {
 
 
 Route::prefix('contact-info')->group(function () {
-    // Admin CRUD (wrap with auth middleware if needed)
     Route::get('/', [ContactInfoController::class, 'index']);
     Route::get('/trash', [ContactInfoController::class, 'trash']);
 
@@ -1342,33 +1325,29 @@ Route::get('/public/contact-info/{identifier}', [ContactInfoController::class, '
 Route::prefix('hero-carousel')->group(function () {
 
     /* ===== Admin ===== */
-    Route::get('/',               [HeroCarouselController::class, 'index']);       // list (supports filters)
-    Route::get('/trash',          [HeroCarouselController::class, 'trash']);       // only deleted
-    Route::get('/{id}',           [HeroCarouselController::class, 'show']);        // show by id|uuid|slug
-    Route::post('/',              [HeroCarouselController::class, 'store']);       // create
-    Route::put('/{id}',           [HeroCarouselController::class, 'update']);      // update
-    Route::delete('/{id}',        [HeroCarouselController::class, 'destroy']);     // soft delete
-    Route::put('/{id}/restore',   [HeroCarouselController::class, 'restore']);     // restore
-    Route::delete('/{id}/force',  [HeroCarouselController::class, 'forceDelete']); // permanent delete
+    Route::get('/',               [HeroCarouselController::class, 'index']);
+    Route::get('/trash',          [HeroCarouselController::class, 'trash']);
+    Route::get('/{id}',           [HeroCarouselController::class, 'show']);
+    Route::post('/',              [HeroCarouselController::class, 'store']);
+    Route::put('/{id}',           [HeroCarouselController::class, 'update']);
+    Route::delete('/{id}',        [HeroCarouselController::class, 'destroy']);
+    Route::put('/{id}/restore',   [HeroCarouselController::class, 'restore']);
+    Route::delete('/{id}/force',  [HeroCarouselController::class, 'forceDelete']);
 
-    // optional utility: reorder many items at once
-    Route::post('/reorder',       [HeroCarouselController::class, 'reorder']);     // [{id, sort_order},...]
+    Route::post('/reorder',       [HeroCarouselController::class, 'reorder']);
 
     /* ===== Public ===== */
-    Route::get('/public/list',    [HeroCarouselController::class, 'publicIndex']); // visible published list
-    Route::get('/public/{id}',    [HeroCarouselController::class, 'publicShow']);  // visible published show
+    Route::get('/public/list',    [HeroCarouselController::class, 'publicIndex']);
+    Route::get('/public/{id}',    [HeroCarouselController::class, 'publicShow']);
 });
 
 
 Route::prefix('hero-carousel-settings')->group(function () {
-    // current settings (frontend-friendly)
     Route::get('/current', [HeroCarouselSettingsController::class, 'current']);
 
-    // admin list + trash
     Route::get('/',        [HeroCarouselSettingsController::class, 'index']);
     Route::get('/trash',   [HeroCarouselSettingsController::class, 'trash']);
 
-    // CRUD
     Route::get('/{idOrUuid}',              [HeroCarouselSettingsController::class, 'show']);
     Route::post('/',                       [HeroCarouselSettingsController::class, 'store']);
     Route::post('/upsert-current',         [HeroCarouselSettingsController::class, 'upsertCurrent']);
@@ -1376,13 +1355,11 @@ Route::prefix('hero-carousel-settings')->group(function () {
     Route::patch('/{idOrUuid}',            [HeroCarouselSettingsController::class, 'update']);
     Route::delete('/{idOrUuid}',           [HeroCarouselSettingsController::class, 'destroy']);
 
-    // restore / force delete
     Route::post('/{idOrUuid}/restore',     [HeroCarouselSettingsController::class, 'restore']);
     Route::delete('/{idOrUuid}/force',     [HeroCarouselSettingsController::class, 'forceDelete']);
 });
 
 Route::prefix('recruiters')->group(function () {
-    // Admin CRUD
     Route::get('/', [RecruiterController::class, 'index']);
     Route::get('/trash', [RecruiterController::class, 'trash']);
 
@@ -1411,7 +1388,6 @@ Route::prefix('public')->group(function () {
 
 
 Route::prefix('success-stories')->group(function () {
-    // Admin CRUD
     Route::get('/',                [SuccessStoryController::class, 'index']);
     Route::get('/trash',           [SuccessStoryController::class, 'trash']);
     Route::get('/{identifier}',    [SuccessStoryController::class, 'show']);
@@ -1438,14 +1414,6 @@ Route::prefix('public')->group(function () {
 });
 
 
-/*
-|--------------------------------------------------------------------------
-| Events (Admin / Auth side)
-|--------------------------------------------------------------------------
-| Wrap this group with your auth middleware if needed.
-| Example:
-| Route::middleware(['auth:sanctum'])->group(function(){ ... });
-*/
 Route::prefix('events')->group(function () {
     Route::get('/', [EventController::class, 'index']);
     Route::get('/trash', [EventController::class, 'trash']);
@@ -1465,11 +1433,6 @@ Route::prefix('events')->group(function () {
     Route::delete('/{identifier}/force', [EventController::class, 'forceDelete']);
 });
 
-/*
-|--------------------------------------------------------------------------
-| Events (Public)
-|--------------------------------------------------------------------------
-*/
 Route::prefix('public/events')->group(function () {
     Route::get('/', [EventController::class, 'publicIndex']);
     Route::get('/department/{department}', [EventController::class, 'publicIndexByDepartment']);
@@ -1489,7 +1452,7 @@ Route::prefix('placed-students')->group(function () {
     Route::get('/{identifier}', [PlacedStudentController::class, 'show']);
     Route::post('/', [PlacedStudentController::class, 'store']);
 
-    Route::put('/{identifier}', [PlacedStudentController::class, 'update']); // ✅ PUT (not PATCH)
+    Route::put('/{identifier}', [PlacedStudentController::class, 'update']);
     Route::put('/{identifier}/toggle-featured', [PlacedStudentController::class, 'toggleFeatured']);
 
     Route::delete('/{identifier}', [PlacedStudentController::class, 'destroy']);
@@ -1501,54 +1464,46 @@ Route::prefix('placed-students')->group(function () {
 
 Route::prefix('alumni')->group(function () {
 
-    // Admin-style listing (supports filters, pagination, trash, etc.)
     Route::get('/', [AlumniController::class, 'index']);
     Route::get('/trash', [AlumniController::class, 'trash']);
 
-    // Department scoped
     Route::get('/department/{department}', [AlumniController::class, 'indexByDepartment']);
     Route::post('/department/{department}', [AlumniController::class, 'storeForDepartment']);
     Route::get('/department/{department}/{identifier}', [AlumniController::class, 'showByDepartment']);
 
-    // CRUD
     Route::get('/{identifier}', [AlumniController::class, 'show']);
     Route::post('/', [AlumniController::class, 'store']);
 
-    Route::put('/{identifier}', [AlumniController::class, 'update']); // ✅ PUT (not PATCH)
+    Route::put('/{identifier}', [AlumniController::class, 'update']);
     Route::put('/{identifier}/toggle-featured', [AlumniController::class, 'toggleFeatured']);
 
     Route::delete('/{identifier}', [AlumniController::class, 'destroy']);
     Route::put('/{identifier}/restore', [AlumniController::class, 'restore']);
     Route::delete('/{identifier}/force', [AlumniController::class, 'forceDelete']);
 
-    // Public listing endpoint
     Route::get('/public/index', [AlumniController::class, 'publicIndex']);
 });
 
 
 Route::prefix('program-toppers')->group(function () {
 
-    // Admin-style listing (supports filters, pagination, trash, etc.)
     Route::get('/', [ProgramTopperController::class, 'index']);
     Route::get('/trash', [ProgramTopperController::class, 'trash']);
 
-    // Department scoped
     Route::get('/department/{department}', [ProgramTopperController::class, 'indexByDepartment']);
     Route::post('/department/{department}', [ProgramTopperController::class, 'storeForDepartment']);
     Route::get('/department/{department}/{identifier}', [ProgramTopperController::class, 'showByDepartment']);
 
-    // CRUD
     Route::get('/{identifier}', [ProgramTopperController::class, 'show']);
     Route::post('/', [ProgramTopperController::class, 'store']);
 
-    Route::put('/{identifier}', [ProgramTopperController::class, 'update']); // ✅ PUT (not PATCH)
+    Route::put('/{identifier}', [ProgramTopperController::class, 'update']);
     Route::put('/{identifier}/toggle-featured', [ProgramTopperController::class, 'toggleFeatured']);
 
     Route::delete('/{identifier}', [ProgramTopperController::class, 'destroy']);
     Route::put('/{identifier}/restore', [ProgramTopperController::class, 'restore']);
     Route::delete('/{identifier}/force', [ProgramTopperController::class, 'forceDelete']);
 
-    // Public listing endpoint
     Route::get('/public/index', [ProgramTopperController::class, 'publicIndex']);
 });
 
@@ -1556,7 +1511,6 @@ Route::prefix('program-toppers')->group(function () {
 /*
 |--------------------------------------------------------------------------
 | Placement Notices (Admin)
-| Tip: Wrap these in your auth middleware group if needed
 |--------------------------------------------------------------------------
 */
 Route::get('placement-notices', [PlacementNoticeController::class, 'index']);
@@ -1587,14 +1541,6 @@ Route::get('public/placement-notices/department/{department}', [PlacementNoticeC
 Route::get('public/placement-notices/{identifier}', [PlacementNoticeController::class, 'publicShow']);
 
 
-/*
-|--------------------------------------------------------------------------
-| Successful Entrepreneurs (Admin)
-|--------------------------------------------------------------------------
-| Put inside your auth middleware group if needed.
-*/
-
-// Route::middleware(['auth:sanctum'])->group(function () {
 
 Route::prefix('successful-entrepreneurs')->group(function () {
     Route::get('/',                [SuccessfulEntrepreneurController::class, 'index']);
@@ -1604,7 +1550,6 @@ Route::prefix('successful-entrepreneurs')->group(function () {
 
     Route::post('/',               [SuccessfulEntrepreneurController::class, 'store']);
 
-    // ✅ Use PUT (not PATCH) to avoid 405 issue
     Route::put('/{identifier}',    [SuccessfulEntrepreneurController::class, 'update']);
 
     Route::post('/{identifier}/toggle-featured', [SuccessfulEntrepreneurController::class, 'toggleFeatured']);
@@ -1620,8 +1565,6 @@ Route::prefix('departments/{department}')->group(function () {
     Route::post('/successful-entrepreneurs',               [SuccessfulEntrepreneurController::class, 'storeForDepartment']);
     Route::get('/successful-entrepreneurs/{identifier}',   [SuccessfulEntrepreneurController::class, 'showByDepartment']);
 });
-
-// });
 
 /*
 |--------------------------------------------------------------------------
@@ -1666,7 +1609,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
     Route::post('/career-notices', [CareerNoticeController::class, 'store']);
 
     Route::get('/career-notices-trash', [CareerNoticeController::class, 'trash']);
@@ -1699,7 +1642,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
     Route::post('/why-us', [WhyUsController::class, 'store']);
 
     Route::get('/why-us-trash', [WhyUsController::class, 'trash']);
@@ -1735,7 +1678,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
     Route::post('/scholarships', [ScholarshipController::class, 'store']);
     Route::post('/departments/{department}/scholarships', [ScholarshipController::class, 'storeForDepartment']);
 
@@ -1774,7 +1717,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
     Route::post('/alumni-speaks', [AlumniSpeakController::class, 'store']);
     Route::post('/departments/{department}/alumni-speaks', [AlumniSpeakController::class, 'storeForDepartment']);
 
@@ -1808,7 +1751,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
     Route::post('/center-iframes', [CenterIframeController::class, 'store']);
 
     Route::get('/center-iframes-trash', [CenterIframeController::class, 'trash']);
@@ -1834,12 +1777,12 @@ Route::get('/public/center-iframes/{identifier}', [CenterIframeController::class
 // Read-only (authenticated)
 Route::middleware('checkRole')->group(function () {
     Route::get('/stats',              [StatsController::class, 'index']);
-    Route::get('/stats/current',      [StatsController::class, 'current']);   // ✅ keep before {identifier}
+    Route::get('/stats/current',      [StatsController::class, 'current']);
     Route::get('/stats/{identifier}', [StatsController::class, 'show']);
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
     Route::post('/stats',                    [StatsController::class, 'store']);
     Route::post('/stats/upsert-current',     [StatsController::class, 'upsertCurrent']);
 
@@ -1855,7 +1798,7 @@ Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assi
 // Public (no auth)
 Route::prefix('public')->group(function () {
     Route::get('/stats',              [StatsController::class, 'publicIndex']);
-    Route::get('/stats/current',      [StatsController::class, 'publicCurrent']); // ✅ keep before {identifier}
+    Route::get('/stats/current',      [StatsController::class, 'publicCurrent']);
     Route::get('/stats/{identifier}', [StatsController::class, 'publicShow']);
 });
 
@@ -1868,24 +1811,19 @@ Route::prefix('public')->group(function () {
 
 Route::prefix('notice-marquee')->group(function () {
 
-    // current visible (frontend-friendly)
     Route::get('/current', [NoticeMarqueeController::class, 'current']);
 
-    // admin list + trash
     Route::get('/',      [NoticeMarqueeController::class, 'index']);
     Route::get('/trash', [NoticeMarqueeController::class, 'trash']);
 
-    // CRUD (id|uuid|slug)
     Route::get('/{identifier}',    [NoticeMarqueeController::class, 'show']);
     Route::post('/',              [NoticeMarqueeController::class, 'store']);
     Route::match(['put','patch'], '/{identifier}', [NoticeMarqueeController::class, 'update']);
     Route::delete('/{identifier}', [NoticeMarqueeController::class, 'destroy']);
 
-    // restore / force delete
     Route::post('/{identifier}/restore', [NoticeMarqueeController::class, 'restore']);
     Route::delete('/{identifier}/force', [NoticeMarqueeController::class, 'forceDelete']);
 
-    // optional analytics
     Route::post('/{identifier}/views', [NoticeMarqueeController::class, 'incrementViews']);
 });
 
@@ -1898,11 +1836,9 @@ Route::prefix('public')->group(function () {
 
 Route::prefix('footer-components')->group(function () {
 
-    // helpers for UI selections
     Route::get('/header-menu-options',       [FooterComponentController::class, 'headerMenuOptions']);
     Route::get('/header-component-options',  [FooterComponentController::class, 'headerComponentOptions']);
 
-    // CRUD
     Route::get('/',             [FooterComponentController::class, 'index']);
     Route::get('/trash',        [FooterComponentController::class, 'trash']);
     Route::get('/{identifier}', [FooterComponentController::class, 'show']);
@@ -1919,16 +1855,14 @@ Route::prefix('footer-components')->group(function () {
 
 
 Route::prefix('public/grand-homepage')->group(function () {
-    // ✅ Bootstrap (fast)
     Route::get('/', [GrandHomepageController::class, 'index']);
 
-    // ✅ Section wise endpoints (lazy-load on scroll)
     Route::get('/notice-marquee', [GrandHomepageController::class, 'noticeMarquee']);
     Route::get('/hero-carousel',  [GrandHomepageController::class, 'heroCarousel']);
 
-    Route::get('/quick-links',    [GrandHomepageController::class, 'quickLinks']);      // career_notices, why_us, scholarships
-    Route::get('/notice-board',   [GrandHomepageController::class, 'noticeBoard']);     // notices, center_iframe, announcements
-    Route::get('/activities',     [GrandHomepageController::class, 'activities']);      // achievements, student_activities
+    Route::get('/quick-links',    [GrandHomepageController::class, 'quickLinks']);
+    Route::get('/notice-board',   [GrandHomepageController::class, 'noticeBoard']);
+    Route::get('/activities',     [GrandHomepageController::class, 'activities']);
     Route::get('/placement-notices', [GrandHomepageController::class, 'placementNotices']);
 
     Route::get('/courses',        [GrandHomepageController::class, 'courses']);
@@ -1939,16 +1873,13 @@ Route::prefix('public/grand-homepage')->group(function () {
     Route::get('/success-stories',          [GrandHomepageController::class, 'successStories']);
     Route::get('/recruiters',               [GrandHomepageController::class, 'recruiters']);
 
-    // Optional explicit full endpoint (same as ?full=1)
     Route::get('/full', [GrandHomepageController::class, 'full']);
 });
 
 
 //Contact Us
-/* Public */
 Route::post('/contact-us', [ContactUsController::class, 'store']);
  
-/* Admin */
 Route::get('/contact-us', [ContactUsController::class, 'index']);
 Route::get('/contact-us/{id}', [ContactUsController::class, 'show']);
 Route::delete('/contact-us/{id}', [ContactUsController::class, 'destroy']);
@@ -1958,11 +1889,10 @@ Route::patch('/contact-us/{id}/read', [ContactUsController::class, 'markAsRead']
  
 Route::get('/public/contact-us/visibility', [ContactUsPageVisibilityController::class, 'publicShow']);
  
-// Put these behind your admin/auth middleware group
 Route::get('/contact-us/visibility', [ContactUsPageVisibilityController::class, 'Show']);
 Route::put('/contact-us/visibility', [ContactUsPageVisibilityController::class, 'Update']);
 
- Route::get('/public/faculty',                  [UserController::class, 'facultyindex']);
+Route::get('/public/faculty',                  [UserController::class, 'facultyindex']);
 Route::get('/public/placement-officers', [UserController::class, 'placementOfficerIndex']);
 
 
@@ -1972,31 +1902,25 @@ Route::get('/public/placement-officers', [UserController::class, 'placementOffic
 |--------------------------------------------------------------------------
 */
 Route::prefix('/top-header-menus')
-  ->middleware('checkRole:admin,super_admin,director')
+  ->middleware('checkRole:admin,author,super_admin,director')
   ->group(function () {
 
-    // List + Trash + Resolve
     Route::get('/',        [TopHeaderMenuController::class, 'index']);
     Route::get('/trash',   [TopHeaderMenuController::class, 'indexTrash']);
     Route::get('/resolve', [TopHeaderMenuController::class, 'resolve']);
 
-    // Contact infos list (for picking from)
     Route::get('/contact-infos', [TopHeaderMenuController::class, 'contactInfos']);
 
-    // ✅ Contact selection (GLOBAL) - MUST be BEFORE "{id}" routes
     Route::get('/contact-info',    [TopHeaderMenuController::class, 'getContactSelection']);
     Route::put('/contact-info',    [TopHeaderMenuController::class, 'putContactSelection']);
     Route::delete('/contact-info', [TopHeaderMenuController::class, 'deleteContactSelection']);
 
-    // CRUD
     Route::post('/',      [TopHeaderMenuController::class, 'store']);
 
-    // ✅ Strongly recommended: constrain {id} so it never eats "contact-info"
     Route::get('{id}',    [TopHeaderMenuController::class, 'show'])->whereNumber('id');
     Route::put('{id}',    [TopHeaderMenuController::class, 'update'])->whereNumber('id');
     Route::delete('{id}', [TopHeaderMenuController::class, 'destroy'])->whereNumber('id');
 
-    // Bin actions
     Route::post('{id}/restore', [TopHeaderMenuController::class, 'restore'])->whereNumber('id');
     Route::delete('{id}/force', [TopHeaderMenuController::class, 'forceDelete'])->whereNumber('id');
     Route::post('{id}/toggle-active', [TopHeaderMenuController::class, 'toggleActive'])->whereNumber('id');
@@ -2006,28 +1930,22 @@ Route::prefix('/top-header-menus')
 Route::prefix('/public/top-header-menus')
   ->group(function () {
 
-    // List + Trash + Resolve
     Route::get('/',        [TopHeaderMenuController::class, 'index']);
     Route::get('/trash',   [TopHeaderMenuController::class, 'indexTrash']);
     Route::get('/resolve', [TopHeaderMenuController::class, 'resolve']);
 
-    // Contact infos list (for picking from)
     Route::get('/contact-infos', [TopHeaderMenuController::class, 'contactInfos']);
 
-    // ✅ Contact selection (GLOBAL) - MUST be BEFORE "{id}" routes
     Route::get('/contact-info',    [TopHeaderMenuController::class, 'getContactSelection']);
     Route::put('/contact-info',    [TopHeaderMenuController::class, 'putContactSelection']);
     Route::delete('/contact-info', [TopHeaderMenuController::class, 'deleteContactSelection']);
 
-    // CRUD
     Route::post('/',      [TopHeaderMenuController::class, 'store']);
 
-    // ✅ Strongly recommended: constrain {id} so it never eats "contact-info"
     Route::get('{id}',    [TopHeaderMenuController::class, 'show'])->whereNumber('id');
     Route::put('{id}',    [TopHeaderMenuController::class, 'update'])->whereNumber('id');
     Route::delete('{id}', [TopHeaderMenuController::class, 'destroy'])->whereNumber('id');
 
-    // Bin actions
     Route::post('{id}/restore', [TopHeaderMenuController::class, 'restore'])->whereNumber('id');
     Route::delete('{id}/force', [TopHeaderMenuController::class, 'forceDelete'])->whereNumber('id');
     Route::post('{id}/toggle-active', [TopHeaderMenuController::class, 'toggleActive'])->whereNumber('id');
@@ -2041,54 +1959,38 @@ Route::prefix('/public/top-header-menus')
 |--------------------------------------------------------------------------
 | Student Academic Details Routes
 |--------------------------------------------------------------------------
-| Admin/Staff protected (adjust roles as you want)
 */
  
 Route::prefix('student-academic-details')
-    ->middleware('checkRole:admin,super_admin,director,principal,hod,faculty,technical_assistant,it_person')
+    ->middleware('checkRole:admin,author,super_admin,director,principal,hod,faculty,technical_assistant,it_person')
     ->group(function () {
 
         Route::get('by-academics', [StudentAcademicDetailsController::class, 'studentsByAcademics']);
  
-        // CRUD
         Route::get('/',        [StudentAcademicDetailsController::class, 'index']);
         Route::post('/',       [StudentAcademicDetailsController::class, 'store']);
         Route::get('{id}',     [StudentAcademicDetailsController::class, 'show']);
         Route::put('{id}',     [StudentAcademicDetailsController::class, 'update']);
         Route::delete('{id}',  [StudentAcademicDetailsController::class, 'destroy']);
  
-        // Soft-delete restore
         Route::post('{id}/restore', [StudentAcademicDetailsController::class, 'restore']);
     });
  
  
 /*
 |--------------------------------------------------------------------------
-| Faculty Preview Order (Reorder Faculties by Department)
+| Faculty Preview Order
 |--------------------------------------------------------------------------
-| - Select dept -> load users excluding admin/director/student
-| - Tab1 Assigned: users present in faculty_ids_json
-| - Tab2 Unassigned: eligible users not in assigned list
-| - Save reorder: POST { faculty_ids: [...] }
 */
 
-Route::middleware(['checkRole:admin,director,principal,hod'])
+Route::middleware(['checkRole:admin,author,director,principal,hod'])
     ->prefix('faculty-preview-order')
     ->group(function () {
 
-        // list all dept order rows
         Route::get('/', [FacultyPreviewOrderController::class, 'index']);
-
-        // get assigned + unassigned for a department (id|uuid|slug)
         Route::get('/{department}', [FacultyPreviewOrderController::class, 'show']);
-
-        // save / upsert order for a department
         Route::post('/{department}/save', [FacultyPreviewOrderController::class, 'save']);
-
-        // optional: toggle active (1/0)
         Route::post('/{department}/toggle-active', [FacultyPreviewOrderController::class, 'toggleActive']);
-
-        // optional: remove order record
         Route::delete('/{department}', [FacultyPreviewOrderController::class, 'destroy']);
 });
 
@@ -2099,7 +2001,7 @@ Route::prefix('public')->group(function () {
 
 
 // Technical Assistant Preview Order
-Route::middleware(['checkRole:admin,director,principal,hod'])
+Route::middleware(['checkRole:admin,author,director,principal,hod'])
     ->prefix('technical-assistant-preview-order')
     ->group(function () {
 Route::get('/', [TechnicalAssistantPreviewOrderController::class, 'index']);
@@ -2113,7 +2015,7 @@ Route::get('public/technical-assistant-preview-order', [TechnicalAssistantPrevie
 Route::get('public/technical-assistant-preview-order/{department}', [TechnicalAssistantPreviewOrderController::class, 'publicShow']);
 
 // Placement Officer Preview Order
-Route::middleware(['checkRole:admin,director,principal,hod'])
+Route::middleware(['checkRole:admin,author,director,principal,hod'])
     ->prefix('placement-officer-preview-order')
     ->group(function () {
 Route::get('/', [PlacementOfficerPreviewOrderController::class, 'index']);
@@ -2131,22 +2033,16 @@ Route::get('/public/placement-officer-preview-order/{department}', [PlacementOff
 |--------------------------------------------------------------------------
 | Sticky Buttons (Admin + Public)
 |--------------------------------------------------------------------------
-| Table: sticky_buttons
-| - buttons_json: JSON array storing selected contact_info snapshot
-| - Admin can CRUD + upsert-current
-| - Public can read active (current + list + show)
 */
 
-Route::middleware(['checkRole:admin,director,principal,hod'])
+Route::middleware(['checkRole:admin,author,director,principal,hod'])
     ->prefix('sticky-buttons')
     ->group(function () {
 
-        // static first
         Route::get('/current', [StickyButtonController::class, 'current']);
         Route::get('/trash',   [StickyButtonController::class, 'trash']);
         Route::post('/upsert-current', [StickyButtonController::class, 'upsertCurrent']);
 
-        // list + CRUD
         Route::get('/',  [StickyButtonController::class, 'index']);
 
         Route::get('/{identifier}', [StickyButtonController::class, 'show'])
@@ -2187,15 +2083,11 @@ Route::prefix('public')->group(function () {
 */
 
 
-Route::middleware('checkRole:admin,director,principal,hod,technical_assistant,it_person')->group(function () {
+Route::middleware('checkRole:admin,author,director,principal,hod,technical_assistant,it_person')->group(function () {
 
-    // ✅ Overview (supports: ?status=pending|approved|all)
     Route::get('/master-approval', [MasterApprovalController::class, 'overview']);
-
-    // ✅ FINAL combined data API (all modules data with is_approved)
     Route::get('/master-approval/final', [MasterApprovalController::class, 'final']);
 
-    // ✅ Approve / Reject (updates the correct module table by UUID)
     Route::post('/master-approval/{uuid}/approve', [MasterApprovalController::class, 'approve']);
     Route::post('/master-approval/{uuid}/reject', [MasterApprovalController::class, 'reject']);
 });
@@ -2207,9 +2099,6 @@ Route::get('/announcements/approved', [AnnouncementController::class, 'indexAppr
 
 /* =========================================================
  | Student Subjects Routes
- | Table: student_subject
- | Columns: uuid, department_id, course_id, semester_id (nullable),
- |          subject_json (required), status, metadata, softDeletes
  |========================================================= */
 
 // ✅ Read-only (authenticated)
@@ -2225,7 +2114,7 @@ Route::middleware('checkRole')
     });
 
 // ✅ Modify (authenticated role-based)
-Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assistant,it_person')
+Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')
     ->prefix('student-subjects')
     ->group(function () {
         Route::post('/', [StudentSubjectController::class, 'store']);
@@ -2233,15 +2122,12 @@ Route::middleware('checkRole:admin,director,principal,hod,faculty,technical_assi
         Route::match(['put','patch'], '/{idOrUuid}', [StudentSubjectController::class, 'update'])
             ->where('idOrUuid', '[0-9]+|[0-9a-fA-F\-]{36}');
 
-        // soft delete
         Route::delete('/{idOrUuid}', [StudentSubjectController::class, 'destroy'])
             ->where('idOrUuid', '[0-9]+|[0-9a-fA-F\-]{36}');
 
-        // restore
         Route::post('/{idOrUuid}/restore', [StudentSubjectController::class, 'restore'])
             ->where('idOrUuid', '[0-9]+|[0-9a-fA-F\-]{36}');
 
-        // force delete
         Route::delete('/{idOrUuid}/force', [StudentSubjectController::class, 'forceDelete'])
             ->where('idOrUuid', '[0-9]+|[0-9a-fA-F\-]{36}');
     });
@@ -2257,7 +2143,7 @@ Route::middleware('checkRole')->get('/activity-logs', [UserActivityLogsControlle
 |--------------------------------------------------------------------------
 */
 
-// Read-only (authenticated) - optional, keep if you want admin screens to load via auth
+// Read-only (authenticated)
 Route::middleware('checkRole')->group(function () {
     Route::get('/meta-tags',                 [MetaTagController::class, 'index']);
     Route::get('/meta-tags/trash',           [MetaTagController::class, 'trash']);
@@ -2268,7 +2154,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,super_admin,director')->group(function () {
+Route::middleware('checkRole:admin,author,super_admin,director')->group(function () {
     Route::post('/meta-tags', [MetaTagController::class, 'store']);
 
     Route::post('/meta-tags/bulk', [MetaTagController::class, 'bulk']);
@@ -2288,6 +2174,38 @@ Route::middleware('checkRole:admin,super_admin,director')->group(function () {
 
 // Public (no auth) - website usage
 Route::prefix('public')->group(function () {
-    // recommended: pass ?page_link=/about or full URL, etc.
     Route::get('/meta-tags', [MetaTagController::class, 'publicIndex']);
 });
+
+/*
+|--------------------------------------------------------------------------
+| Department Enquiry Settings Routes (Order + Featured)
+|--------------------------------------------------------------------------
+*/
+
+// ✅ Admin / Backend control (save order + featured)
+Route::middleware('checkRole:admin,author,director,principal,hod')
+    ->prefix('department-enquiry-settings')
+    ->group(function () {
+
+        // list departments + current settings (for manage page)
+        Route::get('/', [DepartmentEnquirySettingsController::class, 'index']);
+
+        // upsert one department setting
+        Route::post('/upsert', [DepartmentEnquirySettingsController::class, 'upsert']);
+
+        // bulk save (recommended for reorder UI)
+        Route::post('/bulk-upsert', [DepartmentEnquirySettingsController::class, 'bulkUpsert']);
+    });
+
+/*
+|--------------------------------------------------------------------------
+| Public Departments (Enquiry Form) - ORDERED + FEATURED
+|--------------------------------------------------------------------------
+*/
+
+// ❗IMPORTANT: remove/comment the old route below to avoid duplicate route:
+// Route::get('/public/departments', [DepartmentController::class, 'publicIndex']);
+
+// ✅ Public departments (uses enquiry settings: featured + sort_order)
+Route::get('/public/ordered-departments', [DepartmentEnquirySettingsController::class, 'publicDepartments']);

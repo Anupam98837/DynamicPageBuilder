@@ -241,7 +241,7 @@ function getManageUsersUrl(){
   const parts = (window.location.pathname || '').split('/').filter(Boolean);
 
   // ✅ UPDATED: added program_topper to role prefixes
-  const rolePrefix = ['admin','examiner','student','alumni','program_topper'].includes(parts[0]) ? parts[0] : null;
+  const rolePrefix = ['admin','examiner','student','alumni','program_topper','author'].includes(parts[0]) ? parts[0] : null;
 
   if (rolePrefix) return `/${rolePrefix}/user/manage`;
   if (parts[0] === 'user') return '/user/manage';
@@ -1108,6 +1108,7 @@ function renderRoleOptions(current){
     ['it_person','IT Person'],
     ['placement_officer','Placement Officer'],
     ['program_topper','Program Topper'],  // ✅ ADDED
+    ['author','Author']
     ['alumni','Alumni'],
     ['student','Student']
   ];

@@ -694,7 +694,18 @@ class PageSubmenuController extends Controller
      */
     public function resolve(Request $r)
     {
-        $slug = $this->normSlug($r->query('slug', ''));
+        $rawSlug = (string) (
+    $r->query('slug')
+    ?? $r->query('submenu')
+    ?? $r->query('submenu_slug')
+    ?? ''
+);
+
+$slug = $this->normSlug($rawSlug);
+
+if ($slug === '') {
+    return response()->json(['success' => false, 'error' => 'Missing slug'], 422);
+}
         if ($slug === '') {
             return response()->json(['error' => 'Missing slug'], 422);
         }
@@ -707,8 +718,10 @@ class PageSubmenuController extends Controller
             ->where('active', true);
 
         if ($pageId > 0) {
-            $q->where('page_id', $pageId);
-        }
+    $q->where(function($x) use ($pageId){
+        $x->where('page_id', $pageId)->orWhereNull('page_id');
+    });
+}
 
         $menu = $q->first();
 
@@ -1776,68 +1789,69 @@ class PageSubmenuController extends Controller
 
     public function renderPublic(Request $r)
     {
-        $slug = $this->normSlug($r->query('slug', ''));
+        $rawSlug = (string) (
+    $r->query('slug')
+    ?? $r->query('submenu')
+    ?? $r->query('submenu_slug')
+    ?? ''
+);
+
+$slug = $this->normSlug($rawSlug);
+
+if ($slug === '') {
+    return response()->json(['success' => false, 'error' => 'Missing slug'], 422);
+}
         if ($slug === '') {
             return response()->json(['success' => false, 'error' => 'Missing slug'], 422);
         }
 
-        $pageId = $this->resolvePageIdFromRequest($r);
+$pageId = $this->resolvePageIdFromRequest($r);
+$headerMenuId = $this->resolveHeaderMenuIdFromRequest($r);
 
-        // ✅ NEW: header_menu_id supported
-        $headerMenuId = (int) $r->query('header_menu_id', 0);
+$q = DB::table($this->table)
+    ->where('slug', $slug)
+    ->whereNull('deleted_at')
+    ->where('active', true);
 
-        $q = DB::table($this->table)
-            ->where('slug', $slug)
-            ->whereNull('deleted_at')
-            ->where('active', true);
+if (Schema::hasColumn($this->table, 'header_menu_id') && $headerMenuId > 0) {
 
-        /**
-         * ✅ FIXED SCOPING LOGIC
-         *
-         * If header_menu_id exists:
-         * - Scope by header_menu_id
-         * - And page_id can be:
-         *      ✅ page-specific OR
-         *      ✅ global under that header (page_id NULL)
-         *
-         * Else fallback to old behavior:
-         * - Scope only by page_id if present
-         */
+    $q->where('header_menu_id', $headerMenuId);
 
-        if (Schema::hasColumn($this->table, 'header_menu_id') && $headerMenuId > 0) {
+    if ($pageId > 0) {
+        $q->where(function ($x) use ($pageId) {
+            $x->where('page_id', $pageId)
+              ->orWhereNull('page_id');  // ✅ THIS enables fallback
+        });
+    } else {
+        $q->whereNull('page_id');
+    }
 
-            $q->where('header_menu_id', $headerMenuId);
+} else {
+    // optional: also allow global when header scope missing
+    if ($pageId > 0) {
+        $q->where(function ($x) use ($pageId) {
+            $x->where('page_id', $pageId)
+              ->orWhereNull('page_id');
+        });
+    } else {
+        $q->whereNull('page_id');
+    }
+}
 
-            if ($pageId > 0) {
-                // ✅ allow both pageId + null pageId within same header scope
-                $q->where(function ($x) use ($pageId) {
-                    $x->where('page_id', $pageId)
-                      ->orWhereNull('page_id');
-                });
-            } else {
-                // ✅ header-only submenu scope (page_id is NULL)
-                $q->whereNull('page_id');
-            }
-
-        } else {
-            // ✅ fallback: old logic
-            if ($pageId > 0) {
-                $q->where('page_id', $pageId);
-            }
-        }
-
-        $menu = $q->first();
-        if (!$menu) {
-            return response()->json([
-                'success' => false,
-                'error'   => 'Submenu not found',
-                'debug'   => [
-                    'slug' => $slug,
-                    'page_id' => $pageId ?: null,
-                    'header_menu_id' => $headerMenuId ?: null,
-                ]
-            ], 404);
-        }
+$menu = $q->first();
+if (!$menu) {
+    return response()->json([
+        'success' => false,
+        'error' => 'Submenu not found',
+        'debug' => [
+            'slug' => $slug,
+            'page_id' => $pageId ?: null,
+            'header_menu_id' => $headerMenuId ?: null,
+            'header_uuid' => $r->query('header_uuid'),
+            'has_header_col' => Schema::hasColumn($this->table, 'header_menu_id'),
+        ]
+    ], 404);
+}
 
         $pageUrl        = trim((string)($menu->page_url ?? ''));
         $pageSlug       = trim((string)($menu->page_slug ?? ''));

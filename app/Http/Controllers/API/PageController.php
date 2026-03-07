@@ -356,39 +356,74 @@ class PageController extends Controller
 public function resolve(Request $request)
 {
     $link = trim((string) $request->query('link', ''));
-    if ($link === '') {
-        return response()->json(['error' => 'Missing link'], 422);
+    $slug = trim((string) $request->query('slug', ''));
+
+    // normalize slug
+    $slug = $slug !== '' ? \Illuminate\Support\Str::slug($slug, '-') : '';
+
+    // ✅ allow slug-only requests
+    if ($link === '' && $slug === '') {
+        return response()->json(['error' => 'Missing link or slug'], 422);
     }
 
-    $now = Carbon::now();
+    $now = \Carbon\Carbon::now();
 
-    // Build candidates exactly as in the frontend and admin resolve
-    $path = parse_url($link, PHP_URL_PATH) ?: $link;
-    $path = '/' . ltrim($path, '/');
-    $pathNoTrail = rtrim($path, '/') ?: '/';
-    $pathTrail   = ($pathNoTrail === '/') ? '/' : ($pathNoTrail . '/');
-
-    $base = $request->getSchemeAndHttpHost();
-
-    $candidates = array_values(array_unique(array_filter([
-        $pathNoTrail,
-        ltrim($pathNoTrail, '/'),
-        $pathTrail,
-        ltrim($pathTrail, '/'),
-        rtrim($base, '/') . $pathNoTrail,
-        rtrim($base, '/') . $pathTrail,
-    ])));
-
-    $page = DB::table('pages')
+    // base constraints (kept consistent)
+    $baseQuery = DB::table('pages')
         ->whereNull('deleted_at')
         ->where('status', 'Active')
         ->where(function ($q) use ($now) {
             $q->whereNull('published_at')
               ->orWhere('published_at', '<=', $now);
-        })
-        ->whereIn('page_url', $candidates)
-        ->orderByDesc('id')
-        ->first();
+        });
+
+    $page = null;
+
+    // ✅ 1) Try LINK resolve first (KEEP YOUR LOGIC AS-IS)
+    if ($link !== '') {
+        $path = parse_url($link, PHP_URL_PATH) ?: $link;
+        $path = '/' . ltrim($path, '/');
+        $pathNoTrail = rtrim($path, '/') ?: '/';
+        $pathTrail   = ($pathNoTrail === '/') ? '/' : ($pathNoTrail . '/');
+
+        $base = $request->getSchemeAndHttpHost();
+
+        $candidates = array_values(array_unique(array_filter([
+            $pathNoTrail,
+            ltrim($pathNoTrail, '/'),
+            $pathTrail,
+            ltrim($pathTrail, '/'),
+            rtrim($base, '/') . $pathNoTrail,
+            rtrim($base, '/') . $pathTrail,
+        ])));
+
+        $page = (clone $baseQuery)
+            ->whereIn('page_url', $candidates)
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    // ✅ 2) If link didn’t match, fallback to SLUG (only then)
+    if (!$page && $slug !== '') {
+        $page = (clone $baseQuery)
+            ->where('slug', $slug)
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    // (Optional but helpful) If link exists and slug not provided, try last segment as slug
+    if (!$page && $link !== '' && $slug === '') {
+        $path = parse_url($link, PHP_URL_PATH) ?: $link;
+        $last = trim(\Illuminate\Support\Str::afterLast(rtrim($path, '/'), '/'));
+        $last = $last !== '' ? \Illuminate\Support\Str::slug($last, '-') : '';
+
+        if ($last !== '') {
+            $page = (clone $baseQuery)
+                ->where('slug', $last)
+                ->orderByDesc('id')
+                ->first();
+        }
+    }
 
     if (!$page) {
         return response()->json(['error' => 'Not found'], 404);

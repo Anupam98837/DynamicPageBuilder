@@ -245,11 +245,10 @@ td .fw-semibold{color:var(--ink)}
               <option value="faculty">Faculty</option>
               <option value="technical_assistant">Technical Assistant</option>
               <option value="it_person">IT Person</option>
+              <option value="author">Author</option> {{-- ✅ NEW --}}
               <option value="placement_officer">Placement Officer</option>
               <option value="student">Student</option>
-              {{-- ✅ NEW: Alumni role --}}
               <option value="alumni">Alumni</option>
-              {{-- ✅ NEW: Program Topper role --}}
               <option value="program_topper">Program Topper</option>
             </select>
           </div>
@@ -324,11 +323,10 @@ td .fw-semibold{color:var(--ink)}
               <option value="faculty">Faculty</option>
               <option value="technical_assistant">Technical Assistant</option>
               <option value="it_person">IT Person</option>
+              <option value="author">Author</option> {{-- ✅ NEW --}}
               <option value="placement_officer">Placement Officer</option>
               <option value="student">Student</option>
-              {{-- ✅ NEW: Alumni role --}}
               <option value="alumni">Alumni</option>
-              {{-- ✅ NEW: Program Topper role --}}
               <option value="program_topper">Program Topper</option>
             </select>
           </div>
@@ -496,10 +494,11 @@ document.addEventListener('DOMContentLoaded', function () {
     faculty: 'Faculty',
     technical_assistant: 'Technical Assistant',
     it_person: 'IT Person',
+    author: 'Author', // ✅ NEW
     placement_officer: 'Placement Officer',
     student: 'Student',
     alumni: 'Alumni',
-    program_topper: 'Program Topper', // ✅ NEW
+    program_topper: 'Program Topper',
   };
   const roleLabel = v => ROLE_LABEL[(v || '').toLowerCase()] || (v || '');
 
@@ -589,8 +588,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function computePermissions() {
     const r = (ACTOR.role || '').toLowerCase();
-    const createDeleteRoles = ['admin', 'director', 'principal'];
-    const writeRoles = ['admin', 'director', 'principal', 'hod'];
+    const createDeleteRoles = ['admin', 'director', 'principal', 'author'];
+    const writeRoles = ['admin', 'director', 'principal', 'hod', 'author'];
 
     canCreate = createDeleteRoles.includes(r);
     canDelete = createDeleteRoles.includes(r);
@@ -895,7 +894,6 @@ document.addEventListener('DOMContentLoaded', function () {
               </button>
             </li>
 
-            {{-- ✅ NEW: redirects to editable profile page --}}
             ${canEdit ? `
               <li>
                 <button type="button" class="dropdown-item" data-action="profile_edit">
@@ -946,7 +944,6 @@ document.addEventListener('DOMContentLoaded', function () {
               <i class="fa fa-user-shield me-1"></i>${escapeHtml(roleLabel(role))}
             </span>
           </td>
-          {{-- ✅ NEW: Department cell --}}
           <td>${deptLabel ? escapeHtml(deptLabel) : '<span class="text-muted">—</span>'}</td>
           <td class="text-end">${actionHtml}</td>
         </tr>`;
@@ -982,7 +979,7 @@ document.addEventListener('DOMContentLoaded', function () {
       inactive: Array.isArray(state.inactiveItems) ? state.inactiveItems.slice() : []
     };
 
-    // ✅ NEW: client-side dept filtering (works even if backend ignores department_id)
+    // ✅ client-side dept filtering (works even if backend ignores department_id)
     const dep = (state.departmentFilter || '').toString();
     if (dep) {
       lists.active = lists.active.filter(u => String(getDeptId(u) ?? '') === dep);
@@ -992,7 +989,6 @@ document.addEventListener('DOMContentLoaded', function () {
     const activeSorted = sortUsers(lists.active);
     const inactiveSorted = sortUsers(lists.inactive);
 
-    // update tab counts
     if (countActiveEl) countActiveEl.textContent = String(activeSorted.length || 0);
     if (countInactiveEl) countInactiveEl.textContent = String(inactiveSorted.length || 0);
 
@@ -1053,13 +1049,13 @@ document.addEventListener('DOMContentLoaded', function () {
   filterModalEl.addEventListener('show.bs.modal', () => {
     modalRole.value = state.roleFilter || '';
     modalSort.value = state.sort || '-created_at';
-    if (modalDepartment) modalDepartment.value = state.departmentFilter || ''; // ✅ NEW
+    if (modalDepartment) modalDepartment.value = state.departmentFilter || '';
   });
 
   // Apply filters
   btnApplyFilters.addEventListener('click', () => {
     state.roleFilter = modalRole.value || '';
-    state.departmentFilter = modalDepartment ? (modalDepartment.value || '') : ''; // ✅ NEW
+    state.departmentFilter = modalDepartment ? (modalDepartment.value || '') : '';
     state.sort = modalSort.value || '-created_at';
     state.page.active = 1;
     state.page.inactive = 1;
@@ -1071,7 +1067,7 @@ document.addEventListener('DOMContentLoaded', function () {
   btnReset.addEventListener('click', () => {
     state.q = '';
     state.roleFilter = '';
-    state.departmentFilter = ''; // ✅ NEW
+    state.departmentFilter = '';
     state.sort = '-created_at';
     state.perPage = 10;
     state.page.active = 1;
@@ -1080,7 +1076,7 @@ document.addEventListener('DOMContentLoaded', function () {
     searchInput.value = '';
     perPageSel.value = '10';
     modalRole.value = '';
-    if (modalDepartment) modalDepartment.value = ''; // ✅ NEW
+    if (modalDepartment) modalDepartment.value = '';
     modalSort.value = '-created_at';
 
     loadUsers();
@@ -1148,7 +1144,6 @@ document.addEventListener('DOMContentLoaded', function () {
       return;
     }
 
-    // ✅ NEW: go to editable profile page
     if (act === 'profile_edit') {
       if (!canEdit) return;
       window.location.href = `/user/profile/edit/${encodeURIComponent(uuid)}`;
@@ -1318,7 +1313,6 @@ document.addEventListener('DOMContentLoaded', function () {
       const q = (searchInput?.value || '').trim();
       if (q) params.set('q', q);
       if (state.roleFilter) params.set('role', state.roleFilter);
-      // ✅ NEW: include department filter in export too (safe if backend ignores)
       if (state.departmentFilter) params.set('department_id', state.departmentFilter);
 
       const url = '/api/users/export-csv' + (params.toString() ? ('?' + params.toString()) : '');

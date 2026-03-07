@@ -60,7 +60,7 @@ class UserProfileController extends Controller
 
     private function privilegedRoles(): array
     {
-        return ['admin','director','principal','hod','it_person','placement_officer'];
+        return ['admin','director','principal','hod','it_person','placement_officer','author'];
     }
 
     /* =========================================================

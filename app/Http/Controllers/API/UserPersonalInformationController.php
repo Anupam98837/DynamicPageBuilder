@@ -77,7 +77,7 @@ class UserPersonalInformationController extends Controller
 
     private function isHighRole(?string $role): bool
     {
-        return in_array($role, ['admin','director','principal','hod','technical_assistant','it_person'], true);
+        return in_array($role, ['admin', 'author','director','principal','hod','technical_assistant','it_person'], true);
     }
 
     private function canAccessUser(Request $request, int $targetUserId): bool
@@ -335,7 +335,7 @@ class UserPersonalInformationController extends Controller
     public function show(Request $request, ?string $user_uuid = null)
     {
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin', 'author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
@@ -373,7 +373,7 @@ class UserPersonalInformationController extends Controller
         $this->logActivity($request, 'create', 'user_personal_information', $this->table, null, null, null, null, 'attempt');
 
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin', 'author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) {
             $this->logActivity($request, 'create', 'user_personal_information', $this->table, null, null, null, null, 'unauthorized');
             return $resp;
@@ -548,7 +548,7 @@ class UserPersonalInformationController extends Controller
         $this->logActivity($request, 'update', 'user_personal_information', $this->table, null, null, null, null, 'attempt');
 
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin', 'author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) {
             $this->logActivity($request, 'update', 'user_personal_information', $this->table, null, null, null, null, 'unauthorized');
             return $resp;
@@ -774,7 +774,7 @@ class UserPersonalInformationController extends Controller
         $this->logActivity($request, 'delete', 'user_personal_information', $this->table, null, null, null, null, 'attempt');
 
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin', 'author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) {
             $this->logActivity($request, 'delete', 'user_personal_information', $this->table, null, null, null, null, 'unauthorized');
             return $resp;
@@ -837,7 +837,7 @@ class UserPersonalInformationController extends Controller
         $this->logActivity($request, 'restore', 'user_personal_information', $this->table, null, null, null, null, 'attempt');
 
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','technical_assistant','it_person'
+            'admin', 'author','director','principal','hod','technical_assistant','it_person'
         ])) {
             $this->logActivity($request, 'restore', 'user_personal_information', $this->table, null, null, null, null, 'unauthorized');
             return $resp;

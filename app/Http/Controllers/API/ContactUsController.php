@@ -19,13 +19,11 @@ class ContactUsController extends Controller
 
     private function actor(Request $r): array
     {
-        // If your auth middleware sets these attributes, we'll pick them up.
-        // Otherwise (public contact form), we treat as guest/system.
         $role = $r->attributes->get('auth_role');
         $id   = $r->attributes->get('auth_tokenable_id');
 
         return [
-            'performed_by'      => is_numeric($id) ? (int) $id : 0, // 0 = guest/system (table requires NOT NULL)
+            'performed_by'      => is_numeric($id) ? (int) $id : 0,
             'performed_by_role' => $role ? (string) $role : 'guest',
             'ip'                => $r->ip(),
             'user_agent'        => substr((string) $r->userAgent(), 0, 512),
@@ -54,9 +52,9 @@ class ContactUsController extends Controller
                 'ip'                => $a['ip'],
                 'user_agent'        => $a['user_agent'],
 
-                'activity'   => $activity,   // create/update/delete
-                'module'     => $module,     // contact_us
-                'table_name' => $tableName,  // contact_us
+                'activity'   => $activity,
+                'module'     => $module,
+                'table_name' => $tableName,
                 'record_id'  => $recordId,
 
                 'changed_fields' => $changedFields === null ? null : json_encode($changedFields, JSON_UNESCAPED_UNICODE),
@@ -69,9 +67,19 @@ class ContactUsController extends Controller
                 'updated_at' => Carbon::now(),
             ]);
         } catch (\Throwable $e) {
-            // Never break functionality because of logging
             Log::warning('Activity log failed (ContactUsController): ' . $e->getMessage());
         }
+    }
+
+    private function toNullableBool($v): ?int
+    {
+        if ($v === null || $v === '') return null;
+
+        // supports true/false, 1/0, "true"/"false", "on"/"off", "yes"/"no"
+        $b = filter_var($v, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        if ($b === null) return null;
+
+        return $b ? 1 : 0;
     }
 
     /**
@@ -83,27 +91,66 @@ class ContactUsController extends Controller
         $v = Validator::make($request->all(), [
             'first_name' => ['required', 'string', 'max:255'],
             'last_name'  => ['nullable', 'string', 'max:255'],
-            'email'      => ['required', 'email', 'max:255'],
-            'phone'      => ['nullable', 'string', 'max:20'],
+
+            // ✅ UPDATED: email nullable (but if present must be valid)
+            'email'      => ['nullable', 'email', 'max:255'],
+
+            // ✅ UPDATED: phone required
+            'phone'      => ['required', 'string', 'max:20'],
+
             'message'    => ['required', 'string'],
 
-            // ✅ JSON array of consent/legal authority
-            // Accepts array from frontend; we store as JSON.
+            // ✅ NEW: admission enquiry checker (nullable boolean)
+            'is_admission_enquiry' => ['nullable'],
+
+            // ✅ NEW: department ids array (nullable)
+            'department_ids'   => ['nullable', 'array'],
+            'department_ids.*' => ['integer'],
+
+            // Existing: consent/legal authority json
             'legal_authority_json'   => ['nullable', 'array'],
             'legal_authority_json.*' => ['nullable'],
         ]);
 
         if ($v->fails()) {
-            // No DB change, so no activity log insert here (keeps log clean & avoids storing invalid payloads)
             return response()->json([
                 'success' => false,
                 'errors'  => $v->errors()
             ], 422);
         }
 
-        // ✅ If frontend didn't send legal_authority_json, store a default structure (optional)
-        $legal = $request->input('legal_authority_json');
+        // Normalize email: store null instead of empty string
+        $email = trim((string) $request->input('email', ''));
+        $email = $email === '' ? null : $email;
 
+        // Normalize last_name: store null instead of empty string
+        $last = trim((string) $request->input('last_name', ''));
+        $last = $last === '' ? null : $last;
+
+        // Normalize phone: required, trim
+        $phone = trim((string) $request->input('phone', ''));
+        // phone is required by validation; but still guard:
+        if ($phone === '') {
+            return response()->json([
+                'success' => false,
+                'errors'  => ['phone' => ['Phone is required.']]
+            ], 422);
+        }
+
+        // NEW: nullable boolean
+        $isAdmission = $this->toNullableBool($request->input('is_admission_enquiry'));
+
+        // NEW: department ids array (nullable)
+        $deptIds = $request->input('department_ids');
+        if (is_array($deptIds)) {
+            // keep only ints, unique
+            $deptIds = array_values(array_unique(array_map('intval', $deptIds)));
+        } else {
+            $deptIds = null;
+        }
+
+        // If frontend didn't send legal_authority_json, store default structure (optional)
+        $legal = $request->input('legal_authority_json');
         if ($legal === null) {
             $legal = [
                 [
@@ -121,36 +168,46 @@ class ContactUsController extends Controller
 
         $now = Carbon::now();
 
-        // ✅ use insertGetId so we can log record_id
         $id = (int) DB::table('contact_us')->insertGetId([
-            'first_name'           => $request->first_name,
-            'last_name'            => $request->last_name,
-            'email'                => $request->email,
-            'phone'                => $request->phone,
-            'message'              => $request->message,
-            'legal_authority_json' => json_encode($legal, JSON_UNESCAPED_UNICODE),
+            'first_name'           => $request->input('first_name'),
+            'last_name'            => $last,
+            'email'                => $email,                 // ✅ nullable
+            'phone'                => $phone,                 // ✅ required
+            'message'              => $request->input('message'),
 
-            'is_read'              => 0, // default unread
+            // ✅ new columns
+            'is_admission_enquiry' => $isAdmission,           // nullable boolean
+            'department_ids'       => $deptIds === null ? null : json_encode($deptIds, JSON_UNESCAPED_UNICODE),
+
+            // existing
+            'legal_authority_json' => json_encode($legal, JSON_UNESCAPED_UNICODE),
+            'is_read'              => 0,
+
             'created_at'           => $now,
             'updated_at'           => $now,
         ]);
 
-        // ✅ Activity Log (POST)
         $this->safeActivityLog(
             $request,
             'create',
             'contact_us',
             'contact_us',
             $id,
-            ['first_name', 'last_name', 'email', 'phone', 'message', 'legal_authority_json', 'is_read'],
+            [
+                'first_name','last_name','email','phone','message',
+                'is_admission_enquiry','department_ids',
+                'legal_authority_json','is_read'
+            ],
             null,
             [
                 'id'                   => $id,
-                'first_name'           => $request->first_name,
-                'last_name'            => $request->last_name,
-                'email'                => $request->email,
-                'phone'                => $request->phone,
-                'message'              => $request->message,
+                'first_name'           => $request->input('first_name'),
+                'last_name'            => $last,
+                'email'                => $email,
+                'phone'                => $phone,
+                'message'              => $request->input('message'),
+                'is_admission_enquiry' => $isAdmission,
+                'department_ids'       => $deptIds,
                 'legal_authority_json' => $legal,
                 'is_read'              => 0,
             ],
@@ -175,8 +232,8 @@ class ContactUsController extends Controller
         $sortBy   = $request->query('sort_by', 'created_at');
         $sortDir  = strtolower($request->query('sort_dir', 'desc')) === 'asc' ? 'asc' : 'desc';
 
-        // ✅ updated allowed sorts (no "name" anymore)
-        $allowedSorts = ['id', 'first_name', 'last_name', 'email', 'phone', 'created_at'];
+        // ✅ updated allowed sorts
+        $allowedSorts = ['id', 'first_name', 'last_name', 'email', 'phone', 'is_admission_enquiry', 'created_at'];
         if (!in_array($sortBy, $allowedSorts)) {
             $sortBy = 'created_at';
         }
@@ -202,11 +259,16 @@ class ContactUsController extends Controller
             ->limit($perPage)
             ->get();
 
-        // ✅ decode json for API response (keeps frontend easy)
+        // ✅ decode json for API response
         $data = $data->map(function ($row) {
             if (property_exists($row, 'legal_authority_json')) {
                 $row->legal_authority_json = $row->legal_authority_json
                     ? json_decode($row->legal_authority_json, true)
+                    : null;
+            }
+            if (property_exists($row, 'department_ids')) {
+                $row->department_ids = $row->department_ids
+                    ? json_decode($row->department_ids, true)
                     : null;
             }
             return $row;
@@ -247,16 +309,22 @@ class ContactUsController extends Controller
                 ->where('id', $id)
                 ->update([
                     'is_read'    => 1,
+                    'read_at'    => Carbon::now(), // (existing column)
                     'updated_at' => Carbon::now(),
                 ]);
 
             $msg->is_read = 1;
         }
 
-        // ✅ decode json
         if (property_exists($msg, 'legal_authority_json')) {
             $msg->legal_authority_json = $msg->legal_authority_json
                 ? json_decode($msg->legal_authority_json, true)
+                : null;
+        }
+
+        if (property_exists($msg, 'department_ids')) {
+            $msg->department_ids = $msg->department_ids
+                ? json_decode($msg->department_ids, true)
                 : null;
         }
 
@@ -275,7 +343,6 @@ class ContactUsController extends Controller
         $msg = DB::table('contact_us')->where('id', $id)->first();
 
         if (!$msg) {
-            // ✅ Activity Log (PATCH attempt - not found)
             $this->safeActivityLog(
                 $request,
                 'update',
@@ -295,7 +362,6 @@ class ContactUsController extends Controller
         }
 
         if ((int) $msg->is_read === 1) {
-            // ✅ Activity Log (PATCH - no change)
             $this->safeActivityLog(
                 $request,
                 'update',
@@ -318,10 +384,10 @@ class ContactUsController extends Controller
             ->where('id', $id)
             ->update([
                 'is_read'    => 1,
+                'read_at'    => Carbon::now(),
                 'updated_at' => Carbon::now(),
             ]);
 
-        // ✅ Activity Log (PATCH)
         $this->safeActivityLog(
             $request,
             'update',
@@ -349,7 +415,6 @@ class ContactUsController extends Controller
         $row = DB::table('contact_us')->where('id', $id)->first();
 
         if (!$row) {
-            // ✅ Activity Log (DELETE attempt - not found)
             $this->safeActivityLog(
                 $request,
                 'delete',
@@ -370,7 +435,6 @@ class ContactUsController extends Controller
 
         DB::table('contact_us')->where('id', $id)->delete();
 
-        // ✅ Activity Log (DELETE)
         $this->safeActivityLog(
             $request,
             'delete',
@@ -385,6 +449,11 @@ class ContactUsController extends Controller
                 'email'                => $row->email ?? null,
                 'phone'                => $row->phone ?? null,
                 'message'              => $row->message ?? null,
+
+                // ✅ new fields
+                'is_admission_enquiry' => property_exists($row, 'is_admission_enquiry') ? $row->is_admission_enquiry : null,
+                'department_ids'       => property_exists($row, 'department_ids') ? $row->department_ids : null,
+
                 'legal_authority_json' => $row->legal_authority_json ?? null,
                 'is_read'              => isset($row->is_read) ? (int) $row->is_read : null,
                 'created_at'           => $row->created_at ?? null,
@@ -405,8 +474,7 @@ class ContactUsController extends Controller
         $sortBy  = $request->query('sort_by', 'created_at');
         $sortDir = strtolower($request->query('sort_dir', 'desc')) === 'asc' ? 'asc' : 'desc';
 
-        // ✅ updated allowed sorts (no "name" anymore)
-        $allowedSorts = ['id', 'first_name', 'last_name', 'email', 'phone', 'created_at'];
+        $allowedSorts = ['id', 'first_name', 'last_name', 'email', 'phone', 'is_admission_enquiry', 'created_at'];
         if (!in_array($sortBy, $allowedSorts)) {
             $sortBy = 'created_at';
         }
@@ -438,6 +506,8 @@ class ContactUsController extends Controller
                 'Last Name',
                 'Email',
                 'Phone',
+                'Admission Enquiry',
+                'Department IDs',
                 'Message',
                 'Legal Authority JSON',
                 'Created At'
@@ -449,11 +519,13 @@ class ContactUsController extends Controller
                         $row->id,
                         $row->first_name ?? '',
                         $row->last_name ?? '',
-                        $row->email,
-                        $row->phone,
+                        $row->email ?? '',
+                        $row->phone ?? '',
+                        isset($row->is_admission_enquiry) ? (string) $row->is_admission_enquiry : '',
+                        $row->department_ids ?? '',
                         preg_replace("/\r|\n/", ' ', (string) $row->message),
                         $row->legal_authority_json ?? '',
-                        $row->created_at,
+                        $row->created_at ?? '',
                     ]);
                 }
             });

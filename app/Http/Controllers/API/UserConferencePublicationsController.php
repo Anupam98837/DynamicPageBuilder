@@ -80,7 +80,7 @@ class UserConferencePublicationsController extends Controller
         if ($actor['id'] === $userId) return true;
 
         return in_array($actor['role'], [
-            'admin','director','principal','hod','technical_assistant','it_person'
+            'admin', 'author','director','principal','hod','technical_assistant','it_person'
         ], true);
     }
 
@@ -276,7 +276,7 @@ class UserConferencePublicationsController extends Controller
     public function index(Request $request, ?string $user_uuid = null)
     {
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin', 'author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
@@ -301,7 +301,7 @@ class UserConferencePublicationsController extends Controller
     public function show(Request $request, ?string $user_uuid = null, string $uuid = '')
     {
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin', 'author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
@@ -327,7 +327,7 @@ class UserConferencePublicationsController extends Controller
     public function store(Request $request, ?string $user_uuid = null)
     {
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin', 'author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
@@ -459,7 +459,7 @@ class UserConferencePublicationsController extends Controller
     public function update(Request $request, ?string $user_uuid = null, string $uuid = '')
     {
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin', 'author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
@@ -567,7 +567,7 @@ class UserConferencePublicationsController extends Controller
     public function destroy(Request $request, ?string $user_uuid = null, string $uuid = '')
     {
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin', 'author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
@@ -637,7 +637,7 @@ class UserConferencePublicationsController extends Controller
         ]);
 
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin', 'author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
@@ -672,7 +672,7 @@ class UserConferencePublicationsController extends Controller
     public function restore(Request $request, ?string $user_uuid = null, string $uuid = '')
     {
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin', 'author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
@@ -736,7 +736,7 @@ class UserConferencePublicationsController extends Controller
     {
         // stricter role list for permanent deletion
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','technical_assistant','it_person'
+            'admin', 'author','director','principal','hod','technical_assistant','it_person'
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
@@ -785,7 +785,7 @@ class UserConferencePublicationsController extends Controller
     public function forceDeleteAllDeleted(Request $request, ?string $user_uuid = null)
     {
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','technical_assistant','it_person'
+            'admin', 'author','director','principal','hod','technical_assistant','it_person'
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);

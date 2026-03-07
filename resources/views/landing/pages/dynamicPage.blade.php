@@ -149,6 +149,27 @@ try {
                 ->orderByDesc('id')
                 ->first();
         }
+
+        if (!$dpResolvedPage && $hasSlug) {
+    $slugTry = '';
+
+    // prefer /page/{slug} pattern
+    $segs = explode('/', trim($dpBasePath, '/'));
+    if (count($segs) >= 2 && strtolower($segs[0]) === 'page') {
+        $slugTry = $segs[1];
+    } else {
+        $slugTry = end($segs) ?: '';
+    }
+
+    $slugTry = Str::slug(trim((string)$slugTry), '-');
+
+    if ($slugTry) {
+        $dpResolvedPage = DB::table('pages')
+            ->where('slug', $slugTry)
+            ->orderByDesc('id')
+            ->first();
+    }
+}
     }
 } catch (\Throwable $e) {
     $dpResolvedPage = null;
@@ -289,7 +310,7 @@ try {
         ?: 'Dynamic Page'
     );
 
-    $dpFallbackUrl = request()->fullUrl();
+    $dpFallbackUrl = url()->current();
     [$dpHeadTitle, $dpMetaHtml, $dpCanonical] = dp_build_meta_html($dpMetaArr, $dpFallbackTitle, $dpFallbackUrl);
 
     // --------- Provide server page payload to JS (so header-link pages load correctly) ----------
@@ -314,6 +335,124 @@ try {
     }
 @endphp
 @php
+
+if (!function_exists('dp_clean_canonical_url')) {
+  function dp_clean_canonical_url(string $url): string {
+    try {
+      $u = parse_url($url);
+      if (!$u) return $url;
+
+      $scheme = $u['scheme'] ?? request()->getScheme();
+      $host   = $u['host'] ?? request()->getHost();
+      $port   = isset($u['port']) ? (':' . $u['port']) : '';
+      $path   = $u['path'] ?? '/';
+
+      // ✅ canonical WITHOUT query by default (prevents ?mode=test, tokens, etc.)
+      return $scheme . '://' . $host . $port . $path;
+    } catch (\Throwable $e) {
+      return $url;
+    }
+  }
+}
+
+$dpHeadTitle = (string)(
+  ($dpResolvedSubmenu->title ?? null)
+  ?: ($dpResolvedPage->page_title ?? null)
+  ?: ($dpResolvedPage->title ?? null)
+  ?: 'Dynamic Page'
+);
+
+// ✅ canonical should NOT be fullUrl (no ?mode=test)
+$dpCanonical = dp_clean_canonical_url(url()->current());
+
+// ✅ build meta html ONLY from your saved rows (page_id based)
+$dpMetaHtml = '';
+try {
+  $metaTable = 'meta_tags';
+
+  // expected columns from your manager
+  $hasCols = Schema::hasTable($metaTable)
+    && Schema::hasColumn($metaTable, 'page_id')
+    && Schema::hasColumn($metaTable, 'tag_type')
+    && Schema::hasColumn($metaTable, 'attribute')
+    && Schema::hasColumn($metaTable, 'content');
+
+  if ($hasCols && $dpResolvedPage) {
+    $q = DB::table($metaTable)->where('page_id', (int)$dpResolvedPage->id);
+
+    // ✅ if you support submenu-specific tags, scope them too (optional)
+    if ($dpResolvedSubmenu) {
+      if (Schema::hasColumn($metaTable, 'page_submenu_id')) {
+        $q->where('page_submenu_id', (int)$dpResolvedSubmenu->id);
+      } elseif (Schema::hasColumn($metaTable, 'submenu_id')) {
+        $q->where('submenu_id', (int)$dpResolvedSubmenu->id);
+      }
+    }
+
+    $rows = $q->orderByDesc('updated_at')->orderByDesc('id')->get();
+
+    $out  = [];
+    $seen = [];
+
+    // ✅ always output canonical (clean)
+    $out[] = '<link rel="canonical" href="'.e($dpCanonical).'" data-dp-dynamic-meta="1">';
+
+    foreach ($rows as $t) {
+      $type = strtolower(trim((string)($t->tag_type ?? 'standard')));
+      $attr = trim((string)($t->attribute ?? ''));
+      $val  = trim((string)($t->content ?? ''));
+
+      if ($attr === '') continue;
+
+      // OPTIONAL: allow canonical via manager (if user saves attribute canonical/canonical_url)
+      if (in_array(strtolower($attr), ['canonical','canonical_url'], true)) {
+        if ($val) {
+          $dpCanonical = dp_clean_canonical_url($val);
+          $out[0] = '<link rel="canonical" href="'.e($dpCanonical).'" data-dp-dynamic-meta="1">';
+        }
+        continue;
+      }
+
+      // normalize type
+      if (in_array($type, ['og','open_graph','opengraph'], true)) $type = 'opengraph';
+      if (in_array($type, ['http','http_equiv','http-equiv'], true)) $type = 'http';
+      if ($type === 'name') $type = (str_starts_with(strtolower($attr), 'twitter:') ? 'twitter' : 'standard');
+      if (str_starts_with(strtolower($attr), 'og:')) $type = 'opengraph';
+      if (str_starts_with(strtolower($attr), 'twitter:')) $type = 'twitter';
+
+      $key = $type . '::' . strtolower($attr);
+      if (isset($seen[$key])) continue;   // keep newest because ordered desc
+      $seen[$key] = 1;
+
+      if ($type === 'charset') {
+        // you already output <meta charset="UTF-8"> in head → skip
+        continue;
+      } elseif ($type === 'opengraph') {
+        // ✅ if og:url is missing in DB, force canonical later (optional)
+        $out[] = '<meta property="'.e($attr).'" content="'.e($val).'" data-dp-dynamic-meta="1">';
+      } elseif ($type === 'http') {
+        $out[] = '<meta http-equiv="'.e($attr).'" content="'.e($val).'" data-dp-dynamic-meta="1">';
+      } else {
+        $out[] = '<meta name="'.e($attr).'" content="'.e($val).'" data-dp-dynamic-meta="1">';
+      }
+    }
+
+    // ✅ if they didn’t save og:url, make it canonical (recommended)
+    $hasOgUrl = false;
+    foreach ($out as $x) {
+      if (stripos($x, 'property="og:url"') !== false) { $hasOgUrl = true; break; }
+    }
+    if (!$hasOgUrl) {
+      $out[] = '<meta property="og:url" content="'.e($dpCanonical).'" data-dp-dynamic-meta="1">';
+    }
+
+    $dpMetaHtml = implode("\n    ", $out);
+  }
+} catch (\Throwable $e) {
+  $dpMetaHtml = '';
+}
+@endphp
+@php
     echo '<!-- Candidates: ' . json_encode($dpLinkCandidates) . ' -->';
     if ($dpResolvedPage) {
         echo '<!-- Resolved page: ' . $dpResolvedPage->id . ' -->';
@@ -324,23 +463,18 @@ try {
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    {{-- ✅ Base meta tags --}}
-    @include('landing.components.metaTags', [
-        // If your include supports overrides, these are available:
-        'dpResolvedPage' => $dpResolvedPage,
-        'dpResolvedSubmenu' => $dpResolvedSubmenu,
-        'dpMeta' => $dpMetaArr,
-        'dpCanonical' => $dpCanonical,
-    ])
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    {{-- ✅ Dynamic meta tags for CURRENT resolved page/submenu (visible in View Page Source) --}}
-    @if(!empty($dpMetaHtml))
-        {!! $dpMetaHtml !!}
-    @endif
+@include('landing.components.metaTags', [
+  'pageId' => $dpResolvedPage->id ?? null,
+  'submenuId' => $dpResolvedSubmenu->id ?? null,
+  'fallbackTitle' => $dpHeadTitle,
+  'canonical' => url()->current(),
+  'onlySaved' => true, // ✅ IMPORTANT
+])
 
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ $dpHeadTitle }}</title>
+<title>{{ $dpHeadTitle }}</title>
 
     <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('assets/media/images/favicon/msit_logo.jpg') }}">
 
@@ -1371,18 +1505,26 @@ try {
 // ============================================================
 // ✅ Page resolver (slug + linkPath support)
 // ============================================================
-async function resolvePublicPage(headerUuid = '', linkPath = ''){
+// ✅ Page resolver (slug + linkPath support)
+async function resolvePublicPage(headerUuid = '', linkPath = '', slug = ''){
     const rawLink = String(linkPath || '').trim();
-    if (!rawLink) return null;
+    const rawSlug = String(slug || '').trim();
+
+    if (!rawLink && !rawSlug) return null;
 
     const u = new URL(API_BASE + '/public/pages/resolve', window.location.origin);
 
-    // ✅ ONLY link (path)
-    const pathOnly = (function(){
-        try { return (new URL(rawLink, window.location.origin)).pathname; }
-        catch(e){ return rawLink; }
-    })();
-    u.searchParams.set('link', pathOnly);
+    // keep link behavior same
+    if (rawLink){
+        const pathOnly = (function(){
+            try { return (new URL(rawLink, window.location.origin)).pathname; }
+            catch(e){ return rawLink; }
+        })();
+        u.searchParams.set('link', pathOnly);
+    }
+
+    // ✅ NEW: send slug too (backend will only use it if link fails/missing)
+    if (rawSlug) u.searchParams.set('slug', rawSlug);
 
     if (headerUuid) {
         if (isUuid(headerUuid)) u.searchParams.set('header_uuid', headerUuid);
@@ -1392,13 +1534,16 @@ async function resolvePublicPage(headerUuid = '', linkPath = ''){
     const r = await fetchJsonWithStatus(u.toString());
     if (r.ok) return (r.data?.data || r.data?.page || null);
     if (r.status === 404) return null;
-    throw new Error((r.data && (r.data.message || r.data.error)) ? (r.data.message || r.data.error) : ('Resolve failed: ' + r.status));
+
+    throw new Error((r.data && (r.data.message || r.data.error))
+        ? (r.data.message || r.data.error)
+        : ('Resolve failed: ' + r.status));
 }
 
     // ============================================================
     // Submenu renderer (patched to apply meta + internal link routing)
     // ============================================================
-    async function loadSubmenuRightContent(submenuSlug, pageScope, preOpenedWin = null){
+    async function loadSubmenuRightContent(submenuSlug, pageScope, preOpenedWin = null, clickedTitle = ''){
         const sslug = String(submenuSlug || '').trim();
         if (!sslug) {
             try{ if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close(); }catch(e){}
@@ -1434,15 +1579,28 @@ async function resolvePublicPage(headerUuid = '', linkPath = ''){
         const r = await fetchJsonWithStatus(u.toString());
 
         if (!r.ok) {
-            try{ if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close(); }catch(e){}
-            const msg = (r.data && (r.data.message || r.data.error))
-                ? (r.data.message || r.data.error)
-                : ('Load failed: ' + r.status);
+    try{ if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close(); }catch(e){}
 
-            showError(msg);
-            scheduleStickyUpdate();
-            return;
-        }
+    // ✅ 404 => Coming Soon (old behavior)
+    if (r.status === 404) {
+        clearModuleAssets();
+        showComingSoon(String(submenuSlug || '').trim(), {
+            title: String(clickedTitle || 'Coming Soon').trim(),
+            message: 'This section is coming soon.'
+        });
+        scheduleStickyUpdate();
+        return;
+    }
+
+    // Other errors => real error
+    const msg = (r.data && (r.data.message || r.data.error))
+        ? (r.data.message || r.data.error)
+        : ('Load failed: ' + r.status);
+
+    showError(msg);
+    scheduleStickyUpdate();
+    return;
+}
 
         const payload = r.data || {};
 
@@ -1669,7 +1827,12 @@ async function resolvePublicPage(headerUuid = '', linkPath = ''){
                     }
                 }catch(e2){}
 
-                await loadSubmenuRightContent(sslug, window.__DP_PAGE_SCOPE__ || null, preWin);
+                await loadSubmenuRightContent(
+    sslug,
+    window.__DP_PAGE_SCOPE__ || null,
+    preWin,
+    String(title || 'Coming Soon')
+);
                 pushUrlStateSubmenu(sslug, window.__DP_PAGE_SCOPE__?.header_menu_uuid || '', readDeptTokenFromUrl());
             });
 
@@ -1847,15 +2010,17 @@ async function resolvePublicPage(headerUuid = '', linkPath = ''){
     const headerFromUrl = readHeaderMenuUuidFromUrl();
 
         if (!slugCandidate && !serverLinkPath) {
-            elLoading.classList.add('d-none');
-            showError("No page slug/link provided.");
-            hideSidebarSkeleton();
-            sidebarCol.classList.add('d-none');
-            sidebarCol.classList.remove('dp-side-preload');
-            contentCol.className = 'col-12';
-            scheduleStickyUpdate();
-            return;
-        }
+    elLoading.classList.add('d-none');
+    clearModuleAssets();
+    showComingSoon('', { title: 'Coming Soon', message: 'This page is coming soon.' });
+
+    hideSidebarSkeleton();
+    sidebarCol.classList.add('d-none');
+    sidebarCol.classList.remove('dp-side-preload');
+    contentCol.className = 'col-12';
+    scheduleStickyUpdate();
+    return;
+}
 
         showLoading('Loading page…');
 
@@ -1866,19 +2031,23 @@ async function resolvePublicPage(headerUuid = '', linkPath = ''){
         if (serverPage && parseInt(serverPage.id || '0', 10) > 0) {
             page = serverPage;
         } else {
-            page = await resolvePublicPage(headerFromUrl, serverLinkPath);
+            page = await resolvePublicPage(headerFromUrl, serverLinkPath, slugCandidate);
         }
 
         if (!page) {
-            showNotFound(slugCandidate || serverLinkPath || '(unknown)');
-            hideSidebarSkeleton();
-            sidebarCol.classList.add('d-none');
-            sidebarCol.classList.remove('dp-side-preload');
-            contentCol.className = 'col-12';
-            scheduleStickyUpdate();
-            return;
-        }
+    clearModuleAssets();
+    showComingSoon(slugCandidate || serverLinkPath || '', {
+        title: 'Coming Soon',
+        message: 'This page is coming soon.'
+    });
 
+    hideSidebarSkeleton();
+    sidebarCol.classList.add('d-none');
+    sidebarCol.classList.remove('dp-side-preload');
+    contentCol.className = 'col-12';
+    scheduleStickyUpdate();
+    return;
+}
         // ✅ Apply meta tags if backend returns in page payload (optional)
         applyMetaFromPayload(page);
 

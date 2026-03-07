@@ -143,7 +143,7 @@ class UserTeachingEngagementsController extends Controller
 
     private function isHighRole(?string $role): bool
     {
-        return in_array($role, ['admin','director','principal','hod','technical_assistant','it_person'], true);
+        return in_array($role, ['admin','author','director','principal','hod','technical_assistant','it_person'], true);
     }
 
     private function canAccess(Request $request, int $userId): bool
@@ -227,7 +227,7 @@ class UserTeachingEngagementsController extends Controller
     public function index(Request $request, ?string $user_uuid = null)
     {
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin','author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
@@ -261,7 +261,7 @@ class UserTeachingEngagementsController extends Controller
         $module = 'teaching_engagements';
 
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin','author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) {
             $this->dbActivityLog($request, 'create', $module, $this->table, null, null, null, [
                 'path' => $request->path(), 'method' => $request->method()
@@ -417,7 +417,7 @@ class UserTeachingEngagementsController extends Controller
         $module = 'teaching_engagements';
 
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin','author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) {
             $this->dbActivityLog($request, 'update', $module, $this->table, null, null, null, [
                 'path' => $request->path(), 'method' => $request->method(), 'uuid' => $uuid
@@ -594,7 +594,7 @@ class UserTeachingEngagementsController extends Controller
         $module = 'teaching_engagements';
 
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin','author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) {
             $this->dbActivityLog($request, 'delete', $module, $this->table, null, null, null, [
                 'path' => $request->path(), 'method' => $request->method(), 'uuid' => $uuid
@@ -675,7 +675,7 @@ class UserTeachingEngagementsController extends Controller
     public function indexDeleted(Request $request, ?string $user_uuid = null)
     {
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin','author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
@@ -706,7 +706,7 @@ class UserTeachingEngagementsController extends Controller
         $module = 'teaching_engagements';
 
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin','author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) {
             $this->dbActivityLog($request, 'restore', $module, $this->table, null, null, null, [
                 'path' => $request->path(), 'method' => $request->method(), 'uuid' => $uuid
@@ -787,7 +787,7 @@ class UserTeachingEngagementsController extends Controller
         $module = 'teaching_engagements';
 
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod'
+            'admin','author','director','principal','hod'
         ])) {
             $this->dbActivityLog($request, 'force_delete', $module, $this->table, null, null, null, [
                 'path' => $request->path(), 'method' => $request->method(), 'uuid' => $uuid
@@ -864,7 +864,7 @@ class UserTeachingEngagementsController extends Controller
         $module = 'teaching_engagements';
 
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod'
+            'admin','author','director','principal','hod'
         ])) {
             $this->dbActivityLog($request, 'force_delete_all_deleted', $module, $this->table, null, null, null, [
                 'path' => $request->path(), 'method' => $request->method()

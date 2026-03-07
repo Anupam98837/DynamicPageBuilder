@@ -156,7 +156,7 @@ class DepartmentController extends Controller
         if ($deptId !== null && $deptId <= 0) $deptId = null;
 
         // ✅ CONFIG: decide access by role + department_id
-        $allRoles  = ['admin', 'director', 'principal']; // gets ALL even if dept null
+        $allRoles  = ['admin', 'director', 'principal', 'author']; // gets ALL even if dept null
         $deptRoles = ['hod', 'faculty', 'technical_assistant', 'it_person', 'placement_officer', 'student']; // needs dept
 
         if (in_array($role, $allRoles, true)) {

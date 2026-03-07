@@ -14,13 +14,14 @@ class DashboardController extends Controller
     /**
      * Roles that can see ALL departments data
      */
-    private const ALL_ACCESS_ROLES = ['admin', 'director', 'principal'];
+    private const ALL_ACCESS_ROLES = ['admin', 'author', 'director', 'principal'];
 
     /**
      * All roles allowed to call dashboard
      */
     private const ALLOWED_ROLES = [
         'admin',
+        'author', // ✅ added
         'director',
         'principal',
         'hod',
@@ -117,7 +118,7 @@ class DashboardController extends Controller
 
     /**
      * Decide dashboard scope:
-     * - admin/director/principal => all
+     * - admin/author/director/principal => all
      * - others => department-limited (if department_id resolved)
      */
     private function scope(Request $r): array
@@ -535,7 +536,7 @@ class DashboardController extends Controller
             $request,
             'HOD Dashboard',
             'msit.hod.dashboard',
-            ['hod', 'admin', 'director', 'principal'],
+            ['hod', 'admin', 'author', 'director', 'principal'],
             $quick
         );
     }
@@ -555,7 +556,7 @@ class DashboardController extends Controller
             $request,
             'Faculty Dashboard',
             'msit.faculty.dashboard',
-            ['faculty', 'admin', 'director', 'principal'],
+            ['faculty', 'admin', 'author', 'director', 'principal'],
             $quick
         );
     }
@@ -572,7 +573,7 @@ class DashboardController extends Controller
             $request,
             'Technical Assistant Dashboard',
             'msit.technical_assistant.dashboard',
-            ['technical_assistant', 'admin', 'director', 'principal'],
+            ['technical_assistant', 'admin', 'author', 'director', 'principal'],
             $quick
         );
     }
@@ -589,7 +590,7 @@ class DashboardController extends Controller
             $request,
             'Placement Officer Dashboard',
             'msit.placement_officer.dashboard',
-            ['placement_officer', 'admin', 'director', 'principal'],
+            ['placement_officer', 'admin', 'author', 'director', 'principal'],
             $quick
         );
     }
@@ -606,7 +607,7 @@ class DashboardController extends Controller
             $request,
             'IT Person Dashboard',
             'msit.it_person.dashboard',
-            ['it_person', 'admin', 'director', 'principal'],
+            ['it_person', 'admin', 'author', 'director', 'principal'],
             $quick
         );
     }

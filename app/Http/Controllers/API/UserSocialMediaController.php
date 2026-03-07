@@ -83,7 +83,7 @@ class UserSocialMediaController extends Controller
 
     private function isHighRole(?string $role): bool
     {
-        return in_array($role, ['admin','director','principal','hod','technical_assistant','it_person'], true);
+        return in_array($role, ['admin', 'author','director','principal','hod','technical_assistant','it_person'], true);
     }
 
     private function canAccess(Request $request, int $userId): bool
@@ -250,7 +250,7 @@ class UserSocialMediaController extends Controller
     public function index(Request $request, ?string $user_uuid = null)
     {
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin', 'author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
@@ -284,7 +284,7 @@ class UserSocialMediaController extends Controller
         $module = 'user_social_media';
 
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin', 'author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) {
             $this->writeActivityLog($request, 'create_denied', $module, $this->table, null, null, null, null, 'Unauthorized role access');
             return $resp;
@@ -414,7 +414,7 @@ class UserSocialMediaController extends Controller
         $module = 'user_social_media';
 
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin', 'author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) {
             $this->writeActivityLog($request, 'update_denied', $module, $this->table, null, null, null, null, 'Unauthorized role access');
             return $resp;
@@ -563,7 +563,7 @@ class UserSocialMediaController extends Controller
         $module = 'user_social_media';
 
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin', 'author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) {
             $this->writeActivityLog($request, 'delete_denied', $module, $this->table, null, null, null, null, 'Unauthorized role access');
             return $resp;
@@ -642,7 +642,7 @@ class UserSocialMediaController extends Controller
     public function indexDeleted(Request $request, ?string $user_uuid = null)
     {
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin', 'author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
@@ -673,7 +673,7 @@ class UserSocialMediaController extends Controller
         $module = 'user_social_media';
 
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin', 'author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) {
             $this->writeActivityLog($request, 'restore_denied', $module, $this->table, null, null, null, null, 'Unauthorized role access');
             return $resp;
@@ -748,7 +748,7 @@ class UserSocialMediaController extends Controller
         $module = 'user_social_media';
 
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod'
+            'admin', 'author','director','principal','hod'
         ])) {
             $this->writeActivityLog($request, 'force_delete_denied', $module, $this->table, null, null, null, null, 'Unauthorized role access');
             return $resp;
@@ -809,7 +809,7 @@ class UserSocialMediaController extends Controller
         $module = 'user_social_media';
 
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod'
+            'admin', 'author','director','principal','hod'
         ])) {
             $this->writeActivityLog($request, 'force_delete_all_denied', $module, $this->table, null, null, null, null, 'Unauthorized role access');
             return $resp;

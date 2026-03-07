@@ -101,14 +101,13 @@
       line-height: 1.8;
     }
 
-    /* Content (inside header like your announcement page) */
+    /* Content */
     .course-content{
       color: var(--ink);
       font-size:16px;
       line-height:1.85;
       overflow-wrap:anywhere;
       margin-bottom:18px;
-      display:none;
     }
 
     .course-content p{ margin:0 0 16px; }
@@ -172,6 +171,20 @@
 
     .course-content li{ margin-bottom:8px; }
 
+    .course-section-block{
+      margin-top: 24px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line-light);
+    }
+
+    .course-section-block h3{
+      margin: 0 0 12px;
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: var(--ink);
+      letter-spacing: -.01em;
+    }
+
     /* Actions */
     .course-actions{
       display:flex;
@@ -214,7 +227,6 @@
       background: var(--surface);
       border: 1px solid var(--line-strong);
       box-shadow: var(--shadow-2);
-      display:none;
     }
 
     .course-cover img{
@@ -232,7 +244,6 @@
       padding: clamp(24px, 4vw, 40px);
       box-shadow: var(--shadow-2);
       border:1px solid var(--line-strong);
-      display:none;
     }
 
     .attachments-title{
@@ -359,7 +370,6 @@
       color:#c00;
       line-height:1.6;
       margin:40px 0;
-      display:none;
     }
 
     .error-container i{
@@ -381,7 +391,7 @@
 </head>
 
 <body>
-@include('landing.components.topHeaderMenu')
+  @include('landing.components.topHeaderMenu')
   @include('landing.components.header')
   @include('landing.components.headerMenu')
 
@@ -437,8 +447,8 @@
 
       <p class="course-summary" id="courseSummary" style="display:none"></p>
 
-      <!-- Body inside header (same idea as announcement page) -->
-      <article id="courseContent" class="course-content"></article>
+      <!-- Body inside header -->
+      <article id="courseContent" class="course-content" style="display:none"></article>
 
       <div class="course-actions">
         <a class="action-btn" id="syllabusBtn" href="#" target="_blank" rel="noopener noreferrer" style="display:none">
@@ -446,12 +456,12 @@
           Open Syllabus
         </a>
 
-        <button class="action-btn" id="copyLinkBtn">
+        <button class="action-btn" id="copyLinkBtn" type="button">
           <i class="fa-solid fa-link"></i>
           Copy Link
         </button>
 
-        <button class="action-btn" id="shareBtn" style="display:none">
+        <button class="action-btn" id="shareBtn" type="button" style="display:none">
           <i class="fa-solid fa-share-nodes"></i>
           Share
         </button>
@@ -468,18 +478,18 @@
     </section>
 
     <!-- Error -->
-    <div id="errorSection" class="error-container">
+    <div id="errorSection" class="error-container" style="display:none">
       <i class="fa-solid fa-exclamation-triangle"></i>
       <div id="errorMessage"></div>
     </div>
 
     <!-- Cover -->
-    <figure id="coverSection" class="course-cover">
+    <figure id="coverSection" class="course-cover" style="display:none">
       <img id="coverImage" alt="Course cover image" loading="lazy"/>
     </figure>
 
     <!-- Attachments -->
-    <section class="course-attachments" id="attachmentsSection">
+    <section class="course-attachments" id="attachmentsSection" style="display:none">
       <h3 class="attachments-title">
         <i class="fa-solid fa-paperclip"></i>
         Attachments
@@ -488,8 +498,7 @@
     </section>
   </main>
 
-  {{-- Footer --}}
-@include('landing.components.footer')
+  @include('landing.components.footer')
 
   <script>
     (function () {
@@ -502,69 +511,6 @@
           .replace(/>/g,'&gt;')
           .replace(/"/g,'&quot;')
           .replace(/'/g,'&#039;');
-      }
-
-      // identifier:
-      // - supports /courses/{identifier}
-      // - supports /{dept}/courses/{identifier}
-      // - supports /departments/{dept}/courses/{identifier}
-      function getIdentifierFromUrl() {
-  const parts = window.location.pathname.split('/').filter(Boolean);
-
-  // supports:
-  // /courses/{identifier}
-  // /courses/view/{identifier}
-  // /{dept}/courses/{identifier}
-  // /departments/{dept}/courses/{identifier}
-  const coursesIdx = parts.indexOf('courses');
-  if (coursesIdx !== -1) {
-    // handle /courses/view/{identifier}
-    if (parts[coursesIdx + 1] === 'view' && parts[coursesIdx + 2]) {
-      return parts[coursesIdx + 2];
-    }
-    // handle /courses/{identifier}
-    if (parts[coursesIdx + 1]) {
-      return parts[coursesIdx + 1];
-    }
-  }
-
-  return parts[parts.length - 1] || '';
-}
-
-      // department:
-      // - /departments/{dept}/courses/{id}
-      // - /{dept}/courses/{id}
-      function getDepartmentFromUrl() {
-        const parts = window.location.pathname.split('/').filter(Boolean);
-
-        const deptIdx = parts.indexOf('departments');
-        if (deptIdx !== -1 && parts[deptIdx + 1]) return parts[deptIdx + 1];
-
-        const coursesIdx = parts.indexOf('courses');
-        if (coursesIdx === 1 && parts[0]) return parts[0];
-
-        return '';
-      }
-
-      function findCourseObject(payload) {
-        if (!payload) return null;
-
-        // common API shapes
-        if (payload.item && typeof payload.item === 'object') return payload.item;
-        if (payload.data && typeof payload.data === 'object' && !Array.isArray(payload.data)) return payload.data;
-        if (payload.course && typeof payload.course === 'object') return payload.course;
-
-        // nested
-        if (payload.data && payload.data.item && typeof payload.data.item === 'object') return payload.data.item;
-        if (payload.data && payload.data.data && typeof payload.data.data === 'object') return payload.data.data;
-
-        // direct object
-        if (typeof payload === 'object' && (payload.title || payload.body || payload.uuid || payload.slug)) return payload;
-
-        // array
-        if (Array.isArray(payload) && payload.length && typeof payload[0] === 'object') return payload[0];
-
-        return null;
       }
 
       function safeJson(v) {
@@ -595,11 +541,11 @@
       }
 
       function setLoading(show) {
-        $('loadingSection').style.display = show ? '' : 'none';
+        $('loadingSection').style.display = show ? 'grid' : 'none';
       }
 
       function setError(msg) {
-        $('errorSection').style.display = msg ? '' : 'none';
+        $('errorSection').style.display = msg ? 'block' : 'none';
         $('errorMessage').textContent = msg || '';
       }
 
@@ -609,21 +555,117 @@
         return s.charAt(0).toUpperCase() + s.slice(1);
       }
 
+      function getIdentifierFromUrl() {
+        const parts = window.location.pathname.split('/').filter(Boolean);
+
+        const coursesIdx = parts.indexOf('courses');
+        if (coursesIdx !== -1) {
+          if (parts[coursesIdx + 1] === 'view' && parts[coursesIdx + 2]) {
+            return parts[coursesIdx + 2];
+          }
+          if (parts[coursesIdx + 1]) {
+            return parts[coursesIdx + 1];
+          }
+        }
+
+        return parts[parts.length - 1] || '';
+      }
+
+      function getDepartmentFromUrl() {
+        const parts = window.location.pathname.split('/').filter(Boolean);
+
+        const deptIdx = parts.indexOf('departments');
+        if (deptIdx !== -1 && parts[deptIdx + 1]) return parts[deptIdx + 1];
+
+        const coursesIdx = parts.indexOf('courses');
+        if (coursesIdx === 1 && parts[0]) return parts[0];
+
+        return '';
+      }
+
+      function findCourseObject(payload) {
+        if (!payload) return null;
+
+        if (payload.item && typeof payload.item === 'object') return payload.item;
+        if (payload.data && typeof payload.data === 'object' && !Array.isArray(payload.data)) return payload.data;
+        if (payload.course && typeof payload.course === 'object') return payload.course;
+
+        if (payload.data && payload.data.item && typeof payload.data.item === 'object') return payload.data.item;
+        if (payload.data && payload.data.data && typeof payload.data.data === 'object') return payload.data.data;
+
+        if (typeof payload === 'object' && (payload.title || payload.body || payload.description || payload.slug || payload.uuid)) {
+          return payload;
+        }
+
+        if (Array.isArray(payload) && payload.length && typeof payload[0] === 'object') return payload[0];
+
+        return null;
+      }
+
+      function hasHtmlContent(v) {
+        if (v == null) return false;
+        const s = String(v).trim();
+        if (!s) return false;
+        const textOnly = s.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim();
+        return !!textOnly || /<img|<ul|<ol|<li|<table|<iframe|<br|<p|<div/i.test(s);
+      }
+
+      function buildCourseContent(c) {
+        const parts = [];
+
+        const mainBody =
+          c.body ||
+          c.description ||
+          c.content ||
+          c.details ||
+          '';
+
+        if (hasHtmlContent(mainBody)) {
+          parts.push(mainBody);
+        }
+
+        if (hasHtmlContent(c.eligibility)) {
+          parts.push(`
+            <section class="course-section-block">
+              <h3>Eligibility</h3>
+              ${c.eligibility}
+            </section>
+          `);
+        }
+
+        if (hasHtmlContent(c.highlights)) {
+          parts.push(`
+            <section class="course-section-block">
+              <h3>Highlights</h3>
+              ${c.highlights}
+            </section>
+          `);
+        }
+
+        if (hasHtmlContent(c.career_scope)) {
+          parts.push(`
+            <section class="course-section-block">
+              <h3>Career Scope</h3>
+              ${c.career_scope}
+            </section>
+          `);
+        }
+
+        return parts.join('');
+      }
+
       function renderAttachments(course) {
         const list = $('attachmentsList');
         list.innerHTML = '';
 
-        // Prefer normalized attachments[] from controller
         let arr = Array.isArray(course.attachments) ? course.attachments : null;
 
-        // fallback: attachments_json (string or object)
         if (!arr) {
           const parsed = safeJson(course.attachments_json);
           if (Array.isArray(parsed)) arr = parsed;
           else if (parsed && Array.isArray(parsed.files)) arr = parsed.files;
         }
 
-        // Optional: include syllabus as first item
         const syllabusUrl = course.syllabus_url_full || resolveUrl(course.syllabus_url);
         if (syllabusUrl) {
           const a = document.createElement('a');
@@ -683,7 +725,7 @@
           });
         }
 
-        $('attachmentsSection').style.display = list.children.length ? '' : 'none';
+        $('attachmentsSection').style.display = list.children.length ? 'block' : 'none';
       }
 
       function renderPage(c) {
@@ -691,22 +733,20 @@
         $('courseTitle').textContent = title;
         document.title = title;
 
-        // Date pill
         const date = formatDate(c.publish_at || c.created_at || c.updated_at);
         if (date) {
-          $('metaDate').style.display = '';
+          $('metaDate').style.display = 'inline-flex';
           $('metaDate').querySelector('span').textContent = date;
         } else {
           $('metaDate').style.display = 'none';
           $('metaDate').querySelector('span').textContent = '';
         }
 
-        // Meta pills
         let hasMeta = false;
 
         const dept = c.department_title || c.department_name || (c.department && (c.department.title || c.department.name)) || '';
         if (dept) {
-          $('metaDept').style.display = '';
+          $('metaDept').style.display = 'inline-flex';
           $('metaDept').querySelector('span').textContent = dept;
           hasMeta = true;
         } else {
@@ -716,7 +756,7 @@
 
         const level = c.program_level ? String(c.program_level).toUpperCase() : '';
         if (level) {
-          $('metaLevel').style.display = '';
+          $('metaLevel').style.display = 'inline-flex';
           $('metaLevel').querySelector('span').textContent = level;
           hasMeta = true;
         } else {
@@ -726,7 +766,7 @@
 
         const type = c.program_type ? humanizeMode(c.program_type) : '';
         if (type) {
-          $('metaType').style.display = '';
+          $('metaType').style.display = 'inline-flex';
           $('metaType').querySelector('span').textContent = type;
           hasMeta = true;
         } else {
@@ -736,7 +776,7 @@
 
         const mode = c.mode ? humanizeMode(c.mode) : '';
         if (mode) {
-          $('metaMode').style.display = '';
+          $('metaMode').style.display = 'inline-flex';
           $('metaMode').querySelector('span').textContent = mode;
           hasMeta = true;
         } else {
@@ -748,7 +788,7 @@
         const du = String(c.duration_unit || '').trim();
         const durationText = dv > 0 ? `${dv} ${du || 'months'}` : '';
         if (durationText) {
-          $('metaDuration').style.display = '';
+          $('metaDuration').style.display = 'inline-flex';
           $('metaDuration').querySelector('span').textContent = durationText;
           hasMeta = true;
         } else {
@@ -758,7 +798,7 @@
 
         const credits = (c.credits === 0 || c.credits) ? c.credits : null;
         if (credits !== null && String(credits) !== '') {
-          $('metaCredits').style.display = '';
+          $('metaCredits').style.display = 'inline-flex';
           $('metaCredits').querySelector('span').textContent = `${credits} Credits`;
           hasMeta = true;
         } else {
@@ -767,54 +807,57 @@
         }
 
         const featured = (c.is_featured_home === 1 || c.is_featured_home === true || String(c.is_featured_home) === '1');
-        $('metaFeatured').style.display = featured ? '' : 'none';
+        $('metaFeatured').style.display = featured ? 'inline-flex' : 'none';
         if (featured) hasMeta = true;
 
-        $('courseMeta').style.display = hasMeta ? '' : 'none';
+        $('courseMeta').style.display = hasMeta ? 'flex' : 'none';
 
-        // Summary
         const summary = String(c.summary || '').trim();
         if (summary) {
-          $('courseSummary').style.display = '';
+          $('courseSummary').style.display = 'block';
           $('courseSummary').textContent = summary;
         } else {
           $('courseSummary').style.display = 'none';
           $('courseSummary').textContent = '';
         }
 
-        // Body
-        $('courseContent').innerHTML = c.body || '';
-        $('courseContent').style.display = '';
+        const bodyHtml = buildCourseContent(c);
+        if (bodyHtml) {
+          $('courseContent').innerHTML = bodyHtml;
+          $('courseContent').style.display = 'block';
+        } else {
+          $('courseContent').innerHTML = '';
+          $('courseContent').style.display = 'none';
+        }
 
-        // Cover
         const cover = c.cover_image_url || resolveUrl(c.cover_image);
         if (cover) {
-          $('coverSection').style.display = '';
+          $('coverSection').style.display = 'block';
           $('coverImage').src = cover;
         } else {
           $('coverSection').style.display = 'none';
           $('coverImage').removeAttribute('src');
         }
 
-        // Syllabus button
         const syllabusUrl = c.syllabus_url_full || resolveUrl(c.syllabus_url);
         if (syllabusUrl) {
-          $('syllabusBtn').style.display = '';
+          $('syllabusBtn').style.display = 'inline-flex';
           $('syllabusBtn').href = syllabusUrl;
         } else {
           $('syllabusBtn').style.display = 'none';
           $('syllabusBtn').setAttribute('href', '#');
         }
 
-        // Attachments
         renderAttachments(c);
 
-        // Share button
-        if (navigator.share) $('shareBtn').style.display = '';
+        $('shareBtn').style.display = navigator.share ? 'inline-flex' : 'none';
       }
 
       async function fetchJson(url) {
-        const res = await fetch(url, { method:'GET', headers:{ 'Accept':'application/json' } });
+        const res = await fetch(url, {
+          method:'GET',
+          headers:{ 'Accept':'application/json' }
+        });
         let data = null;
         try { data = await res.json(); } catch (e) {}
         return { res, data };
@@ -833,15 +876,13 @@
 
         const dept = getDepartmentFromUrl();
 
-        // ✅ Public show candidates (matches your controller naming style)
         const candidates = [
-  `/api/public/courses/${encodeURIComponent(identifier)}`,
-  `/api/public/courses/view/${encodeURIComponent(identifier)}`, // add this if route exists
-  `/public/courses/${encodeURIComponent(identifier)}`,
-  `/api/courses/${encodeURIComponent(identifier)}`
-];
+          `/api/public/courses/${encodeURIComponent(identifier)}`,
+          `/api/public/courses/view/${encodeURIComponent(identifier)}`,
+          `/public/courses/${encodeURIComponent(identifier)}`,
+          `/api/courses/${encodeURIComponent(identifier)}`
+        ];
 
-        // Dept-aware candidates (if you expose such routes)
         if (dept) {
           candidates.unshift(`/api/public/departments/${encodeURIComponent(dept)}/courses/${encodeURIComponent(identifier)}`);
           candidates.unshift(`/api/departments/${encodeURIComponent(dept)}/courses/${encodeURIComponent(identifier)}`);
@@ -853,7 +894,7 @@
             if (!res || !res.ok) continue;
 
             const c = findCourseObject(data);
-            if (c && (c.title || c.body)) {
+            if (c) {
               setLoading(false);
               renderPage(c);
               return;
@@ -864,10 +905,9 @@
         }
 
         setLoading(false);
-        setError('Course not found or API endpoint is not reachable. Please verify your public show route URL (expected: /api/public/courses/{identifier}).');
+        setError('Course not found or API endpoint is not reachable. Please verify your public show route URL.');
       }
 
-      // Copy link
       $('copyLinkBtn').addEventListener('click', async () => {
         try {
           await navigator.clipboard.writeText(window.location.href);
@@ -880,7 +920,6 @@
         }
       });
 
-      // Share
       $('shareBtn').addEventListener('click', async () => {
         try {
           await navigator.share({ title: document.title, url: window.location.href });
@@ -889,7 +928,6 @@
         }
       });
 
-      // Init
       load();
     })();
   </script>

@@ -32,6 +32,7 @@ class UserController extends Controller
         'faculty',
         'technical_assistant',
         'it_person',
+        'author',
         'placement_officer',
         'student',
         'alumni', // ✅ added
@@ -46,6 +47,7 @@ class UserController extends Controller
         'faculty'             => 'FAC',
         'technical_assistant' => 'TA',
         'it_person'           => 'IT',
+        'author'              => 'AUT',
         'placement_officer'   => 'TPO',   // ✅ added
         'student'             => 'STD',
         'alumni'              => 'ALU',   // ✅ added
@@ -313,8 +315,8 @@ class UserController extends Controller
         if ($deptId !== null && $deptId <= 0) $deptId = null;
 
         // ✅ CONFIG: decide access by role + department_id
-        $allRoles  = ['admin', 'director', 'principal']; // gets ALL even if dept null
-        $deptRoles = ['hod', 'faculty', 'technical_assistant', 'it_person', 'placement_officer', 'student', 'alumni', 'program_topper']; // ✅ added program_topper
+        $allRoles  = ['admin', 'director', 'principal', 'author']; // gets ALL even if dept null
+        $deptRoles = ['hod', 'faculty', 'technical_assistant', 'it_person', 'placement_officer', 'student', 'alumni', 'program_topper']; // ✅ NEW author // ✅ added program_topper
 
         if (in_array($role, $allRoles, true)) {
             return ['mode' => 'all', 'department_id' => null];
@@ -379,6 +381,18 @@ class UserController extends Controller
         ], true)) {
             $role = 'placement_officer';
         }
+
+        // ✅ author aliases
+if (in_array($role, [
+    'author',
+    'content_author',
+    'contentauthor',
+    'content_writer',
+    'contentwriter',
+    'writer',
+], true)) {
+    $role = 'author';
+}
 
         if (!in_array($role, self::ALLOWED_ROLES, true)) {
             $role = 'faculty';
@@ -1321,7 +1335,7 @@ class UserController extends Controller
         }
 
         $actor     = $this->actor($request);
-        $highRoles = ['director', 'principal', 'hod', 'technical_assistant', 'it_person','admin'];
+        $highRoles = ['director', 'principal', 'hod', 'technical_assistant', 'it_person','admin', 'author'];
 
         $isSelf = $actor['id'] === (int) $user->id;
         $isHigh = in_array($actor['role'], $highRoles, true);
@@ -1454,7 +1468,7 @@ class UserController extends Controller
         }
 
         $actor     = $this->actor($request);
-        $highRoles = ['director', 'principal', 'hod', 'technical_assistant', 'it_person','admin'];
+        $highRoles = ['director', 'principal', 'hod', 'technical_assistant', 'it_person','admin', 'author'];
 
         $isSelf = $actor['id'] === (int) $user->id;
         $isHigh = in_array($actor['role'], $highRoles, true);
@@ -1942,7 +1956,7 @@ class UserController extends Controller
         if (!in_array($sort, $allowedSort, true)) $sort = 'created_at';
 
         // ✅ exclude roles
-        $excludedRoles = ['super_admin', 'admin', 'student', 'students', 'alumni', 'program_topper']; // ✅ added program_topper
+        $excludedRoles = ['super_admin', 'admin', 'author', 'student', 'students', 'alumni', 'program_topper']; // ✅ NEW author // ✅ added program_topper
 
         // ✅ detect where dept mapping exists
         $upiHasDept  = Schema::hasColumn('user_personal_information', 'department_id');

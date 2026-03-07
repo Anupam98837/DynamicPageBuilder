@@ -137,7 +137,7 @@ class UserHonorsController extends Controller
 
     private function isHighRole(?string $role): bool
     {
-        return in_array($role, ['admin','director','principal','hod','technical_assistant','it_person'], true);
+        return in_array($role, ['admin', 'author','director','principal','hod','technical_assistant','it_person'], true);
     }
 
     private function canAccessUser(Request $request, int $targetUserId): bool
@@ -279,7 +279,7 @@ class UserHonorsController extends Controller
     public function index(Request $request, ?string $user_uuid = null)
     {
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin', 'author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
@@ -304,7 +304,7 @@ class UserHonorsController extends Controller
     public function show(Request $request, ?string $user_uuid = null, string $honor_uuid = '')
     {
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin', 'author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
@@ -330,7 +330,7 @@ class UserHonorsController extends Controller
     public function store(Request $request, ?string $user_uuid = null)
     {
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin', 'author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
@@ -516,7 +516,7 @@ class UserHonorsController extends Controller
     public function update(Request $request, ?string $user_uuid = null, string $honor_uuid = '')
     {
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin', 'author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
@@ -694,7 +694,7 @@ class UserHonorsController extends Controller
     public function destroy(Request $request, ?string $user_uuid = null, string $honor_uuid = '')
     {
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin', 'author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
@@ -768,7 +768,7 @@ class UserHonorsController extends Controller
     public function indexDeleted(Request $request, ?string $user_uuid = null)
     {
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin', 'author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
@@ -797,7 +797,7 @@ class UserHonorsController extends Controller
     public function restore(Request $request, ?string $user_uuid = null, string $honor_uuid = '')
     {
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin', 'author','director','principal','hod','faculty','technical_assistant','it_person','student'
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
@@ -870,7 +870,7 @@ class UserHonorsController extends Controller
     public function forceDelete(Request $request, ?string $user_uuid = null, string $honor_uuid = '')
     {
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','technical_assistant','it_person'
+            'admin', 'author','director','principal','hod','technical_assistant','it_person'
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
@@ -935,7 +935,7 @@ class UserHonorsController extends Controller
     public function forceDeleteAllDeleted(Request $request, ?string $user_uuid = null)
     {
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','technical_assistant','it_person'
+            'admin', 'author','director','principal','hod','technical_assistant','it_person'
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);

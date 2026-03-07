@@ -77,7 +77,7 @@ class UserEducationsController extends Controller
         if ($actor['id'] === $userId) return true;
 
         return in_array($actor['role'], [
-            'admin','director','principal','hod','technical_assistant','it_person'
+            'admin','director','principal','hod','technical_assistant','it_person','author'
         ], true);
     }
 
@@ -257,7 +257,7 @@ class UserEducationsController extends Controller
     public function index(Request $request, ?string $user_uuid = null)
     {
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin','director','principal','hod','faculty','technical_assistant','it_person','student','author'
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
@@ -282,7 +282,7 @@ class UserEducationsController extends Controller
     public function show(Request $request, ?string $user_uuid = null, string $uuid = '')
     {
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin','director','principal','hod','faculty','technical_assistant','it_person','student','author'
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
@@ -311,7 +311,7 @@ class UserEducationsController extends Controller
         $activity = 'create';
 
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin','director','principal','hod','faculty','technical_assistant','it_person','student','author'
         ])) {
             $this->logActivity($request, $activity, $module, $this->table, null, null, null, null, 'FAILED: Unauthorized role');
             return $resp;
@@ -470,7 +470,7 @@ class UserEducationsController extends Controller
         $activity = 'update';
 
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin','director','principal','hod','faculty','technical_assistant','it_person','student','author'
         ])) {
             $this->logActivity($request, $activity, $module, $this->table, null, null, null, null, 'FAILED: Unauthorized role');
             return $resp;
@@ -612,7 +612,7 @@ class UserEducationsController extends Controller
         $activity = 'delete';
 
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin','director','principal','hod','faculty','technical_assistant','it_person','student','author'
         ])) {
             $this->logActivity($request, $activity, $module, $this->table, null, null, null, null, 'FAILED: Unauthorized role');
             return $resp;
@@ -675,7 +675,7 @@ class UserEducationsController extends Controller
     public function indexDeleted(Request $request, ?string $user_uuid = null)
     {
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin','director','principal','hod','faculty','technical_assistant','it_person','student','author'
         ])) return $resp;
 
         $user = $this->resolveTargetUser($request, $user_uuid);
@@ -703,7 +703,7 @@ class UserEducationsController extends Controller
         $activity = 'restore';
 
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','faculty','technical_assistant','it_person','student'
+            'admin','director','principal','hod','faculty','technical_assistant','it_person','student','author'
         ])) {
             $this->logActivity($request, $activity, $module, $this->table, null, null, null, null, 'FAILED: Unauthorized role');
             return $resp;
@@ -770,7 +770,7 @@ class UserEducationsController extends Controller
         $activity = 'force_delete';
 
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','technical_assistant','it_person'
+            'admin','director','principal','hod','technical_assistant','it_person','author'
         ])) {
             $this->logActivity($request, $activity, $module, $this->table, null, null, null, null, 'FAILED: Unauthorized role');
             return $resp;
@@ -828,7 +828,7 @@ class UserEducationsController extends Controller
         $activity = 'force_delete_all';
 
         if ($resp = $this->requireRole($request, [
-            'admin','director','principal','hod','technical_assistant','it_person'
+            'admin','director','principal','hod','technical_assistant','it_person','author'
         ])) {
             $this->logActivity($request, $activity, $module, $this->table, null, null, null, null, 'FAILED: Unauthorized role');
             return $resp;

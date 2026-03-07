@@ -15,6 +15,7 @@
   // Map roles -> dashboard view
   $roleToView = [
     'admin'               => 'modules.dashboard.adminDashboard',
+    'author'              => 'modules.dashboard.authorDashboard',
     'student'             => 'modules.dashboard.studentDashboard',
     'director'            => 'modules.dashboard.directorDashboard',
     'principal'           => 'modules.dashboard.principalDashboard',

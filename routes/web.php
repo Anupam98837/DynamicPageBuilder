@@ -519,7 +519,9 @@ Route::get('/meta-tags/manage', function () {
     return view('pages.users.pages.metaTags.manageMetaTags');
 });
 
-
+Route::get('/department-enquiry-settings', function () {
+    return view('pages.users.pages.enquiry.manageDepartmentEnquirySettings');
+});
 
 
 
@@ -530,3 +532,7 @@ Route::get('/meta-tags/manage', function () {
 Route::get('/public/institute/contact-us', function () {
     return view('landing.pages.contactUs.viewContactUs');
 });
+
+Route::get('/{any}', function () {
+    return view('landing.pages.dynamicPage');
+})->where('any', '.*');

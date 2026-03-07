@@ -238,7 +238,7 @@
       </a>
     </nav>
 
-    {{-- ✅ ADMIN FULL MENU (static) --}}
+    {{-- ✅ ADMIN/AUTHOR FULL MENU (static) --}}
     <div id="adminFullMenu" style="display:none">
       <nav class="w3-menu" aria-label="Site Builder (Admin)">
 
@@ -386,6 +386,7 @@
             <div id="sm-contact-info" class="w3-submenu" role="group" aria-label="Contact Info submenu">
               <a href="/contact-info/manage" class="w3-link">Manage Contact Info</a>
               <a href="/contact-us/manage" class="w3-link">Manage Enquiries</a>
+              <a href="/department-enquiry-settings" class="w3-link">Department Preview Order (Enquiries)</a>
               <a href="/contact-us-visibility/manage" class="w3-link">Contact Visibility</a>
             </div>
           </div>
@@ -528,44 +529,45 @@
         </div>
       </nav>
 
-      <!-- privileges (admin static) -->
-      <div class="w3-nav-section">
-        <div class="w3-section-title"><i class="fa-solid fa-screwdriver-wrench"></i> privileges</div>
-        <div class="w3-section-rule"></div>
+      <!-- ✅ Privileges block (ADMIN ONLY; hidden for AUTHOR) -->
+      <div id="privilegesBlock">
+        <div class="w3-nav-section">
+          <div class="w3-section-title"><i class="fa-solid fa-screwdriver-wrench"></i> privileges</div>
+          <div class="w3-section-rule"></div>
+        </div>
+
+        <nav class="w3-menu" aria-label="Privileges">
+          <div class="w3-group">
+            <a href="#" class="w3-link w3-toggle" data-target="sm-dashboard-menu" aria-expanded="false">
+              <i class="fa-solid fa-puzzle-piece"></i><span>Dashboard Menu</span>
+              <i class="fa fa-chevron-down w3-chev"></i>
+            </a>
+            <div id="sm-dashboard-menu" class="w3-submenu" role="group" aria-label="Dashboard Menu submenu">
+              <a href="/dashboard-menu/create" class="w3-link">
+                <i class="fa-solid fa-puzzle-piece"></i><span>Create Dashboard Menu</span>
+              </a>
+              <a href="/dashboard-menu/manage" class="w3-link">
+                <i class="fa-solid fa-puzzle-piece"></i><span>Manage Dashboard Menu</span>
+              </a>
+            </div>
+          </div>
+
+          <div class="w3-group">
+            <a href="#" class="w3-link w3-toggle" data-target="sm-page-privilege" aria-expanded="false">
+              <i class="fa-solid fa-shield-halved"></i><span>Page Privilege</span>
+              <i class="fa fa-chevron-down w3-chev"></i>
+            </a>
+            <div id="sm-page-privilege" class="w3-submenu" role="group" aria-label="Page Privilege submenu">
+              <a href="/page-privilege/create" class="w3-link">
+                <i class="fa-solid fa-circle-plus"></i><span>Create Page Privilege</span>
+              </a>
+              <a href="/page-privilege/manage" class="w3-link">
+                <i class="fa-solid fa-list-check"></i><span>Manage Page Privilege</span>
+              </a>
+            </div>
+          </div>
+        </nav>
       </div>
-      <nav class="w3-menu" aria-label="Privileges">
-
-        <div class="w3-group">
-          <a href="#" class="w3-link w3-toggle" data-target="sm-dashboard-menu" aria-expanded="false">
-            <i class="fa-solid fa-puzzle-piece"></i><span>Dashboard Menu</span>
-            <i class="fa fa-chevron-down w3-chev"></i>
-          </a>
-          <div id="sm-dashboard-menu" class="w3-submenu" role="group" aria-label="Dashboard Menu submenu">
-            <a href="/dashboard-menu/create" class="w3-link">
-              <i class="fa-solid fa-puzzle-piece"></i><span>Create Dashboard Menu</span>
-            </a>
-            <a href="/dashboard-menu/manage" class="w3-link">
-              <i class="fa-solid fa-puzzle-piece"></i><span>Manage Dashboard Menu</span>
-            </a>
-          </div>
-        </div>
-
-        <div class="w3-group">
-          <a href="#" class="w3-link w3-toggle" data-target="sm-page-privilege" aria-expanded="false">
-            <i class="fa-solid fa-shield-halved"></i><span>Page Privilege</span>
-            <i class="fa fa-chevron-down w3-chev"></i>
-          </a>
-          <div id="sm-page-privilege" class="w3-submenu" role="group" aria-label="Page Privilege submenu">
-            <a href="/page-privilege/create" class="w3-link">
-              <i class="fa-solid fa-circle-plus"></i><span>Create Page Privilege</span>
-            </a>
-            <a href="/page-privilege/manage" class="w3-link">
-              <i class="fa-solid fa-list-check"></i><span>Manage Page Privilege</span>
-            </a>
-          </div>
-        </div>
-
-      </nav>
     </div>
 
     {{-- ✅ DYNAMIC MENU (normal users): populated from /api/my/sidebar-menus --}}
@@ -877,6 +879,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // ===== Dynamic menu builder
   const adminFullMenu = document.getElementById('adminFullMenu');
   const dynamicMenu = document.getElementById('dynamicMenu');
+  const privilegesBlock = document.getElementById('privilegesBlock');
+
+  function applyStaticMenuRoleRules(role){
+    // ✅ AUTHOR: show all groups EXCEPT Privileges block
+    if (privilegesBlock) {
+      privilegesBlock.style.display = (role === 'author') ? 'none' : '';
+    }
+  }
 
   function safeText(v){ return (v ?? '').toString(); }
 
@@ -935,8 +945,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const token = getBearerToken();
     const role = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
 
-    // ✅ ADMIN: show full static menu
-    if (role === 'admin') {
+    // ✅ ADMIN + AUTHOR: show full static menu (AUTHOR hides Privileges block)
+    if (role === 'admin' || role === 'author') {
+      applyStaticMenuRoleRules(role);
       if (adminFullMenu) adminFullMenu.style.display = '';
       if (dynamicMenu) dynamicMenu.style.display = 'none';
       if (adminFullMenu) bindSubmenuToggles(adminFullMenu);
@@ -969,6 +980,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // ✅ If backend returns string "all" for admin-like access
       if (data === 'all' || data?.tree === 'all') {
+        applyStaticMenuRoleRules(role); // hide privileges only if role is author (extra safety)
         if (adminFullMenu) adminFullMenu.style.display = '';
         if (dynamicMenu) dynamicMenu.style.display = 'none';
         if (adminFullMenu) bindSubmenuToggles(adminFullMenu);
@@ -1054,7 +1066,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeNavEl = null;
     try{
       bindSubmenuToggles(document);     // static: system + overview toggles (if any)
-      await loadSidebarByToken();       // dynamic/admin menu decision + build
+      await loadSidebarByToken();       // dynamic/admin/author menu decision + build
       activeNavEl = markActiveLinks();  // after menu is rendered
     } finally {
       hideLoading();                    // ✅ wrapper display none

@@ -677,7 +677,7 @@
         <input id="recSearch" type="search" placeholder="Search recruiters (name/industry/location)…">
       </div>
 
-      <div class="orc-select" title="Filter by department">
+      <div class="orc-select" title="Filter by department" style="display:none;">
         <i class="fa-solid fa-building-columns orc-select__icon"></i>
         <select id="recDept" aria-label="Filter by department">
           <option value="">All Departments</option>

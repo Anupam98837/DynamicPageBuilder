@@ -34,6 +34,114 @@ class MetaTagController extends Controller
         }
     }
 
+    /** Normalize link/path/url => canonical path like "/about-us" (no query, no trailing slash) */
+    private function normalizePageLink(?string $raw): ?string
+    {
+        if ($raw === null) return null;
+
+        $raw = trim($raw);
+        if ($raw === '') return null;
+
+        // if user mistakenly types "/http://..." remove leading slash
+        if (Str::startsWith($raw, ['/http://', '/https://'])) {
+            $raw = ltrim($raw, '/');
+        }
+
+        // full URL -> path only
+        $path = parse_url($raw, PHP_URL_PATH);
+        $path = $path ?: $raw;
+
+        // strip query/hash if raw includes them
+        $path = explode('?', $path, 2)[0];
+        $path = explode('#', $path, 2)[0];
+
+        $path = '/' . ltrim($path, '/');
+        $path = rtrim($path, '/'); // canonical
+
+        return $path === '' ? '/' : $path;
+    }
+
+    /**
+     * Resolve pages.id by a link
+     * IMPORTANT: pages table might NOT have page_link column in your DB.
+     * So we only query columns that actually exist.
+     */
+    private function resolvePageIdByLink(?string $link): ?int
+    {
+        $link = $this->normalizePageLink($link);
+        if (!$link) return null;
+        if (!Schema::hasTable('pages')) return null;
+
+        $hasPageLinkCol = Schema::hasColumn('pages', 'page_link');
+        $hasPageUrlCol  = Schema::hasColumn('pages', 'page_url');
+        $hasSlugCol     = Schema::hasColumn('pages', 'slug');
+
+        if (!$hasPageLinkCol && !$hasPageUrlCol && !$hasSlugCol) {
+            return null;
+        }
+
+        $candidates = array_values(array_unique([
+            $link,
+            ltrim($link, '/'),
+            $link . '/',
+            ltrim($link, '/') . '/',
+        ]));
+
+        $slug = trim(basename($link), '/');
+
+        $q = DB::table('pages')->select('id');
+
+        $added = false;
+
+        if ($hasPageLinkCol) {
+            $q->whereIn('page_link', $candidates);
+            $added = true;
+        }
+
+        if ($hasPageUrlCol) {
+            if ($added) $q->orWhereIn('page_url', $candidates);
+            else { $q->whereIn('page_url', $candidates); $added = true; }
+        }
+
+        if ($hasSlugCol && $slug !== '') {
+            if ($added) $q->orWhere('slug', $slug);
+            else { $q->where('slug', $slug); $added = true; }
+        }
+
+        $id = $q->value('id');
+
+        return $id ? (int) $id : null;
+    }
+
+    /**
+     * Resolve scope for meta tags:
+     * - If pages table has a match => use page_id (preferred) and keep meta_tags.page_link = ''
+     * - If no match (static/non-pages URL) => store/scope by meta_tags.page_link with page_id = null
+     *
+     * Returns: [pageId|null, pageLinkScope|null]
+     */
+    private function resolveScopeFromRequest(Request $r): array
+    {
+        $hasPageIdCol = Schema::hasColumn('meta_tags', 'page_id') && Schema::hasTable('pages');
+
+        $pageId = $r->filled('page_id') ? (int) $r->input('page_id') : null;
+
+        $rawLink = $r->input('page_link')
+            ?? $r->input('url')
+            ?? $r->input('path');
+
+        $link = $this->normalizePageLink(is_string($rawLink) ? $rawLink : null);
+
+        // resolve link -> page_id when possible
+        if ($hasPageIdCol && !$pageId && $link) {
+            $pageId = $this->resolvePageIdByLink($link); // may be null (static page)
+        }
+
+        $pageLinkScope = $pageId ? null : $link;
+
+        return [$pageId ?: null, $pageLinkScope ?: null];
+    }
+
     /** Returns: [changed_fields[], old_values{}, new_values{}] */
     private function computeDiff(?array $before, ?array $after, ?array $onlyKeys = null): array
     {
@@ -122,26 +230,36 @@ class MetaTagController extends Controller
 
     /**
      * NOTE:
-     * page_link is DEPRECATED for new saves.
-     * We only use page_id for scoping when available.
-     * For safety/backward compatibility, we keep read/filter support for page_link,
-     * but we DO NOT write/auto-derive/store it anymore (we clear it to '').
+     * - For pages that exist in `pages` table => we store ONLY page_id (FK) and keep meta_tags.page_link = ''.
+     * - For static URLs that do NOT exist in `pages` => we store page_id = null and keep meta_tags.page_link = "/your-path".
+     *
+     * This allows:
+     * - page_id-based editor (dynamic pages) ✅
+     * - page_link-based manager (static pages) ✅
      */
 
     private function baseQuery(Request $r, bool $includeDeleted = false)
     {
-        $hasPageId = Schema::hasColumn('meta_tags', 'page_id') && Schema::hasTable('pages');
+        $hasPageId     = Schema::hasColumn('meta_tags', 'page_id') && Schema::hasTable('pages');
+        $hasMtPageLink = Schema::hasColumn('meta_tags', 'page_link');
+
+        // pages columns are not guaranteed in your DB (your error proves that)
+        $hasPTitle   = Schema::hasTable('pages') && Schema::hasColumn('pages', 'title');
+        $hasPSlug    = Schema::hasTable('pages') && Schema::hasColumn('pages', 'slug');
+        $hasPPageUrl = Schema::hasTable('pages') && Schema::hasColumn('pages', 'page_url');
 
         $q = DB::table('meta_tags as mt')->select(['mt.*']);
 
         // Optional join to allow searching/filtering by page fields
         if ($hasPageId) {
             $q->leftJoin('pages as p', 'p.id', '=', 'mt.page_id');
-            $q->addSelect([
-                DB::raw('p.title as page_title_ref'),
-                DB::raw('p.slug as page_slug_ref'),
-                DB::raw('p.page_url as page_url_ref'),
-            ]);
+
+            $selects = [];
+            if ($hasPTitle)   $selects[] = DB::raw('p.title as page_title_ref');
+            if ($hasPSlug)    $selects[] = DB::raw('p.slug as page_slug_ref');
+            if ($hasPPageUrl) $selects[] = DB::raw('p.page_url as page_url_ref');
+
+            if (count($selects)) $q->addSelect($selects);
         }
 
         if (!$includeDeleted) $q->whereNull('mt.deleted_at');
@@ -149,16 +267,19 @@ class MetaTagController extends Controller
         // ?q=
         if ($r->filled('q')) {
             $term = '%' . trim((string) $r->query('q')) . '%';
-            $q->where(function ($w) use ($term, $hasPageId) {
+            $q->where(function ($w) use ($term, $hasPageId, $hasMtPageLink, $hasPTitle, $hasPSlug, $hasPPageUrl) {
                 $w->where('mt.tag_type', 'like', $term)
                   ->orWhere('mt.tag_attribute', 'like', $term)
-                  ->orWhere('mt.tag_attribute_value', 'like', $term)
-                  ->orWhere('mt.page_link', 'like', $term); // legacy support (read/search only)
+                  ->orWhere('mt.tag_attribute_value', 'like', $term);
+
+                if ($hasMtPageLink) {
+                    $w->orWhere('mt.page_link', 'like', $term);
+                }
 
                 if ($hasPageId) {
-                    $w->orWhere('p.title', 'like', $term)
-                      ->orWhere('p.slug', 'like', $term)
-                      ->orWhere('p.page_url', 'like', $term);
+                    if ($hasPTitle)   $w->orWhere('p.title', 'like', $term);
+                    if ($hasPSlug)    $w->orWhere('p.slug', 'like', $term);
+                    if ($hasPPageUrl) $w->orWhere('p.page_url', 'like', $term);
                 }
             });
         }
@@ -168,25 +289,42 @@ class MetaTagController extends Controller
             $q->where('mt.tag_type', (string) $r->query('tag_type'));
         }
 
-        // ?page_link= (legacy filter)
-        if ($r->filled('page_link')) {
-            $q->where('mt.page_link', (string) $r->query('page_link'));
-        }
-
         // ?page_id=
         if ($hasPageId && $r->filled('page_id')) {
             $q->where('mt.page_id', (int) $r->query('page_id'));
+        }
+
+        // ?page_link=  (supports dynamic pages via resolving to page_id, and static pages via meta_tags.page_link)
+        if ($r->filled('page_link')) {
+            $link = $this->normalizePageLink((string) $r->query('page_link'));
+
+            if ($hasPageId) {
+                $pid = $this->resolvePageIdByLink($link);
+
+                if ($pid) {
+                    // dynamic page => filter by page_id (because stored mt.page_link = '')
+                    $q->where('mt.page_id', $pid);
+                } else {
+                    // static page => filter by mt.page_link
+                    if ($hasMtPageLink && $link !== null) $q->where('mt.page_link', $link);
+                }
+            } else {
+                // legacy schema => page_link is the scope key
+                if ($hasMtPageLink && $link !== null) $q->where('mt.page_link', $link);
+            }
         }
 
         // sort
         $sort = (string) $r->query('sort', 'created_at');
         $dir  = strtolower((string) $r->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
 
-        $allowed = ['created_at', 'updated_at', 'tag_type', 'page_link', 'id'];
-        if ($hasPageId) $allowed[] = 'page_id';
+        $allowed = ['created_at', 'updated_at', 'tag_type', 'id'];
+        if ($hasMtPageLink) $allowed[] = 'page_link';
+        if ($hasPageId)     $allowed[] = 'page_id';
 
         if (!in_array($sort, $allowed, true)) $sort = 'created_at';
 
+        // prefix always mt.
         $q->orderBy('mt.' . $sort, $dir);
 
         return $q;
@@ -220,18 +358,18 @@ class MetaTagController extends Controller
         return $metadata;
     }
 
-    /** Scope selector for page (prefer page_id, fallback page_link for legacy) */
+    /** Scope selector for page (prefer page_id; otherwise fallback to page_link (static pages)) */
     private function applyPageScope($q, ?int $pageId, ?string $pageLink)
     {
-        $hasPageId = Schema::hasColumn('meta_tags', 'page_id');
+        $hasPageId     = Schema::hasColumn('meta_tags', 'page_id');
+        $hasMtPageLink = Schema::hasColumn('meta_tags', 'page_link');
 
         if ($hasPageId && $pageId) {
             $q->where('page_id', (int) $pageId);
             return;
         }
 
-        // legacy fallback only
-        if ($pageLink !== null && $pageLink !== '') {
+        if ($hasMtPageLink && $pageLink !== null && $pageLink !== '') {
             $q->where('page_link', $pageLink);
         }
     }
@@ -271,19 +409,36 @@ class MetaTagController extends Controller
         return $this->index($request);
     }
 
-    /** convenience: resolve by page_id (preferred) and optional tag_type; page_link supported only for legacy */
+    /**
+     * Resolve by:
+     * - page_id OR page_link/url/path
+     * - if link matches a record in pages => it resolves to page_id internally
+     * - else (static) uses page_link scope
+     */
     public function resolve(Request $request)
     {
-        $hasPageId = Schema::hasColumn('meta_tags', 'page_id');
+        $hasPageId = Schema::hasColumn('meta_tags', 'page_id') && Schema::hasTable('pages');
 
         if ($hasPageId) {
-            if (!$request->filled('page_id')) {
-                return response()->json(['success' => false, 'message' => 'page_id is required'], 422);
+            $hasAnyScope = $request->filled('page_id') || $request->filled('page_link') || $request->filled('url') || $request->filled('path');
+            if (!$hasAnyScope) {
+                return response()->json(['success' => false, 'message' => 'page_id or page_link/url/path is required'], 422);
             }
+
+            [$pageId, $pageLinkScope] = $this->resolveScopeFromRequest($request);
+            if (!$pageId && !$pageLinkScope) {
+                return response()->json(['success' => false, 'message' => 'Invalid page scope'], 422);
+            }
+
+            if ($pageId) $request->merge(['page_id' => $pageId]);
+            if ($pageLinkScope) $request->merge(['page_link' => $pageLinkScope]);
         } else {
-            if (!$request->filled('page_link')) {
-                return response()->json(['success' => false, 'message' => 'page_link is required'], 422);
+            $raw = $request->query('page_link') ?? $request->query('url') ?? $request->query('path');
+            $link = $this->normalizePageLink(is_string($raw) ? $raw : null);
+            if (!$link) {
+                return response()->json(['success' => false, 'message' => 'page_link/url/path is required'], 422);
             }
+            $request->merge(['page_link' => $link]);
         }
 
         $q = $this->baseQuery($request, false);
@@ -313,28 +468,42 @@ class MetaTagController extends Controller
         $actor = $this->actor($request);
 
         $hasPageId   = Schema::hasColumn('meta_tags', 'page_id');
-        $hasPageLink = Schema::hasColumn('meta_tags', 'page_link'); // may exist, but we won't store real link
+        $hasPageLink = Schema::hasColumn('meta_tags', 'page_link');
 
         $validated = $request->validate([
             'tag_type'            => ['required', 'string', 'max:255'],
             'tag_attribute'       => ['nullable', 'string', 'max:255'],
             'tag_attribute_value' => ['required', 'string', 'max:255'],
 
-            // ✅ NEW RULE: if page_id exists, it is REQUIRED (page_link no longer used for new saves)
-            'page_id'             => ($hasPageId && Schema::hasTable('pages')) ? ['required', 'integer', 'exists:pages,id'] : ['nullable'],
-
-            // legacy only (ignored when page_id exists)
-            'page_link'           => $hasPageId ? ['nullable'] : ['required', 'string', 'max:255'],
+            // scope (accept either)
+            'page_id'             => ($hasPageId && Schema::hasTable('pages')) ? ['nullable', 'integer', 'exists:pages,id'] : ['nullable'],
+            'page_link'           => ['nullable', 'string', 'max:255'],
+            'url'                 => ['nullable', 'string', 'max:2048'],
+            'path'                => ['nullable', 'string', 'max:2048'],
 
             'metadata'            => ['nullable'],
         ]);
+
+        [$pageId, $pageLinkScope] = $this->resolveScopeFromRequest($request);
+
+        if ($hasPageId) {
+            if (!$pageId && !$pageLinkScope) {
+                return response()->json(['success' => false, 'message' => 'page_id or page_link/url/path is required'], 422);
+            }
+            // if static (no pageId) but DB has no page_link column, cannot store
+            if (!$pageId && !$hasPageLink) {
+                return response()->json(['success' => false, 'message' => 'Static pages require meta_tags.page_link column'], 422);
+            }
+        } else {
+            if (!$pageLinkScope) {
+                return response()->json(['success' => false, 'message' => 'page_link/url/path is required'], 422);
+            }
+        }
 
         $now  = now();
         $uuid = (string) Str::uuid();
 
         $metadata = $this->normalizeMetadataFromRequest($request);
-
-        $pageId = ($hasPageId && !empty($validated['page_id'])) ? (int) $validated['page_id'] : null;
 
         $insert = [
             'uuid'                => $uuid,
@@ -342,12 +511,13 @@ class MetaTagController extends Controller
             'tag_attribute'       => $validated['tag_attribute'] !== null ? trim((string) $validated['tag_attribute']) : null,
             'tag_attribute_value' => trim((string) $validated['tag_attribute_value']),
 
-            // ✅ page linkage
-            'page_id'             => $hasPageId ? $pageId : null,
+            // scope
+            'page_id'             => $hasPageId ? ($pageId ? (int) $pageId : null) : null,
 
-            // ✅ IMPORTANT FIX: DO NOT STORE page_link anymore
-            // keep it empty string to satisfy NOT NULL schemas too
-            'page_link'           => $hasPageLink ? '' : null,
+            // dynamic => '', static => store link (if column exists)
+            'page_link'           => $hasPageLink
+                ? (($hasPageId && $pageId) ? '' : (($pageLinkScope ?? '') ?: ''))
+                : null,
 
             'created_by'          => $actor['id'] ?: null,
             'created_at_ip'       => $request->ip(),
@@ -360,7 +530,6 @@ class MetaTagController extends Controller
             'metadata'            => $metadata !== null ? json_encode($metadata) : null,
         ];
 
-        // If page_link column does NOT exist, remove from insert payload
         if (!$hasPageLink) unset($insert['page_link']);
 
         $id  = DB::table('meta_tags')->insertGetId($insert);
@@ -406,11 +575,11 @@ class MetaTagController extends Controller
             'tag_attribute'       => ['nullable', 'string', 'max:255'],
             'tag_attribute_value' => ['nullable', 'string', 'max:255'],
 
-            // page linkage
+            // scope (optional)
             'page_id'             => ($hasPageId && Schema::hasTable('pages')) ? ['nullable', 'integer', 'exists:pages,id'] : ['nullable'],
-
-            // legacy only; ignored for new behavior
             'page_link'           => ['nullable', 'string', 'max:255'],
+            'url'                 => ['nullable', 'string', 'max:2048'],
+            'path'                => ['nullable', 'string', 'max:2048'],
 
             'metadata'            => ['nullable'],
         ]);
@@ -420,7 +589,6 @@ class MetaTagController extends Controller
             'updated_at_ip' => $request->ip(),
         ];
 
-        // NOTE: page_link removed from update writes (we clear it instead)
         foreach (['tag_type', 'tag_attribute', 'tag_attribute_value'] as $k) {
             if (array_key_exists($k, $validated)) {
                 $v = $validated[$k];
@@ -428,14 +596,32 @@ class MetaTagController extends Controller
             }
         }
 
-        if ($hasPageId && array_key_exists('page_id', $validated)) {
-            $update['page_id'] = $validated['page_id'] ? (int) $validated['page_id'] : null;
-        }
+        // Only change scope if caller supplied any scope fields
+        $scopeTouched = $request->filled('page_id') || $request->filled('page_link') || $request->filled('url') || $request->filled('path');
 
-        // ✅ IMPORTANT FIX: Always clear page_link in DB when column exists
-        // (this is why you were seeing it stored: old code was auto-deriving / keeping old value)
-        if ($hasPageLink) {
-            $update['page_link'] = '';
+        if ($scopeTouched) {
+            [$pageId, $pageLinkScope] = $this->resolveScopeFromRequest($request);
+
+            if ($hasPageId) {
+                if (!$pageId && !$pageLinkScope) {
+                    return response()->json(['success' => false, 'message' => 'page_id or page_link/url/path is required'], 422);
+                }
+                if (!$pageId && !$hasPageLink) {
+                    return response()->json(['success' => false, 'message' => 'Static pages require meta_tags.page_link column'], 422);
+                }
+
+                $update['page_id'] = $pageId ? (int) $pageId : null;
+
+                if ($hasPageLink) {
+                    $update['page_link'] = ($hasPageId && $pageId) ? '' : (($pageLinkScope ?? '') ?: '');
+                }
+            } else {
+                $raw = $request->input('page_link') ?? $request->input('url') ?? $request->input('path');
+                $link = $this->normalizePageLink(is_string($raw) ? $raw : null);
+                if (!$link) return response()->json(['success' => false, 'message' => 'page_link/url/path is required'], 422);
+
+                if ($hasPageLink) $update['page_link'] = $link;
+            }
         }
 
         if (array_key_exists('metadata', $validated)) {
@@ -583,19 +769,37 @@ class MetaTagController extends Controller
      | Public (no auth)
      |============================================ */
 
-    /** GET /api/public/meta-tags?page_id=... (preferred) OR legacy ?page_link=... */
+    /**
+     * GET /api/public/meta-tags
+     * Supports:
+     * - ?page_id=...
+     * - OR ?page_link=/path (if it matches pages, auto-resolves to page_id; else static link scope)
+     * - OR ?url=... / ?path=...
+     */
     public function publicIndex(Request $request)
     {
-        $hasPageId = Schema::hasColumn('meta_tags', 'page_id');
+        $hasPageId = Schema::hasColumn('meta_tags', 'page_id') && Schema::hasTable('pages');
 
         if ($hasPageId) {
-            if (!$request->filled('page_id')) {
-                return response()->json(['success' => false, 'message' => 'page_id is required'], 422);
+            $hasAnyScope = $request->filled('page_id') || $request->filled('page_link') || $request->filled('url') || $request->filled('path');
+            if (!$hasAnyScope) {
+                return response()->json(['success' => false, 'message' => 'page_id or page_link/url/path is required'], 422);
             }
+
+            [$pageId, $pageLinkScope] = $this->resolveScopeFromRequest($request);
+            if (!$pageId && !$pageLinkScope) {
+                return response()->json(['success' => false, 'message' => 'Invalid page scope'], 422);
+            }
+
+            if ($pageId) $request->merge(['page_id' => $pageId]);
+            if ($pageLinkScope) $request->merge(['page_link' => $pageLinkScope]);
         } else {
-            if (!$request->filled('page_link')) {
-                return response()->json(['success' => false, 'message' => 'page_link is required'], 422);
+            $raw = $request->query('page_link') ?? $request->query('url') ?? $request->query('path');
+            $link = $this->normalizePageLink(is_string($raw) ? $raw : null);
+            if (!$link) {
+                return response()->json(['success' => false, 'message' => 'page_link/url/path is required'], 422);
             }
+            $request->merge(['page_link' => $link]);
         }
 
         $perPage = max(1, min(200, (int) $request->query('per_page', 200)));
@@ -623,34 +827,49 @@ class MetaTagController extends Controller
     /**
      * POST /api/meta-tags/bulk
      * Body:
-     *  - page_id (REQUIRED when meta_tags.page_id exists)
+     *  - page_id OR page_link/url/path
      *  - tags: [{id?, tag_type, attribute?, content}]
+     *
+     * Behavior:
+     * - if link matches pages => stores by page_id (page_link is '')
+     * - else static => stores by page_link (page_id = null)
      */
     public function bulk(Request $request)
     {
         $actor = $this->actor($request);
 
         $hasPageId   = Schema::hasColumn('meta_tags', 'page_id');
-        $hasPageLink = Schema::hasColumn('meta_tags', 'page_link'); // will be cleared
+        $hasPageLink = Schema::hasColumn('meta_tags', 'page_link');
 
         $validated = $request->validate([
-            // ✅ page_id required when available
-            'page_id'           => ($hasPageId && Schema::hasTable('pages')) ? ['required', 'integer', 'exists:pages,id'] : ['nullable'],
-
-            // legacy only (ignored for new behavior)
-            'page_link'         => $hasPageId ? ['nullable'] : ['required', 'string', 'max:255'],
+            'page_id'   => ($hasPageId && Schema::hasTable('pages')) ? ['nullable', 'integer', 'exists:pages,id'] : ['nullable'],
+            'page_link' => ['nullable', 'string', 'max:255'],
+            'url'       => ['nullable', 'string', 'max:2048'],
+            'path'      => ['nullable', 'string', 'max:2048'],
 
             'tags'              => ['required', 'array', 'min:1', 'max:500'],
             'tags.*.id'         => ['nullable'],
-            'tags.*.tag_type'   => ['required', 'string', 'max:255'], // charset/standard/opengraph/twitter/http etc
-            'tags.*.attribute'  => ['nullable', 'string', 'max:255'], // description, og:title, http-equiv, ...
-            'tags.*.content'    => ['required', 'string', 'max:255'], // meta content (or charset value)
+            'tags.*.tag_type'   => ['required', 'string', 'max:255'],
+            'tags.*.attribute'  => ['nullable', 'string', 'max:255'],
+            'tags.*.content'    => ['required', 'string', 'max:255'],
         ]);
 
-        $pageId = ($hasPageId && !empty($validated['page_id'])) ? (int) $validated['page_id'] : null;
-        $pageLinkLegacy = (!$hasPageId && isset($validated['page_link'])) ? trim((string) $validated['page_link']) : null;
+        [$pageId, $pageLinkScope] = $this->resolveScopeFromRequest($request);
 
-        $tagsIn = $validated['tags'];
+        if ($hasPageId) {
+            if (!$pageId && !$pageLinkScope) {
+                return response()->json(['success' => false, 'message' => 'page_id or page_link/url/path is required'], 422);
+            }
+            if (!$pageId && !$hasPageLink) {
+                return response()->json(['success' => false, 'message' => 'Static pages require meta_tags.page_link column'], 422);
+            }
+        } else {
+            if (!$pageLinkScope) {
+                return response()->json(['success' => false, 'message' => 'page_link/url/path is required'], 422);
+            }
+        }
+
+        $tagsIn  = $validated['tags'];
         $keepIds = [];
 
         DB::beginTransaction();
@@ -680,20 +899,15 @@ class MetaTagController extends Controller
                             'tag_attribute'       => $attr,
                             'tag_attribute_value' => $content,
 
-                            // ✅ page linkage
-                            'page_id'             => $hasPageId ? $pageId : null,
+                            'page_id'             => $hasPageId ? ($pageId ? (int) $pageId : null) : null,
 
-                            // ✅ IMPORTANT FIX: clear page_link always
                             'deleted_at'          => null,
                             'updated_at'          => $now,
                             'updated_at_ip'       => $request->ip(),
                         ];
 
                         if ($hasPageLink) {
-                            $payload['page_link'] = ''; // never store the actual link
-                        } elseif (!$hasPageId) {
-                            // legacy schema: must keep page_link to scope records
-                            $payload['page_link'] = $pageLinkLegacy;
+                            $payload['page_link'] = ($hasPageId && $pageId) ? '' : (($pageLinkScope ?? '') ?: '');
                         }
 
                         DB::table('meta_tags')->where('id', (int) $id)->update($payload);
@@ -709,8 +923,7 @@ class MetaTagController extends Controller
                     'tag_attribute'       => $attr,
                     'tag_attribute_value' => $content,
 
-                    // ✅ page linkage
-                    'page_id'             => $hasPageId ? $pageId : null,
+                    'page_id'             => $hasPageId ? ($pageId ? (int) $pageId : null) : null,
 
                     'metadata'            => null,
 
@@ -724,19 +937,16 @@ class MetaTagController extends Controller
                 ];
 
                 if ($hasPageLink) {
-                    $insert['page_link'] = ''; // ✅ IMPORTANT FIX
-                } else {
-                    // legacy schema requires page_link
-                    $insert['page_link'] = $pageLinkLegacy;
+                    $insert['page_link'] = ($hasPageId && $pageId) ? '' : (($pageLinkScope ?? '') ?: '');
                 }
 
                 $newId = DB::table('meta_tags')->insertGetId($insert);
                 $keepIds[] = (int) $newId;
             }
 
-            // ✅ Sync behavior: soft-delete tags not in UI list (scoped by page_id preferred)
+            // Sync behavior: soft-delete tags not in UI list (scoped)
             $delQ = DB::table('meta_tags')->whereNull('deleted_at');
-            $this->applyPageScope($delQ, $pageId, $pageLinkLegacy);
+            $this->applyPageScope($delQ, $pageId, $pageLinkScope);
 
             if (count($keepIds)) {
                 $delQ->whereNotIn('id', $keepIds);
@@ -760,16 +970,16 @@ class MetaTagController extends Controller
                 null,
                 null,
                 null,
-                ['page_id' => $pageId, 'page_link' => $pageLinkLegacy],
+                ['page_id' => $pageId, 'page_link' => $pageLinkScope],
                 'Bulk save failed'
             );
 
             return response()->json(['success' => false, 'message' => 'Bulk save failed'], 500);
         }
 
-        // Return rows for this page (UI-friendly keys: attribute/content)
+        // Return rows for this scope (UI-friendly keys: attribute/content)
         $rowsQ = DB::table('meta_tags')->whereNull('deleted_at')->orderBy('id', 'asc');
-        $this->applyPageScope($rowsQ, $pageId, $pageLinkLegacy);
+        $this->applyPageScope($rowsQ, $pageId, $pageLinkScope);
 
         $rows = $rowsQ->get();
 
@@ -788,7 +998,7 @@ class MetaTagController extends Controller
             null,
             ['bulk'],
             null,
-            ['page_id' => $pageId, 'kept_ids' => $keepIds],
+            ['page_id' => $pageId, 'page_link' => $pageLinkScope, 'kept_ids' => $keepIds],
             'Bulk meta tags saved'
         );
 
