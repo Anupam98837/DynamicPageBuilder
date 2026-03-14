@@ -175,28 +175,67 @@ try {
     $dpResolvedPage = null;
 }
 
-    // --------- Resolve submenu (if present) for meta-tags ----------
-    $dpResolvedSubmenu = null;
-    try {
-        $submenuTables = ['page_submenus', 'page_sub_menus', 'page_submenu'];
-        $submenuTable = null;
-        foreach ($submenuTables as $t) {
-            if (Schema::hasTable($t)) { $submenuTable = $t; break; }
+    // --------- Resolve submenu (explicit param OR direct submenu URL) ----------
+$dpResolvedSubmenu = null;
+$dpSubmenuTable = null;
+$dpResolvedSubmenuFromDirectPath = false;
+
+// --------- Resolve submenu (explicit param OR direct submenu URL fallback) ----------
+try {
+    foreach (['page_submenus', 'page_sub_menus', 'page_submenu'] as $t) {
+        if (Schema::hasTable($t)) {
+            $dpSubmenuTable = $t;
+            break;
         }
+    }
 
-        if ($submenuTable && $dpSubmenuSlug) {
-            $q = DB::table($submenuTable)->where('slug', $dpSubmenuSlug);
+    $dpEnteredLeafSlug = Str::slug(trim(Str::afterLast($dpBasePath, '/')), '-');
 
-            // If submenu table has page_id and we resolved page, scope it
-            if ($dpResolvedPage && Schema::hasColumn($submenuTable, 'page_id')) {
+    if ($dpSubmenuTable) {
+        // 1) Explicit submenu from &submenu=... or ?submenu=...
+        if ($dpSubmenuSlug) {
+            $q = DB::table($dpSubmenuTable)->where('slug', $dpSubmenuSlug);
+
+            if ($dpResolvedPage && Schema::hasColumn($dpSubmenuTable, 'page_id')) {
                 $q->where('page_id', (int)($dpResolvedPage->id ?? 0));
             }
 
             $dpResolvedSubmenu = $q->orderByDesc('id')->first();
         }
-    } catch (\Throwable $e) {
-        $dpResolvedSubmenu = null;
+
+        // 2) Direct entry into submenu URL ONLY if no page could be resolved
+        if (
+            !$dpResolvedSubmenu &&
+            !$dpResolvedPage &&
+            $dpEnteredLeafSlug
+        ) {
+            $q = DB::table($dpSubmenuTable)->where('slug', $dpEnteredLeafSlug);
+
+            $dpResolvedSubmenu = $q->orderByDesc('id')->first();
+
+            if ($dpResolvedSubmenu) {
+                $dpResolvedSubmenuFromDirectPath = true;
+                $dpSubmenuSlug = (string)($dpResolvedSubmenu->slug ?? $dpEnteredLeafSlug);
+
+                // backfill parent page from submenu.page_id
+                if (
+                    Schema::hasColumn($dpSubmenuTable, 'page_id') &&
+                    !empty($dpResolvedSubmenu->page_id) &&
+                    Schema::hasTable('pages')
+                ) {
+                    $dpResolvedPage = DB::table('pages')
+                        ->where('id', (int)$dpResolvedSubmenu->page_id)
+                        ->orderByDesc('id')
+                        ->first();
+                }
+            }
+        }
     }
+} catch (\Throwable $e) {
+    $dpResolvedSubmenu = null;
+    $dpSubmenuTable = null;
+    $dpResolvedSubmenuFromDirectPath = false;
+}
 
     // --------- Load meta tags from a meta table (if exists) ----------
     $dpMetaArr = [];
@@ -652,6 +691,7 @@ try {
     window.__DP_SERVER_SUBMENU__ = @json($dpServerSubmenuForJs);
     window.__DP_SERVER_LINK_PATH__ = @json($dpBasePath);
     window.__DP_SERVER_SUBMENU_SLUG__ = @json($dpSubmenuSlug);
+    window.__DP_SERVER_SUBMENU_DIRECT__ = @json($dpResolvedSubmenuFromDirectPath);
 </script>
 
 <script>
@@ -1552,31 +1592,80 @@ async function resolvePublicPage(headerUuid = '', linkPath = '', slug = ''){
 
         showLoading('Loading submenu…');
 
-        const u = new URL(API_BASE + '/public/page-submenus/render', window.location.origin);
-        u.searchParams.set('slug', sslug);
+const hasPageScope = !!(pageScope?.page_id || pageScope?.page_slug);
 
-        // Pass header scope if present
-        let headerMenuId = null;
-        if (pageScope) headerMenuId = pageScope.header_menu_id || pageScope.requested_header_menu_id || pageScope.effective_header_menu_id;
+let headerMenuId = null;
+if (pageScope) {
+    headerMenuId =
+        pageScope.header_menu_id ||
+        pageScope.requested_header_menu_id ||
+        pageScope.effective_header_menu_id ||
+        null;
+}
 
-        if (!headerMenuId) {
-            const urlParams = new URLSearchParams(window.location.search);
-            headerMenuId = urlParams.get('header_menu_id') || urlParams.get('menu_id') || urlParams.get('headerMenuId');
+if (!headerMenuId) {
+    const urlParams = new URLSearchParams(window.location.search);
+    headerMenuId =
+        urlParams.get('header_menu_id') ||
+        urlParams.get('menu_id') ||
+        urlParams.get('headerMenuId') ||
+        null;
+}
+
+if (!headerMenuId && window.__DP_PAGE_SCOPE__) {
+    headerMenuId =
+        window.__DP_PAGE_SCOPE__.requested_header_menu_id ||
+        window.__DP_PAGE_SCOPE__.header_menu_id ||
+        null;
+}
+
+const headerUuid =
+    pageScope?.header_menu_uuid ||
+    readHeaderMenuUuidFromUrl() ||
+    '';
+
+async function requestSubmenuRender(mode){
+    const ru = new URL(API_BASE + '/public/page-submenus/render', window.location.origin);
+    ru.searchParams.set('slug', sslug);
+
+    if (mode === 'page' || mode === 'page+header') {
+        if (pageScope?.page_id) {
+            ru.searchParams.set('page_id', String(pageScope.page_id));
+        } else if (pageScope?.page_slug) {
+            ru.searchParams.set('page_slug', String(pageScope.page_slug));
         }
+    }
 
-        if (!headerMenuId && window.__DP_PAGE_SCOPE__) {
-            headerMenuId = window.__DP_PAGE_SCOPE__.requested_header_menu_id || window.__DP_PAGE_SCOPE__.header_menu_id;
+    if (mode === 'header' || mode === 'page+header') {
+        if (headerMenuId && parseInt(headerMenuId) > 0) {
+            ru.searchParams.set('header_menu_id', String(headerMenuId));
         }
+        if (headerUuid && isUuid(headerUuid)) {
+            ru.searchParams.set('header_uuid', headerUuid);
+        }
+    }
 
-        if (headerMenuId && parseInt(headerMenuId) > 0) u.searchParams.set('header_menu_id', String(headerMenuId));
+    return await fetchJsonWithStatus(ru.toString());
+}
 
-        const headerUuid = pageScope?.header_menu_uuid || readHeaderMenuUuidFromUrl();
-        if (headerUuid && isUuid(headerUuid)) u.searchParams.set('header_uuid', headerUuid);
+let r = null;
 
-        if (pageScope?.page_id) u.searchParams.set('page_id', pageScope.page_id);
-        else if (pageScope?.page_slug) u.searchParams.set('page_slug', pageScope.page_slug);
+if (hasPageScope) {
+    // try page-only first
+    r = await requestSubmenuRender('page');
 
-        const r = await fetchJsonWithStatus(u.toString());
+    // fallback: header-only
+    if (!r.ok && r.status === 404 && (headerMenuId || headerUuid)) {
+        r = await requestSubmenuRender('header');
+    }
+
+    // final fallback: page + header
+    if (!r.ok && r.status === 404 && (headerMenuId || headerUuid)) {
+        r = await requestSubmenuRender('page+header');
+    }
+} else {
+    r = await requestSubmenuRender('header');
+}
 
         if (!r.ok) {
     try{ if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close(); }catch(e){}
@@ -1696,17 +1785,23 @@ async function resolvePublicPage(headerUuid = '', linkPath = '', slug = ''){
     // Tree rendering (patched submenu link routing)
     // ============================================================
     function normalizeTree(treeData){
-        if (!treeData) return [];
-        if (Array.isArray(treeData)) return treeData;
+    if (!treeData) return [];
+    if (Array.isArray(treeData)) return treeData;
 
-        const arr = pick(treeData, ['tree','items','data','submenus','children','menu']);
-        if (Array.isArray(arr)) return arr;
+    const direct = pick(treeData, ['tree','items','submenus','children','menu','nodes']);
+    if (Array.isArray(direct)) return direct;
 
-        if (treeData.data && Array.isArray(treeData.data.items)) return treeData.data.items;
-        if (treeData.data && Array.isArray(treeData.data)) return treeData.data;
+    const data = treeData.data ?? treeData.payload ?? treeData.result ?? null;
 
-        return [];
+    if (Array.isArray(data)) return data;
+
+    if (data && typeof data === 'object') {
+        const nested = pick(data, ['tree','items','submenus','children','menu','nodes']);
+        if (Array.isArray(nested)) return nested;
     }
+
+    return [];
+}
 
     function normalizeChildren(node){
         const c = pick(node, ['children','nodes','items','submenus']);
@@ -1899,15 +1994,24 @@ async function resolvePublicPage(headerUuid = '', linkPath = '', slug = ''){
             return { hasSidebar: false, firstSubmenuSlug: '' };
         }
 
-        const treeUrl = new URL(API_BASE + '/public/page-submenus/tree', window.location.origin);
+const treeUrl = new URL(API_BASE + '/public/page-submenus/tree', window.location.origin);
 
-        if (headerFromUrl) {
-            if (isUuid(headerFromUrl)) treeUrl.searchParams.set('header_uuid', headerFromUrl);
-            else treeUrl.searchParams.set('header_menu_id', headerFromUrl);
-        }
+// page scope
+if (pageId) {
+    treeUrl.searchParams.set('page_id', String(pageId));
+} else if (pageSlug) {
+    treeUrl.searchParams.set('page_slug', String(pageSlug));
+}
 
-        if (pageId) treeUrl.searchParams.set('page_id', pageId);
-        else if (pageSlug) treeUrl.searchParams.set('page_slug', pageSlug);
+// keep header scope too for tree loading,
+// because many backends use it to identify the correct submenu group
+if (headerFromUrl) {
+    if (isUuid(headerFromUrl)) {
+        treeUrl.searchParams.set('header_uuid', headerFromUrl);
+    } else {
+        treeUrl.searchParams.set('header_menu_id', String(headerFromUrl));
+    }
+}
 
         const r = await fetchJsonWithStatus(treeUrl.toString());
 
@@ -1959,43 +2063,67 @@ async function resolvePublicPage(headerUuid = '', linkPath = '', slug = ''){
         }catch(e){}
     }
 
-    function setupHeaderMenuClicks() {
-        document.addEventListener('click', function(e) {
-            const headerLink = e.target.closest('a[data-header-menu]') ||
-                              e.target.closest('a[href*="h-"]') ||
-                              e.target.closest('a[href*="header_menu_id"]');
+function setupHeaderMenuClicks() {
+    document.addEventListener('click', function(e) {
+        const headerLink = e.target.closest('a[data-header-menu]') ||
+                           e.target.closest('a[href*="h-"]') ||
+                           e.target.closest('a[href*="header_menu_id"]');
 
-            if (headerLink) {
-                e.preventDefault();
+        if (!headerLink) return;
 
-                let menuUuid = headerLink.getAttribute('data-menu-uuid') ||
-                              headerLink.getAttribute('data-header-uuid');
+        const rawHref = String(headerLink.getAttribute('href') || '').trim();
+        if (!rawHref || rawHref === '#' || rawHref.toLowerCase().startsWith('javascript:')) {
+            return;
+        }
 
-                if (!menuUuid) {
-                    const href = headerLink.getAttribute('href') || '';
-                    const url = new URL(href, window.location.origin);
+        e.preventDefault();
 
-                    for (const [key, value] of url.searchParams.entries()) {
-                        if (isHeaderMenuUuidToken(key)) { menuUuid = extractUuidFromHeaderToken(key); break; }
-                        if (isHeaderMenuUuidToken(value)) { menuUuid = extractUuidFromHeaderToken(value); break; }
-                    }
+        let targetUrl;
+        try {
+            targetUrl = new URL(rawHref, window.location.origin);
+        } catch (err) {
+            window.location.href = rawHref;
+            return;
+        }
 
-                    if (!menuUuid) {
-                        const legacyId = url.searchParams.get('header_menu_id');
-                        if (legacyId) menuUuid = legacyId;
-                    }
+        let menuUuid =
+            headerLink.getAttribute('data-menu-uuid') ||
+            headerLink.getAttribute('data-header-uuid') ||
+            '';
+
+        if (!menuUuid) {
+            for (const [key, value] of targetUrl.searchParams.entries()) {
+                if (isHeaderMenuUuidToken(key)) {
+                    menuUuid = extractUuidFromHeaderToken(key);
+                    break;
                 }
-
-                if (menuUuid) {
-                    const currentUrl = new URL(window.location);
-                    const newParams = buildSearchWithHeaderUuid(currentUrl.searchParams, menuUuid);
-                    currentUrl.search = newParams.toString();
-                    currentUrl.searchParams.delete('submenu');
-                    window.location.href = currentUrl.toString();
+                if (isHeaderMenuUuidToken(value)) {
+                    menuUuid = extractUuidFromHeaderToken(value);
+                    break;
                 }
             }
-        });
-    }
+
+            if (!menuUuid) {
+                menuUuid =
+                    targetUrl.searchParams.get('header_menu_id') ||
+                    targetUrl.searchParams.get('menu_id') ||
+                    targetUrl.searchParams.get('headerMenuId') ||
+                    '';
+            }
+        }
+
+        let params = buildSearchWithHeaderUuid(targetUrl.searchParams, menuUuid);
+
+        // preserve current department token if any
+        const deptToken = readDeptTokenFromUrl();
+        params = buildSearchWithDept(params, deptToken);
+
+        targetUrl.search = params.toString() ? ('?' + params.toString()) : '';
+
+        // IMPORTANT: navigate to clicked link URL, not current URL
+        window.location.href = targetUrl.toString();
+    });
+}
 
     async function init(){
     hideError();
@@ -2052,13 +2180,18 @@ async function resolvePublicPage(headerUuid = '', linkPath = '', slug = ''){
         applyMetaFromPayload(page);
 
         window.__DP_PAGE_SCOPE__ = {
-            page_id: pick(page, ['id']) || null,
-            page_slug: pick(page, ['slug']) || null,
-            header_menu_uuid: (isUuid(headerFromUrl) ? headerFromUrl : null) || null,
-            requested_header_menu_uuid: (isUuid(headerFromUrl) ? headerFromUrl : null) || null,
-            header_menu_id: (!isUuid(headerFromUrl) ? parseInt(headerFromUrl) : null) || null,
-            requested_header_menu_id: (!isUuid(headerFromUrl) ? parseInt(headerFromUrl) : null) || null
-        };
+    page_id: pick(page, ['id']) || null,
+    page_slug: pick(page, ['slug']) || null,
+
+    // keep these only as reference for entry resolution,
+    // but render/tree must prefer page scope
+    header_menu_uuid: (isUuid(headerFromUrl) ? headerFromUrl : null) || null,
+    requested_header_menu_uuid: (isUuid(headerFromUrl) ? headerFromUrl : null) || null,
+    header_menu_id: (!isUuid(headerFromUrl) ? parseInt(headerFromUrl) : null) || null,
+    requested_header_menu_id: (!isUuid(headerFromUrl) ? parseInt(headerFromUrl) : null) || null,
+
+    scope_mode: 'page'
+};
 
         elTitle.textContent = pick(page, ['title']) || slugCandidate || 'Dynamic Page';
         setMeta('');
@@ -2074,11 +2207,22 @@ async function resolvePublicPage(headerUuid = '', linkPath = '', slug = ''){
         await loadSidebarIfAny(page);
 
         // ✅ Submenu load: path &submenu= OR ?submenu=
-        let submenuSlug = (readSubmenuFromPathname() || '').trim();
-        if (!submenuSlug){
-            const qs = new URLSearchParams(window.location.search);
-            submenuSlug = (qs.get('submenu') || '').trim();
-        }
+let submenuSlug = (readSubmenuFromPathname() || '').trim();
+
+if (!submenuSlug) {
+    const qs = new URLSearchParams(window.location.search);
+    submenuSlug = (qs.get('submenu') || '').trim();
+}
+
+// only auto-use server submenu when it came from true direct submenu URL fallback
+if (
+    !submenuSlug &&
+    window.__DP_SERVER_SUBMENU_DIRECT__ === true &&
+    window.__DP_SERVER_SUBMENU__ &&
+    window.__DP_SERVER_SUBMENU__.slug
+) {
+    submenuSlug = String(window.__DP_SERVER_SUBMENU__.slug).trim();
+}
 
         if (submenuSlug) {
             const link = document.querySelector('.hallienz-side__link[data-submenu-slug="' + safeCssEscape(submenuSlug) + '"]');

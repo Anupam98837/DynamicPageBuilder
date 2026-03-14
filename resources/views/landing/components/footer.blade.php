@@ -863,10 +863,16 @@
    * ✅ Build internal page URL using absolute PAGE_BASE from Blade
    */
   function normalizeInternalPageUrl(identifier){
-    identifier = (identifier || '').toString().trim();
-    if (!identifier) return '#';
-    return PAGE_BASE + '/' + encodeURIComponent(identifier);
+  identifier = (identifier || '').toString().trim();
+  if (!identifier) return '#';
+
+  // already a real root path
+  if (identifier.startsWith('/')) {
+    return SITE_BASE + identifier;
   }
+
+  return PAGE_BASE + '/' + encodeURIComponent(identifier);
+}
 
   /**
    * ✅ FIXED: Main URL builder for footer menu items.
@@ -886,25 +892,25 @@
     const target = findBestTarget(item);
 
     if (target.type === 'link'){
-      const rawLink = target.value;
+  const rawLink = target.value;
 
-      // Special protocol => return directly
-      if (isSpecialProtocol(rawLink)) return rawLink;
+  // Special protocol => return directly
+  if (isSpecialProtocol(rawLink)) return rawLink;
 
-      // External absolute URL => return directly
-      if (/^https?:\/\//i.test(rawLink) && !rawLink.startsWith(window.location.origin)) {
-        return rawLink;
-      }
+  // External absolute URL => return directly
+  if (/^https?:\/\//i.test(rawLink) && !rawLink.startsWith(window.location.origin)) {
+    return rawLink;
+  }
 
-      // ✅ Determine if this is a direct route or a dynamic page slug
-      if (isDirectLink(rawLink)) {
-        // Direct route: resolve as /{link}
-        url = resolveLinkUrl(rawLink) || '#';
-      } else {
-        // Not a known direct route => treat as dynamic page: /page/{link}
-        url = normalizeInternalPageUrl(rawLink);
-      }
-    }
+  // treat root-relative paths as direct links
+  if (rawLink.startsWith('/')) {
+    url = resolveLinkUrl(rawLink) || '#';
+  } else if (isDirectLink(rawLink)) {
+    url = resolveLinkUrl(rawLink) || '#';
+  } else {
+    url = normalizeInternalPageUrl(rawLink);
+  }
+}
     else if (target.type === 'page_slug'){
       url = normalizeInternalPageUrl(target.value);
     }

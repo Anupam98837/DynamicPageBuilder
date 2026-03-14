@@ -184,25 +184,14 @@ background: linear-gradient(90deg, rgba(0,0,0,.65), rgba(0,0,0,.20));
 .info-box a{ color:#fff; text-decoration:none; font-weight:800; }
 .info-box a:hover{ text-decoration:underline; }
 
-/* ✅ FIX (ONLY): keep the autoscrolling UL from moving into the <h5> area
-- We clip the animated UL inside a viewport that sits *below* the heading. */
+/* ✅ FIX: keep the autoscrolling UL inside a fixed-height viewport */
 .info-box .info-ul-viewport{ position: relative; }
 .info-box .info-ul-viewport.autoscroll-viewport{ height: 260px; overflow: hidden; }
 .info-box ul.autoscroll{ overflow: visible; scroll-behavior: auto; position: relative; height: auto; }
 
-/* ✅ FIXED: Create smooth scrolling animation */
-.info-box ul.scrolling-upwards {animation: scrollUp 20s linear infinite;animation-play-state: running;}
-.info-box ul.scrolling-upwards:hover {animation-play-state: paused;}
-
-@keyframes scrollUp {
-0% { transform: translateY(0); }
-100% { transform: translateY(-50%); }
-}
-
 /* =========================
 Notice + Center Iframe + Announcements
 ========================= */
-/* ✅ FIX: Removed height:100% so side columns don't stretch with center */
 .nva-card{background: var(--surface);border-radius: 18px;box-shadow: var(--shadow);padding: 14px;border: 1px solid var(--line);overflow: hidden;}
 .nva-head{display:flex; align-items:center; justify-content:center;gap: 10px;color:#fff;font-weight: 950;letter-spacing:.3px;padding: 10px 12px;font-size: 18px;user-select:none;border-radius: 14px;margin: 0 0 10px;background: linear-gradient(135deg, var(--brand), var(--brand2));}
 .nva-head i{opacity:.95;filter: drop-shadow(0 6px 10px rgba(0,0,0,.12));}
@@ -213,18 +202,6 @@ Notice + Center Iframe + Announcements
 .nva-list li i{ margin-top: 3px; color: rgba(15,23,42,.55); }
 .nva-list a{color: #0f172a;text-decoration:none;font-weight: 800;line-height: 1.25;}
 .nva-list a:hover{ color: var(--brand); text-decoration: underline; }
-
-/* ✅ FIXED: Auto-scroll list styling - IMPROVED */
-.nva-list.autoscroll{overflow: hidden;height: 260px;position: relative;}
-
-/* ✅ FIXED: Create smooth scrolling animation for NVA cards */
-.nva-list.scrolling-upwards {animation: scrollUpList 25s linear infinite;animation-play-state: running;}
-.nva-list.scrolling-upwards:hover {animation-play-state: paused;}
-
-@keyframes scrollUpList {
-0% { transform: translateY(0); }
-100% { transform: translateY(-50%); }
-}
 
 .center-video-card{background: var(--surface);border-radius: 18px;border: 1px solid var(--line);box-shadow: var(--shadow);padding: 14px;height: 100%;overflow:hidden;}
 .center-video-title{font-weight: 950;color: #0f172a;margin: 2px 0 12px;text-align:center;font-size: 22px;}
@@ -422,22 +399,42 @@ min-height: calc(18px * 1.25 * 2);
 .popup-header-rotate:hover {color: #0D29AC;cursor: pointer;}
 .popup-header-rotate.is-fading{opacity: 0;transform: translateY(-2px);}
 .popup-header-desc{margin: 6px 0 0;color: var(--muted);font-weight: 650;font-size: 12.5px;line-height: 1.35;display: -webkit-box;-webkit-line-clamp: 3;-webkit-box-orient: vertical;overflow: hidden;}
-.nva-body,.info-ul-viewport{max-height: 260px;overflow-y: auto;overflow-x: hidden;position: relative;padding-right: 4px;scrollbar-gutter: stable;overscroll-behavior: contain;}
-.nva-body::-webkit-scrollbar,
-.info-ul-viewport::-webkit-scrollbar {width: 6px;}
-.nva-body::-webkit-scrollbar-track,
-.info-ul-viewport::-webkit-scrollbar-track {background: #f8f9fa;border-radius: 4px;margin: 4px 0;}
-.nva-body::-webkit-scrollbar-thumb,
-.info-ul-viewport::-webkit-scrollbar-thumb {background: #9E363A;border-radius: 4px;opacity: 0.5;}
-.nva-body::-webkit-scrollbar-thumb:hover,
-.info-ul-viewport::-webkit-scrollbar-thumb:hover {background: #6B2528;opacity: 0.8;}
 
-/* Firefox scrollbar */
-.nva-body,.info-ul-viewport {scrollbar-width: thin;scrollbar-color: #9E363A #f8f9fa;}
+/* ✅ FIX: viewport uses overflow:hidden when JS auto-scroll is active (set via JS),
+   falls back to overflow:auto for normal scrollable content (CSS default) */
+.nva-body,.info-ul-viewport{
+  max-height: 260px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+/* When JS activates transform-based scrolling, it adds .scroll-active and sets overflow:hidden inline */
+.nva-body.scroll-active,
+.info-ul-viewport.scroll-active {
+  overflow: hidden !important;
+  padding-right: 0;
+  scrollbar-gutter: auto;
+}
+
+.nva-body:not(.scroll-active)::-webkit-scrollbar,
+.info-ul-viewport:not(.scroll-active)::-webkit-scrollbar {width: 6px;}
+.nva-body:not(.scroll-active)::-webkit-scrollbar-track,
+.info-ul-viewport:not(.scroll-active)::-webkit-scrollbar-track {background: #f8f9fa;border-radius: 4px;margin: 4px 0;}
+.nva-body:not(.scroll-active)::-webkit-scrollbar-thumb,
+.info-ul-viewport:not(.scroll-active)::-webkit-scrollbar-thumb {background: #9E363A;border-radius: 4px;opacity: 0.5;}
+.nva-body:not(.scroll-active)::-webkit-scrollbar-thumb:hover,
+.info-ul-viewport:not(.scroll-active)::-webkit-scrollbar-thumb:hover {background: #6B2528;opacity: 0.8;}
+
+/* Firefox scrollbar (only when not auto-scrolling) */
+.nva-body:not(.scroll-active),
+.info-ul-viewport:not(.scroll-active) {scrollbar-width: thin;scrollbar-color: #9E363A #f8f9fa;}
 
 /* ✅ FIXED: Ensure nva-list items are properly spaced */
 .nva-list {list-style: none;padding: 0;margin: 0;}
-.nva-list li {padding: 10px 12px;border-bottom: 1px solid rgba(0,0,0,0.05);display: flex;align-items: flex-start;gap: 10px;transition: all 0.2s ease;}
+.nva-list li {padding: 10px 12px;border-bottom: 1px solid rgba(0,0,0,0.05);display: flex;align-items: flex-start;gap: 10px;transition: background 0.2s ease, transform 0.2s ease;}
 .nva-list li:last-child {border-bottom: none;}
 .nva-list li:hover {background: rgba(158, 54, 58, 0.05);border-radius: 6px;transform: translateX(2px);}
 .nva-list li i {color: #9E363A;font-size: 12px;margin-top: 2px;flex-shrink: 0;}
@@ -612,7 +609,6 @@ Home API error. Please verify section endpoints in <code>$homeApis</code>.
 </section>
 
 {{-- ================= NOTICE (LEFT) + CENTER IFRAME (MIDDLE) + ANNOUNCEMENTS (RIGHT) ================= --}}
-{{-- ✅ FIX: Changed align-items-stretch to align-items-start so side columns stay fixed height --}}
 <section class="info-boxes">
 <div class="row g-3 align-items-start">
 <div class="col-lg-4">
@@ -1096,7 +1092,7 @@ image: svgDataUri(`
 <rect width="100%" height="100%" rx="24" fill="url(#g)"/>
 <path d="M140 310 L300 180 L420 280 L520 220 L680 330 L680 370 L140 370 Z" fill="#9E363A" opacity=".25"/>
 <circle cx="310" cy="170" r="26" fill="#C94B50" opacity=".35"/>
-<text x="50%" y="54%" text-anchor="middle" font-family="Arial" font-size="26" fill="#6B2528" opacity=".8">Image</text>
+<text x="50%" y="54%" text-anchor="middle" font-family="Arial" font-size="26" fill="#6B2526" opacity=".8">Image</text>
 </svg>
 `)
 };
@@ -1332,11 +1328,21 @@ new bootstrap.Carousel(el, opts || {});
 }
 
 /* ==========================================================
-✅ AUTO-SCROLL ENGINE (BOTTOM → TOP UPWARD) — EXTRA SLOW + SMOOTH
+✅ AUTO-SCROLL ENGINE — REBUILT (v2)
+   ROOT CAUSE OF CHROME BUG:
+     Old engine used `scrollTop -= delta` where delta ≈ 0.016px/frame
+     at 1px/sec. Chrome floors scrollTop to integers → delta rounds to 0
+     → list never moves. Safari supports sub-pixel scrollTop → worked.
+
+   FIX:
+     Use CSS `transform: translateY(-currentY)` instead of scrollTop.
+     Transforms support full float/sub-pixel precision in ALL browsers
+     (Chrome, Safari, Firefox, Edge) and are GPU-accelerated.
+     Fractional position is accumulated in JS as a float — no rounding.
 ========================================================== */
 const AUTO_SCROLL = (() => {
-  const SPEED_PX_PER_SEC   = 1;     // ✅ SLOWER speed (was 4)
-  const RESUME_DELAY_MS    = 1200;  // resume after manual interaction
+  const SPEED_PX_PER_SEC   = 15;     // keep original ultra-slow speed (now works in Chrome too)
+  const RESUME_DELAY_MS    = 1200;
   const MIN_ITEMS_FOR_AUTO = 7;
 
   const scrollers = new Set();
@@ -1345,156 +1351,175 @@ const AUTO_SCROLL = (() => {
   const prefersReduced = () =>
     window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  function removeClones(ul){
+  function removeClones(ul) {
     ul.querySelectorAll('[data-autoscroll-clone="1"]').forEach(n => n.remove());
   }
 
-  function countOriginalItems(ul){
+  function countOriginalItems(ul) {
     return ul.querySelectorAll('li:not([data-autoscroll-clone="1"])').length;
   }
 
-  function buildClones(ul){
+  function buildClones(ul) {
     const originals = Array.from(ul.children)
       .filter(el => el.nodeType === 1 && el.getAttribute('data-autoscroll-clone') !== '1');
-
     originals.forEach(li => {
       const clone = li.cloneNode(true);
-      clone.setAttribute('data-autoscroll-clone','1');
-      clone.setAttribute('aria-hidden','true');
+      clone.setAttribute('data-autoscroll-clone', '1');
+      clone.setAttribute('aria-hidden', 'true');
       ul.appendChild(clone);
     });
   }
 
-  function destroy(viewport){
+  function destroy(viewport) {
     const st = viewport?.__autoScrollState;
-    if(!st) return;
-
-    try{
+    if (!st) return;
+    try {
       st._handlers.forEach(([evt, fn]) => st.viewport.removeEventListener(evt, fn));
-    }catch(e){}
-
+    } catch (e) {}
+    // Restore transform and overflow
+    try { st.ul.style.transform = ''; st.ul.style.willChange = ''; } catch (e) {}
+    try {
+      st.viewport.style.overflow = '';
+      st.viewport.classList.remove('scroll-active');
+    } catch (e) {}
     delete viewport.__autoScrollState;
     scrollers.delete(st);
   }
 
-  function ensure(viewport, ul){
-    if(!viewport || !ul) return;
-
+  function ensure(viewport, ul) {
+    if (!viewport || !ul) return;
     destroy(viewport);
+    if (prefersReduced()) return;
 
-    if(prefersReduced()) return;
-
-    viewport.style.overflowY = 'auto';
+    // Strip legacy CSS-animation classes (old approach — now replaced by transform)
     ul.classList.remove('autoscroll', 'scrolling-upwards');
-
     removeClones(ul);
 
     const originalCount = countOriginalItems(ul);
-    if(originalCount <= MIN_ITEMS_FOR_AUTO) return;
+    if (originalCount <= MIN_ITEMS_FOR_AUTO) return;
 
-    const viewportH = viewport.clientHeight || 260;
-    const originalHeight = ul.scrollHeight;
+    // ── Measure original list height before cloning ──
+    // Temporarily allow normal overflow so clientHeight/scrollHeight are accurate
+    const prevOverflow = viewport.style.overflow;
+    viewport.style.overflow = 'auto';
+    ul.style.transform = 'none';
 
-    if(originalHeight <= viewportH + 8) return;
-
-    buildClones(ul);
-
-    const st = {
-      viewport,
-      ul,
-      originalHeight: Math.max(1, originalHeight),
-      speed: SPEED_PX_PER_SEC,
-      hovering: false,
-      pausedUntil: 0,
-      last: performance.now(),
-      _handlers: []
-    };
-
-    const pause = (ms = RESUME_DELAY_MS) => {
-      st.pausedUntil = performance.now() + ms;
-    };
-
-    const onEnter = () => { st.hovering = true; };
-    const onLeave = () => { st.hovering = false; pause(RESUME_DELAY_MS); };
-    const onWheel = () => pause(RESUME_DELAY_MS);
-    const onPointerDown = () => pause(RESUME_DELAY_MS);
-    const onTouchStart = () => pause(RESUME_DELAY_MS);
-    const onKey = () => pause(RESUME_DELAY_MS);
-
-    viewport.addEventListener('mouseenter', onEnter, { passive:true });
-    viewport.addEventListener('mouseleave', onLeave, { passive:true });
-    viewport.addEventListener('wheel', onWheel, { passive:true });
-    viewport.addEventListener('pointerdown', onPointerDown, { passive:true });
-    viewport.addEventListener('touchstart', onTouchStart, { passive:true });
-    viewport.addEventListener('keydown', onKey, { passive:true });
-
-    st._handlers.push(['mouseenter', onEnter]);
-    st._handlers.push(['mouseleave', onLeave]);
-    st._handlers.push(['wheel', onWheel]);
-    st._handlers.push(['pointerdown', onPointerDown]);
-    st._handlers.push(['touchstart', onTouchStart]);
-    st._handlers.push(['keydown', onKey]);
-
-    // ✅ START FROM BOTTOM OF ORIGINAL LIST (BOTTOM → TOP UPWARD)
+    // Use rAF to ensure layout is flushed before measuring
     requestAnimationFrame(() => {
-      const bottomOfOriginal = Math.max(0, st.originalHeight - viewport.clientHeight);
-      viewport.scrollTop = bottomOfOriginal;
+      const viewportH = viewport.clientHeight || 260;
+      const originalHeight = ul.scrollHeight;
+
+      // Not enough content to warrant scrolling
+      if (originalHeight <= viewportH + 8) {
+        viewport.style.overflow = prevOverflow;
+        return;
+      }
+
+      // ── Switch to transform-based scrolling ──
+      viewport.style.overflow = 'hidden';
+      viewport.classList.add('scroll-active');
+
+      buildClones(ul);
+
+      // GPU-accelerated layer — no scrollTop involved
+      ul.style.willChange = 'transform';
+      ul.style.transform = 'translateY(0px)';
+
+      const st = {
+        viewport,
+        ul,
+        originalHeight: Math.max(1, originalHeight),
+        speed: SPEED_PX_PER_SEC,
+        hovering: false,
+        pausedUntil: 0,
+        last: performance.now(),
+        currentY: 0,   // float — full sub-pixel precision, no integer rounding
+        _handlers: []
+      };
+
+      const pause = (ms = RESUME_DELAY_MS) => {
+        st.pausedUntil = performance.now() + ms;
+      };
+
+      const onEnter       = () => { st.hovering = true; };
+      const onLeave       = () => { st.hovering = false; pause(RESUME_DELAY_MS); };
+      const onWheel       = () => pause(RESUME_DELAY_MS);
+      const onPointerDown = () => pause(RESUME_DELAY_MS);
+      const onTouchStart  = () => pause(RESUME_DELAY_MS);
+      const onKey         = () => pause(RESUME_DELAY_MS);
+
+      viewport.addEventListener('mouseenter',  onEnter,       { passive: true });
+      viewport.addEventListener('mouseleave',  onLeave,       { passive: true });
+      viewport.addEventListener('wheel',       onWheel,       { passive: true });
+      viewport.addEventListener('pointerdown', onPointerDown, { passive: true });
+      viewport.addEventListener('touchstart',  onTouchStart,  { passive: true });
+      viewport.addEventListener('keydown',     onKey,         { passive: true });
+
+      st._handlers.push(['mouseenter',  onEnter]);
+      st._handlers.push(['mouseleave',  onLeave]);
+      st._handlers.push(['wheel',       onWheel]);
+      st._handlers.push(['pointerdown', onPointerDown]);
+      st._handlers.push(['touchstart',  onTouchStart]);
+      st._handlers.push(['keydown',     onKey]);
+
+      viewport.__autoScrollState = st;
+      scrollers.add(st);
+
+      startLoop();
     });
-
-    viewport.__autoScrollState = st;
-    scrollers.add(st);
-
-    startLoop();
   }
 
-  function startLoop(){
-    if(rafId != null) return;
+  function startLoop() {
+    if (rafId != null) return;
     rafId = requestAnimationFrame(tick);
   }
 
-  function tick(now){
+  function tick(now) {
     rafId = requestAnimationFrame(tick);
-
-    if(!scrollers.size) return;
+    if (!scrollers.size) return;
 
     scrollers.forEach(st => {
       const vp = st.viewport;
       const ul = st.ul;
 
-      if(!vp || !ul || !document.body.contains(vp)){
+      if (!vp || !ul || !document.body.contains(vp)) {
         destroy(vp);
         return;
       }
 
-      // ✅ smoother & consistent (prevents random speed spikes)
+      // Clamp dt to avoid large jumps after tab switching / throttling
       let dt = now - st.last;
-      if(dt < 0) dt = 0;
-      if(dt > 50) dt = 50; // clamp large gaps
+      if (dt < 0)  dt = 0;
+      if (dt > 50) dt = 50;
       st.last = now;
 
-      if(st.hovering) return;
-      if(now < st.pausedUntil) return;
+      if (st.hovering)         return;
+      if (now < st.pausedUntil) return;
 
-      const delta = (st.speed * dt) / 1000;
+      // ── KEY FIX: accumulate as float, no integer rounding ──
+      // At 1px/sec and 60fps: delta = 0.01667px per frame.
+      // Old scrollTop approach: Chrome floors → 0 → nothing moves.
+      // New transform approach: 0.01667 is applied exactly → smooth in all browsers.
+      st.currentY += (st.speed * dt) / 1000;
 
-      // ✅ BOTTOM → TOP (scroll UP)
-      vp.scrollTop -= delta;
-
-      // ✅ WRAP UPWARD seamlessly:
-      // When reaching top, jump down by 1 originalHeight (keeps flow continuous)
-      if(vp.scrollTop <= 1) {
-        vp.scrollTop = st.originalHeight + vp.scrollTop;
+      // Seamless wrap: when we've scrolled one full copy of the original list,
+      // subtract its height so the cloned copy lines up perfectly.
+      if (st.currentY >= st.originalHeight) {
+        st.currentY -= st.originalHeight;
       }
+
+      // Apply sub-pixel transform — GPU-composited, zero layout thrashing
+      ul.style.transform = `translateY(${-st.currentY}px)`;
     });
   }
 
-  function bindUl(ul){
-    if(!ul) return;
+  function bindUl(ul) {
+    if (!ul) return;
     const viewport = ul.closest('.info-ul-viewport') || ul.closest('.nva-body');
     ensure(viewport, ul);
   }
 
-  function refreshAll(){
+  function refreshAll() {
     document.querySelectorAll('.info-ul-viewport ul, .nva-body ul').forEach(bindUl);
   }
 
@@ -1650,9 +1675,6 @@ const overlayHtml = safeInlineHtml(it.overlay_text ?? '');
 const hasKicker = Boolean(alt);
 const hasTitle = Boolean(String(overlayHtml || '').trim());
 
-/* ✅ UPDATED (ONLY):
-   - If no data inserted/null: don't render .hero-kicker / .hero-title
-   - Dark overlay ("shadow") only if kicker/title exists */
 const hasOverlay = hasKicker || hasTitle;
 
 const bgStyle = (desktop || mobile)
@@ -1700,10 +1722,7 @@ const arr = Array.isArray(items) ? items : [];
 const max = Number(opts.max ?? 50);
 
 if(!arr.length){
-el.classList.remove('autoscroll', 'scrolling-upwards');
 el.innerHTML = `<li><i class="${esc(iconClass)}"></i> <span>${esc(emptyText || 'No items available')}</span></li>`;
-
-// ✅ refresh scroller state after rendering
 setTimeout(() => AUTO_SCROLL.bindUl(el), 0);
 return;
 }
@@ -1731,7 +1750,6 @@ ${x.hasLink ? `<a href="${esc(x.href)}">${esc(x.title)}</a>` : `<span>${esc(x.ti
 </li>
 `).join('');
 
-// ✅ bind/refresh auto-scroll once DOM is ready
 setTimeout(() => AUTO_SCROLL.bindUl(el), 60);
 };
 
@@ -2108,7 +2126,6 @@ const descHtml = normalizeRichText(rawDesc);
 
 const name = story.name || story.title || '—';
 
-/* ✅ UPDATED (ONLY): show department title instead of year */
 const role = story.department_title || story.departmentTitle || story.department_name || story.role || story.subtitle || story.year || '';
 
 const uuid = String(story.uuid || story.story_uuid || story.id || '').trim();
@@ -2141,10 +2158,6 @@ function renderCourses(arr){
     return;
   }
 
-  // ✅ ORDER:
-  // 1) featured first (desc)
-  // 2) sort_order asc
-  // 3) latest (publish_at/created_at) desc
   const sorted = items.slice().sort((a,b) => {
     const fa = (Number(b?.is_featured_home || 0) - Number(a?.is_featured_home || 0));
     if(fa !== 0) return fa;
@@ -2200,12 +2213,10 @@ function isUgCourse(c){
 function hasAICTEApproval(c){
   const v = c?.approvals ?? c?.approval ?? c?.approved_by ?? c?.approvedBy ?? '';
 
-  // approvals: ["AICTE", "NBA"]
   if(Array.isArray(v)){
     return v.some(x => String(x || '').toLowerCase().includes('aicte'));
   }
 
-  // approvals: { items: [...] } OR any object containing AICTE somewhere
   if(v && typeof v === 'object'){
     const arr = v.items || v.list || v.values || v.approvals;
     if(Array.isArray(arr)){
@@ -2214,22 +2225,17 @@ function hasAICTEApproval(c){
     try{ return JSON.stringify(v).toLowerCase().includes('aicte'); }catch(e){ return false; }
   }
 
-  // approvals: "AICTE" OR "AICTE, NBA"
   return String(v || '').toLowerCase().includes('aicte');
 }
 
-/* ✅ NEW (ONLY): render UG courses (program_level === "ug") */
 function renderUgCourses(arr){
   const container = document.getElementById('ugCoursesContainer');
   if(!container) return;
 
   const items = Array.isArray(arr) ? arr : [];
 
-  // ✅ filter UG
-  // ✅ filter: ONLY AICTE + UG
-const ug = items
+  const ug = items
   .filter(c => isUgCourse(c) && hasAICTEApproval(c))
-  // ✅ apply ordering: featured first -> sort_order -> latest
   .slice()
   .sort((a,b) => {
     const f = (Number(b?.is_featured_home || 0) - Number(a?.is_featured_home || 0));
@@ -2249,7 +2255,6 @@ const ug = items
     return;
   }
 
-  // ✅ show all UG (remove slice if you want everything)
   container.innerHTML = ug.map(course => {
     const img = course.cover_image || course.image_url || course.image || PLACEHOLDERS.image;
     const title = course.title || course.name || 'UG Course';

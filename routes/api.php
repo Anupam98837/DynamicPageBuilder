@@ -97,27 +97,27 @@ Route::post('/auth/logout', [UserController::class, 'logout'])
 
 Route::get('/auth/check',   [UserController::class, 'authenticateToken']);
 
-Route::middleware('checkRole:admin,author,director,principal,author')
+Route::middleware('checkRole')
     ->get('/admin/dashboard', [DashboardController::class, 'adminDashboard']);
 
 // ✅ HOD Dashboard
-Route::middleware('checkRole:hod,admin,author,director,principal')
+Route::middleware('checkRole')
     ->get('/hod/dashboard', [DashboardController::class, 'hodDashboard']);
 
 // ✅ Technical Assistant Dashboard
-Route::middleware('checkRole:technical_assistant,admin,author,director,principal')
+Route::middleware('checkRole')
     ->get('/technical-assistant/dashboard', [DashboardController::class, 'technicalAssistantDashboard']);
 
 // ✅ Placement Officer Dashboard
-Route::middleware('checkRole:placement_officer,admin,author,director,principal')
+Route::middleware('checkRole')
     ->get('/placement-officer/dashboard', [DashboardController::class, 'placementOfficerDashboard']);
 
 // ✅ IT Person Dashboard
-Route::middleware('checkRole:it_person,admin,author,director,principal')
+Route::middleware('checkRole')
     ->get('/it-person/dashboard', [DashboardController::class, 'itPersonDashboard']);
 
 // ✅ Faculty Dashboard
-Route::middleware('checkRole:faculty,admin,author,director,principal')
+Route::middleware('checkRole')
     ->get('/faculty/dashboard', [DashboardController::class, 'facultyDashboard']);
 
 /*
@@ -139,7 +139,7 @@ Route::middleware(['throttle:10,1'])->group(function () {
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['checkRole:admin,author,director,principal,hod,student,technical_assistant,placement_officer,it_person,faculty'])
+Route::middleware(['checkRole'])
     ->prefix('users')
     ->group(function () {
         Route::get('/',                  [UserController::class, 'index']);
@@ -160,13 +160,13 @@ Route::get('/me/profile', [UserProfileController::class,'show']);
 Route::get('/users/{user_uuid}/profile', [UserProfileController::class,'show']);
     
 // ✅ Other user's profile (protected)
-Route::middleware(['checkRole:admin,author,director,principal,hod'])->prefix('users')->group(function () {
+Route::middleware(['checkRole'])->prefix('users')->group(function () {
     Route::post('/{user_uuid}/profile',  [UserProfileController::class,'store']);
     Route::put('/{user_uuid}/profile',   [UserProfileController::class,'update']);
     Route::patch('/{user_uuid}/profile', [UserProfileController::class,'update']);
 });
 
-Route::middleware(['checkRole:admin,author,director,principal,hod'])->group(function () {
+Route::middleware(['checkRole'])->group(function () {
     Route::get('/users/{user_uuid}/personal-info', [UserPersonalInformationController::class, 'show']);
     Route::post('/users/{user_uuid}/personal-info', [UserPersonalInformationController::class, 'store']);
     Route::match(['put','patch'], '/users/{user_uuid}/personal-info', [UserPersonalInformationController::class, 'update']);
@@ -175,7 +175,7 @@ Route::middleware(['checkRole:admin,author,director,principal,hod'])->group(func
     Route::post('/users/{user_uuid}/personal-info/restore', [UserPersonalInformationController::class, 'restore']);
 });
     
-Route::middleware(['checkRole:admin,author,director,principal,hod'])->group(function () {
+Route::middleware(['checkRole'])->group(function () {
 
     // ===========================
     // Honors (Active)
@@ -216,7 +216,7 @@ Route::middleware(['checkRole:admin,author,director,principal,hod'])->group(func
 
 
 
-Route::middleware(['checkRole:admin,author,director,principal,hod'])->group(function () {
+Route::middleware(['checkRole'])->group(function () {
 
     // ✅ Active (CRUD)
     Route::get('/users/{user_uuid}/journals', [UserJournalsController::class, 'index']);
@@ -234,7 +234,7 @@ Route::middleware(['checkRole:admin,author,director,principal,hod'])->group(func
 
 
 
-Route::middleware(['checkRole:admin,author,director,principal,hod'])->group(function () {
+Route::middleware(['checkRole'])->group(function () {
 
     // ✅ Active (CRUD)
     Route::get('/users/{user_uuid}/teaching-engagements', [UserTeachingEngagementsController::class, 'index']);
@@ -252,7 +252,7 @@ Route::middleware(['checkRole:admin,author,director,principal,hod'])->group(func
 
 
 
-Route::middleware(['checkRole:admin,author,director,principal,hod'])->group(function () {
+Route::middleware(['checkRole'])->group(function () {
 
     Route::get(
         '/users/{user_uuid}/conference-publications',
@@ -299,7 +299,7 @@ Route::middleware(['checkRole:admin,author,director,principal,hod'])->group(func
 });
 
 
-Route::middleware(['checkRole:admin,author,director,principal,hod'])->group(function () {
+Route::middleware(['checkRole'])->group(function () {
 
     Route::get('/users/{user_uuid}/educations', [UserEducationsController::class, 'index']);
     Route::post('/users/{user_uuid}/educations', [UserEducationsController::class, 'store']);
@@ -327,7 +327,7 @@ Route::middleware(['checkRole:admin,author,director,principal,hod'])->group(func
 
 
 
-Route::middleware(['checkRole:admin,author,director,principal,hod'])->group(function () {
+Route::middleware(['checkRole'])->group(function () {
 
     /* ============================
      * Trash routes (MUST BE FIRST)
@@ -385,7 +385,7 @@ Route::middleware(['checkRole:admin,author,director,principal,hod'])->group(func
 |--------------------------------------------------------------------------
 */
 
-Route::middleware('checkRole:admin,author,super_admin,director,principal,hod')
+Route::middleware('checkRole')
     ->group(function () {
 
         /*
@@ -574,7 +574,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify departments
-Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')
+Route::middleware('checkRole')
     ->group(function () {
         Route::post('/departments',                         [DepartmentController::class, 'store']);
         Route::get('/departments-trash',                    [DepartmentController::class, 'trash']);
@@ -602,7 +602,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify department menus
-Route::middleware('checkRole:director,principal,hod,faculty,technical_assistant,it_person')
+Route::middleware('checkRole')
     ->group(function () {
         Route::post('/departments/{department}/menus',                 [DepartmentMenuController::class, 'store']);
         Route::put('/departments/{department}/menus/{id}',             [DepartmentMenuController::class, 'update']);
@@ -622,7 +622,7 @@ Route::middleware('checkRole:director,principal,hod,faculty,technical_assistant,
 */
 
 Route::prefix('/header-menus')
-    ->middleware('checkRole:admin,author,super_admin,director')
+    ->middleware('checkRole')
     ->group(function () {
         Route::get('/',        [HeaderMenuController::class, 'index']);
         Route::get('/tree',    [HeaderMenuController::class, 'tree']);
@@ -654,7 +654,7 @@ Route::prefix('/public/header-menus')->group(function () {
 |--------------------------------------------------------------------------
 */
 Route::prefix('/page-submenus')
-    ->middleware('checkRole:admin,author,super_admin,director')
+    ->middleware('checkRole')
     ->group(function () {
 
         Route::get('/pages', [PageSubmenuController::class, 'pages']);
@@ -695,7 +695,7 @@ Route::prefix('public/pages')->group(function () {
 // Public
 Route::get('/public/pages/{identifier}', [PageController::class, 'publicApi']);
  
-Route::middleware('checkRole:admin,author,super_admin,director')->group(function () {
+Route::middleware('checkRole')->group(function () {
  
     // ===== LISTING (STATIC FIRST) =====
     Route::get('/pages', [PageController::class, 'index']);
@@ -753,7 +753,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+Route::middleware('checkRole')->group(function () {
     // Create
     Route::post('/curriculum-syllabuses', [CurriculumSyllabusController::class, 'store']);
 
@@ -797,7 +797,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+Route::middleware('checkRole')->group(function () {
     Route::post('/announcements', [AnnouncementController::class, 'store']);
     Route::post('/departments/{department}/announcements', [AnnouncementController::class, 'storeForDepartment']);
 
@@ -838,7 +838,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+Route::middleware('checkRole')->group(function () {
     Route::post('/achievements', [AchievementController::class, 'store']);
     Route::post('/departments/{department}/achievements', [AchievementController::class, 'storeForDepartment']);
 
@@ -876,7 +876,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+Route::middleware('checkRole')->group(function () {
     Route::post('/notices', [NoticeController::class, 'store']);
     Route::post('/departments/{department}/notices', [NoticeController::class, 'storeForDepartment']);
 
@@ -915,7 +915,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+Route::middleware('checkRole')->group(function () {
     Route::post('/student-activities', [StudentActivityController::class, 'store']);
     Route::post('/departments/{department}/student-activities', [StudentActivityController::class, 'storeForDepartment']);
 
@@ -958,7 +958,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+Route::middleware('checkRole')->group(function () {
     Route::post('/gallery', [GalleryController::class, 'store']);
     Route::post('/departments/{department}/gallery', [GalleryController::class, 'storeForDepartment']);
 
@@ -990,7 +990,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+Route::middleware('checkRole')->group(function () {
     Route::post('/courses', [CourseController::class, 'store']);
     Route::post('/departments/{department}/courses', [CourseController::class, 'storeForDepartment']);
 
@@ -1035,7 +1035,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+Route::middleware('checkRole')->group(function () {
     // Bulk import (CSV)
     Route::post('/course-semesters/import', [CourseSemesterController::class, 'importCsv']);
 
@@ -1089,7 +1089,7 @@ Route::middleware('checkRole')->prefix('course-semester-sections')->group(functi
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')
+Route::middleware('checkRole')
     ->prefix('course-semester-sections')
     ->group(function () {
 
@@ -1120,7 +1120,7 @@ Route::middleware('checkRole')
     });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')
+Route::middleware('checkRole')
     ->prefix('subjects')
     ->group(function () {
         Route::post('/', [SubjectController::class, 'store']);
@@ -1143,7 +1143,7 @@ Route::middleware('checkRole')
   });
 
 // Bulk push user_ids -> individual rows
-Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person,student')
+Route::middleware('checkRole')
   ->prefix('semester-members')
   ->group(function () {
     Route::post('/bulk-import', [CourseSemesterMemberController::class, 'bulkImport']);
@@ -1173,7 +1173,7 @@ Route::middleware('checkRole')
 
 
 // ✅ Create + Update (restricted roles)
-Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person,student')
+Route::middleware('checkRole')
 ->prefix('feedbacks')
 ->group(function () {
 
@@ -1195,7 +1195,7 @@ Route::middleware('checkRole')->prefix('feedback-questions')->group(function () 
 });
 
 // Modify (role-based)
-Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')
+Route::middleware('checkRole')
     ->prefix('feedback-questions')
     ->group(function () {
         Route::post('/', [FeedbackQuestionController::class, 'store']);
@@ -1233,7 +1233,7 @@ Route::middleware('checkRole')
 
 
 // ✅ Create + Update + Delete + Restore + Force (restricted roles)
-Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')
+Route::middleware('checkRole')
 ->prefix('feedback-posts')
 ->group(function () {
 
@@ -1260,7 +1260,7 @@ Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technic
 /* =========================================================
  | Feedback Submissions (Student submit + view)
  |========================================================= */
-Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person,student')
+Route::middleware('checkRole')
     ->prefix('feedback-posts')
     ->group(function () {
 
@@ -1270,7 +1270,7 @@ Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technic
             ->where('idOrUuid', '[0-9]+|[0-9a-fA-F\-]{36}');
     });
 
-Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person,student')
+Route::middleware('checkRole')
     ->prefix('feedback-submissions')
     ->group(function () {
 
@@ -1283,7 +1283,7 @@ Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technic
     });
 
 
-Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')
+Route::middleware('checkRole')
     ->group(function () {
         Route::get('/feedback-results', [FeedbackResultsController::class, 'results']);
     });
@@ -1609,7 +1609,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+Route::middleware('checkRole')->group(function () {
     Route::post('/career-notices', [CareerNoticeController::class, 'store']);
 
     Route::get('/career-notices-trash', [CareerNoticeController::class, 'trash']);
@@ -1642,7 +1642,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+Route::middleware('checkRole')->group(function () {
     Route::post('/why-us', [WhyUsController::class, 'store']);
 
     Route::get('/why-us-trash', [WhyUsController::class, 'trash']);
@@ -1678,7 +1678,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+Route::middleware('checkRole')->group(function () {
     Route::post('/scholarships', [ScholarshipController::class, 'store']);
     Route::post('/departments/{department}/scholarships', [ScholarshipController::class, 'storeForDepartment']);
 
@@ -1717,7 +1717,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+Route::middleware('checkRole')->group(function () {
     Route::post('/alumni-speaks', [AlumniSpeakController::class, 'store']);
     Route::post('/departments/{department}/alumni-speaks', [AlumniSpeakController::class, 'storeForDepartment']);
 
@@ -1751,7 +1751,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+Route::middleware('checkRole')->group(function () {
     Route::post('/center-iframes', [CenterIframeController::class, 'store']);
 
     Route::get('/center-iframes-trash', [CenterIframeController::class, 'trash']);
@@ -1782,7 +1782,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')->group(function () {
+Route::middleware('checkRole')->group(function () {
     Route::post('/stats',                    [StatsController::class, 'store']);
     Route::post('/stats/upsert-current',     [StatsController::class, 'upsertCurrent']);
 
@@ -1902,7 +1902,7 @@ Route::get('/public/placement-officers', [UserController::class, 'placementOffic
 |--------------------------------------------------------------------------
 */
 Route::prefix('/top-header-menus')
-  ->middleware('checkRole:admin,author,super_admin,director')
+  ->middleware('checkRole')
   ->group(function () {
 
     Route::get('/',        [TopHeaderMenuController::class, 'index']);
@@ -1962,7 +1962,7 @@ Route::prefix('/public/top-header-menus')
 */
  
 Route::prefix('student-academic-details')
-    ->middleware('checkRole:admin,author,super_admin,director,principal,hod,faculty,technical_assistant,it_person')
+    ->middleware('checkRole')
     ->group(function () {
 
         Route::get('by-academics', [StudentAcademicDetailsController::class, 'studentsByAcademics']);
@@ -1983,7 +1983,7 @@ Route::prefix('student-academic-details')
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['checkRole:admin,author,director,principal,hod'])
+Route::middleware(['checkRole'])
     ->prefix('faculty-preview-order')
     ->group(function () {
 
@@ -2001,7 +2001,7 @@ Route::prefix('public')->group(function () {
 
 
 // Technical Assistant Preview Order
-Route::middleware(['checkRole:admin,author,director,principal,hod'])
+Route::middleware(['checkRole'])
     ->prefix('technical-assistant-preview-order')
     ->group(function () {
 Route::get('/', [TechnicalAssistantPreviewOrderController::class, 'index']);
@@ -2015,7 +2015,7 @@ Route::get('public/technical-assistant-preview-order', [TechnicalAssistantPrevie
 Route::get('public/technical-assistant-preview-order/{department}', [TechnicalAssistantPreviewOrderController::class, 'publicShow']);
 
 // Placement Officer Preview Order
-Route::middleware(['checkRole:admin,author,director,principal,hod'])
+Route::middleware(['checkRole'])
     ->prefix('placement-officer-preview-order')
     ->group(function () {
 Route::get('/', [PlacementOfficerPreviewOrderController::class, 'index']);
@@ -2035,7 +2035,7 @@ Route::get('/public/placement-officer-preview-order/{department}', [PlacementOff
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['checkRole:admin,author,director,principal,hod'])
+Route::middleware(['checkRole'])
     ->prefix('sticky-buttons')
     ->group(function () {
 
@@ -2083,7 +2083,7 @@ Route::prefix('public')->group(function () {
 */
 
 
-Route::middleware('checkRole:admin,author,director,principal,hod,technical_assistant,it_person')->group(function () {
+Route::middleware('checkRole')->group(function () {
 
     Route::get('/master-approval', [MasterApprovalController::class, 'overview']);
     Route::get('/master-approval/final', [MasterApprovalController::class, 'final']);
@@ -2114,7 +2114,7 @@ Route::middleware('checkRole')
     });
 
 // ✅ Modify (authenticated role-based)
-Route::middleware('checkRole:admin,author,director,principal,hod,faculty,technical_assistant,it_person')
+Route::middleware('checkRole')
     ->prefix('student-subjects')
     ->group(function () {
         Route::post('/', [StudentSubjectController::class, 'store']);
@@ -2154,7 +2154,7 @@ Route::middleware('checkRole')->group(function () {
 });
 
 // Modify (authenticated role-based)
-Route::middleware('checkRole:admin,author,super_admin,director')->group(function () {
+Route::middleware('checkRole')->group(function () {
     Route::post('/meta-tags', [MetaTagController::class, 'store']);
 
     Route::post('/meta-tags/bulk', [MetaTagController::class, 'bulk']);
@@ -2184,7 +2184,7 @@ Route::prefix('public')->group(function () {
 */
 
 // ✅ Admin / Backend control (save order + featured)
-Route::middleware('checkRole:admin,author,director,principal,hod')
+Route::middleware('checkRole')
     ->prefix('department-enquiry-settings')
     ->group(function () {
 

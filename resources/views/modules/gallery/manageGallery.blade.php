@@ -655,13 +655,32 @@
     let canCreate=false, canEdit=false, canDelete=false;
 
     function computePermissions(){
-      const r = (ACTOR.role || '').toLowerCase();
-      // align with your API middleware choices
-      const writeRoles = ['admin','director','principal','hod','faculty','technical_assistant','it_person','super_admin'];
-      const deleteRoles = ['admin','director','principal','super_admin'];
-
-      canCreate = writeRoles.includes(r);
-      canEdit   = writeRoles.includes(r);
+      const r = (ACTOR?.role || '').toLowerCase();
+      const adminRoles = ['admin', 'director', 'principal'];
+      if(adminRoles.includes(r)){
+          canCreate = canEdit = canDelete = true;
+      } else {
+          canCreate = canEdit = canDelete = false;
+          if (window.ACTOR_MENU_TREE && Array.isArray(window.ACTOR_MENU_TREE)) {
+             const path = window.location.pathname.replace(/\/+$/, '') || '/';
+             let myActions = [];
+             for(const group of window.ACTOR_MENU_TREE) {
+                if(group.children) {
+                   for(const child of group.children) {
+                      const childPath = (child.href || '').replace(/\/+$/, '') || '/';
+                      if(childPath === path) {
+                         myActions = child.actions || [];
+                         break;
+                      }
+                   }
+                }
+             }
+             const actionsStr = myActions.map(a => a.toLowerCase());
+             if (actionsStr.includes('add') || actionsStr.includes('create')) canCreate = true;
+             if (actionsStr.includes('edit') || actionsStr.includes('update')) canEdit = true;
+             if (actionsStr.includes('delete') || actionsStr.includes('remove')) canDelete = true;
+          }
+      }
       canDelete = deleteRoles.includes(r);
 
       if (writeControls) writeControls.style.display = canCreate ? 'flex' : 'none';
@@ -678,6 +697,16 @@
       }catch(_){}
       if (!ACTOR.role){
         ACTOR.role = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
+      }
+      
+      if (!window.ACTOR_MENU_TREE) {
+        try {
+          const mRes = await fetchWithTimeout('/api/my/sidebar-menus?with_actions=1', { headers: authHeaders() }, 5000);
+          if (mRes.ok) {
+              const mData = await mRes.json();
+              window.ACTOR_MENU_TREE = mData?.tree || [];
+          }
+        } catch(e) {}
       }
       computePermissions();
     }

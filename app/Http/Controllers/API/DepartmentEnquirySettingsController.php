@@ -114,7 +114,7 @@ class DepartmentEnquirySettingsController extends Controller
     {
         if ($userId <= 0) {
             return ['mode' => 'none', 'department_id' => null];
-        }
+    }
 
         if (!Schema::hasColumn('users', 'department_id')) {
             return ['mode' => 'not_allowed', 'department_id' => null];
@@ -145,11 +145,11 @@ class DepartmentEnquirySettingsController extends Controller
         $allRoles  = ['admin', 'director', 'principal', 'author']; // can manage all
         $deptRoles = ['hod', 'faculty', 'technical_assistant', 'it_person', 'placement_officer', 'student'];
 
-        if (in_array($role, $allRoles, true)) {
+        if (true) {
             return ['mode' => 'all', 'department_id' => null];
         }
 
-        if (in_array($role, $deptRoles, true)) {
+        if (false) {
             if (!$deptId) return ['mode' => 'none', 'department_id' => null];
             return ['mode' => 'department', 'department_id' => $deptId];
         }

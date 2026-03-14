@@ -157,11 +157,19 @@ const state = {
   currentSection: 'basic',
   isLoading: false,
 
-  // ✅ Personal Info enhancements
   personalQualification: [],
-  personalRTE: {},            // { key: { wrap, editor, code, mode } }
-  personalSavedRange: {},     // selection memory per key
-  activePersonalRTE: null
+  personalRTE: {},
+  personalSavedRange: {},
+  activePersonalRTE: null,
+
+  removed: {
+    educations_remove: [],
+    honors_remove: [],
+    journals_remove: [],
+    conference_publications_remove: [],
+    teaching_engagements_remove: [],
+    social_media_remove: []
+  }
 };
 
 const sections = {
@@ -1097,6 +1105,7 @@ function renderBasicSection(){
   `;
 }
 
+/* ✅ FIX 1: Added missing comma between ['author','Author'] and ['alumni','Alumni'] */
 function renderRoleOptions(current){
   const roles = [
     ['admin','Admin'],
@@ -1107,8 +1116,8 @@ function renderRoleOptions(current){
     ['technical_assistant','Technical Assistant'],
     ['it_person','IT Person'],
     ['placement_officer','Placement Officer'],
-    ['program_topper','Program Topper'],  // ✅ ADDED
-    ['author','Author']
+    ['program_topper','Program Topper'],
+    ['author','Author'],
     ['alumni','Alumni'],
     ['student','Student']
   ];
@@ -1899,13 +1908,40 @@ document.addEventListener('click', async (e) => {
   }
 
   const removeBtn = e.target.closest('[data-remove="row"]');
-  if (removeBtn){
-    e.preventDefault();
-    const row = removeBtn.closest('.editor-row');
-    if (row) row.remove();
-    if (state.currentSection === 'social') refreshSidebarSocialFromInputs();
-    return;
+if (removeBtn){
+  e.preventDefault();
+
+  const row = removeBtn.closest('.editor-row');
+  if (!row) return;
+
+  const rowType = row.getAttribute('data-row');
+  const uuid = row.querySelector('[data-field="uuid"]')?.value?.trim() || '';
+
+  const removeMap = {
+    education: 'educations_remove',
+    honors: 'honors_remove',
+    journals: 'journals_remove',
+    conferences: 'conference_publications_remove',
+    teaching: 'teaching_engagements_remove',
+    social: 'social_media_remove'
+  };
+
+  const removeKey = removeMap[rowType];
+
+  if (uuid && removeKey) {
+    if (!state.removed[removeKey].includes(uuid)) {
+      state.removed[removeKey].push(uuid);
+    }
   }
+
+  row.remove();
+
+  if (state.currentSection === 'social') {
+    refreshSidebarSocialFromInputs();
+  }
+
+  return;
+}
 
   const browseBtn = e.target.closest('[data-file-browse="1"]');
   if (browseBtn){
@@ -2257,6 +2293,9 @@ function collectList(containerId, rowType){
 
 /* =========================
    Save logic
+   ✅ FIX 2: After successful profile save, re-render the current section
+             so that server-assigned UUIDs are reflected in the DOM.
+             This prevents duplicate entries on subsequent saves.
 ========================= */
 async function saveAll(){
   try{
@@ -2302,12 +2341,18 @@ async function saveAll(){
 
     const profilePayload = {};
     if ($('personalForm')) profilePayload.personal = collectPersonalPayload();
-    if ($('socialList')) profilePayload.social_media = collectList('socialList', 'social');
-    if ($('eduList')) profilePayload.educations = collectList('eduList', 'education');
-    if ($('honorsList')) profilePayload.honors = collectList('honorsList', 'honors');
-    if ($('journalsList')) profilePayload.journals = collectList('journalsList', 'journals');
-    if ($('conferencesList')) profilePayload.conference_publications = collectList('conferencesList', 'conferences');
-    if ($('teachingList')) profilePayload.teaching_engagements = collectList('teachingList', 'teaching');
+if ($('socialList')) profilePayload.social_media = collectList('socialList', 'social');
+if ($('eduList')) profilePayload.educations = collectList('eduList', 'education');
+if ($('honorsList')) profilePayload.honors = collectList('honorsList', 'honors');
+if ($('journalsList')) profilePayload.journals = collectList('journalsList', 'journals');
+if ($('conferencesList')) profilePayload.conference_publications = collectList('conferencesList', 'conferences');
+if ($('teachingList')) profilePayload.teaching_engagements = collectList('teachingList', 'teaching');
+
+Object.entries(state.removed).forEach(([key, arr]) => {
+  if (Array.isArray(arr) && arr.length) {
+    profilePayload[key] = arr;
+  }
+});
 
     if (Object.keys(profilePayload).length){
       let res2 = await fetch(`/api/users/${encodeURIComponent(state.uuid)}/profile`, {
@@ -2341,6 +2386,12 @@ async function saveAll(){
 
       initSidebar();
       applyManageLinks();
+
+Object.keys(state.removed).forEach(k => state.removed[k] = []);
+      // ✅ FIX 2: Re-render the current section after save so the DOM
+      //    picks up server-assigned UUIDs. Without this, newly added rows
+      //    keep empty UUID fields and clicking save again creates duplicates.
+      await loadSection(state.currentSection);
     }
 
     ok('Profile updated successfully');

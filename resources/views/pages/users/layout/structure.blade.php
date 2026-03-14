@@ -962,7 +962,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try{
-      const res = await fetch('/api/my/sidebar-menus', {
+      const res = await fetch('/api/my/sidebar-menus?with_actions=1', {
         method: 'GET',
         headers: {
           'Authorization': 'Bearer ' + token,
@@ -977,6 +977,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const data = await res.json();
+      window.ACTOR_MENU_TREE = data?.tree || [];
+
 
       // ✅ If backend returns string "all" for admin-like access
       if (data === 'all' || data?.tree === 'all') {

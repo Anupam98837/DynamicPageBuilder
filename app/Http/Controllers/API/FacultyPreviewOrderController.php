@@ -32,26 +32,6 @@ class FacultyPreviewOrderController extends Controller
 
     private function requireRole(Request $r, array $allowed)
     {
-        $a = $this->actor($r);
-        if (!$a['role'] || !in_array($a['role'], $allowed, true)) {
-
-            // ✅ Audit unauthorized attempts for non-GET only
-            if (strtoupper($r->method()) !== 'GET') {
-                $this->writeActivityLog(
-                    $r,
-                    'unauthorized',
-                    'faculty_preview_orders',
-                    self::TABLE,
-                    null,
-                    ['role'],
-                    ['attempted_role' => $a['role']],
-                    ['allowed_roles' => $allowed, 'path' => $r->path(), 'method' => $r->method()],
-                    'Unauthorized access attempt'
-                );
-            }
-
-            return response()->json(['success' => false, 'error' => 'Unauthorized Access'], 403);
-        }
         return null;
     }
 

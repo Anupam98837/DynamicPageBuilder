@@ -67,10 +67,9 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
   scroll-behavior: smooth;
-  padding-bottom: 44px; /* room for scroll hint */
+  padding-bottom: 44px;
 }
 
-/* subtle scrollbar */
 .profile-sidebar::-webkit-scrollbar { width: 8px; }
 .profile-sidebar::-webkit-scrollbar-thumb {
   background: rgba(100,116,139,.35);
@@ -80,14 +79,14 @@ body {
 }
 .profile-sidebar::-webkit-scrollbar-track { background: transparent; }
 
-/* Scroll hint (down arrow) */
+/* Scroll hint */
 .scroll-hint {
   position: sticky;
   bottom: 10px;
   left: 0;
   right: 0;
   margin-top: 14px;
-  display: none; /* toggled by JS */
+  display: none;
   justify-content: center;
   pointer-events: none;
   z-index: 5;
@@ -168,7 +167,13 @@ html.theme-dark .scroll-hint .hint-pill{
 .contact-item:last-child { margin-bottom: 0; }
 .contact-item i { color: var(--primary-color); width: 20px; }
 
-.profile-social { display: flex; justify-content: center; gap: 12px; margin: 20px 0; }
+.profile-social {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin: 20px 0;
+  flex-wrap: wrap;
+}
 .profile-social a {
   width: 44px; height: 44px;
   border-radius: var(--radius-md);
@@ -177,8 +182,24 @@ html.theme-dark .scroll-hint .hint-pill{
   color: var(--ink);
   transition: all 0.3s ease;
   border: 1px solid var(--line-strong);
+  overflow: hidden;
+  flex: 0 0 44px;
 }
-.profile-social a:hover { background: var(--primary-color); color: white; transform: translateY(-3px); box-shadow: var(--shadow-3); }
+.profile-social a:hover {
+  background: var(--primary-color);
+  color: white;
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-3);
+}
+.profile-social a img{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.profile-social a i{
+  font-size: 16px;
+}
 
 /* Nav */
 .profile-nav { margin-top: 24px; display: grid; gap: 8px; }
@@ -202,7 +223,6 @@ html.theme-dark .scroll-hint .hint-pill{
 /* ===== Content Area ===== */
 .profile-content { position: relative; min-height: 600px; }
 
-/* Loading Indicator */
 .loading-indicator {
   position: absolute; top: 50%; left: 50%;
   transform: translate(-50%, -50%);
@@ -249,7 +269,6 @@ html.theme-dark .scroll-hint .hint-pill{
   display: flex; align-items: center; justify-content: center;
 }
 
-/* ✅ Smooth separators inside Personal Information (and any section that uses it) */
 .kv-divider{
   grid-column: 1 / -1;
   height: 1px;
@@ -347,15 +366,12 @@ html.theme-dark .kv-divider{
   .card-image { width: 100%; height: 180px; }
 }
 
-/* ===== Tags ===== */
 .tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
 .tag { background: var(--surface-alt); color: var(--muted-color); padding: 4px 12px; border-radius: 20px; font-size: 0.85rem; border: 1px solid var(--line-strong); }
 
-/* ===== Empty State ===== */
 .empty { color: var(--muted-color); text-align: center; padding: 40px 20px; font-size: 1rem; }
 .empty i { font-size: 2rem; margin-bottom: 16px; display: block; color: var(--line-strong); }
 
-/* ===== Status Indicator ===== */
 .status-indicator {
   display: inline-flex;
   align-items: center;
@@ -374,7 +390,6 @@ html.theme-dark .kv-divider{
   border-radius: 50%;
 }
 
-/* ===== Qualification List ===== */
 .qualification-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .qualification-tag {
   background: var(--primary-light);
@@ -385,7 +400,6 @@ html.theme-dark .kv-divider{
   font-weight: 500;
 }
 
-/* ===== Active Section Indicator ===== */
 .section-indicator {
   position: fixed;
   bottom: 20px; right: 20px;
@@ -406,9 +420,8 @@ html.theme-dark .kv-divider{
 
 <body>
 
-    @include('landing.components.header')
-
-    @include('landing.components.headerMenu')
+@include('landing.components.header')
+@include('landing.components.headerMenu')
 
 <div class="profile-layout">
 
@@ -467,10 +480,8 @@ html.theme-dark .kv-divider{
     </button>
   </div>
 
-  <!-- ✅ Scroll indicator -->
   <div class="scroll-hint" id="scrollHint" aria-hidden="true">
     <div class="hint-pill">
-
       <i class="fa fa-arrow-down"></i>
     </div>
   </div>
@@ -478,19 +489,16 @@ html.theme-dark .kv-divider{
 
 <!-- ================= CONTENT AREA ================= -->
 <main class="profile-content" id="contentArea">
-  <!-- Loading indicator -->
   <div class="loading-indicator" id="loadingIndicator">
     <div class="loading-spinner"></div>
     <div>Loading section...</div>
   </div>
 
-  <!-- Content will be dynamically loaded here -->
   <div id="dynamicContent"></div>
 </main>
 
 </div>
 
-<!-- Active section indicator -->
 <div class="section-indicator" id="sectionIndicator">
   Viewing: <span id="currentSectionName">Basic Details</span>
 </div>
@@ -524,12 +532,8 @@ async function initApp() {
     profileData = json.data || {};
 
     initSidebar();
-
     await loadSection('basic');
-
     setupNavigation();
-
-    // ✅ setup sidebar scroll hint
     setupSidebarScrollHint();
 
   } catch (error) {
@@ -538,6 +542,43 @@ async function initApp() {
   } finally {
     showLoading(false);
   }
+}
+
+function escapeHtml(str) {
+  return (str ?? '').toString().replace(/[&<>"']/g, s => ({
+    '&':'&amp;',
+    '<':'&lt;',
+    '>':'&gt;',
+    '"':'&quot;',
+    "'":'&#39;'
+  }[s]));
+}
+function escapeAttr(str) { return escapeHtml(str); }
+
+function isProbablyImagePath(v){
+  const s = (v || '').toString().trim().toLowerCase();
+  if (!s) return false;
+  if (s.startsWith('data:image/')) return true;
+  if (s.startsWith('http://') || s.startsWith('https://')) return true;
+  if (s.includes('/')) return true;
+  return (/\.(png|jpg|jpeg|webp|gif|svg)$/i).test(s);
+}
+function isProbablyPdf(v){
+  const s = (v || '').toString().trim().toLowerCase();
+  return s.endsWith('.pdf');
+}
+function isProbablyFAClass(v){
+  const s = (v || '').toString().trim();
+  if (!s) return false;
+  if (s.includes('fa-')) return true;
+  if (s.startsWith('fa ') || s.startsWith('fa-') || s.startsWith('fa-solid') || s.startsWith('fa-brands')) return true;
+  return false;
+}
+function normalizeUrl(url){
+  const v = (url || '').toString().trim();
+  if (!v) return '';
+  if (/^(https?:\/\/|mailto:|tel:)/i.test(v)) return v;
+  return v.startsWith('/') ? v : `https://${v}`;
 }
 
 // Initialize sidebar
@@ -552,32 +593,77 @@ function initSidebar() {
 
   const avatar = document.getElementById('avatar');
   if (d.image) {
-    avatar.innerHTML = `<img src="${d.image}" alt="avatar">`;
+    avatar.innerHTML = `<img src="${escapeAttr(d.image)}" alt="avatar">`;
   } else {
     avatar.innerHTML = `<i class="fa fa-user-graduate"></i>`;
   }
 
+  renderSocialIcons(profileData.social_media || []);
+}
+
+function renderSocialIcons(arr) {
   const socialIconsMap = {
     'linkedin': 'fa-brands fa-linkedin',
     'github': 'fa-brands fa-github',
     'orcid': 'fa-brands fa-orcid',
     'google scholar': 'fa fa-graduation-cap',
+    'googlescholar': 'fa fa-graduation-cap',
     'researchgate': 'fa-brands fa-researchgate',
     'twitter': 'fa-brands fa-twitter',
-    'facebook': 'fa-brands fa-facebook'
+    'x': 'fa-brands fa-x-twitter',
+    'facebook': 'fa-brands fa-facebook-f',
+    'instagram': 'fa-brands fa-instagram',
+    'youtube': 'fa-brands fa-youtube',
+    'website': 'fa fa-globe',
+    'web': 'fa fa-globe',
+    'portfolio': 'fa fa-globe',
+    'mail': 'fa fa-envelope',
+    'email': 'fa fa-envelope'
   };
 
   const socialIcons = document.getElementById('socialIcons');
+  if (!socialIcons) return;
+
   socialIcons.innerHTML = '';
 
-  (profileData.social_media || []).forEach(s => {
-    const platform = (s.platform || '').toLowerCase();
-    const iconClass = socialIconsMap[platform] || 'fa fa-link';
-    if (!s.link) return;
+  const rows = (arr || [])
+    .filter(s => {
+      const a = s?.active;
+      if (a === undefined || a === null || a === '') return true;
+      const v = String(a).toLowerCase();
+      return (v === '1' || v === 'true' || v === 'yes');
+    })
+    .sort((a, b) => {
+      const sa = Number(a?.sort_order ?? 0);
+      const sb = Number(b?.sort_order ?? 0);
+      if (Number.isFinite(sa) && Number.isFinite(sb) && sa !== sb) return sa - sb;
+      return 0;
+    });
+
+  rows.forEach(s => {
+    const link = normalizeUrl(s?.link || '');
+    if (!link) return;
+
+    const platform = (s?.platform || '').toLowerCase().trim();
+    const customIcon = (s?.icon || '').toString().trim();
+    const title = s?.platform || 'Link';
+
+    if (customIcon && isProbablyImagePath(customIcon) && !isProbablyPdf(customIcon)) {
+      socialIcons.insertAdjacentHTML('beforeend', `
+        <a href="${escapeAttr(link)}" target="_blank" title="${escapeAttr(title)}" rel="noopener noreferrer">
+          <img src="${escapeAttr(customIcon)}" alt="${escapeAttr(title)}">
+        </a>
+      `);
+      return;
+    }
+
+    const iconClass = (customIcon && isProbablyFAClass(customIcon))
+      ? customIcon
+      : (socialIconsMap[platform] || 'fa fa-link');
 
     socialIcons.insertAdjacentHTML('beforeend', `
-      <a href="${s.link}" target="_blank" title="${s.platform || 'Link'}" rel="noopener noreferrer">
-        <i class="${iconClass}"></i>
+      <a href="${escapeAttr(link)}" target="_blank" title="${escapeAttr(title)}" rel="noopener noreferrer">
+        <i class="${escapeAttr(iconClass)}"></i>
       </a>
     `);
   });
@@ -603,7 +689,6 @@ function setupNavigation() {
 
   window.addEventListener('popstate', async (event) => {
     if (event.state && event.state.section) {
-      // sync active button
       const btn = document.querySelector(`.profile-nav button[data-section="${event.state.section}"]`);
       if (btn) {
         document.querySelectorAll('.profile-nav button').forEach(b => b.classList.remove('active'));
@@ -622,7 +707,7 @@ function setupNavigation() {
   }
 }
 
-// ✅ Sidebar scroll hint logic
+// Sidebar scroll hint
 function setupSidebarScrollHint(){
   const sidebar = document.getElementById('profileSidebar');
   const hint = document.getElementById('scrollHint');
@@ -639,18 +724,15 @@ function setupSidebarScrollHint(){
     hint.style.display = atBottom ? 'none' : 'flex';
   };
 
-  // initial (after layout)
   requestAnimationFrame(updateHint);
   setTimeout(updateHint, 250);
 
   sidebar.addEventListener('scroll', updateHint, { passive:true });
   window.addEventListener('resize', updateHint);
 
-  // also update when content changes (e.g., different fonts/images load)
   const mo = new MutationObserver(() => setTimeout(updateHint, 60));
   mo.observe(sidebar, { childList:true, subtree:true });
 
-  // image load might change height
   sidebar.querySelectorAll('img').forEach(img => img.addEventListener('load', updateHint));
 }
 
@@ -663,13 +745,11 @@ async function loadSection(sectionId) {
     currentSection = sectionId;
 
     showLoading(true);
-
     updateSectionIndicator(sections[sectionId].title);
 
     const dynamicContent = document.getElementById('dynamicContent');
     dynamicContent.innerHTML = '';
 
-    // keep your UX delay
     await new Promise(resolve => setTimeout(resolve, 300));
 
     const sectionHTML = sections[sectionId].render();
@@ -707,7 +787,7 @@ function showError(message) {
     <div class="profile-card">
       <div class="empty">
         <i class="fa fa-exclamation-triangle"></i>
-        <div>${message}</div>
+        <div>${escapeHtml(message)}</div>
       </div>
     </div>
   `;
@@ -753,14 +833,15 @@ function renderBasicSection() {
     'WhatsApp': d.whatsapp_number || '—',
     'Address': d.address?.replace(/\n/g, '<br>') || '—',
     'Role': d.role || '—',
-    'Status': `<span class="status-indicator">${d.status || '—'}</span>`,
-    'Member Since': d.created_at ?
-      new Date(d.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'
+    'Status': `<span class="status-indicator">${escapeHtml(d.status || '—')}</span>`,
+    'Member Since': d.created_at
+      ? new Date(d.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+      : '—'
   };
 
   const kvHTML = Object.entries(basicFields)
     .map(([k, v]) => `
-      <div class="k">${k.replace(/_/g, ' ').toUpperCase()}</div>
+      <div class="k">${escapeHtml(k.replace(/_/g, ' ').toUpperCase())}</div>
       <div class="v">${v}</div>
     `).join('');
 
@@ -775,13 +856,14 @@ function renderBasicSection() {
 function renderPersonalSection() {
   const d = profileData.personal || {};
 
-  // ✅ order + separators for readability
+  const qualificationHTML = d.qualification
+    ? `<div class="qualification-list">
+        ${d.qualification.map(q => `<span class="qualification-tag">${escapeHtml(q)}</span>`).join('')}
+      </div>`
+    : '—';
+
   const personalItems = [
-    ['Qualifications', d.qualification ?
-      `<div class="qualification-list">
-        ${d.qualification.map(q => `<span class="qualification-tag">${q}</span>`).join('')}
-      </div>` : '—'
-    ],
+    ['Qualifications', qualificationHTML],
     ['Affiliation', formatText(d.affiliation || '—')],
     ['Specification', formatText(d.specification || '—')],
     ['Experience', formatText(d.experience || '—')],
@@ -791,7 +873,7 @@ function renderPersonalSection() {
   ];
 
   const kvHTML = personalItems.map(([k, v], idx) => `
-      <div class="k">${String(k).replace(/_/g, ' ').toUpperCase()}</div>
+      <div class="k">${escapeHtml(String(k).replace(/_/g, ' ').toUpperCase())}</div>
       <div class="v">${v}</div>
       ${idx < personalItems.length - 1 ? `<div class="kv-divider" aria-hidden="true"></div>` : ``}
   `).join('');
@@ -825,27 +907,27 @@ function renderEducationSection() {
         <i class="fa fa-university"></i>
       </div>
       <div class="card-content">
-        <div class="card-title">${edu.degree_title || edu.education_level || '—'}</div>
+        <div class="card-title">${escapeHtml(edu.degree_title || edu.education_level || '—')}</div>
         <div class="card-meta">
           <div class="card-meta-item">
             <i class="fa fa-university"></i>
-            <span>${edu.institution_name || edu.university_name || '—'}</span>
+            <span>${escapeHtml(edu.institution_name || edu.university_name || '—')}</span>
           </div>
           <div class="card-meta-item">
             <i class="fa fa-map-marker-alt"></i>
-            <span>${edu.location || '—'}</span>
+            <span>${escapeHtml(edu.location || '—')}</span>
           </div>
           <div class="card-meta-item">
             <i class="fa fa-calendar"></i>
-            <span>${edu.passing_year || '—'}</span>
+            <span>${escapeHtml(edu.passing_year || '—')}</span>
           </div>
           <div class="card-meta-item">
             <i class="fa fa-chart-line"></i>
-            <span>${edu.grade_type || 'Grade'}: ${edu.grade_value || '—'}</span>
+            <span>${escapeHtml(edu.grade_type || 'Grade')}: ${escapeHtml(edu.grade_value || '—')}</span>
           </div>
         </div>
-        ${edu.field_of_study ? `<div class="card-badge">${edu.field_of_study}</div>` : ''}
-        ${edu.description ? `<div class="card-desc">${edu.description}</div>` : ''}
+        ${edu.field_of_study ? `<div class="card-badge">${escapeHtml(edu.field_of_study)}</div>` : ''}
+        ${edu.description ? `<div class="card-desc">${escapeHtml(edu.description)}</div>` : ''}
       </div>
     </div>
   `).join('');
@@ -876,25 +958,25 @@ function renderHonorsSection() {
   const honorsHTML = honors.map(honor => `
     <div class="content-card">
       <div class="card-image">
-        ${honor.image ? `<img src="${honor.image}" alt="${honor.title || 'Honor'}" loading="lazy">` : '<i class="fa fa-award"></i>'}
+        ${honor.image ? `<img src="${escapeAttr(honor.image)}" alt="${escapeAttr(honor.title || 'Honor')}" loading="lazy">` : '<i class="fa fa-award"></i>'}
       </div>
       <div class="card-content">
-        <div class="card-title">${honor.title || '—'}</div>
+        <div class="card-title">${escapeHtml(honor.title || '—')}</div>
         <div class="card-meta">
           <div class="card-meta-item">
             <i class="fa fa-building"></i>
-            <span>${honor.honouring_organization || '—'}</span>
+            <span>${escapeHtml(honor.honouring_organization || '—')}</span>
           </div>
           <div class="card-meta-item">
             <i class="fa fa-calendar"></i>
-            <span>${honor.honor_year || '—'}</span>
+            <span>${escapeHtml(honor.honor_year || '—')}</span>
           </div>
           <div class="card-meta-item">
             <i class="fa fa-tag"></i>
-            <span>${honor.honor_type || 'Award'}</span>
+            <span>${escapeHtml(honor.honor_type || 'Award')}</span>
           </div>
         </div>
-        ${honor.description ? `<div class="card-desc">${honor.description}</div>` : ''}
+        ${honor.description ? `<div class="card-desc">${escapeHtml(honor.description)}</div>` : ''}
       </div>
     </div>
   `).join('');
@@ -925,24 +1007,24 @@ function renderJournalsSection() {
   const journalsHTML = journals.map(journal => `
     <div class="content-card">
       <div class="card-image">
-        ${journal.image ? `<img src="${journal.image}" alt="${journal.title || 'Journal'}" loading="lazy">` : '<i class="fa fa-newspaper"></i>'}
+        ${journal.image ? `<img src="${escapeAttr(journal.image)}" alt="${escapeAttr(journal.title || 'Journal')}" loading="lazy">` : '<i class="fa fa-newspaper"></i>'}
       </div>
       <div class="card-content">
-        <div class="card-title">${journal.title || '—'}</div>
+        <div class="card-title">${escapeHtml(journal.title || '—')}</div>
         <div class="card-meta">
           <div class="card-meta-item">
             <i class="fa fa-building"></i>
-            <span>${journal.publication_organization || '—'}</span>
+            <span>${escapeHtml(journal.publication_organization || '—')}</span>
           </div>
           <div class="card-meta-item">
             <i class="fa fa-calendar"></i>
-            <span>${journal.publication_year || '—'}</span>
+            <span>${escapeHtml(journal.publication_year || '—')}</span>
           </div>
         </div>
-        ${journal.description ? `<div class="card-desc">${journal.description}</div>` : ''}
+        ${journal.description ? `<div class="card-desc">${escapeHtml(journal.description)}</div>` : ''}
         ${journal.url ? `
           <div class="card-link">
-            <a href="${journal.url}" target="_blank" rel="noopener noreferrer">
+            <a href="${escapeAttr(normalizeUrl(journal.url))}" target="_blank" rel="noopener noreferrer">
               <i class="fa fa-external-link-alt"></i> View Publication
             </a>
           </div>
@@ -977,33 +1059,33 @@ function renderConferencesSection() {
   const conferencesHTML = conferences.map(conf => `
     <div class="content-card">
       <div class="card-image">
-        ${conf.image ? `<img src="${conf.image}" alt="${conf.title || 'Conference'}" loading="lazy">` : '<i class="fa fa-microphone-alt"></i>'}
+        ${conf.image ? `<img src="${escapeAttr(conf.image)}" alt="${escapeAttr(conf.title || 'Conference')}" loading="lazy">` : '<i class="fa fa-microphone-alt"></i>'}
       </div>
       <div class="card-content">
-        <div class="card-title">${conf.title || '—'}</div>
+        <div class="card-title">${escapeHtml(conf.title || '—')}</div>
         <div class="card-meta">
           <div class="card-meta-item">
             <i class="fa fa-calendar"></i>
-            <span>${conf.publication_year || '—'}</span>
+            <span>${escapeHtml(conf.publication_year || '—')}</span>
           </div>
           <div class="card-meta-item">
             <i class="fa fa-map-marker-alt"></i>
-            <span>${conf.location || '—'}</span>
+            <span>${escapeHtml(conf.location || '—')}</span>
           </div>
           <div class="card-meta-item">
             <i class="fa fa-tag"></i>
-            <span>${conf.publication_type || 'Paper'}</span>
+            <span>${escapeHtml(conf.publication_type || 'Paper')}</span>
           </div>
           <div class="card-meta-item">
             <i class="fa fa-building"></i>
-            <span>${conf.conference_name || '—'}</span>
+            <span>${escapeHtml(conf.conference_name || '—')}</span>
           </div>
         </div>
-        ${conf.domain ? `<div class="card-badge">${conf.domain}</div>` : ''}
-        ${conf.description ? `<div class="card-desc">${conf.description}</div>` : ''}
+        ${conf.domain ? `<div class="card-badge">${escapeHtml(conf.domain)}</div>` : ''}
+        ${conf.description ? `<div class="card-desc">${escapeHtml(conf.description)}</div>` : ''}
         ${conf.url ? `
           <div class="card-link">
-            <a href="${conf.url}" target="_blank" rel="noopener noreferrer">
+            <a href="${escapeAttr(normalizeUrl(conf.url))}" target="_blank" rel="noopener noreferrer">
               <i class="fa fa-external-link-alt"></i> View Details
             </a>
           </div>
@@ -1041,14 +1123,14 @@ function renderTeachingSection() {
         <i class="fa fa-chalkboard-teacher"></i>
       </div>
       <div class="card-content">
-        <div class="card-title">${teach.organization_name || '—'}</div>
+        <div class="card-title">${escapeHtml(teach.organization_name || '—')}</div>
         <div class="card-meta">
           <div class="card-meta-item">
             <i class="fa fa-tag"></i>
-            <span>${teach.domain || '—'}</span>
+            <span>${escapeHtml(teach.domain || '—')}</span>
           </div>
         </div>
-        ${teach.description ? `<div class="card-desc">${teach.description}</div>` : ''}
+        ${teach.description ? `<div class="card-desc">${escapeHtml(teach.description)}</div>` : ''}
       </div>
     </div>
   `).join('');
@@ -1061,7 +1143,6 @@ function renderTeachingSection() {
   `;
 }
 
-// Initialize the app when DOM is loaded
 document.addEventListener('DOMContentLoaded', initApp);
 </script>
 

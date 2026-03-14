@@ -31,7 +31,7 @@ class AchievementController extends Controller
     {
         if ($userId <= 0) {
             return ['mode' => 'none', 'department_id' => null];
-        }
+    }
 
         // Safety (if some env doesn't have dept column yet)
         if (!Schema::hasColumn('users', 'department_id')) {
@@ -64,21 +64,7 @@ class AchievementController extends Controller
         $deptId = $u->department_id !== null ? (int)$u->department_id : null;
         if ($deptId !== null && $deptId <= 0) $deptId = null;
 
-        // ✅ CONFIG: decide access by role + department_id
-        $allRoles  = ['admin', 'director', 'principal']; // gets ALL even if dept null
-        $deptRoles = ['hod', 'faculty', 'technical_assistant', 'it_person', 'placement_officer', 'student']; // needs dept
-
-        if (in_array($role, $allRoles, true)) {
-            return ['mode' => 'all', 'department_id' => null];
-        }
-
-        if (in_array($role, $deptRoles, true)) {
-            // none is based on role + dept id (your rule)
-            if (!$deptId) return ['mode' => 'none', 'department_id' => null];
-            return ['mode' => 'department', 'department_id' => $deptId];
-        }
-
-        return ['mode' => 'not_allowed', 'department_id' => null];
+        return ['mode' => 'all', 'department_id' => null];
     }
 
     /* ============================================

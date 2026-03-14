@@ -922,13 +922,32 @@ document.addEventListener('DOMContentLoaded', function () {
   };
 
   function computePermissions() {
-    const r = (ACTOR.role || '').toLowerCase();
-    const createDeleteRoles = ['admin', 'director', 'principal'];
-    const writeRoles = ['admin', 'director', 'principal', 'hod'];
-
-    canCreate = createDeleteRoles.includes(r);
-    canDelete = createDeleteRoles.includes(r);
-    canEdit = writeRoles.includes(r);
+    const r = (ACTOR?.role || '').toLowerCase();
+      const adminRoles = ['admin', 'director', 'principal'];
+      if(adminRoles.includes(r)){
+          canCreate = canEdit = canDelete = true;
+      } else {
+          canCreate = canEdit = canDelete = false;
+          if (window.ACTOR_MENU_TREE && Array.isArray(window.ACTOR_MENU_TREE)) {
+             const path = window.location.pathname.replace(/\/+$/, '') || '/';
+             let myActions = [];
+             for(const group of window.ACTOR_MENU_TREE) {
+                if(group.children) {
+                   for(const child of group.children) {
+                      const childPath = (child.href || '').replace(/\/+$/, '') || '/';
+                      if(childPath === path) {
+                         myActions = child.actions || [];
+                         break;
+                      }
+                   }
+                }
+             }
+             const actionsStr = myActions.map(a => a.toLowerCase());
+             if (actionsStr.includes('add') || actionsStr.includes('create')) canCreate = true;
+             if (actionsStr.includes('edit') || actionsStr.includes('update')) canEdit = true;
+             if (actionsStr.includes('delete') || actionsStr.includes('remove')) canDelete = true;
+          }
+      }
 
     if (writeControls) writeControls.style.display = canCreate ? 'flex' : 'none';
 
@@ -947,6 +966,16 @@ document.addEventListener('DOMContentLoaded', function () {
         ACTOR.role = (js.data.role || '').toLowerCase();
       } else {
         ACTOR.role = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
+      }
+      
+      if (!window.ACTOR_MENU_TREE) {
+        try {
+          const mRes = await fetchWithTimeout('/api/my/sidebar-menus?with_actions=1', { headers: authHeaders() }, 5000);
+          if (mRes.ok) {
+              const mData = await mRes.json();
+              window.ACTOR_MENU_TREE = mData?.tree || [];
+          }
+        } catch(e) {}
       }
       computePermissions();
     } catch (e) {

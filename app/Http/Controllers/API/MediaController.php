@@ -189,19 +189,25 @@ class MediaController extends Controller
 
         try {
             $file = $request->file('file');
-            $ext  = $file->getClientOriginalExtension();
-            $name = Str::uuid() . '.' . $ext;
+
+            // ✅ Keep original uploaded file name
+            $originalName = $file->getClientOriginalName();
+            $originalName = basename($originalName); // extra safety
+
+            // ✅ Use unique folder so duplicate file names are allowed
+            $uploadFolder = (string) Str::uuid();
 
             // ensure user directory
-            $destDir = public_path("assets/media/{$userId}");
+            $destDir = public_path("assets/media/{$userId}/{$uploadFolder}");
             if (! File::exists($destDir)) {
                 File::makeDirectory($destDir, 0755, true);
                 Log::info('Created media directory', ['path' => $destDir]);
             }
 
-            $file->move($destDir, $name);
+            // ✅ Store with original name only
+            $file->move($destDir, $originalName);
 
-            $relPath = "assets/media/{$userId}/{$name}";
+            $relPath = "assets/media/{$userId}/{$uploadFolder}/{$originalName}";
             $url     = asset($relPath);
             $size    = File::size(public_path($relPath));
 

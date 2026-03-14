@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class UserProfileController extends Controller
 {
@@ -279,13 +281,23 @@ public function show(Request $request, string $user_uuid)
             throw $he;
 
         } catch (\Throwable $e) {
-            DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'error'   => 'Profile save failed',
-                'details' => app()->environment('production') ? null : $e->getMessage(),
-            ], 500);
-        }
+    DB::rollBack();
+
+    \Log::error('UserProfileController persistProfile failed', [
+        'user_id'   => $user->id ?? null,
+        'user_uuid' => $user->uuid ?? null,
+        'mode'      => $mode,
+        'payload'   => $request->all(),
+        'error'     => $e->getMessage(),
+        'trace'     => $e->getTraceAsString(),
+    ]);
+
+    return response()->json([
+        'success' => false,
+        'error'   => 'Profile save failed',
+        'details' => app()->environment('production') ? null : $e->getMessage(),
+    ], 500);
+}
     }
 
     /* =========================================================
@@ -343,90 +355,105 @@ public function show(Request $request, string $user_uuid)
             );
         }
     }
+private function persistPersonal(Request $request, object $user, array $personal, string $mode, string $noteBase)
+{
+    $table = 'user_personal_information';
 
-    private function persistPersonal(Request $request, object $user, array $personal, string $mode, string $noteBase)
-    {
-        $allowed = [
-            'qualification','affiliation','specification','experience','interest','administration','research_project',
-        ];
+    $allowed = [
+        'qualification','affiliation','specification','experience','interest','administration','research_project',
+    ];
 
-        $data = [];
-        foreach ($allowed as $f) {
-            if (array_key_exists($f, $personal)) $data[$f] = $personal[$f];
+    $data = [];
+    foreach ($allowed as $f) {
+        if (array_key_exists($f, $personal)) $data[$f] = $personal[$f];
+    }
+
+    if (array_key_exists('qualification', $data)) {
+        $data['qualification'] = is_array($data['qualification'])
+            ? json_encode($data['qualification'], JSON_UNESCAPED_UNICODE)
+            : (is_string($data['qualification']) ? $data['qualification'] : json_encode([], JSON_UNESCAPED_UNICODE));
+    }
+
+    if (empty($data)) return;
+
+    $existing = DB::table($table)
+        ->where('user_id', $user->id)
+        ->whereNull('deleted_at')
+        ->first();
+
+    $auth = $this->authUserRow($request);
+    $actor = $this->actor($request);
+    $actorId = (int)($auth->id ?? $actor['id'] ?? 0);
+    $now = now();
+
+    if ($existing) {
+        $before = clone $existing;
+
+        $updateData = $data;
+        $updateData['updated_at'] = $now;
+
+        if ($this->hasCol($table, 'updated_by')) {
+            $updateData['updated_by'] = $actorId ?: null;
+        }
+        if ($this->hasCol($table, 'updated_at_ip')) {
+            $updateData['updated_at_ip'] = $request->ip();
         }
 
-        if (array_key_exists('qualification', $data)) {
-            $data['qualification'] = is_array($data['qualification'])
-                ? json_encode($data['qualification'])
-                : (is_string($data['qualification']) ? $data['qualification'] : json_encode([]));
-        }
+        DB::table($table)->where('id', $existing->id)->update($updateData);
+        $after = DB::table($table)->where('id', $existing->id)->first();
 
-        if (empty($data)) return;
-
-        $existing = DB::table('user_personal_information')
-            ->where('user_id', $user->id)
-            ->whereNull('deleted_at')
-            ->first();
-
-        // ✅ use attribute-based auth if guard user missing
-        $auth = $this->authUserRow($request);
-        $actor = $this->actor($request);
-
-        $now  = now();
-
-        if ($existing) {
-            $before = $existing;
-
-            $updateData = $data;
-            $updateData['updated_at'] = $now;
-
-            DB::table('user_personal_information')->where('id', $existing->id)->update($updateData);
-            $after = DB::table('user_personal_information')->where('id', $existing->id)->first();
-
-            $diff = $this->diffRow($before, $after, array_keys($data));
-            if (!empty($diff['changed_fields'])) {
-                $this->writeActivityLog(
-                    $request,
-                    'update',
-                    'user_profile',
-                    'user_personal_information',
-                    (int)$existing->id,
-                    $diff,
-                    "Personal updated. {$noteBase}"
-                );
-            }
-        } else {
-            $insert = $data;
-            $insert['uuid']          = (string) Str::uuid();
-            $insert['user_id']       = $user->id;
-
-            $actorId = (int)($auth->id ?? $actor['id'] ?? 0);
-            $insert['created_by']    = $actorId ?: null;
-
-            $insert['created_at_ip'] = $request->ip();
-            $insert['created_at']    = $now;
-            $insert['updated_at']    = $now;
-
-            $newId = DB::table('user_personal_information')->insertGetId($insert);
-            $after = DB::table('user_personal_information')->where('id', $newId)->first();
-
-            $diff = [
-                'changed_fields' => array_keys($data),
-                'old_values'     => [],
-                'new_values'     => $this->pickRow($after, array_keys($data)),
-            ];
-
+        $diff = $this->diffRow($before, $after, array_keys($data));
+        if (!empty($diff['changed_fields'])) {
             $this->writeActivityLog(
                 $request,
-                'create',
+                'update',
                 'user_profile',
-                'user_personal_information',
-                (int)$newId,
+                $table,
+                (int)$existing->id,
                 $diff,
-                "Personal created. {$noteBase}"
+                "Personal updated. {$noteBase}"
             );
         }
+    } else {
+        $insert = $data;
+$insert['uuid'] = (string) Str::uuid();
+$insert['user_id'] = $user->id;
+$insert['created_at'] = $now;
+$insert['updated_at'] = $now;
+
+if ($this->hasCol($table, 'created_by')) {
+    $insert['created_by'] = $actorId ?: null;
+}
+if ($this->hasCol($table, 'created_at_ip')) {
+    $insert['created_at_ip'] = $request->ip();
+}
+if ($this->hasCol($table, 'updated_by')) {
+    $insert['updated_by'] = $actorId ?: null;
+}
+if ($this->hasCol($table, 'updated_at_ip')) {
+    $insert['updated_at_ip'] = $request->ip();
+}
+
+$newId = DB::table($table)->insertGetId($insert);
+        $after = DB::table($table)->where('id', $newId)->first();
+
+        $diff = [
+            'changed_fields' => array_keys($data),
+            'old_values'     => [],
+            'new_values'     => $this->pickRow($after, array_keys($data)),
+        ];
+
+        $this->writeActivityLog(
+            $request,
+            'create',
+            'user_profile',
+            $table,
+            (int)$newId,
+            $diff,
+            "Personal created. {$noteBase}"
+        );
     }
+}
 
     private function persistList(
         Request $request,
@@ -511,6 +538,19 @@ public function show(Request $request, string $user_uuid)
                 $insert['created_at']    = $now;
                 $insert['updated_at']    = $now;
 
+                if ($this->hasCol($table, 'updated_by')) {
+    $updateData['updated_by'] = $actorId ?: null;
+}
+if ($this->hasCol($table, 'updated_at_ip')) {
+    $updateData['updated_at_ip'] = $request->ip();
+}
+
+if ($this->hasCol($table, 'updated_by')) {
+    $updateData['updated_by'] = $actorId ?: null;
+}
+if ($this->hasCol($table, 'updated_at_ip')) {
+    $updateData['updated_at_ip'] = $request->ip();
+}
                 $newId = DB::table($table)->insertGetId($insert);
                 $after = DB::table($table)->where('id', $newId)->first();
 
@@ -622,22 +662,24 @@ public function show(Request $request, string $user_uuid)
     /**
      * Insert into user_data_activity_log (✅ uses actor attributes if guard user missing)
      */
-    private function writeActivityLog(
-        Request $request,
-        string $activity,
-        string $module,
-        string $tableName,
-        ?int $recordId,
-        array $diff,
-        ?string $note = null
-    ) {
+
+
+private function writeActivityLog(
+    Request $request,
+    string $activity,
+    string $module,
+    string $tableName,
+    ?int $recordId,
+    array $diff,
+    ?string $note = null
+) {
+    try {
         $auth  = $this->authUserRow($request);
         $actor = $this->actor($request);
 
         $actorId   = (int)($auth->id ?? $actor['id'] ?? 0);
         $actorRole = (string)($auth->role ?? $actor['role'] ?? null);
 
-        // if somehow called without auth, skip logging safely
         if (!$actorId) return;
 
         DB::table('user_data_activity_log')->insert([
@@ -645,24 +687,36 @@ public function show(Request $request, string $user_uuid)
             'performed_by_role' => $actorRole ?: null,
             'ip'                => (string) ($request->ip() ?? null),
             'user_agent'        => substr((string) ($request->userAgent() ?? ''), 0, 512),
-
             'activity'          => $activity,
             'module'            => $module,
-
             'table_name'        => $tableName,
             'record_id'         => $recordId,
-
             'changed_fields'    => !empty($diff['changed_fields']) ? json_encode(array_values($diff['changed_fields'])) : null,
             'old_values'        => !empty($diff['old_values']) ? json_encode($diff['old_values']) : null,
             'new_values'        => !empty($diff['new_values']) ? json_encode($diff['new_values']) : null,
-
             'log_note'          => $note,
-
             'created_at'        => now(),
             'updated_at'        => now(),
         ]);
+    } catch (\Throwable $e) {
+        Log::warning('UserProfileController activity log failed', [
+            'table'     => $tableName,
+            'record_id' => $recordId,
+            'activity'  => $activity,
+            'error'     => $e->getMessage(),
+        ]);
     }
+}
 
+
+private function hasCol(string $table, string $col): bool
+{
+    try {
+        return Schema::hasColumn($table, $col);
+    } catch (\Throwable $e) {
+        return false;
+    }
+}
     /**
      * Compute diff for given fields between two DB rows (stdClass)
      */
@@ -952,12 +1006,12 @@ public function show(Request $request, string $user_uuid)
 
             'personal' => 'sometimes|nullable|array',
             'personal.qualification' => 'sometimes|nullable|array',
-            'personal.affiliation' => 'sometimes|nullable|string|max:1000',
-            'personal.specification' => 'sometimes|nullable|string|max:1000',
-            'personal.experience' => 'sometimes|nullable|string|max:1000',
-            'personal.interest' => 'sometimes|nullable|string|max:1000',
-            'personal.administration' => 'sometimes|nullable|string|max:1000',
-            'personal.research_project' => 'sometimes|nullable|string|max:2000',
+            'personal.affiliation' => 'sometimes|nullable|string',
+'personal.specification' => 'sometimes|nullable|string',
+'personal.experience' => 'sometimes|nullable|string',
+'personal.interest' => 'sometimes|nullable|string',
+'personal.administration' => 'sometimes|nullable|string',
+'personal.research_project' => 'sometimes|nullable|string',
 
             'educations' => 'sometimes|array',
             'educations.*.uuid' => 'sometimes|nullable|string|max:50',
