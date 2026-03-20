@@ -306,7 +306,9 @@
 
     {{-- SECTION 1: Primary logo --}}
     <div class="mh-sec1">
-      <img id="mhPrimaryLogo" class="mh-primary-logo mh-skel" alt="Primary logo" />
+      <a href="{{ config('app.url') }}">
+        <img id="mhPrimaryLogo" class="mh-primary-logo mh-skel" alt="Primary logo" />
+      </a>
     </div>
 
     {{-- SECTION 2: Title + rotate + affiliation marquee --}}

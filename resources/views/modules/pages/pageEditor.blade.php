@@ -513,6 +513,37 @@
   }
 
   /* ==========================
+   * ✅ Actor / Identity (For department scoping)
+   * ========================== */
+  const ACTOR = { id: null, role: null, department_id: null };
+
+  async function fetchMe() {
+    try {
+      const tryUrls = ['/api/users/me', '/api/me'];
+      let js = null;
+
+      for (const url of tryUrls) {
+        try {
+          js = await apiJson(url, { method: 'GET' });
+          if (js && js.success && js.data) break;
+        } catch (e) {
+          if (e.status === 404) continue;
+          throw e;
+        }
+      }
+
+      const d = js?.data || js?.user || js;
+      if (d) {
+        ACTOR.id = d.id || null;
+        ACTOR.role = (d.role || '').toLowerCase();
+        ACTOR.department_id = d.department_id || null;
+      }
+    } catch (e) {
+      console.error('Failed to fetch /me:', e);
+    }
+  }
+
+  /* ==========================
    * ✅ Departments dropdown loader
    * ========================== */
   async function loadDepartmentsForPageEditor(){
@@ -535,6 +566,14 @@
         opt.textContent = label;
         sel.appendChild(opt);
       });
+
+      const higherAuthorities = ['admin', 'author', 'principal', 'director', 'super_admin'];
+      const isHigher = higherAuthorities.includes(ACTOR.role);
+
+      if (ACTOR.department_id && !isHigher) {
+        sel.value = String(ACTOR.department_id);
+        sel.disabled = true;
+      }
     }catch(err){
       console.error('Departments load failed', err);
     }
@@ -965,7 +1004,10 @@
       return;
     }
 
-    loadDepartmentsForPageEditor();
+    (async () => {
+      await fetchMe();
+      await loadDepartmentsForPageEditor();
+    })();
 
     $('#btnBack').on('click', function(){
       window.location.href = '/pages/manage';

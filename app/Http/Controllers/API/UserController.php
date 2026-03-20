@@ -310,7 +310,7 @@ class UserController extends Controller
         $deptId = $u->department_id !== null ? (int)$u->department_id : null;
         if ($deptId !== null && $deptId <= 0) $deptId = null;
 
-        $adminRoles = ['admin', 'super_admin', 'director', 'principal'];
+        $adminRoles = ['admin', 'super_admin', 'director', 'principal', 'author'];
         if (in_array($role, $adminRoles, true)) {
             return ['mode' => 'all', 'department_id' => null];
         }
@@ -319,8 +319,33 @@ class UserController extends Controller
             return ['mode' => 'department', 'department_id' => $deptId];
         }
 
-        return ['mode' => 'all', 'department_id' => null];
+        return ['mode' => 'none', 'department_id' => null];
     }
+
+    /**
+     * Get allowed roles that this actor role can create/edit to.
+     */
+    private function getAllowedCreationRoles(string $actorRole): array
+    {
+        $actorRole = strtolower(trim($actorRole));
+        $rootRoles = ['admin', 'super_admin', 'director', 'principal', 'author'];
+        
+        if (in_array($actorRole, $rootRoles, true)) {
+            return self::ALLOWED_ROLES;
+        }
+        
+        if ($actorRole === 'hod') {
+            return ['faculty', 'technical_assistant', 'it_person', 'placement_officer', 'student', 'alumni', 'program_topper'];
+        }
+        
+        $staffRoles = ['faculty', 'technical_assistant', 'it_person', 'placement_officer'];
+        if (in_array($actorRole, $staffRoles, true)) {
+            return ['student', 'alumni', 'program_topper'];
+        }
+        
+        return [];
+    }
+
 
     /**
      * Normalize a role + derive short form.
@@ -868,23 +893,17 @@ if (in_array($role, [
         $data  = $v->validated();
         [$role, $roleShort] = $this->normalizeRole($data['role'] ?? null);
 
-        // ✅ department scoping: dept actors can only create inside their dept
+        // ✅ Check Role Hierarchy
+        $actorRole = strtolower(trim((string)($this->actor($request)['role'] ?? '')));
+        $allowedRoles = $this->getAllowedCreationRoles($actorRole);
+        if (!in_array($role, $allowedRoles, true)) {
+            $this->activityLog($request, 'create_denied', 'users', 'users', null, ['role'], null, ['role' => $role], 'Role hierarchy violation');
+            return response()->json(['error' => 'Cannot create user with this role'], 403);
+        }
+
+        // ✅ department scoping: dept actors MUST create inside their dept
         if ($ac['mode'] === 'department') {
-            $forcedDept = (int) $ac['department_id'];
-
-            if (array_key_exists('department_id', $data)) {
-                $incoming = $data['department_id'];
-                $incoming = ($incoming !== null) ? (int)$incoming : null;
-
-                // if explicitly provided and mismatched => block
-                if ($incoming !== null && $incoming !== $forcedDept) {
-                    $this->activityLog($request, 'create_denied', 'users', 'users', null, ['department_id'], null, ['department_id' => $incoming], 'Dept mismatch');
-                    return response()->json(['error' => 'Not allowed'], 403);
-                }
-            }
-
-            // if not provided, force it
-            $data['department_id'] = $forcedDept;
+            $data['department_id'] = (int) $ac['department_id'];
         }
 
         $now   = Carbon::now();
@@ -1129,26 +1148,28 @@ if (in_array($role, [
 
         $data   = $v->validated();
 
-        // ✅ dept actors: can NOT change to another department or clear it
-        if ($ac['mode'] === 'department' && $hasDept && array_key_exists('department_id', $data)) {
-            $forcedDept = (int)$ac['department_id'];
-            $incoming   = $data['department_id'];
-            $incoming   = ($incoming !== null) ? (int)$incoming : null;
+        $isSelf = ((int)$user->id === (int)($this->actor($request)['id'] ?? 0));
+        $currentUserRole = strtolower(trim($user->role ?? ''));
+        $actorRole = strtolower(trim((string)($this->actor($request)['role'] ?? '')));
+        $allowedRoles = $this->getAllowedCreationRoles($actorRole);
 
-            if ($incoming === null || $incoming !== $forcedDept) {
-                $this->activityLog(
-                    $request,
-                    'update_denied',
-                    'users',
-                    'users',
-                    (int)$user->id,
-                    ['department_id'],
-                    ['department_id' => (int)($user->department_id ?? 0)],
-                    ['department_id' => $incoming],
-                    'Dept mismatch'
-                );
-                return response()->json(['error' => 'Not allowed'], 403);
+        // Cannot edit someone above you (unless targeting self)
+        if (!$isSelf && !in_array($currentUserRole, $allowedRoles, true)) {
+            $this->activityLog($request, 'update_denied', 'users', 'users', (int)$user->id, null, null, null, 'Cannot edit peer or higher role');
+            return response()->json(['error' => 'Cannot edit user with this role'], 403);
+        }
+
+        if (array_key_exists('role', $data)) {
+            [$targetRole, $short] = $this->normalizeRole($data['role']);
+            if ($targetRole !== $currentUserRole && !in_array($targetRole, $allowedRoles, true)) {
+                $this->activityLog($request, 'update_denied', 'users', 'users', (int)$user->id, ['role'], null, ['role' => $targetRole], 'Cannot grant this role');
+                return response()->json(['error' => 'Cannot grant this role'], 403);
             }
+        }
+
+        // ✅ dept actors: force incoming department to match their own
+        if ($ac['mode'] === 'department' && $hasDept) {
+            $data['department_id'] = (int)$ac['department_id'];
         }
 
         $update = [];

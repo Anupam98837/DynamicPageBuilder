@@ -371,7 +371,12 @@ min-height: calc(18px * 1.25 * 2);
 /* ✅ Recruiters wrapper like other sections */
 .recruiters-wrap{background: var(--surface);border: 1px solid var(--line);border-radius: var(--r-xl);box-shadow: var(--shadow);padding: 22px 18px;overflow: hidden;}
 
+@media (max-width: 991.98px){
+.hero-slide{ min-height: 380px; }
+}
+
 @media (max-width: 768px){
+.hero-slide{ min-height: 280px; }
 .hero-inner{ padding: 40px 24px; }
 .info-boxes{ margin-top: 0; }
 .stat-num{ font-size: 36px; }
@@ -2176,24 +2181,39 @@ function renderCourses(arr){
     const name = course.title || course.name || 'Course';
     const desc = course.summary || course.blurb || course.description || '';
 
-    const baseUrl = safeHref(course.url || (course.uuid ? `/courses/view/${course.uuid}` : '#'));
+    // ✅ Dynamic Buttons
+    let buttons = [];
+    try {
+      buttons = typeof course.buttons_json === 'string' ? JSON.parse(course.buttons_json) : (course.buttons_json || []);
+    } catch(e) { buttons = []; }
 
-    const links = Array.isArray(course.links) ? course.links : [
-      { text: 'Vision & Mission', url: baseUrl },
-      { text: 'PEO, PSO, PO',     url: baseUrl },
-      { text: 'Faculty',         url: baseUrl },
-      { text: 'Department',      url: baseUrl },
-    ];
+    // ✅ Links
+    const imgLink = course.cover_image_link ? safeHref(course.cover_image_link) : '';
+    const titleLink = course.title_link ? safeHref(course.title_link) : '';
+    const summaryLink = course.summary_link ? safeHref(course.summary_link) : '';
+
+    const imgWrapOpen = imgLink ? `<a href="${esc(imgLink)}" target="_blank" class="d-block" style="cursor: pointer;">` : `<div class="course-img-wrap">`;
+    const imgWrapClose = imgLink ? `</a>` : `</div>`;
+
+    const titleHtml = titleLink 
+      ? `<h3 class="course-title"><a href="${esc(titleLink)}" target="_blank" style="color: inherit; text-decoration: none;">${esc(name)}</a></h3>`
+      : `<h3 class="course-title">${esc(name)}</h3>`;
+
+    const descHtml = summaryLink 
+      ? `<p class="course-desc"><a href="${esc(summaryLink)}" target="_blank" style="color: inherit; text-decoration: none;">${esc(desc || '—')}</a></p>`
+      : `<p class="course-desc">${esc(desc || '—')}</p>`;
 
     return `
       <div class="col-lg-3 col-md-6">
         <div class="course-card">
-          <img src="${esc(img)}" loading="lazy" alt="${esc(name)}" class="course-img">
-          <h3 class="course-title">${esc(name)}</h3>
-          <p class="course-desc">${esc(desc || '—')}</p>
+          ${imgWrapOpen}
+            <img src="${esc(img)}" loading="lazy" alt="${esc(name)}" class="course-img">
+          ${imgWrapClose}
+          ${titleHtml}
+          ${descHtml}
           <div class="course-links">
-            ${links.slice(0,4).map(l => `
-              <a href="${esc(safeHref(l.url || l.href))}" class="course-link">${esc(l.text || l.title || 'Link')}</a>
+            ${buttons.map(l => `
+              <a href="${esc(safeHref(l.link || l.url || '#'))}" class="course-link" target="_blank">${esc(l.name || l.title || 'Link')}</a>
             `).join('')}
           </div>
         </div>
@@ -2259,10 +2279,13 @@ function renderUgCourses(arr){
     const img = course.cover_image || course.image_url || course.image || PLACEHOLDERS.image;
     const title = course.title || course.name || 'UG Course';
 
-    const href = safeHref(course.url || (course.uuid ? `/courses/view/${course.uuid}` : '#'));
+    // ✅ Override href if title_link is present
+    let href = course.title_link || course.url || (course.uuid ? `/courses/view/${course.uuid}` : '#');
+    href = safeHref(href);
+    
     const uuid = String(course.uuid || '').trim();
-    const open = uuid ? `<a class="ugc-card" href="${esc(href)}">` : `<div class="ugc-card">`;
-    const close = uuid ? `</a>` : `</div>`;
+    const open = (href !== '#') ? `<a class="ugc-card" href="${esc(href)}" target="_blank">` : `<div class="ugc-card">`;
+    const close = (href !== '#') ? `</a>` : `</div>`;
 
     return `
       <div class="col-lg-4 col-md-6">

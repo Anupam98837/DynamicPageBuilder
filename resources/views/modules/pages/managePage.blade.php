@@ -366,6 +366,33 @@
     }
   };
 
+  const ACTOR = { id: null, role: null, department_id: null };
+
+  async function fetchMe() {
+    try {
+      const tryUrls = ['/api/users/me', '/api/me'];
+      let js = null;
+
+      for (const url of tryUrls) {
+        try {
+          js = await api(url);
+          if (js && js.success && js.data) break;
+        } catch (e) {
+          if (e.status === 404) continue;
+          throw e;
+        }
+      }
+
+      if (js && js.success && js.data) {
+        ACTOR.id = js.data.id || null;
+        ACTOR.role = (js.data.role || '').toLowerCase();
+        ACTOR.department_id = js.data.department_id || null;
+      }
+    } catch (e) {
+      console.error('Failed to fetch /me', e);
+    }
+  }
+
   const state = {
     active:   { page: 1, lastPage: 1, total: 0, perPage: 10 },
     archived: { page: 1, lastPage: 1, total: 0, perPage: 10 },
@@ -411,7 +438,9 @@
       const arr = Array.isArray(j.data) ? j.data : (Array.isArray(j.departments) ? j.departments : []);
       state.departments = arr || [];
 
-      let html = `<option value="">All Departments</option>`;
+      // Always show "All Departments" so the select never defaults to a real dept
+      let html = '<option value="">All Departments</option>';
+
       state.departments.forEach(d=>{
         const id = d?.id;
         if(id === undefined || id === null) return;
@@ -871,7 +900,19 @@
 
   /* ================== INIT ================== */
   (async () => {
+    await fetchMe();
     await loadDepartments();
+
+    // Lock department filter if scoped
+    const deptSel = $('mpDept');
+    const higherAuthorities = ['admin', 'author', 'principal', 'director', 'super_admin'];
+    const isHigher = higherAuthorities.includes(ACTOR.role);
+
+    if (deptSel && ACTOR.department_id && !isHigher) {
+        deptSel.value = ACTOR.department_id;
+        deptSel.disabled = true;
+    }
+
     loadActive();
   })();
 })();

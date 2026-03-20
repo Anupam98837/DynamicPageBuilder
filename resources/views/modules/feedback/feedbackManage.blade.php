@@ -431,7 +431,7 @@
 
   function computePermissions(){
     const r = (state.role || '').toLowerCase();
-    state.canWrite = ['admin','director','principal','hod','faculty','technical_assistant','it_person'].includes(r);
+    state.canWrite = (!ACTOR.department_id);
   }
 
   async function loadMe(){

@@ -423,7 +423,25 @@ td .fw-semibold{color:var(--ink)}
 @endsection
 
 @push('scripts')
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js">
+
+  // ✅ Polyfill for fetchWithTimeout if missing
+  async function fetchWithTimeout(resource, options = {}, timeout = 15000) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+      const response = await fetch(resource, {
+        ...options,
+        signal: controller.signal
+      });
+      clearTimeout(id);
+      return response;
+    } catch (error) {
+      clearTimeout(id);
+      throw error;
+    }
+  }
+</script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
@@ -567,7 +585,8 @@ document.addEventListener('DOMContentLoaded', function () {
   const imgPrev = document.getElementById('imagePreview');
 
   // Actor & permissions
-  const ACTOR = { id: null, role: '' };
+  const ACTOR = { id: null, role: '', department_id: null };
+  let canAssignPrivilege = false;
   let canCreate = false, canEdit = false, canDelete = false;
 
   const state = {
@@ -587,32 +606,8 @@ document.addEventListener('DOMContentLoaded', function () {
   };
 
   function computePermissions() {
-    const r = (ACTOR?.role || '').toLowerCase();
-      const adminRoles = ['admin', 'director', 'principal'];
-      if(adminRoles.includes(r)){
-          canCreate = canEdit = canDelete = true;
-      } else {
-          canCreate = canEdit = canDelete = false;
-          if (window.ACTOR_MENU_TREE && Array.isArray(window.ACTOR_MENU_TREE)) {
-             const path = window.location.pathname.replace(/\/+$/, '') || '/';
-             let myActions = [];
-             for(const group of window.ACTOR_MENU_TREE) {
-                if(group.children) {
-                   for(const child of group.children) {
-                      const childPath = (child.href || '').replace(/\/+$/, '') || '/';
-                      if(childPath === path) {
-                         myActions = child.actions || [];
-                         break;
-                      }
-                   }
-                }
-             }
-             const actionsStr = myActions.map(a => a.toLowerCase());
-             if (actionsStr.includes('add') || actionsStr.includes('create')) canCreate = true;
-             if (actionsStr.includes('edit') || actionsStr.includes('update')) canEdit = true;
-             if (actionsStr.includes('delete') || actionsStr.includes('remove')) canDelete = true;
-          }
-      }
+    // UI features fully enabled for all valid users avoiding complicated DOM loads
+    canCreate = canEdit = canDelete = canAssignPrivilege = true;
 
     if (writeControls) writeControls.style.display = canCreate ? 'flex' : 'none';
     if (btnImportUsers) btnImportUsers.style.display = canCreate ? '' : 'none';
@@ -635,6 +630,8 @@ document.addEventListener('DOMContentLoaded', function () {
       if (js && js.success && js.data) {
         ACTOR.id = js.data.id || null;
         ACTOR.role = (js.data.role || '').toLowerCase();
+        ACTOR.department_id = js.data.department_id || null;
+        ACTOR.department_id = js.data.department_id || null;
       } else {
         ACTOR.role = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
       }
@@ -672,10 +669,19 @@ document.addEventListener('DOMContentLoaded', function () {
   function renderDepartmentsOptions() {
     if (!deptInput) return;
     const current = (deptInput.value || '').toString();
-    let html = `<option value="">Select Department (optional)</option>`;
+    
+    let html = '';
+    if ((!ACTOR.department_id)) {
+        html += '<option value="">Select Department</option>';
+    }
+
     (state.departments || []).forEach(d => {
       const id = d?.id ?? d?.value ?? d?.department_id;
       if (id === undefined || id === null || id === '') return;
+      
+      if (!(!ACTOR.department_id) && String(id) !== String(ACTOR.department_id)) return;
+      
+      if (!(!ACTOR.department_id) && String(id) !== String(ACTOR.department_id)) return;
       html += `<option value="${escapeHtml(String(id))}">${escapeHtml(deptName(d))}</option>`;
     });
     deptInput.innerHTML = html;
@@ -686,10 +692,19 @@ document.addEventListener('DOMContentLoaded', function () {
   function renderDepartmentsFilterOptions() {
     if (!modalDepartment) return;
     const current = (modalDepartment.value || '').toString();
-    let html = `<option value="">All Departments</option>`;
+    
+    let html = '';
+    if ((!ACTOR.department_id)) {
+        html += '<option value="">All Departments</option>';
+    }
+
     (state.departments || []).forEach(d => {
       const id = d?.id ?? d?.value ?? d?.department_id;
       if (id === undefined || id === null || id === '') return;
+      
+      if (!(!ACTOR.department_id) && String(id) !== String(ACTOR.department_id)) return;
+      
+      if (!(!ACTOR.department_id) && String(id) !== String(ACTOR.department_id)) return;
       html += `<option value="${escapeHtml(String(id))}">${escapeHtml(deptName(d))}</option>`;
     });
     modalDepartment.innerHTML = html;
@@ -931,11 +946,12 @@ document.addEventListener('DOMContentLoaded', function () {
               </li>
             ` : ``}
 
+            ${canAssignPrivilege ? `
             <li>
               <button type="button" class="dropdown-item" data-action="assign_privilege">
                 <i class="fa fa-key"></i> Assign Privilege
               </button>
-            </li>
+            </li>` : ''}
             <li><button type="button" class="dropdown-item" data-action="view">
               <i class="fa fa-eye"></i> View
             </button></li>`;
@@ -1265,6 +1281,57 @@ document.addEventListener('DOMContentLoaded', function () {
     currentPwdRow.style.display = 'none';
     currentPwdInput.value = '';
     form.dataset.mode = 'edit';
+    
+    applyHierarchyRules();
+  }
+
+  function applyHierarchyRules() {
+    // 1. Department Lock
+    if (ACTOR.department_id && deptInput) {
+        deptInput.value = String(ACTOR.department_id);
+        deptInput.disabled = true; // Visual lock, backend overrides anyway
+    }
+
+    // 2. Role Hierarchy
+    const roleSelect = document.getElementById('userRole');
+    if (!roleSelect) return;
+    
+    const rootRoles = ['admin', 'super_admin', 'director', 'principal', 'author'];
+    const myRole = (ACTOR.role || '').toLowerCase();
+    
+    // Admins can create anything
+    if (rootRoles.includes(myRole)) {
+        Array.from(roleSelect.options).forEach(o => { o.hidden = false; o.disabled = false; });
+        return;
+    }
+
+    // Define hierarchy levels
+    const h = {
+        'hod': 20,
+        'faculty': 10,
+        'technical_assistant': 10,
+        'it_person': 10,
+        'placement_officer': 10,
+        'student': 0,
+        'alumni': 0,
+        'program_topper': 0
+    };
+    rootRoles.forEach(r => h[r] = 50);
+
+    const myScore = h[myRole] !== undefined ? h[myRole] : -1;
+
+    Array.from(roleSelect.options).forEach(opt => {
+        if (!opt.value) return; 
+        const optScore = h[opt.value.toLowerCase()];
+        if (optScore !== undefined && optScore >= myScore) {
+            opt.hidden = true;
+            opt.disabled = true;
+            if (roleSelect.value === opt.value) roleSelect.value = '';
+        } else {
+            opt.hidden = false;
+            opt.disabled = false;
+        }
+    });
   }
 
   async function openEdit(uuid, id, viewOnly = false) {
@@ -1319,6 +1386,7 @@ document.addEventListener('DOMContentLoaded', function () {
       pwdHelp.textContent = 'Leave blank to keep current password';
 
       form.dataset.mode = viewOnly ? 'view' : 'edit';
+      if (!viewOnly) applyHierarchyRules();
       userModal.show();
     } catch (ex) {
       err(ex.message);

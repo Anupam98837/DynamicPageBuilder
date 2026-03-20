@@ -523,7 +523,25 @@ th.col-status, td.col-status{width:92px;max-width:92px}
 @endsection
 
 @push('scripts')
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js">
+
+  // ✅ Polyfill for fetchWithTimeout if missing
+  async function fetchWithTimeout(resource, options = {}, timeout = 15000) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+      const response = await fetch(resource, {
+        ...options,
+        signal: controller.signal
+      });
+      clearTimeout(id);
+      return response;
+    } catch (error) {
+      clearTimeout(id);
+      throw error;
+    }
+  }
+</script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
@@ -680,15 +698,15 @@ document.addEventListener('DOMContentLoaded', function () {
   const btnDownloadPdf = document.getElementById('btnDownloadPdf');
 
   // Permissions
-  const ACTOR = { role: '' };
+  const ACTOR = { id: null, role: '', department_id: null };
+  let canAssignPrivilege = false;
   let canCreate=false, canEdit=false, canDelete=false;
   function computePermissions(){
     const r = (ACTOR?.role || '').toLowerCase();
-      const adminRoles = ['admin', 'director', 'principal'];
-      if(adminRoles.includes(r)){
-          canCreate = canEdit = canDelete = true;
+      if(!ACTOR.department_id){
+          canCreate = canEdit = canDelete = canAssignPrivilege = true;
       } else {
-          canCreate = canEdit = canDelete = false;
+          canCreate = canEdit = canDelete = canAssignPrivilege = false;
           if (window.ACTOR_MENU_TREE && Array.isArray(window.ACTOR_MENU_TREE)) {
              const path = window.location.pathname.replace(/\/+$/, '') || '/';
              let myActions = [];
@@ -696,17 +714,18 @@ document.addEventListener('DOMContentLoaded', function () {
                 if(group.children) {
                    for(const child of group.children) {
                       const childPath = (child.href || '').replace(/\/+$/, '') || '/';
-                      if(childPath === path) {
+                      if (path === childPath || path.endsWith(childPath)) {
                          myActions = child.actions || [];
                          break;
                       }
                    }
                 }
              }
-             const actionsStr = myActions.map(a => a.toLowerCase());
+             const actionsStr = myActions.map(a => String(a).trim().toLowerCase());
              if (actionsStr.includes('add') || actionsStr.includes('create')) canCreate = true;
              if (actionsStr.includes('edit') || actionsStr.includes('update')) canEdit = true;
              if (actionsStr.includes('delete') || actionsStr.includes('remove')) canDelete = true;
+             if (actionsStr.includes('assign_privilege') || actionsStr.includes('assign privileges') || actionsStr.includes('privilege')) canAssignPrivilege = true;
           }
       }
 

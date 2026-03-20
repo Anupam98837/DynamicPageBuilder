@@ -399,9 +399,10 @@
     // =========================
     // Permissions
     // =========================
-    const ACTOR = { role: '' };
+    const ACTOR = { id: null, role: '', department_id: null };
+  let canAssignPrivilege = false;
     let canWrite = false;
-    const writeRoles = ['admin','super_admin','director','principal','hod','technical_assistant','it_person'];
+    
 
     const authHeaders = (json=false) => {
       const h = { 'Authorization': 'Bearer ' + token, 'Accept': 'application/json' };
@@ -431,7 +432,7 @@
       if (!ACTOR.role){
         ACTOR.role = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
       }
-      canWrite = writeRoles.includes((ACTOR.role||'').toLowerCase());
+      canWrite = (!ACTOR.department_id).toLowerCase());
       const wc = $('writeControls');
       if (wc) wc.style.display = canWrite ? 'flex' : 'none';
     }

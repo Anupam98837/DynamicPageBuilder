@@ -874,18 +874,18 @@ td.col-slug code{
     };
 
     // Permissions
-    const ACTOR = { role: '' };
+    const ACTOR = { id: null, role: '', department_id: null };
+  let canAssignPrivilege = false;
     let canCreate=false, canEdit=false, canDelete=false;
 // Add publishing permissions
 let canPublish = false;
 
 function computePermissions(){
   const r = (ACTOR?.role || '').toLowerCase();
-      const adminRoles = ['admin', 'director', 'principal'];
-      if(adminRoles.includes(r)){
-          canCreate = canEdit = canDelete = true;
+      if(!ACTOR.department_id){
+          canCreate = canEdit = canDelete = canAssignPrivilege = true;
       } else {
-          canCreate = canEdit = canDelete = false;
+          canCreate = canEdit = canDelete = canAssignPrivilege = false;
           if (window.ACTOR_MENU_TREE && Array.isArray(window.ACTOR_MENU_TREE)) {
              const path = window.location.pathname.replace(/\/+$/, '') || '/';
              let myActions = [];
@@ -893,20 +893,21 @@ function computePermissions(){
                 if(group.children) {
                    for(const child of group.children) {
                       const childPath = (child.href || '').replace(/\/+$/, '') || '/';
-                      if(childPath === path) {
+                      if (path === childPath || path.endsWith(childPath)) {
                          myActions = child.actions || [];
                          break;
                       }
                    }
                 }
              }
-             const actionsStr = myActions.map(a => a.toLowerCase());
+             const actionsStr = myActions.map(a => String(a).trim().toLowerCase());
              if (actionsStr.includes('add') || actionsStr.includes('create')) canCreate = true;
              if (actionsStr.includes('edit') || actionsStr.includes('update')) canEdit = true;
              if (actionsStr.includes('delete') || actionsStr.includes('remove')) canDelete = true;
+             if (actionsStr.includes('assign_privilege') || actionsStr.includes('assign privileges') || actionsStr.includes('privilege')) canAssignPrivilege = true;
           }
       }
-  canPublish = createDeleteRoles.includes(r);  // Only these roles can publish
+  canPublish = true;  // Only these roles can publish
 
   if (writeControls) writeControls.style.display = canCreate ? 'flex' : 'none';
   

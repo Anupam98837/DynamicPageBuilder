@@ -13,6 +13,8 @@ use Illuminate\Support\Facades\View;
 
 class PageSubmenuController extends Controller
 {
+    use \App\Http\Controllers\API\Concerns\DepartmentScopeable;
+
     /** Table name (your migration log shows `pages_submenu`) */
     private string $table = 'pages_submenu';
 

@@ -13,6 +13,8 @@ use Carbon\Carbon;
 
 class PlacementOfficerPreviewOrderController extends Controller
 {
+    use \App\Http\Controllers\API\Concerns\DepartmentScopeable;
+
     private const TABLE = 'placement_officer_preview_orders';
     private const ACTIVITY_LOG_TABLE = 'user_data_activity_log';
     private const ACTIVITY_MODULE = 'placement_officer_preview_orders';
@@ -320,6 +322,11 @@ class PlacementOfficerPreviewOrderController extends Controller
      */
     public function index(Request $request)
     {
+        $__ac = $this->departmentAccessControl($request);
+        if ($__ac['mode'] === 'none') {
+            return response()->json(['data' => [], 'pagination' => ['page' => 1, 'per_page' => 20, 'total' => 0, 'last_page' => 1]], 200);
+        }
+
         if (!$this->tableReady()) {
             return response()->json([
                 'success' => false,

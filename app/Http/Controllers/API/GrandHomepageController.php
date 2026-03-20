@@ -10,6 +10,8 @@ use Illuminate\Support\Carbon;
 
 class GrandHomepageController extends Controller
 {
+    use \App\Http\Controllers\API\Concerns\DepartmentScopeable;
+
     /**
      * DEFAULT (FAST): /api/public/grand-homepage
      * Returns BOOTSTRAP only:
@@ -21,6 +23,11 @@ class GrandHomepageController extends Controller
      */
     public function index(Request $request)
     {
+        $__ac = $this->departmentAccessControl($request);
+        if ($__ac['mode'] === 'none') {
+            return response()->json(['data' => [], 'pagination' => ['page' => 1, 'per_page' => 20, 'total' => 0, 'last_page' => 1]], 200);
+        }
+
         $legacy = filter_var($request->query('legacy', false), FILTER_VALIDATE_BOOLEAN);
         $full   = filter_var($request->query('full', false), FILTER_VALIDATE_BOOLEAN);
 
@@ -522,6 +529,10 @@ class GrandHomepageController extends Controller
                 'created_at' => $this->iso($this->getVal($r, 'created_at')),
                 'updated_at' => $this->iso($this->getVal($r, 'updated_at')),
                 'metadata' => $this->json($this->getVal($r, 'metadata'), null),
+                'cover_image_link' => $this->getVal($r, 'cover_image_link'),
+                'title_link' => $this->getVal($r, 'title_link'),
+                'summary_link' => $this->getVal($r, 'summary_link'),
+                'buttons_json' => $this->json($this->getVal($r, 'buttons_json'), []),
 
                 'url' => 'courses/view/' . ($this->getVal($r, 'uuid') ?: ($this->getVal($r, 'slug') ?: '')),
             ];

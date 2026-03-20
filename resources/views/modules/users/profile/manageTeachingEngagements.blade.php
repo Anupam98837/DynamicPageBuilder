@@ -492,6 +492,8 @@ document.addEventListener('DOMContentLoaded', function () {
     ACTOR.id = js.data.id || null;
     ACTOR.uuid = js.data.uuid;
     ACTOR.role = (js.data.role || '').toLowerCase();
+        ACTOR.department_id = js.data.department_id || null;
+        ACTOR.department_id = js.data.department_id || null;
     computePermissions();
   }
 

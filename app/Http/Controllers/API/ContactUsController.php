@@ -13,6 +13,8 @@ use Carbon\Carbon;
 
 class ContactUsController extends Controller
 {
+    use \App\Http\Controllers\API\Concerns\DepartmentScopeable;
+
     /* =========================
      * Activity Log Helpers
      * ========================= */
@@ -103,9 +105,9 @@ class ContactUsController extends Controller
             // ✅ NEW: admission enquiry checker (nullable boolean)
             'is_admission_enquiry' => ['nullable'],
 
-            // ✅ NEW: department ids array (nullable)
-            'department_ids'   => ['nullable', 'array'],
-            'department_ids.*' => ['integer'],
+            // ✅ NEW: course ids array (nullable)
+            'course_ids'   => ['nullable', 'array'],
+            'course_ids.*' => ['integer'],
 
             // Existing: consent/legal authority json
             'legal_authority_json'   => ['nullable', 'array'],
@@ -140,13 +142,13 @@ class ContactUsController extends Controller
         // NEW: nullable boolean
         $isAdmission = $this->toNullableBool($request->input('is_admission_enquiry'));
 
-        // NEW: department ids array (nullable)
-        $deptIds = $request->input('department_ids');
-        if (is_array($deptIds)) {
+        // NEW: course ids array (nullable)
+        $courseIds = $request->input('course_ids');
+        if (is_array($courseIds)) {
             // keep only ints, unique
-            $deptIds = array_values(array_unique(array_map('intval', $deptIds)));
+            $courseIds = array_values(array_unique(array_map('intval', $courseIds)));
         } else {
-            $deptIds = null;
+            $courseIds = null;
         }
 
         // If frontend didn't send legal_authority_json, store default structure (optional)
@@ -177,7 +179,7 @@ class ContactUsController extends Controller
 
             // ✅ new columns
             'is_admission_enquiry' => $isAdmission,           // nullable boolean
-            'department_ids'       => $deptIds === null ? null : json_encode($deptIds, JSON_UNESCAPED_UNICODE),
+            'course_ids'           => $courseIds === null ? null : json_encode($courseIds, JSON_UNESCAPED_UNICODE),
 
             // existing
             'legal_authority_json' => json_encode($legal, JSON_UNESCAPED_UNICODE),
@@ -195,7 +197,7 @@ class ContactUsController extends Controller
             $id,
             [
                 'first_name','last_name','email','phone','message',
-                'is_admission_enquiry','department_ids',
+                'is_admission_enquiry','course_ids',
                 'legal_authority_json','is_read'
             ],
             null,
@@ -207,7 +209,7 @@ class ContactUsController extends Controller
                 'phone'                => $phone,
                 'message'              => $request->input('message'),
                 'is_admission_enquiry' => $isAdmission,
-                'department_ids'       => $deptIds,
+                'course_ids'           => $courseIds,
                 'legal_authority_json' => $legal,
                 'is_read'              => 0,
             ],
@@ -266,9 +268,9 @@ class ContactUsController extends Controller
                     ? json_decode($row->legal_authority_json, true)
                     : null;
             }
-            if (property_exists($row, 'department_ids')) {
-                $row->department_ids = $row->department_ids
-                    ? json_decode($row->department_ids, true)
+            if (property_exists($row, 'course_ids')) {
+                $row->course_ids = $row->course_ids
+                    ? json_decode($row->course_ids, true)
                     : null;
             }
             return $row;
@@ -322,9 +324,9 @@ class ContactUsController extends Controller
                 : null;
         }
 
-        if (property_exists($msg, 'department_ids')) {
-            $msg->department_ids = $msg->department_ids
-                ? json_decode($msg->department_ids, true)
+        if (property_exists($msg, 'course_ids')) {
+            $msg->course_ids = $msg->course_ids
+                ? json_decode($msg->course_ids, true)
                 : null;
         }
 
@@ -452,7 +454,7 @@ class ContactUsController extends Controller
 
                 // ✅ new fields
                 'is_admission_enquiry' => property_exists($row, 'is_admission_enquiry') ? $row->is_admission_enquiry : null,
-                'department_ids'       => property_exists($row, 'department_ids') ? $row->department_ids : null,
+                'course_ids'           => property_exists($row, 'course_ids') ? $row->course_ids : null,
 
                 'legal_authority_json' => $row->legal_authority_json ?? null,
                 'is_read'              => isset($row->is_read) ? (int) $row->is_read : null,
@@ -507,7 +509,7 @@ class ContactUsController extends Controller
                 'Email',
                 'Phone',
                 'Admission Enquiry',
-                'Department IDs',
+                'Course Names',
                 'Message',
                 'Legal Authority JSON',
                 'Created At'
@@ -515,6 +517,15 @@ class ContactUsController extends Controller
 
             $query->chunk(500, function ($rows) use ($handle) {
                 foreach ($rows as $row) {
+                    $courseNames = '';
+                    if (!empty($row->course_ids)) {
+                        $ids = json_decode($row->course_ids, true);
+                        if (is_array($ids) && count($ids) > 0) {
+                            $titles = DB::table('courses')->whereIn('id', $ids)->pluck('title')->toArray();
+                            $courseNames = implode(', ', $titles);
+                        }
+                    }
+
                     fputcsv($handle, [
                         $row->id,
                         $row->first_name ?? '',
@@ -522,7 +533,7 @@ class ContactUsController extends Controller
                         $row->email ?? '',
                         $row->phone ?? '',
                         isset($row->is_admission_enquiry) ? (string) $row->is_admission_enquiry : '',
-                        $row->department_ids ?? '',
+                        $courseNames,
                         preg_replace("/\r|\n/", ' ', (string) $row->message),
                         $row->legal_authority_json ?? '',
                         $row->created_at ?? '',

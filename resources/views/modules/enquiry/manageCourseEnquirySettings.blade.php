@@ -1,5 +1,5 @@
-{{-- resources/views/modules/departments/manageDepartmentEnquirySettings.blade.php --}}
-@section('title','Manage Enquiry Department Order')
+{{-- resources/views/modules/enquiry/manageCourseEnquirySettings.blade.php --}}
+@section('title','Manage Enquiry Course Order')
 
 @push('styles')
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
@@ -48,15 +48,15 @@
 .drag-handle{cursor:grab;display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;border:1px solid var(--line-strong);background:var(--surface)}
 .drag-handle:hover{background:var(--page-hover)}
 .drag-handle:active{cursor:grabbing}
-tr.drag-ghost{opacity:.55}
-tr.drag-chosen{background:color-mix(in oklab, var(--primary-color) 10%, transparent)}
+.drag-ghost{opacity:.55}
+.drag-chosen{background:color-mix(in oklab, var(--primary-color) 10%, transparent)}
 
 /* Featured toggle polish */
 .form-check.form-switch .form-check-input{cursor:pointer}
 .form-check-input:focus{border-color:var(--primary-color);box-shadow:0 0 0 .2rem rgba(158,54,58,.25)}
 
 /* Row cues */
-tr.is-inactive td{background:color-mix(in oklab, var(--muted-color) 6%, transparent)}
+.is-inactive td{background:color-mix(in oklab, var(--muted-color) 6%, transparent)}
 
 /* Loading overlay (same pattern) */
 .dep-loading-overlay{position:fixed;inset:0;width:100%;height:100%;background:rgba(0,0,0,.42);display:none;justify-content:center;align-items:center;z-index:9999;backdrop-filter:blur(2px)}
@@ -95,7 +95,7 @@ html.theme-dark .drag-handle{background:#0f172a}
   <div class="row align-items-center g-2 mb-3 mfa-toolbar panel">
     <div class="col-md-7 d-flex align-items-center flex-wrap gap-2">
       <div class="position-relative flex-grow-1" style="min-width:220px;">
-        <input id="deo_q" type="text" class="form-control ps-5" placeholder="Search in list (title / slug / short name / type)...">
+        <input id="deo_q" type="text" class="form-control ps-5" placeholder="Search in list (title / slug / program)...">
         <i class="fa fa-search position-absolute" style="left:12px; top:50%; transform:translateY(-50%); opacity:.6;"></i>
       </div>
 
@@ -128,7 +128,7 @@ html.theme-dark .drag-handle{background:#0f172a}
     <div class="col-12 pt-1">
       <div class="small text-muted">
         <i class="fa-solid fa-hand-pointer me-1"></i>
-        Drag rows to set the enquiry dropdown order. Turn <b>Featured</b> ON to pin a department above non-featured ones (within featured group, drag order still applies).
+        Drag rows to set the enquiry dropdown order. Turn <b>Featured</b> ON to pin a course above non-featured ones (within featured group, drag order still applies).
       </div>
     </div>
   </div>
@@ -137,22 +137,23 @@ html.theme-dark .drag-handle{background:#0f172a}
   <div class="card table-wrap">
     <div class="card-body p-0">
       <div class="table-responsive">
-        <table class="table table-hover table-borderless align-middle mb-0">
+        <table id="deo_table" class="table table-hover table-borderless align-middle mb-0">
           <thead class="sticky-top">
             <tr>
               <th style="width:56px;">MOVE</th>
               <th style="width:90px;">ORDER</th>
               <th style="width:130px;">FEATURED</th>
-              <th>DEPARTMENT</th>
-              <th style="width:150px;">SHORT</th>
-              <th style="width:180px;">TYPE</th>
-              <th style="width:320px;">UUID</th>
+              <th>COURSE</th>
+              <th style="width:340px;">CUSTOM DISPLAY NAME</th>
+              <th style="width:140px;">LEVEL</th>
+              <th style="width:140px;">TYPE</th>
+              <th style="width:280px;">UUID</th>
               <th style="width:110px;">STATUS</th>
             </tr>
           </thead>
           <tbody id="deo_rows">
             <tr id="deo_loaderRow" style="display:none;">
-              <td colspan="8" class="p-0">
+              <td colspan="12" class="p-0">
                 <div class="p-4">
                   <div class="placeholder-wave">
                     <div class="placeholder col-12 mb-2" style="height:18px;"></div>
@@ -167,8 +168,8 @@ html.theme-dark .drag-handle{background:#0f172a}
       </div>
 
       <div id="deo_empty" class="empty p-4 text-center" style="display:none;">
-        <i class="fa fa-building-columns mb-2" style="font-size:32px; opacity:.6;"></i>
-        <div>No departments found.</div>
+        <i class="fa fa-graduation-cap mb-2" style="font-size:32px; opacity:.6;"></i>
+        <div>No courses found.</div>
       </div>
 
       <div class="p-3 border-top" style="border-color:var(--line-strong)!important;">
@@ -203,9 +204,8 @@ html.theme-dark .drag-handle{background:#0f172a}
 
 <script>
 (function(){
-  // ✅ prevent double init
-  if (window.__DEPT_ENQUIRY_ORDER_INIT__) return;
-  window.__DEPT_ENQUIRY_ORDER_INIT__ = true;
+  if (window.__COURSE_ENQUIRY_ORDER_INIT__) return;
+  window.__COURSE_ENQUIRY_ORDER_INIT__ = true;
 
   /* ===== Auth ===== */
   const TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
@@ -216,7 +216,7 @@ html.theme-dark .drag-handle{background:#0f172a}
   }
 
   const API_BASE = '/api';
-  const SETTINGS_INDEX_ENDPOINT = API_BASE + '/department-enquiry-settings';
+  const SETTINGS_INDEX_ENDPOINT = API_BASE + '/course-enquiry-settings';
   const BULK_UPSERT_ENDPOINT    = SETTINGS_INDEX_ENDPOINT + '/bulk-upsert';
 
   /* ===== Toast helpers ===== */
@@ -228,7 +228,6 @@ html.theme-dark .drag-handle{background:#0f172a}
   const err = (m)=>{ okToast.hide();  document.getElementById('deo_errMsg').textContent = m || 'Something went wrong'; errToast.show(); };
 
   /* ===== DOM refs ===== */
-  const rowsEl          = document.getElementById('deo_rows');
   const loaderRow       = document.getElementById('deo_loaderRow');
   const emptyEl         = document.getElementById('deo_empty');
   const metaEl          = document.getElementById('deo_meta');
@@ -241,9 +240,9 @@ html.theme-dark .drag-handle{background:#0f172a}
   const globalLoader    = document.getElementById('deo_globalLoading');
 
   /* ===== State ===== */
-  let originalSnapshot = []; // for reset
+  let originalSnapshot = []; 
   let isDirty = false;
-  let sortable = null;
+  let sortableInstances = [];
 
   /* ===== Utils ===== */
   function getAuthHeaders(isJson = true){
@@ -309,7 +308,10 @@ html.theme-dark .drag-handle{background:#0f172a}
   }
 
   function clearRows(){
-    rowsEl.querySelectorAll('tr:not(#deo_loaderRow)').forEach(tr => tr.remove());
+    const table = document.getElementById('deo_table');
+    if (table) {
+      table.querySelectorAll('tbody').forEach(tb => tb.remove());
+    }
   }
 
   function normalizeSortOrder(v){
@@ -324,10 +326,10 @@ html.theme-dark .drag-handle{background:#0f172a}
 
   function applySearch(){
     const term = (qEl.value || '').trim().toLowerCase();
-    const all = rowsEl.querySelectorAll('tr[data-dept-id]');
+    const all = document.querySelectorAll('#deo_table tr[data-course-id]');
     if (!term) {
       all.forEach(tr => { tr.classList.remove('table-secondary'); tr.style.opacity = ''; });
-      metaEl.textContent = `Total: ${all.length} department(s)`;
+      metaEl.textContent = `Total: ${all.length} course(s)`;
       return;
     }
 
@@ -342,71 +344,71 @@ html.theme-dark .drag-handle{background:#0f172a}
   }
 
   function ensureSortable(){
-    if (sortable) return;
-    sortable = new Sortable(rowsEl, {
-      handle: '.drag-handle',
-      animation: 160,
-      ghostClass: 'drag-ghost',
-      chosenClass: 'drag-chosen',
-      draggable: 'tr[data-dept-id]',
-      onEnd: () => {
-        recalcOrderBadges();
-        markDirty(true);
-        applySearch();
-      }
+    if (sortableInstances.length > 0) {
+      sortableInstances.forEach(s => s.destroy());
+      sortableInstances = [];
+    }
+
+    const table = document.getElementById('deo_table');
+    if (!table) return;
+
+    const tbodys = table.querySelectorAll('tbody[data-section]');
+    tbodys.forEach(tb => {
+      const s = new Sortable(tb, {
+        handle: '.drag-handle',
+        animation: 160,
+        ghostClass: 'drag-ghost',
+        chosenClass: 'drag-chosen',
+        draggable: 'tr[data-course-id]',
+        group: { name: 'section_items', pull: false, put: false }, // lock items inside their section
+        onEnd: () => {
+          recalcOrderBadges();
+          markDirty(true);
+          applySearch();
+        }
+      });
+      sortableInstances.push(s);
     });
   }
 
   function recalcOrderBadges(){
-    const trs = Array.from(rowsEl.querySelectorAll('tr[data-dept-id]'));
-    // Always keep featured grouped on top visually
-    trs.sort((a,b)=>{
-      const fa = a.querySelector('.feat-toggle')?.checked ? 1 : 0;
-      const fb = b.querySelector('.feat-toggle')?.checked ? 1 : 0;
-      if (fa !== fb) return fb - fa;
+    const table = document.getElementById('deo_table');
+    if (!table) return;
 
-      // keep current DOM relative order within groups -> stable
-      return 0;
-    });
-
-    // re-append grouped order without breaking drag ability
-    const frag = document.createDocumentFragment();
-    trs.forEach(tr => frag.appendChild(tr));
-    rowsEl.appendChild(frag);
-
-    // set display order numbers sequentially as per DOM order now
-    Array.from(rowsEl.querySelectorAll('tr[data-dept-id]')).forEach((tr, idx) => {
+    // Inside Sortable.js multiple list, elements stay inside their tbodys.
+    // Index mapping sequentially sequentially through all tr across multiple content lists.
+    let absoluteIdx = 1;
+    const allTrs = Array.from(table.querySelectorAll('tr[data-course-id]'));
+    allTrs.forEach((tr) => {
       const badge = tr.querySelector('[data-order-badge]');
-      if (badge) badge.textContent = String(idx + 1);
+      if (badge) badge.textContent = String(absoluteIdx++);
     });
   }
 
   function buildBulkPayload(){
     const items = [];
-    const trs = Array.from(rowsEl.querySelectorAll('tr[data-dept-id]'));
+    const table = document.getElementById('deo_table');
+    if (!table) return { items: [] };
+
+    const trs = Array.from(table.querySelectorAll('tr[data-course-id]'));
     trs.forEach((tr, idx) => {
-      const deptId = Number(tr.dataset.deptId || 0);
+      const courseId = Number(tr.dataset.courseId || 0);
       const featured = tr.querySelector('.feat-toggle')?.checked ? true : false;
+      const customName = tr.querySelector('.custom-name-input')?.value.trim();
       items.push({
-        department: deptId,               // controller accepts id|uuid|slug; we send id
-        sort_order: idx + 1,              // sequential, draggable order
-        featured: featured
+        course: courseId,               
+        sort_order: idx + 1,              
+        featured: featured,
+        custom_name: customName || null
       });
     });
     return { items };
   }
 
-  function snapshotFromDOM(){
-    const trs = Array.from(rowsEl.querySelectorAll('tr[data-dept-id]'));
-    return trs.map((tr, idx) => ({
-      department: Number(tr.dataset.deptId || 0),
-      sort_order: idx + 1,
-      featured: tr.querySelector('.feat-toggle')?.checked ? true : false
-    }));
-  }
-
   function render(list){
     clearRows();
+    const table = document.getElementById('deo_table');
+    if (!table) return;
 
     if (!Array.isArray(list) || list.length === 0) {
       emptyEl.style.display = '';
@@ -416,7 +418,7 @@ html.theme-dark .drag-handle{background:#0f172a}
 
     emptyEl.style.display = 'none';
 
-    // Sort like public: featured desc, sort_order asc, title asc
+    // Sort absolutely first for inner mapping order presets
     list = list.slice().sort((a,b)=>{
       const fa = Number(a.featured || 0);
       const fb = Number(b.featured || 0);
@@ -429,75 +431,116 @@ html.theme-dark .drag-handle{background:#0f172a}
       return String(a.title || '').localeCompare(String(b.title || ''), undefined, { sensitivity:'base' });
     });
 
-    const frag = document.createDocumentFragment();
+    // Categorization logic
+    const groups = {
+      'B.Tech in': [],
+      'AICTE Bachelor Degree': [],
+      'M.Tech in': [],
+      'MCA': [],
+      'MBA': [],
+      'Other Courses': []
+    };
 
-    list.forEach((r, i) => {
-      const tr = document.createElement('tr');
-      tr.dataset.deptId = String(r.id || '');
-      tr.dataset.search = [
-        r.title || '',
-        r.slug || '',
-        r.short_name || '',
-        r.department_type || ''
-      ].join(' ').toLowerCase();
+    list.forEach(r => {
+      const t = (r.title || '').toUpperCase();
+      const approvals = (r.approvals || '').toUpperCase();
+      const level = (r.program_level || '').toLowerCase();
 
-      if (r.active === false) tr.classList.add('is-inactive');
-
-      const uuid = r.uuid ? escapeHtml(r.uuid) : '';
-      const statusHtml = (r.active === false)
-        ? `<span class="badge badge-warning text-uppercase">Inactive</span>`
-        : `<span class="badge badge-success text-uppercase">Active</span>`;
-
-      tr.innerHTML = `
-        <td>
-          <button type="button" class="drag-handle" title="Drag to reorder">
-            <i class="fa-solid fa-grip-vertical" style="opacity:.8;"></i>
-          </button>
-        </td>
-
-        <td>
-          <span class="badge badge-soft" data-order-badge>${i + 1}</span>
-        </td>
-
-        <td>
-          <div class="form-check form-switch mb-0">
-            <input class="form-check-input feat-toggle" type="checkbox" ${r.featured ? 'checked' : ''}>
-            <label class="form-check-label small text-muted">Yes</label>
-          </div>
-        </td>
-
-        <td>
-          <div class="fw-semibold">${escapeHtml(r.title || '')}</div>
-          ${r.slug ? `<div class="text-muted small">Slug: ${escapeHtml(r.slug)}</div>` : `<div class="text-muted small">—</div>`}
-        </td>
-
-        <td>${r.short_name ? escapeHtml(r.short_name) : `<span class="text-muted">—</span>`}</td>
-        <td>${r.department_type ? escapeHtml(r.department_type) : `<span class="text-muted">—</span>`}</td>
-
-        <td>
-          ${uuid ? `
-            <div class="uuid-cell">
-              <code class="uuid-pill font-monospace">${uuid}</code>
-              <button type="button" class="uuid-copy-btn" data-copy="${uuid}" title="Copy UUID">
-                <i class="fa-regular fa-copy"></i>
-              </button>
-            </div>
-          ` : `<span class="text-muted">—</span>`}
-        </td>
-
-        <td>${statusHtml}</td>
-      `;
-
-      frag.appendChild(tr);
+      if (t.includes('M.TECH') || t.includes('M. TECH')) {
+        groups['M.Tech in'].push(r);
+      } else if (t.includes('MCA')) {
+        groups['MCA'].push(r);
+      } else if (t.includes('MBA')) {
+        groups['MBA'].push(r);
+      } else if (t.includes('BCA') || t.includes('BBA')) {
+        groups['AICTE Bachelor Degree'].push(r);
+      } else if (level === 'ug') {
+        groups['B.Tech in'].push(r);
+      } else {
+        groups['Other Courses'].push(r);
+      }
     });
 
-    rowsEl.appendChild(frag);
+    let globalIndex = 0;
+    for (const [title, items] of Object.entries(groups)) {
+      if (items.length > 0) {
+        const tbody = document.createElement('tbody');
+        tbody.dataset.section = title;
+        
+        // Header row
+        const headerTr = document.createElement('tr');
+        headerTr.style.background = 'rgba(158, 54, 58, 0.04)';
+        headerTr.style.fontWeight = '600';
+        headerTr.innerHTML = `<td colspan="12" style="padding: 10px 14px; font-size: 13.5px; color: var(--primary-color); border-bottom: 2px solid var(--line-strong);"><i class="fa fa-folder-open me-2"></i> ${title}</td>`;
+        tbody.appendChild(headerTr);
+
+        items.forEach(r => {
+          const tr = document.createElement('tr');
+          tr.dataset.courseId = String(r.id || '');
+          tr.dataset.search = [
+            r.title || '',
+            r.slug || '',
+            r.program_level || '',
+            r.program_type || ''
+          ].join(' ').toLowerCase();
+
+          if (r.active === false) tr.classList.add('is-inactive');
+
+          const uuid = r.uuid ? escapeHtml(r.uuid) : '';
+          const statusHtml = (r.active === false)
+            ? `<span class="badge badge-warning text-uppercase">Inactive</span>`
+            : `<span class="badge badge-success text-uppercase">Active</span>`;
+
+          tr.innerHTML = `
+            <td>
+              <button type="button" class="drag-handle" title="Drag to reorder">
+                <i class="fa-solid fa-grip-vertical" style="opacity:.8;"></i>
+              </button>
+            </td>
+            <td>
+              <span class="badge badge-soft" data-order-badge>${++globalIndex}</span>
+            </td>
+            <td>
+              <div class="form-check form-switch mb-0">
+                <input class="form-check-input feat-toggle" type="checkbox" ${r.featured ? 'checked' : ''}>
+                <label class="form-check-label small text-muted">Yes</label>
+              </div>
+            </td>
+            <td>
+              <div class="fw-semibold">${escapeHtml(r.title || '')}</div>
+              ${r.slug ? `<div class="text-muted small">Slug: ${escapeHtml(r.slug)}</div>` : `<div class="text-muted small">—</div>`}
+            </td>
+            <td>
+              <input type="text" class="form-control form-control-sm custom-name-input" 
+                     value="${escapeHtml(r.custom_name || '')}" 
+                     placeholder="Original if blank..."
+                      style="width:100%; min-width:300px; max-width:340px; border-radius:8px; height:32px;">
+            </td>
+            <td>${r.program_level ? escapeHtml(r.program_level) : `<span class="text-muted">—</span>`}</td>
+            <td>${r.program_type ? escapeHtml(r.program_type) : `<span class="text-muted">—</span>`}</td>
+            <td>
+              ${uuid ? `
+                <div class="uuid-cell">
+                  <code class="uuid-pill font-monospace">${uuid}</code>
+                  <button type="button" class="uuid-copy-btn" data-copy="${uuid}" title="Copy UUID">
+                    <i class="fa-regular fa-copy"></i>
+                  </button>
+                </div>
+              ` : `<span class="text-muted">—</span>`}
+            </td>
+            <td>${statusHtml}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+        table.appendChild(tbody);
+      }
+    }
 
     ensureSortable();
-    recalcOrderBadges();
     applySearch();
 
-    metaEl.textContent = `Total: ${list.length} department(s)`;
+    metaEl.textContent = `Total: ${list.length} course(s)`;
   }
 
   async function fetchList(){
@@ -519,10 +562,11 @@ html.theme-dark .drag-handle{background:#0f172a}
       const list = Array.isArray(j.data) ? j.data : [];
       originalSnapshot = list.map(x => ({
         id: x.id, uuid: x.uuid, title: x.title, slug: x.slug,
-        short_name: x.short_name, department_type: x.department_type,
+        program_level: x.program_level, program_type: x.program_type,
         active: x.active,
         sort_order: x.sort_order,
-        featured: x.featured
+        featured: x.featured,
+        custom_name: x.custom_name
       }));
 
       render(list);
@@ -574,7 +618,6 @@ html.theme-dark .drag-handle{background:#0f172a}
       ok('Order saved');
       markDirty(false);
 
-      // Reload to reflect persisted order & any created rows
       await fetchList();
     } catch(e){
       console.error(e);
@@ -587,7 +630,6 @@ html.theme-dark .drag-handle{background:#0f172a}
 
   /* ===== Events ===== */
 
-  // Copy UUID
   document.addEventListener('click', (e)=>{
     const btn = e.target.closest('[data-copy]');
     if (!btn) return;
@@ -596,16 +638,20 @@ html.theme-dark .drag-handle{background:#0f172a}
     copyText(btn.getAttribute('data-copy') || '');
   });
 
-  // Featured toggle
   document.addEventListener('change', (e)=>{
     const t = e.target.closest('.feat-toggle');
     if (!t) return;
-    recalcOrderBadges();     // keep featured grouped on top
+    recalcOrderBadges();     
     markDirty(true);
     applySearch();
   });
 
-  // Search highlight
+  document.addEventListener('input', (e)=>{
+    if (e.target.closest('.custom-name-input')) {
+      markDirty(true);
+    }
+  });
+
   let searchTimer;
   qEl.addEventListener('input', ()=>{
     clearTimeout(searchTimer);
@@ -620,7 +666,6 @@ html.theme-dark .drag-handle{background:#0f172a}
   btnReset.addEventListener('click', ()=> resetToServer());
   btnSave.addEventListener('click', ()=> saveBulk());
 
-  // initial load
   fetchList();
 
 })();

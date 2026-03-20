@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>User Profile - Dr. Anirban Mukherjee</title>
+<title>User Profile</title>
 
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
@@ -170,12 +170,13 @@ html.theme-dark .scroll-hint .hint-pill{
 .profile-social {
   display: flex;
   justify-content: center;
-  gap: 12px;
+  gap: 8px;
   margin: 20px 0;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
 }
 .profile-social a {
-  width: 44px; height: 44px;
+  width: 38px; height: 38px;
   border-radius: var(--radius-md);
   background: var(--surface-alt);
   display: flex; align-items: center; justify-content: center;
@@ -183,18 +184,17 @@ html.theme-dark .scroll-hint .hint-pill{
   transition: all 0.3s ease;
   border: 1px solid var(--line-strong);
   overflow: hidden;
-  flex: 0 0 44px;
+  flex: 0 0 38px;
 }
 .profile-social a:hover {
   background: var(--primary-color);
   color: white;
-  transform: translateY(-3px);
   box-shadow: var(--shadow-3);
 }
 .profile-social a img{
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
 }
 .profile-social a i{
@@ -414,12 +414,45 @@ html.theme-dark .kv-divider{
 }
 @media (max-width: 768px) {
   .section-indicator { bottom: 10px; right: 10px; font-size: 0.8rem; }
+  
+  .profile-contact { display: none !important; }
+
+  .profile-sidebar {
+    position: relative !important;
+    top: 0 !important;
+    max-height: none !important;
+    overflow-y: visible !important;
+    height: auto !important;
+  }
+
+  .profile-nav {
+    display: flex !important;
+    gap: 6px;
+    margin-top: 16px;
+    border-radius: var(--radius-md);
+    background: var(--surface-alt);
+    padding: 6px;
+    justify-content: space-around;
+    flex-direction: row !important;
+  }
+  .profile-nav button {
+    font-size: 0 !important;
+    padding: 10px !important;
+    justify-content: center;
+    flex: 1;
+    text-align: center;
+  }
+  .profile-nav button i {
+    font-size: 1.25rem;
+    margin: 0;
+  }
 }
 </style>
 </head>
 
 <body>
 
+@include('landing.components.topHeaderMenu')
 @include('landing.components.header')
 @include('landing.components.headerMenu')
 
@@ -439,28 +472,12 @@ html.theme-dark .kv-divider{
   <div class="profile-name" id="name">—</div>
   <div class="profile-role" id="role">—</div>
 
-  <div class="profile-contact">
-    <div class="contact-item">
-      <i class="fa fa-envelope"></i>
-      <span id="email">—</span>
-    </div>
-    <div class="contact-item">
-      <i class="fa fa-phone"></i>
-      <span id="phone">—</span>
-    </div>
-    <div class="contact-item">
-      <i class="fa fa-map-marker-alt"></i>
-      <span id="address">—</span>
-    </div>
-  </div>
+  <div class="profile-contact" id="profileContact"></div>
 
   <div class="profile-social" id="socialIcons"></div>
 
   <div class="profile-nav" id="profileNav">
-    <button class="active" data-target="basic" data-section="basic">
-      <i class="fa fa-user"></i> Basic Details
-    </button>
-    <button data-target="personal" data-section="personal">
+    <button class="active" data-target="personal" data-section="personal">
       <i class="fa fa-id-card"></i> Personal
     </button>
     <button data-target="education" data-section="education">
@@ -470,13 +487,13 @@ html.theme-dark .kv-divider{
       <i class="fa fa-award"></i> Honors
     </button>
     <button data-target="journals" data-section="journals">
-      <i class="fa fa-book"></i> Journals
+      <i class="fa fa-book"></i> Patents
     </button>
     <button data-target="conferences" data-section="conferences">
-      <i class="fa fa-microphone"></i> Conferences
+      <i class="fa fa-microphone"></i> Publications
     </button>
     <button data-target="teaching" data-section="teaching">
-      <i class="fa fa-chalkboard-teacher"></i> Teaching
+      <i class="fa fa-chalkboard-teacher"></i> Engagements
     </button>
   </div>
 
@@ -496,28 +513,27 @@ html.theme-dark .kv-divider{
 
   <div id="dynamicContent"></div>
 </main>
-
 </div>
 
 <div class="section-indicator" id="sectionIndicator">
-  Viewing: <span id="currentSectionName">Basic Details</span>
+  Viewing: <span id="currentSectionName">Personal Information</span>
 </div>
+@include('landing.components.footer')
 
 <script>
 // Global variables
 let profileData = null;
-let currentSection = 'basic';
+let currentSection = 'personal';
 let isLoading = false;
 
 // Section configuration
 const sections = {
-  basic: { title: 'Basic Details', icon: 'fa-user', render: renderBasicSection },
   personal: { title: 'Personal Information', icon: 'fa-id-card', render: renderPersonalSection },
   education: { title: 'Education', icon: 'fa-graduation-cap', render: renderEducationSection },
   honors: { title: 'Honors & Awards', icon: 'fa-award', render: renderHonorsSection },
-  journals: { title: 'Journal Publications', icon: 'fa-book', render: renderJournalsSection },
-  conferences: { title: 'Conference Publications', icon: 'fa-microphone', render: renderConferencesSection },
-  teaching: { title: 'Teaching Engagements', icon: 'fa-chalkboard-teacher', render: renderTeachingSection }
+  journals: { title: 'Patents', icon: 'fa-book', render: renderJournalsSection },
+  conferences: { title: 'Publications', icon: 'fa-microphone', render: renderConferencesSection },
+  teaching: { title: 'Engagements', icon: 'fa-chalkboard-teacher', render: renderTeachingSection }
 };
 
 // Initialize application
@@ -532,7 +548,7 @@ async function initApp() {
     profileData = json.data || {};
 
     initSidebar();
-    await loadSection('basic');
+    await loadSection('personal');
     setupNavigation();
     setupSidebarScrollHint();
 
@@ -580,22 +596,88 @@ function normalizeUrl(url){
   if (/^(https?:\/\/|mailto:|tel:)/i.test(v)) return v;
   return v.startsWith('/') ? v : `https://${v}`;
 }
+function stripHtml(value) {
+  return String(value || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+function hasValue(value) {
+  if (value === null || value === undefined) return false;
+  if (Array.isArray(value)) return value.some(item => hasValue(item));
+  if (typeof value === 'object') return Object.values(value).some(v => hasValue(v));
+  const cleaned = stripHtml(value);
+  return cleaned !== '' && cleaned !== '—' && cleaned.toLowerCase() !== 'null' && cleaned.toLowerCase() !== 'undefined';
+}
+function getTextOrEmpty(value) {
+  return hasValue(value) ? String(value).trim() : '';
+}
+function renderKvRows(items) {
+  const validItems = items.filter(([_, value]) => hasValue(value));
+  if (!validItems.length) return '';
+  return validItems.map(([k, v], idx) => `
+    <div class="k">${escapeHtml(String(k).replace(/_/g, ' ').toUpperCase())}</div>
+    <div class="v">${v}</div>
+    ${idx < validItems.length - 1 ? `<div class="kv-divider" aria-hidden="true"></div>` : ``}
+  `).join('');
+}
+function renderMetaItems(items) {
+  const validItems = items.filter(item => hasValue(item?.value));
+  if (!validItems.length) return '';
+  return `
+    <div class="card-meta">
+      ${validItems.map(item => `
+        <div class="card-meta-item">
+          <i class="${escapeAttr(item.icon)}"></i>
+          <span>${item.value}</span>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+function renderEmptySection(id, icon, title, text) {
+  return `
+    <section id="${escapeAttr(id)}" class="profile-card profile-section">
+      <h5><i class="${escapeAttr(icon)}"></i> ${escapeHtml(title)}</h5>
+      <div class="empty">
+        <i class="${escapeAttr(icon)}"></i>
+        ${escapeHtml(text)}
+      </div>
+    </section>
+  `;
+}
 
 // Initialize sidebar
 function initSidebar() {
   const d = profileData.basic || {};
 
   document.getElementById('name').textContent = d.name || '—';
+  if (d.name) {
+    document.title = 'User Profile - ' + d.name;
+  }
   document.getElementById('role').textContent = (d.role || '').toUpperCase() || '—';
-  document.getElementById('email').textContent = d.email || '—';
-  document.getElementById('phone').textContent = d.phone_number || '—';
-  document.getElementById('address').textContent = d.address?.replace(/\n/g, ', ') || '—';
 
   const avatar = document.getElementById('avatar');
   if (d.image) {
     avatar.innerHTML = `<img src="${escapeAttr(d.image)}" alt="avatar">`;
   } else {
     avatar.innerHTML = `<i class="fa fa-user-graduate"></i>`;
+  }
+
+  const contactItems = [
+    { icon: 'fa fa-envelope', value: getTextOrEmpty(d.email) },
+    { icon: 'fa fa-phone', value: getTextOrEmpty(d.phone_number) },
+    { icon: 'fa fa-map-marker-alt', value: getTextOrEmpty(d.address)?.replace(/\n/g, ', ') }
+  ].filter(item => hasValue(item.value));
+
+  const profileContact = document.getElementById('profileContact');
+  if (contactItems.length) {
+    profileContact.innerHTML = contactItems.map(item => `
+      <div class="contact-item ${item.icon.includes('envelope') ? 'contact-email' : ''}">
+        <i class="${escapeAttr(item.icon)}"></i>
+        <span>${escapeHtml(item.value)}</span>
+      </div>
+    `).join('');
+    profileContact.style.display = '';
+  } else {
+    profileContact.style.display = 'none';
   }
 
   renderSocialIcons(profileData.social_media || []);
@@ -667,6 +749,8 @@ function renderSocialIcons(arr) {
       </a>
     `);
   });
+
+  socialIcons.style.display = socialIcons.children.length ? 'flex' : 'none';
 }
 
 // Setup navigation
@@ -806,7 +890,7 @@ function updateSectionIndicator(sectionName) {
 
 // Helper function to format text
 function formatText(text) {
-  if (!text) return '—';
+  if (!hasValue(text)) return '';
   return String(text)
     .replace(/<br\s*\/?>/gi, '<br>')
     .replace(/<br data-start="\d+" data-end="\d+"\s*\/?>/g, '<br>')
@@ -822,61 +906,34 @@ function formatText(text) {
 
 // ===== SECTION RENDERERS =====
 
-function renderBasicSection() {
-  const d = profileData.basic || {};
-
-  const basicFields = {
-    'Email': d.email || '—',
-    'Phone': d.phone_number || '—',
-    'Alternative Email': d.alternative_email || '—',
-    'Alternative Phone': d.alternative_phone_number || '—',
-    'WhatsApp': d.whatsapp_number || '—',
-    'Address': d.address?.replace(/\n/g, '<br>') || '—',
-    'Role': d.role || '—',
-    'Status': `<span class="status-indicator">${escapeHtml(d.status || '—')}</span>`,
-    'Member Since': d.created_at
-      ? new Date(d.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-      : '—'
-  };
-
-  const kvHTML = Object.entries(basicFields)
-    .map(([k, v]) => `
-      <div class="k">${escapeHtml(k.replace(/_/g, ' ').toUpperCase())}</div>
-      <div class="v">${v}</div>
-    `).join('');
-
-  return `
-    <section id="basic" class="profile-card profile-section">
-      <h5><i class="fa fa-user"></i> Basic Details</h5>
-      <div class="kv">${kvHTML}</div>
-    </section>
-  `;
-}
-
 function renderPersonalSection() {
   const d = profileData.personal || {};
 
-  const qualificationHTML = d.qualification
+  const qualifications = Array.isArray(d.qualification)
+    ? d.qualification.filter(q => hasValue(q))
+    : [];
+
+  const qualificationHTML = qualifications.length
     ? `<div class="qualification-list">
-        ${d.qualification.map(q => `<span class="qualification-tag">${escapeHtml(q)}</span>`).join('')}
+        ${qualifications.map(q => `<span class="qualification-tag">${escapeHtml(q)}</span>`).join('')}
       </div>`
-    : '—';
+    : '';
 
   const personalItems = [
     ['Qualifications', qualificationHTML],
-    ['Affiliation', formatText(d.affiliation || '—')],
-    ['Specification', formatText(d.specification || '—')],
-    ['Experience', formatText(d.experience || '—')],
-    ['Research Interests', formatText(d.interest || '—')],
-    ['Administration', formatText(d.administration || '—')],
-    ['Research Projects', formatText(d.research_project || '—')]
+    ['Affiliation', formatText(d.affiliation)],
+    ['Specification', formatText(d.specification)],
+    ['Experience', formatText(d.experience)],
+    ['Research Interests', formatText(d.interest)],
+    ['Administration', formatText(d.administration)],
+    ['Research Projects', formatText(d.research_project)]
   ];
 
-  const kvHTML = personalItems.map(([k, v], idx) => `
-      <div class="k">${escapeHtml(String(k).replace(/_/g, ' ').toUpperCase())}</div>
-      <div class="v">${v}</div>
-      ${idx < personalItems.length - 1 ? `<div class="kv-divider" aria-hidden="true"></div>` : ``}
-  `).join('');
+  const kvHTML = renderKvRows(personalItems);
+
+  if (!kvHTML) {
+    return renderEmptySection('personal', 'fa fa-id-card', 'Personal Information', 'No personal information found');
+  }
 
   return `
     <section id="personal" class="profile-card profile-section">
@@ -887,50 +944,50 @@ function renderPersonalSection() {
 }
 
 function renderEducationSection() {
-  const educations = profileData.educations || [];
+  const educations = (profileData.educations || []).filter(edu =>
+    hasValue(edu?.degree_title) ||
+    hasValue(edu?.education_level) ||
+    hasValue(edu?.institution_name) ||
+    hasValue(edu?.university_name) ||
+    hasValue(edu?.location) ||
+    hasValue(edu?.passing_year) ||
+    hasValue(edu?.grade_value) ||
+    hasValue(edu?.field_of_study) ||
+    hasValue(edu?.description)
+  );
 
   if (!educations.length) {
-    return `
-      <section id="education" class="profile-card profile-section">
-        <h5><i class="fa fa-graduation-cap"></i> Education</h5>
-        <div class="empty">
-          <i class="fa fa-graduation-cap"></i>
-          No education records found
-        </div>
-      </section>
-    `;
+    return renderEmptySection('education', 'fa fa-graduation-cap', 'Education', 'No education records found');
   }
 
-  const educationHTML = educations.map(edu => `
-    <div class="content-card">
-      <div class="card-image">
-        <i class="fa fa-university"></i>
-      </div>
-      <div class="card-content">
-        <div class="card-title">${escapeHtml(edu.degree_title || edu.education_level || '—')}</div>
-        <div class="card-meta">
-          <div class="card-meta-item">
-            <i class="fa fa-university"></i>
-            <span>${escapeHtml(edu.institution_name || edu.university_name || '—')}</span>
-          </div>
-          <div class="card-meta-item">
-            <i class="fa fa-map-marker-alt"></i>
-            <span>${escapeHtml(edu.location || '—')}</span>
-          </div>
-          <div class="card-meta-item">
-            <i class="fa fa-calendar"></i>
-            <span>${escapeHtml(edu.passing_year || '—')}</span>
-          </div>
-          <div class="card-meta-item">
-            <i class="fa fa-chart-line"></i>
-            <span>${escapeHtml(edu.grade_type || 'Grade')}: ${escapeHtml(edu.grade_value || '—')}</span>
-          </div>
+  const educationHTML = educations.map(edu => {
+    const title = edu.degree_title || edu.education_level || '';
+    const metaHTML = renderMetaItems([
+      { icon: 'fa fa-university', value: escapeHtml(edu.institution_name || edu.university_name || '') },
+      { icon: 'fa fa-map-marker-alt', value: escapeHtml(edu.location || '') },
+      { icon: 'fa fa-calendar', value: escapeHtml(edu.passing_year || '') },
+      {
+        icon: 'fa fa-chart-line',
+        value: (hasValue(edu.grade_value) || hasValue(edu.grade_type))
+          ? `${escapeHtml(edu.grade_type || 'Grade')}: ${escapeHtml(edu.grade_value || '—')}`
+          : ''
+      }
+    ]);
+
+    return `
+      <div class="content-card">
+        <div class="card-image">
+          <i class="fa fa-university"></i>
         </div>
-        ${edu.field_of_study ? `<div class="card-badge">${escapeHtml(edu.field_of_study)}</div>` : ''}
-        ${edu.description ? `<div class="card-desc">${escapeHtml(edu.description)}</div>` : ''}
+        <div class="card-content">
+          ${hasValue(title) ? `<div class="card-title">${escapeHtml(title)}</div>` : ''}
+          ${metaHTML}
+          ${hasValue(edu.field_of_study) ? `<div class="card-badge">${escapeHtml(edu.field_of_study)}</div>` : ''}
+          ${hasValue(edu.description) ? `<div class="card-desc">${escapeHtml(edu.description)}</div>` : ''}
+        </div>
       </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 
   return `
     <section id="education" class="profile-card profile-section">
@@ -941,18 +998,17 @@ function renderEducationSection() {
 }
 
 function renderHonorsSection() {
-  const honors = profileData.honors || [];
+  const honors = (profileData.honors || []).filter(honor =>
+    hasValue(honor?.title) ||
+    hasValue(honor?.honouring_organization) ||
+    hasValue(honor?.honor_year) ||
+    hasValue(honor?.honor_type) ||
+    hasValue(honor?.description) ||
+    hasValue(honor?.image)
+  );
 
   if (!honors.length) {
-    return `
-      <section id="honors" class="profile-card profile-section">
-        <h5><i class="fa fa-award"></i> Honors & Awards</h5>
-        <div class="empty">
-          <i class="fa fa-award"></i>
-          No honors records found
-        </div>
-      </section>
-    `;
+    return renderEmptySection('honors', 'fa fa-award', 'Honors & Awards', 'No honors records found');
   }
 
   const honorsHTML = honors.map(honor => `
@@ -961,22 +1017,13 @@ function renderHonorsSection() {
         ${honor.image ? `<img src="${escapeAttr(honor.image)}" alt="${escapeAttr(honor.title || 'Honor')}" loading="lazy">` : '<i class="fa fa-award"></i>'}
       </div>
       <div class="card-content">
-        <div class="card-title">${escapeHtml(honor.title || '—')}</div>
-        <div class="card-meta">
-          <div class="card-meta-item">
-            <i class="fa fa-building"></i>
-            <span>${escapeHtml(honor.honouring_organization || '—')}</span>
-          </div>
-          <div class="card-meta-item">
-            <i class="fa fa-calendar"></i>
-            <span>${escapeHtml(honor.honor_year || '—')}</span>
-          </div>
-          <div class="card-meta-item">
-            <i class="fa fa-tag"></i>
-            <span>${escapeHtml(honor.honor_type || 'Award')}</span>
-          </div>
-        </div>
-        ${honor.description ? `<div class="card-desc">${escapeHtml(honor.description)}</div>` : ''}
+        ${hasValue(honor.title) ? `<div class="card-title">${escapeHtml(honor.title)}</div>` : ''}
+        ${renderMetaItems([
+          { icon: 'fa fa-building', value: escapeHtml(honor.honouring_organization || '') },
+          { icon: 'fa fa-calendar', value: escapeHtml(honor.honor_year || '') },
+          { icon: 'fa fa-tag', value: escapeHtml(honor.honor_type || '') }
+        ])}
+        ${hasValue(honor.description) ? `<div class="card-desc">${escapeHtml(honor.description)}</div>` : ''}
       </div>
     </div>
   `).join('');
@@ -990,39 +1037,32 @@ function renderHonorsSection() {
 }
 
 function renderJournalsSection() {
-  const journals = profileData.journals || [];
+  const journals = (profileData.journals || []).filter(journal =>
+    hasValue(journal?.title) ||
+    hasValue(journal?.publication_organization) ||
+    hasValue(journal?.publication_year) ||
+    hasValue(journal?.description) ||
+    hasValue(journal?.url) ||
+    hasValue(journal?.image)
+  );
 
   if (!journals.length) {
-    return `
-      <section id="journals" class="profile-card profile-section">
-        <h5><i class="fa fa-book"></i> Journal Publications</h5>
-        <div class="empty">
-          <i class="fa fa-book"></i>
-          No journal publications found
-        </div>
-      </section>
-    `;
+    return renderEmptySection('journals', 'fa fa-book', 'Patents', 'No patent found');
   }
 
   const journalsHTML = journals.map(journal => `
     <div class="content-card">
       <div class="card-image">
-        ${journal.image ? `<img src="${escapeAttr(journal.image)}" alt="${escapeAttr(journal.title || 'Journal')}" loading="lazy">` : '<i class="fa fa-newspaper"></i>'}
+        ${journal.image ? `<img src="${escapeAttr(journal.image)}" alt="${escapeAttr(journal.title || 'Patent')}" loading="lazy">` : '<i class="fa fa-newspaper"></i>'}
       </div>
       <div class="card-content">
-        <div class="card-title">${escapeHtml(journal.title || '—')}</div>
-        <div class="card-meta">
-          <div class="card-meta-item">
-            <i class="fa fa-building"></i>
-            <span>${escapeHtml(journal.publication_organization || '—')}</span>
-          </div>
-          <div class="card-meta-item">
-            <i class="fa fa-calendar"></i>
-            <span>${escapeHtml(journal.publication_year || '—')}</span>
-          </div>
-        </div>
-        ${journal.description ? `<div class="card-desc">${escapeHtml(journal.description)}</div>` : ''}
-        ${journal.url ? `
+        ${hasValue(journal.title) ? `<div class="card-title">${escapeHtml(journal.title)}</div>` : ''}
+        ${renderMetaItems([
+          { icon: 'fa fa-building', value: escapeHtml(journal.publication_organization || '') },
+          { icon: 'fa fa-calendar', value: escapeHtml(journal.publication_year || '') }
+        ])}
+        ${hasValue(journal.description) ? `<div class="card-desc">${escapeHtml(journal.description)}</div>` : ''}
+        ${hasValue(journal.url) ? `
           <div class="card-link">
             <a href="${escapeAttr(normalizeUrl(journal.url))}" target="_blank" rel="noopener noreferrer">
               <i class="fa fa-external-link-alt"></i> View Publication
@@ -1035,55 +1075,45 @@ function renderJournalsSection() {
 
   return `
     <section id="journals" class="profile-card profile-section">
-      <h5><i class="fa fa-book"></i> Journal Publications</h5>
+      <h5><i class="fa fa-book"></i> Patents</h5>
       <div class="content-grid">${journalsHTML}</div>
     </section>
   `;
 }
 
 function renderConferencesSection() {
-  const conferences = profileData.conference_publications || [];
+  const conferences = (profileData.conference_publications || []).filter(conf =>
+    hasValue(conf?.title) ||
+    hasValue(conf?.publication_year) ||
+    hasValue(conf?.location) ||
+    hasValue(conf?.publication_type) ||
+    hasValue(conf?.conference_name) ||
+    hasValue(conf?.domain) ||
+    hasValue(conf?.description) ||
+    hasValue(conf?.url) ||
+    hasValue(conf?.image)
+  );
 
   if (!conferences.length) {
-    return `
-      <section id="conferences" class="profile-card profile-section">
-        <h5><i class="fa fa-microphone"></i> Conference Publications</h5>
-        <div class="empty">
-          <i class="fa fa-microphone"></i>
-          No conference publications found
-        </div>
-      </section>
-    `;
+    return renderEmptySection('conferences', 'fa fa-microphone', 'Publications', 'No publications found');
   }
 
   const conferencesHTML = conferences.map(conf => `
     <div class="content-card">
       <div class="card-image">
-        ${conf.image ? `<img src="${escapeAttr(conf.image)}" alt="${escapeAttr(conf.title || 'Conference')}" loading="lazy">` : '<i class="fa fa-microphone-alt"></i>'}
+        ${conf.image ? `<img src="${escapeAttr(conf.image)}" alt="${escapeAttr(conf.title || 'Publication')}" loading="lazy">` : '<i class="fa fa-microphone-alt"></i>'}
       </div>
       <div class="card-content">
-        <div class="card-title">${escapeHtml(conf.title || '—')}</div>
-        <div class="card-meta">
-          <div class="card-meta-item">
-            <i class="fa fa-calendar"></i>
-            <span>${escapeHtml(conf.publication_year || '—')}</span>
-          </div>
-          <div class="card-meta-item">
-            <i class="fa fa-map-marker-alt"></i>
-            <span>${escapeHtml(conf.location || '—')}</span>
-          </div>
-          <div class="card-meta-item">
-            <i class="fa fa-tag"></i>
-            <span>${escapeHtml(conf.publication_type || 'Paper')}</span>
-          </div>
-          <div class="card-meta-item">
-            <i class="fa fa-building"></i>
-            <span>${escapeHtml(conf.conference_name || '—')}</span>
-          </div>
-        </div>
-        ${conf.domain ? `<div class="card-badge">${escapeHtml(conf.domain)}</div>` : ''}
-        ${conf.description ? `<div class="card-desc">${escapeHtml(conf.description)}</div>` : ''}
-        ${conf.url ? `
+        ${hasValue(conf.title) ? `<div class="card-title">${escapeHtml(conf.title)}</div>` : ''}
+        ${renderMetaItems([
+          { icon: 'fa fa-calendar', value: escapeHtml(conf.publication_year || '') },
+          { icon: 'fa fa-map-marker-alt', value: escapeHtml(conf.location || '') },
+          { icon: 'fa fa-tag', value: escapeHtml(conf.publication_type || '') },
+          { icon: 'fa fa-building', value: escapeHtml(conf.conference_name || '') }
+        ])}
+        ${hasValue(conf.domain) ? `<div class="card-badge">${escapeHtml(conf.domain)}</div>` : ''}
+        ${hasValue(conf.description) ? `<div class="card-desc">${escapeHtml(conf.description)}</div>` : ''}
+        ${hasValue(conf.url) ? `
           <div class="card-link">
             <a href="${escapeAttr(normalizeUrl(conf.url))}" target="_blank" rel="noopener noreferrer">
               <i class="fa fa-external-link-alt"></i> View Details
@@ -1096,25 +1126,21 @@ function renderConferencesSection() {
 
   return `
     <section id="conferences" class="profile-card profile-section">
-      <h5><i class="fa fa-microphone"></i> Conference Publications</h5>
+      <h5><i class="fa fa-microphone"></i> Publications</h5>
       <div class="content-grid">${conferencesHTML}</div>
     </section>
   `;
 }
 
 function renderTeachingSection() {
-  const teaching = profileData.teaching_engagements || [];
+  const teaching = (profileData.teaching_engagements || []).filter(teach =>
+    hasValue(teach?.organization_name) ||
+    hasValue(teach?.domain) ||
+    hasValue(teach?.description)
+  );
 
   if (!teaching.length) {
-    return `
-      <section id="teaching" class="profile-card profile-section">
-        <h5><i class="fa fa-chalkboard-teacher"></i> Teaching Engagements</h5>
-        <div class="empty">
-          <i class="fa fa-chalkboard-teacher"></i>
-          No teaching engagements found
-        </div>
-      </section>
-    `;
+    return renderEmptySection('teaching', 'fa fa-chalkboard-teacher', 'Engagements', 'No engagements found');
   }
 
   const teachingHTML = teaching.map(teach => `
@@ -1123,21 +1149,18 @@ function renderTeachingSection() {
         <i class="fa fa-chalkboard-teacher"></i>
       </div>
       <div class="card-content">
-        <div class="card-title">${escapeHtml(teach.organization_name || '—')}</div>
-        <div class="card-meta">
-          <div class="card-meta-item">
-            <i class="fa fa-tag"></i>
-            <span>${escapeHtml(teach.domain || '—')}</span>
-          </div>
-        </div>
-        ${teach.description ? `<div class="card-desc">${escapeHtml(teach.description)}</div>` : ''}
+        ${hasValue(teach.organization_name) ? `<div class="card-title">${escapeHtml(teach.organization_name)}</div>` : ''}
+        ${renderMetaItems([
+          { icon: 'fa fa-tag', value: escapeHtml(teach.domain || '') }
+        ])}
+        ${hasValue(teach.description) ? `<div class="card-desc">${escapeHtml(teach.description)}</div>` : ''}
       </div>
     </div>
   `).join('');
 
   return `
     <section id="teaching" class="profile-card profile-section">
-      <h5><i class="fa fa-chalkboard-teacher"></i> Teaching Engagements</h5>
+      <h5><i class="fa fa-chalkboard-teacher"></i> Engagements</h5>
       <div class="content-grid">${teachingHTML}</div>
     </section>
   `;

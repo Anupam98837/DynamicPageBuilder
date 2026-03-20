@@ -624,7 +624,8 @@
   // =========================
   // State
   // =========================
-  const ACTOR = { role:'' };
+  const ACTOR = { id: null, role: '', department_id: null };
+  let canAssignPrivilege = false;
   let canWrite = false;
 
   const state = {
@@ -642,8 +643,8 @@
   // =========================
   function computePermissions(){
     const r = (ACTOR.role || '').toLowerCase();
-    const writeRoles = ['admin','director','principal','hod','faculty','technical_assistant','it_person'];
-    canWrite = writeRoles.includes(r);
+    
+    canWrite = (!ACTOR.department_id);
     $('writeControls').style.display = canWrite ? 'flex' : 'none';
   }
 

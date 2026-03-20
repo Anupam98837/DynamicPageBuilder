@@ -71,7 +71,7 @@ use App\Http\Controllers\API\UserActivityLogsController;
 use App\Http\Controllers\API\MetaTagController;
 use App\Http\Controllers\API\AlumniController;
 use App\Http\Controllers\API\ProgramTopperController;
-use App\Http\Controllers\API\DepartmentEnquirySettingsController;
+use App\Http\Controllers\API\CourseEnquirySettingsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -2172,40 +2172,36 @@ Route::middleware('checkRole')->group(function () {
         ->where('identifier', '[0-9]+|[0-9a-fA-F\-]{36}');
 });
 
-// Public (no auth) - website usage
 Route::prefix('public')->group(function () {
     Route::get('/meta-tags', [MetaTagController::class, 'publicIndex']);
 });
 
 /*
 |--------------------------------------------------------------------------
-| Department Enquiry Settings Routes (Order + Featured)
+| Course Enquiry Settings Routes (Order + Featured)
 |--------------------------------------------------------------------------
 */
 
 // ✅ Admin / Backend control (save order + featured)
 Route::middleware('checkRole')
-    ->prefix('department-enquiry-settings')
+    ->prefix('course-enquiry-settings')
     ->group(function () {
 
-        // list departments + current settings (for manage page)
-        Route::get('/', [DepartmentEnquirySettingsController::class, 'index']);
+        // list courses + current settings (for manage page)
+        Route::get('/', [CourseEnquirySettingsController::class, 'index']);
 
-        // upsert one department setting
-        Route::post('/upsert', [DepartmentEnquirySettingsController::class, 'upsert']);
+        // upsert one course setting
+        Route::post('/upsert', [CourseEnquirySettingsController::class, 'upsert']);
 
         // bulk save (recommended for reorder UI)
-        Route::post('/bulk-upsert', [DepartmentEnquirySettingsController::class, 'bulkUpsert']);
+        Route::post('/bulk-upsert', [CourseEnquirySettingsController::class, 'bulkUpsert']);
     });
 
 /*
 |--------------------------------------------------------------------------
-| Public Departments (Enquiry Form) - ORDERED + FEATURED
+| Public Courses (Enquiry Form) - ORDERED + FEATURED
 |--------------------------------------------------------------------------
 */
 
-// ❗IMPORTANT: remove/comment the old route below to avoid duplicate route:
-// Route::get('/public/departments', [DepartmentController::class, 'publicIndex']);
-
-// ✅ Public departments (uses enquiry settings: featured + sort_order)
-Route::get('/public/ordered-departments', [DepartmentEnquirySettingsController::class, 'publicDepartments']);
+// ✅ Public courses (uses enquiry settings: featured + sort_order)
+Route::get('/public/ordered-courses', [CourseEnquirySettingsController::class, 'publicCourses']);

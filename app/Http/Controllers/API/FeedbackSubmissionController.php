@@ -10,6 +10,8 @@ use Illuminate\Support\Str;
 
 class FeedbackSubmissionController extends Controller
 {
+    use \App\Http\Controllers\API\Concerns\DepartmentScopeable;
+
     private const POSTS = 'feedback_posts';
     private const SUBS  = 'feedback_submissions';
 

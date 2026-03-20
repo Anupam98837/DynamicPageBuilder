@@ -11,6 +11,8 @@ use Illuminate\Database\QueryException;
 
 class TopHeaderMenuController extends Controller
 {
+    use \App\Http\Controllers\API\Concerns\DepartmentScopeable;
+
     private string $table = 'top_header_menus';
 
     /* ============================================

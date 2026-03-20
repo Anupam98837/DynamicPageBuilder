@@ -1,8 +1,8 @@
 @extends('pages.users.layout.structure')
 
-@section('title', 'Manage Department Enquiry Settings')
+@section('title', 'Manage Course Enquiry Settings')
 
-@include('modules.enquiry.manageDepartmentEnquirySettings')
+@include('modules.enquiry.manageCourseEnquirySettings')
 
 @section('scripts')
 <script>

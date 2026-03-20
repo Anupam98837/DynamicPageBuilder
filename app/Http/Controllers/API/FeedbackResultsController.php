@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\Schema;
 
 class FeedbackResultsController extends Controller
 {
+    use \App\Http\Controllers\API\Concerns\DepartmentScopeable;
+
     private const POSTS     = 'feedback_posts';
     private const SUBS      = 'feedback_submissions';
     private const QUESTIONS = 'feedback_questions';

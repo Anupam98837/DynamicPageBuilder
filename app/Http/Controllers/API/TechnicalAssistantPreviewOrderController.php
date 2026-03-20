@@ -13,6 +13,8 @@ use Carbon\Carbon;
 
 class TechnicalAssistantPreviewOrderController extends Controller
 {
+    use \App\Http\Controllers\API\Concerns\DepartmentScopeable;
+
     private const TABLE = 'technical_assistant_preview_orders';
     private const LOG_TABLE = 'user_data_activity_log';
     private const LOG_MODULE = 'technical_assistant_preview_orders';
@@ -316,6 +318,11 @@ class TechnicalAssistantPreviewOrderController extends Controller
      */
     public function index(Request $request)
     {
+        $__ac = $this->departmentAccessControl($request);
+        if ($__ac['mode'] === 'none') {
+            return response()->json(['data' => [], 'pagination' => ['page' => 1, 'per_page' => 20, 'total' => 0, 'last_page' => 1]], 200);
+        }
+
         if (!$this->tableReady()) {
             return response()->json([
                 'success' => false,

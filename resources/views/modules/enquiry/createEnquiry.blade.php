@@ -420,14 +420,14 @@
         </label>
       </div>
 
-      {{-- ✅ Department dropdown (only visible if toggle ON) - now inline in same row --}}
+      {{-- ✅ Course Checkboxes (only visible if toggle ON) --}}
       <div id="deptWrap" class="full" style="display:none;">
-        <label for="department_id">Interested Department *</label>
-        <select id="department_id" class="placeholder-shown">
-          <option value="">Loading departments...</option>
-        </select>
+        <label style="margin-bottom:6px; display:block;">Interested Course(s) *</label>
+        <div id="course_checkboxes" style="border: 1px solid var(--contact-line); padding: 12px; border-radius: 10px; background: #fff;">
+          <!-- Checkboxes injected here -->
+        </div>
         <div class="cu-dept-hint">
-          Select one department (we'll store it as an array with one ID).
+          Select one or more courses you are interested in.
         </div>
       </div>
 
@@ -505,10 +505,10 @@
     const phoneEl     = document.getElementById('phone');
     const msgEl       = document.getElementById('message');
 
-    // ✅ NEW: admission + dept
+    // ✅ NEW: admission + courses
     const admissionEl = document.getElementById('is_admission_enquiry');
     const deptWrapEl  = document.getElementById('deptWrap');
-    const deptEl      = document.getElementById('department_id');
+    const courseCheckboxesEl = document.getElementById('course_checkboxes');
 
     const termsEl     = document.getElementById('consent_terms');
     const promoEl     = document.getElementById('consent_promotions');
@@ -676,59 +676,92 @@
       return typedRaw === CAPTCHA_CODE;
     }
 
-    // ✅ Departments loader (api/public/departments)
-    async function loadDepartments(){
+    // ✅ Courses loader (api/public/ordered-courses)
+    async function loadCourses(){
       if(deptLoaded || deptLoading) return;
       deptLoading = true;
       deptLoadFailed = false;
 
       try{
-        deptEl.innerHTML = `<option value="">Loading departments...</option>`;
-        deptEl.classList.add('placeholder-shown');
+        courseCheckboxesEl.innerHTML = `<div>Loading courses...</div>`;
 
-        const res = await fetch('/api/public/ordered-departments', {
+        const res = await fetch('/api/public/ordered-courses', {
           method: 'GET',
           headers: { 'Accept': 'application/json' }
         });
         const data = await res.json().catch(() => ({}));
 
-        // Try multiple possible shapes
-        let list = [];
-        if (Array.isArray(data)) list = data;
-        else if (Array.isArray(data.data)) list = data.data;
-        else if (Array.isArray(data.departments)) list = data.departments;
-        else if (data.data && Array.isArray(data.data.data)) list = data.data.data;
+        let list = Array.isArray(data.data) ? data.data : [];
 
         if(!res.ok){
-          throw new Error(data.message || 'Failed to load departments');
+          throw new Error(data.message || 'Failed to load courses');
         }
 
-        // Build options
-        const opts = [];
-        opts.push(`<option value="">Select a department</option>`);
+        if (list.length === 0) {
+          courseCheckboxesEl.innerHTML = `<div>No courses found</div>`;
+          return;
+        }
 
-        list.forEach((d) => {
-          const id = d?.id ?? d?.department_id ?? null;
-          if(id === null || id === undefined) return;
+        function escapeHtml(s){
+          const map={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;','`':'&#96;'};
+          return (s==null?'':String(s)).replace(/[&<>"'`]/g,ch=>map[ch]);
+        }
 
-          const name =
-            d?.name ??
-            d?.title ??
-            d?.department_name ??
-            d?.dept_name ??
-            d?.slug ??
-            ('Department #' + id);
+        // Categorization logic
+        const groups = {
+          'B.Tech in': [],
+          'AICTE Bachelor Degree': [],
+          'M.Tech in': [],
+          'MCA & MBA': [],
+          'Other Courses': []
+        };
 
-          opts.push(`<option value="${String(id)}">${String(name)}</option>`);
+        list.forEach(c => {
+          const t = (c.title || '').toUpperCase();
+          const approvals = (c.approvals || '').toUpperCase();
+          const level = (c.program_level || '').toLowerCase();
+
+          if (t.includes('M.TECH') || t.includes('M. TECH')) {
+            groups['M.Tech in'].push(c);
+          } else if (t.includes('MCA') || t.includes('MBA')) {
+            groups['MCA & MBA'].push(c);
+          } else if (t.includes('BCA') || t.includes('BBA')) {
+            groups['AICTE Bachelor Degree'].push(c);
+          } else if (level === 'ug') {
+            groups['B.Tech in'].push(c);
+          } else {
+            groups['Other Courses'].push(c);
+          }
         });
 
-        deptEl.innerHTML = opts.join('') || `<option value="">No departments found</option>`;
+        let html = '';
+        for (const [title, items] of Object.entries(groups)) {
+          if (items.length > 0) {
+            html += `<div style="margin-top:12px; margin-bottom: 6px; font-size:13px; font-weight:600; color:var(--contact-accent); border-bottom: 1px dashed var(--contact-line); padding-bottom:3px;">${title}</div>`;
+            html += `<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px;">`;
+            html += items.map(c => `
+              <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; cursor:pointer; color:var(--contact-ink);">
+                <input type="checkbox" name="course_ids" value="${c.id}" class="course-check-input" style="accent-color:var(--contact-accent); width:15px; height:15px; cursor:pointer;">
+                <span>${escapeHtml(c.custom_name || c.title)}</span>
+              </label>
+            `).join('');
+            html += `</div>`;
+          }
+        }
+
+        courseCheckboxesEl.innerHTML = html;
+
+        // Attach event listener
+        courseCheckboxesEl.querySelectorAll('.course-check-input').forEach(chk => {
+          chk.addEventListener('change', syncBtn);
+        });
+
         deptLoaded = true;
       }catch(err){
         console.error(err);
         deptLoadFailed = true;
-        deptEl.innerHTML = `<option value="">Unable to load departments</option>`;
-        showToast('error', 'Error', 'Could not load departments. Please try again.');
+        courseCheckboxesEl.innerHTML = `<div style="color:red; font-size:13px;">Unable to load courses</div>`;
+        showToast('error', 'Error', 'Could not load courses. Please try again.');
       }finally{
         deptLoading = false;
       }
@@ -740,22 +773,14 @@
 
       if(on){
         deptWrapEl.style.display = '';
-        loadDepartments();
+        loadCourses();
       }else{
         deptWrapEl.style.display = 'none';
-        deptEl.value = '';
+        // uncheck all
+        courseCheckboxesEl.querySelectorAll('.course-check-input').forEach(chk => chk.checked = false);
       }
     }
 
-    // ✅ Update select placeholder class on change
-    deptEl.addEventListener('change', function(){
-      if(deptEl.value){
-        deptEl.classList.remove('placeholder-shown');
-      }else{
-        deptEl.classList.add('placeholder-shown');
-      }
-      syncBtn();
-    });
 
     // Submit enable logic
     function canSubmit(){
@@ -765,10 +790,10 @@
       const consentOk = termsEl.checked && promoEl.checked;
       const captchaIsOk = captchaOk();
 
-      // ✅ email nullable (no requirement)
-      // ✅ if admission ON, department is required
+      // ✅ if admission ON, at least one course checkbox must be checked
       const admissionOn = !!admissionEl.checked;
-      const deptOk = !admissionOn ? true : !!String(deptEl.value || '').trim();
+      const checkedCount = courseCheckboxesEl ? courseCheckboxesEl.querySelectorAll('.course-check-input:checked').length : 0;
+      const deptOk = !admissionOn ? true : (checkedCount > 0);
 
       return !!(firstOk && phoneOk && msgOk && consentOk && captchaIsOk && deptOk);
     }
@@ -809,7 +834,8 @@
       const message    = msgEl.value.trim();
 
       const admissionOn = !!admissionEl.checked;
-      const deptId = String(deptEl.value || '').trim();
+      const checkedBoxes = Array.from(courseCheckboxesEl.querySelectorAll('.course-check-input:checked'));
+      const courseIds = checkedBoxes.map(b => parseInt(b.value, 10));
 
       if(!first_name || !phone || !message){
         showToast('error','Error','Please fill all required fields (First name, Phone, Message).');
@@ -818,13 +844,13 @@
       }
 
       if(admissionOn){
-        if(!deptId){
-          showToast('error','Error','Please select a department.');
+        if(courseIds.length === 0){
+          showToast('error','Error','Please select at least one course.');
           syncBtn();
           return;
         }
         if(deptLoadFailed){
-          showToast('error','Error','Departments are not loaded. Please refresh and try again.');
+          showToast('error','Error','Courses are not loaded. Please refresh and try again.');
           syncBtn();
           return;
         }
@@ -855,7 +881,7 @@
         phone,
         message,
         is_admission_enquiry: admissionOn ? true : null,
-        department_ids: admissionOn ? [parseInt(deptId, 10)] : null,
+        course_ids: admissionOn ? courseIds : null,
         legal_authority_json
       };
 
@@ -882,8 +908,7 @@
 
           // reset admission UI
           deptWrapEl.style.display = 'none';
-          deptEl.value = '';
-          deptEl.classList.add('placeholder-shown');
+          courseCheckboxesEl.querySelectorAll('.course-check-input').forEach(chk => chk.checked = false);
 
           refreshCaptcha();
           btn.disabled = true;

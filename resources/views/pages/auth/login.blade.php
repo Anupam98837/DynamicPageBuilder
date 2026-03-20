@@ -342,8 +342,8 @@
         <div class="lx-hero-img">
           {{-- Better academic image (library / study hall) --}}
           <img
-            src="https://images.unsplash.com/photo-1588072432836-e10032774350?q=80&w=1600&auto=format&fit=crop%22
-            alt="Students studying together in a university library">
+            src="{{ asset('/assets/media/images/web/login_hero.png') }}"
+            alt="Indian boys studying together">
           <div class="lx-particles"></div>
         </div>
       </div>

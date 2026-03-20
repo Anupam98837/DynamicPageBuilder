@@ -155,7 +155,7 @@ td .fw-semibold{color:var(--ink)}
   <ul class="nav nav-tabs mb-3" role="tablist">
     <li class="nav-item">
       <a class="nav-link active" data-bs-toggle="tab" href="#pane-active" role="tab" aria-selected="true">
-        <i class="fa fa-list-check me-1"></i> Conference Publications
+        <i class="fa fa-list-check me-1"></i> Publications
       </a>
     </li>
     <li class="nav-item">
@@ -182,7 +182,7 @@ td .fw-semibold{color:var(--ink)}
           </div>
 
           <div class="position-relative" style="min-width:280px;">
-            <input id="searchInput" type="search" class="form-control ps-5" placeholder="Search by title, conference, org, domain…">
+            <input id="searchInput" type="search" class="form-control ps-5" placeholder="Search by title, publication, org, domain…">
             <i class="fa fa-search position-absolute" style="left:12px;top:50%;transform:translateY(-50%);opacity:.6;"></i>
           </div>
 
@@ -285,7 +285,7 @@ td .fw-semibold{color:var(--ink)}
                   <th style="width:86px;">Year</th>
                   <th style="width:70px;">Image</th>
                   <th>Title</th>
-                  <th style="width:220px;">Conference</th>
+                  <th style="width:220px;">Publication</th>
                   <th style="width:220px;">Organization</th>
                   <th style="width:170px;">Type</th>
                   <th style="width:170px;">Domain</th>
@@ -382,7 +382,7 @@ td .fw-semibold{color:var(--ink)}
 
         <div class="row g-3">
           <div class="col-md-6">
-            <label class="form-label">Conference Name <span class="text-danger">*</span></label>
+            <label class="form-label">Publication Name <span class="text-danger">*</span></label>
             <input class="form-control" id="conference_name" required maxlength="255" placeholder="e.g., IEEE ICSE 2024">
           </div>
 
@@ -644,6 +644,8 @@ document.addEventListener('DOMContentLoaded', function () {
     ACTOR.id = js.data.id || null;
     ACTOR.uuid = js.data.uuid;
     ACTOR.role = (js.data.role || '').toLowerCase();
+        ACTOR.department_id = js.data.department_id || null;
+        ACTOR.department_id = js.data.department_id || null;
     computePermissions();
   }
 

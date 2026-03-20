@@ -13,6 +13,8 @@ use Carbon\Carbon;
 
 class FacultyPreviewOrderController extends Controller
 {
+    use \App\Http\Controllers\API\Concerns\DepartmentScopeable;
+
     private const TABLE = 'faculty_preview_orders';
 
     // Exclude these roles when loading dept users
@@ -301,6 +303,11 @@ class FacultyPreviewOrderController extends Controller
      */
     public function index(Request $request)
     {
+        $__ac = $this->departmentAccessControl($request);
+        if ($__ac['mode'] === 'none') {
+            return response()->json(['data' => [], 'pagination' => ['page' => 1, 'per_page' => 20, 'total' => 0, 'last_page' => 1]], 200);
+        }
+
         if (!$this->tableReady()) {
             return response()->json(['success' => false, 'error' => 'faculty_preview_orders table not found'], 422);
         }

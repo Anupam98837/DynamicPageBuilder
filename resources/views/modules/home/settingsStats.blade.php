@@ -1198,15 +1198,16 @@
     // ================================================================
 
     // permissions
-    const ACTOR = { role: '' };
+    const ACTOR = { id: null, role: '', department_id: null };
+  let canAssignPrivilege = false;
     let canWrite=false, canDelete=false;
 
     function computePermissions(){
       const r = (ACTOR.role || '').toLowerCase();
-      const writeRoles  = ['admin','director','principal','hod','faculty','technical_assistant','it_person','super_admin'];
+      
       const deleteRoles = ['admin','director','principal','super_admin'];
 
-      canWrite = writeRoles.includes(r);
+      canWrite = (!ACTOR.department_id);
       canDelete = deleteRoles.includes(r);
 
       $('stCurrentControls') && ($('stCurrentControls').style.display = canWrite ? 'flex' : 'none');

@@ -155,7 +155,7 @@ class AnnouncementController extends Controller
             return ['mode' => 'department', 'department_id' => $deptId];
         }
 
-        return ['mode' => 'all', 'department_id' => null];
+        return ['mode' => 'none', 'department_id' => null];
     }
 
     protected function resolveDepartment($identifier, bool $includeDeleted = false)

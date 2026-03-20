@@ -11,6 +11,8 @@ use Carbon\Carbon;
 
 class DashboardController extends Controller
 {
+    use \App\Http\Controllers\API\Concerns\DepartmentScopeable;
+
     /**
      * Roles that can see ALL departments data
      */

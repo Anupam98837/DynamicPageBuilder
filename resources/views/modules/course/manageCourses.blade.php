@@ -434,6 +434,11 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
                 <input class="form-control" id="title" required maxlength="255" placeholder="e.g., BCA (Bachelor of Computer Applications)">
               </div>
 
+              <div class="col-12">
+                <label class="form-label">Title Link (optional)</label>
+                <input class="form-control" id="title_link" maxlength="255" placeholder="Custom link for title click (e.g., https://example.com)">
+              </div>
+
               <div class="col-md-6">
                 <label class="form-label">Code (optional)</label>
                 <input class="form-control" id="code" maxlength="80" placeholder="e.g., BCA">
@@ -452,6 +457,11 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
                 <div class="form-text">This is used for short previews (ex: home featured cards).</div>
               </div>
 
+              <div class="col-12">
+                <label class="form-label">Summary Link (optional)</label>
+                <input class="form-control" id="summary_link" maxlength="255" placeholder="Custom link for summary click">
+              </div>
+
               <div class="col-md-6">
                 <label class="form-label">Department <span class="text-danger">*</span></label>
                 <select id="department_id" class="form-select" required>
@@ -468,6 +478,14 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
                   <option value="phd">PhD</option>
                   <option value="certificate">Certificate</option>
                   <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div class="col-md-6" id="approvalsWrap" style="display:none;">
+                <label class="form-label">Approvals (optional)</label>
+                <select id="approvals" class="form-select">
+                  <option value="">None</option>
+                  <option value="AICTE">AICTE</option>
                 </select>
               </div>
 
@@ -499,6 +517,11 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
               </div>
 
               <div class="col-12">
+                <label class="form-label">Cover Image Link (optional)</label>
+                <input class="form-control" id="cover_image_link" maxlength="255" placeholder="Custom link for image click">
+              </div>
+
+              <div class="col-12">
                 <label class="form-label">Attachments (optional)</label>
                 <input type="file" class="form-control" id="attachments" multiple>
                 <div class="form-text">Optional multiple attachments (syllabus/brochure etc.).</div>
@@ -506,6 +529,20 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
                   <i class="fa fa-paperclip me-1"></i>
                   <span id="currentAttachmentsText">—</span>
                 </div>
+              </div>
+
+              {{-- ✅ NEW: Dynamic Buttons --}}
+              <div class="col-12">
+                <label class="form-label d-flex justify-content-between align-items-center">
+                  <span>Action Buttons (Dynamic)</span>
+                  <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddButtonRow">
+                    <i class="fa fa-plus me-1"></i> Add Button
+                  </button>
+                </label>
+                <div id="dynamicButtonsContainer" class="d-flex flex-column gap-2 mt-2">
+                  <!-- Rows will be added here via JS -->
+                </div>
+                <div class="form-text">Add buttons with custom names and links.</div>
               </div>
             </div>
           </div>
@@ -861,9 +898,11 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
     const itemUuid = $('itemUuid');
     const itemId = $('itemId');
     const titleInput = $('title');
+    const titleLinkInput = $('title_link');       // ✅ NEW
     const codeInput = $('code');
     const slugInput = $('slug');
     const summaryInput = $('summary');            // ✅ NEW
+    const summaryLinkInput = $('summary_link');   // ✅ NEW
     const sortOrderInput = $('sort_order');       // ✅ NEW
     const deptSel = $('department_id');
     const levelSel = $('level');
@@ -871,6 +910,9 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
     const statusSel = $('status');
 
     const coverInput = $('cover_image');
+    const coverImageLinkInput = $('cover_image_link'); // ✅ NEW
+    const dynamicButtonsContainer = $('dynamicButtonsContainer'); // ✅ NEW
+    const btnAddButtonRow = $('btnAddButtonRow'); // ✅ NEW
     const attachmentsInput = $('attachments');
 
     const currentAttachmentsInfo = $('currentAttachmentsInfo');
@@ -880,6 +922,33 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
     const coverEmpty = $('coverEmpty');
     const coverMeta = $('coverMeta');
     const btnOpenCover = $('btnOpenCover');
+
+    // ✅ NEW Helper for dynamic buttons
+    function createButtonRow(name = '', link = '') {
+      const div = document.createElement('div');
+      div.className = 'row g-2 align-items-center button-row';
+      div.innerHTML = `
+        <div class="col-5">
+          <input type="text" class="form-control form-control-sm btn-name" placeholder="Button Name" value="${esc(name)}">
+        </div>
+        <div class="col-5">
+          <input type="text" class="form-control form-control-sm btn-link" placeholder="Link (URL)" value="${esc(link)}">
+        </div>
+        <div class="col-2">
+          <button type="button" class="btn btn-sm btn-danger remove-btn-row"><i class="fa fa-trash"></i></button>
+        </div>
+      `;
+      const removeBtn = div.querySelector('.remove-btn-row');
+      if (removeBtn) removeBtn.onclick = () => div.remove();
+      return div;
+    }
+
+    if (btnAddButtonRow) {
+      btnAddButtonRow.addEventListener('click', () => {
+        const row = createButtonRow();
+        dynamicButtonsContainer?.appendChild(row);
+      });
+    }
 
     // =========================
     // ✅ FIX: remove any leftover modal backdrop after closing Filter modal
@@ -900,15 +969,15 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
     filterModalEl?.addEventListener('hidden.bs.modal', cleanupDanglingModalBackdrops);
 
     // ---------- permissions ----------
-    const ACTOR = { role: '' };
+    const ACTOR = { id: null, role: '', department_id: null };
+  let canAssignPrivilege = false;
     let canCreate=false, canEdit=false, canDelete=false;
     function computePermissions(){
       const r = (ACTOR?.role || '').toLowerCase();
-      const adminRoles = ['admin', 'director', 'principal'];
-      if(adminRoles.includes(r)){
-          canCreate = canEdit = canDelete = true;
+      if(!ACTOR.department_id){
+          canCreate = canEdit = canDelete = canAssignPrivilege = true;
       } else {
-          canCreate = canEdit = canDelete = false;
+          canCreate = canEdit = canDelete = canAssignPrivilege = false;
           if (window.ACTOR_MENU_TREE && Array.isArray(window.ACTOR_MENU_TREE)) {
              const path = window.location.pathname.replace(/\/+$/, '') || '/';
              let myActions = [];
@@ -916,17 +985,18 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
                 if(group.children) {
                    for(const child of group.children) {
                       const childPath = (child.href || '').replace(/\/+$/, '') || '/';
-                      if(childPath === path) {
+                      if (path === childPath || path.endsWith(childPath)) {
                          myActions = child.actions || [];
                          break;
                       }
                    }
                 }
              }
-             const actionsStr = myActions.map(a => a.toLowerCase());
+             const actionsStr = myActions.map(a => String(a).trim().toLowerCase());
              if (actionsStr.includes('add') || actionsStr.includes('create')) canCreate = true;
              if (actionsStr.includes('edit') || actionsStr.includes('update')) canEdit = true;
              if (actionsStr.includes('delete') || actionsStr.includes('remove')) canDelete = true;
+             if (actionsStr.includes('assign_privilege') || actionsStr.includes('assign privileges') || actionsStr.includes('privilege')) canAssignPrivilege = true;
           }
       }
       if (writeControls) writeControls.style.display = canCreate ? 'flex' : 'none';
@@ -1719,6 +1789,7 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
       itemForm?.reset();
       itemUuid.value = '';
       itemId.value = '';
+      if (dynamicButtonsContainer) dynamicButtonsContainer.innerHTML = ''; // ✅ Clear dynamic buttons
       slugDirty = false;
       settingSlug = false;
 
@@ -1732,6 +1803,11 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
       if (currentAttachmentsText) currentAttachmentsText.textContent = '—';
 
       clearCoverPreview(true);
+
+      const appWrap = $('approvalsWrap');
+      if(appWrap) appWrap.style.display = 'none';
+      const appSel = $('approvals');
+      if(appSel) appSel.value = '';
 
       itemForm?.querySelectorAll('input,select,textarea').forEach(el => {
         if (el.id === 'itemUuid' || el.id === 'itemId') return;
@@ -1759,6 +1835,27 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
       if (summaryInput) summaryInput.value = getSummaryFromRow(r) || '';
       if (sortOrderInput) sortOrderInput.value = String(getSortOrderFromRow(r));
 
+      // ✅ Populate Links
+      if (titleLinkInput) titleLinkInput.value = r.title_link || '';
+      if (summaryLinkInput) summaryLinkInput.value = r.summary_link || '';
+      if (coverImageLinkInput) coverImageLinkInput.value = r.cover_image_link || '';
+
+      // ✅ Populate Dynamic Buttons
+      if (dynamicButtonsContainer) {
+        dynamicButtonsContainer.innerHTML = '';
+        let buttons = [];
+        try {
+          buttons = typeof r.buttons_json === 'string' ? JSON.parse(r.buttons_json) : (r.buttons_json || []);
+        } catch(e) { buttons = []; }
+        
+        if (Array.isArray(buttons)) {
+          buttons.forEach(b => {
+            const row = createButtonRow(b.name || b.text || '', b.link || b.url || '');
+            dynamicButtonsContainer.appendChild(row);
+          });
+        }
+      }
+
       const rawDid = r.department_id || r.dept_id || r.department?.id || r.department?.uuid || '';
       const did = resolveDepartmentId(String(rawDid || ''), state.departments);
       if (deptSel) deptSel.value = did ? String(did) : '';
@@ -1767,6 +1864,20 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
       levelSel.value = lvl.toString().toLowerCase();
 
       durationInput.value = getDurationFromRow(r) || '';
+
+      // ✅ approvals
+      const appWrap = $('approvalsWrap');
+      const appSel = $('approvals');
+      if (appWrap && appSel) {
+        let appVal = r.approvals ?? r.approval ?? '';
+        if (Array.isArray(appVal)) appVal = appVal.join(',');
+        if (typeof appVal === 'string' && appVal.toUpperCase().includes('AICTE')) {
+          appSel.value = 'AICTE';
+        } else {
+          appSel.value = '';
+        }
+        appWrap.style.display = (lvl.toString().toLowerCase() === 'ug') ? '' : 'none';
+      }
 
       // ✅ status is ONLY: draft/published/archived
       const st = (r.status || '').toString().toLowerCase().trim();
@@ -1839,6 +1950,16 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
       slugInput.value = next;
       settingSlug = false;
     }, 120));
+
+    levelSel?.addEventListener('change', () => {
+      const appWrap = $('approvalsWrap');
+      const appSel = $('approvals');
+      if(appWrap) {
+        const isUg = levelSel.value === 'ug';
+        appWrap.style.display = isUg ? '' : 'none';
+        if(!isUg && appSel) appSel.value = ''; // reset if hidden
+      }
+    });
 
     slugInput?.addEventListener('input', () => {
       if (itemUuid.value) return;
@@ -2125,6 +2246,22 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
         // ✅ NEW: summary + sort_order
         const summary = (summaryInput?.value || '').trim();
         const sortOrderRaw = (sortOrderInput?.value || '').toString().trim();
+
+        const titleLink = (titleLinkInput?.value || '').trim();
+        const summaryLink = (summaryLinkInput?.value || '').trim();
+        const coverImageLink = (coverImageLinkInput?.value || '').trim();
+
+        // ✅ Collect Dynamic Buttons
+        const buttons = [];
+        if (dynamicButtonsContainer) {
+          dynamicButtonsContainer.querySelectorAll('.button-row').forEach(row => {
+            const name = (row.querySelector('.btn-name')?.value || '').trim();
+            const link = (row.querySelector('.btn-link')?.value || '').trim();
+            if (name) { // only add if name is present
+              buttons.push({ name, link });
+            }
+          });
+        }
         const sortOrder = Number.isFinite(parseInt(sortOrderRaw, 10)) ? parseInt(sortOrderRaw, 10) : 0;
 
         const deptRaw = (deptSel?.value || '').trim();
@@ -2151,12 +2288,21 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
 
         // ✅ NEW fields
         fd.append('summary', summary || '');
+        if (titleLink) fd.append('title_link', titleLink);
+        if (summaryLink) fd.append('summary_link', summaryLink);
+        if (coverImageLink) fd.append('cover_image_link', coverImageLink);
+        fd.append('buttons_json', JSON.stringify(buttons));
         fd.append('sort_order', String(sortOrder));
 
         if (deptId) fd.append('department_id', String(parseInt(deptId, 10)));
 
         // ✅ controller expects program_level
         fd.append('program_level', level);
+
+        const appSel = $('approvals');
+        if (appSel && level === 'ug') {
+          fd.append('approvals', appSel.value || '');
+        }
 
         // ✅ duration_value + duration_unit (best-effort; won't break if empty)
         if (durationText){

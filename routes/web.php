@@ -519,8 +519,8 @@ Route::get('/meta-tags/manage', function () {
     return view('pages.users.pages.metaTags.manageMetaTags');
 });
 
-Route::get('/department-enquiry-settings', function () {
-    return view('pages.users.pages.enquiry.manageDepartmentEnquirySettings');
+Route::get('/course-enquiry-settings', function () {
+    return view('pages.users.pages.enquiry.manageCourseEnquirySettings');
 });
 
 

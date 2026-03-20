@@ -10,11 +10,11 @@ use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Schema;
 
-class DepartmentEnquirySettingsController extends Controller
+class CourseEnquirySettingsController extends Controller
 {
-    private string $deptTable     = 'departments';
-    private string $settingsTable = 'department_enquiry_settings';
-    private string $logModule     = 'department_enquiry_settings';
+    private string $deptTable     = 'courses'; // Renamed conceptually
+    private string $settingsTable = 'course_enquiry_settings';
+    private string $logModule     = 'course_enquiry_settings';
 
     /**
      * Normalize actor information from request (compatible with your pattern)
@@ -114,7 +114,7 @@ class DepartmentEnquirySettingsController extends Controller
     {
         if ($userId <= 0) {
             return ['mode' => 'none', 'department_id' => null];
-    }
+        }
 
         if (!Schema::hasColumn('users', 'department_id')) {
             return ['mode' => 'not_allowed', 'department_id' => null];
@@ -142,29 +142,20 @@ class DepartmentEnquirySettingsController extends Controller
         $deptId = $u->department_id !== null ? (int)$u->department_id : null;
         if ($deptId !== null && $deptId <= 0) $deptId = null;
 
-        $allRoles  = ['admin', 'director', 'principal', 'author']; // can manage all
-        $deptRoles = ['hod', 'faculty', 'technical_assistant', 'it_person', 'placement_officer', 'student'];
-
         if (true) {
             return ['mode' => 'all', 'department_id' => null];
-        }
-
-        if (false) {
-            if (!$deptId) return ['mode' => 'none', 'department_id' => null];
-            return ['mode' => 'department', 'department_id' => $deptId];
         }
 
         return ['mode' => 'not_allowed', 'department_id' => null];
     }
 
     /**
-     * Resolve department by id|uuid|slug (safe)
+     * Resolve course by id|uuid|slug (safe)
      */
-    private function resolveDepartment($identifier)
+    private function resolveCourse($identifier)
     {
         $q = DB::table($this->deptTable);
 
-        // departments usually have deleted_at
         if (Schema::hasColumn($this->deptTable, 'deleted_at')) {
             $q->whereNull('deleted_at');
         }
@@ -181,7 +172,7 @@ class DepartmentEnquirySettingsController extends Controller
     }
 
     /* ============================================================
-     * ADMIN: View list (departments + settings)
+     * ADMIN: View list (courses + settings)
      * ============================================================ */
     public function index(Request $request)
     {
@@ -195,11 +186,12 @@ class DepartmentEnquirySettingsController extends Controller
         $onlyFeatured    = filter_var($request->query('only_featured', false), FILTER_VALIDATE_BOOLEAN);
 
         $q = DB::table($this->deptTable . ' as d')
-            ->leftJoin($this->settingsTable . ' as s', 's.department_id', '=', 'd.id')
+            ->leftJoin($this->settingsTable . ' as s', 's.course_id', '=', 'd.id')
             ->select([
                 'd.*',
                 's.id as setting_id',
                 's.uuid as setting_uuid',
+                's.custom_name',
                 DB::raw('COALESCE(s.sort_order, 999999) as sort_order'),
                 DB::raw('COALESCE(s.featured, 0) as featured'),
             ]);
@@ -221,9 +213,15 @@ class DepartmentEnquirySettingsController extends Controller
             $term = '%' . trim($request->query('q')) . '%';
             $q->where(function ($sub) use ($term) {
                 $sub->where('d.title', 'like', $term)
-                    ->orWhere('d.slug', 'like', $term)
-                    ->orWhere('d.short_name', 'like', $term)
-                    ->orWhere('d.department_type', 'like', $term);
+                    ->orWhere('d.slug', 'like', $term);
+                
+                // Add course specific search if columns exist
+                if (Schema::hasColumn('courses', 'program_level')) {
+                    $sub->orWhere('d.program_level', 'like', $term);
+                }
+                if (Schema::hasColumn('courses', 'program_type')) {
+                    $sub->orWhere('d.program_type', 'like', $term);
+                }
             });
         }
 
@@ -238,55 +236,42 @@ class DepartmentEnquirySettingsController extends Controller
     }
 
     /* ============================================================
-     * ADMIN: Upsert single department setting
-     * body: { department: <id|uuid|slug>, sort_order: int, featured: bool }
+     * ADMIN: Upsert single course setting
+     * body: { course: <id|uuid|slug>, sort_order: int, featured: bool }
      * ============================================================ */
     public function upsert(Request $request)
     {
         $actorId = (int) $request->attributes->get('auth_tokenable_id');
         $ac      = $this->accessControl($actorId);
 
-        if ($ac['mode'] === 'not_allowed') {
+        if ($ac['mode'] === 'not_allowed' || $ac['mode'] !== 'all') {
             $this->logActivity($request, 'forbidden', $this->logModule, $this->settingsTable, null, null, null, null, 'Upsert: not allowed');
-            return response()->json(['error' => 'Not allowed'], 403);
-        }
-        if ($ac['mode'] !== 'all') {
-            $this->logActivity($request, 'forbidden', $this->logModule, $this->settingsTable, null, null, null, null, 'Upsert: not allowed (mode!=' . ($ac['mode'] ?? '') . ')');
             return response()->json(['error' => 'Not allowed'], 403);
         }
 
         $v = Validator::make($request->all(), [
-            'department' => 'required', // id|uuid|slug
-            'sort_order' => 'required|integer|min:0|max:1000000',
-            'featured'   => 'required|boolean',
+            'course'      => 'required', // id|uuid|slug
+            'sort_order'  => 'required|integer|min:0|max:1000000',
+            'featured'    => 'required|boolean',
+            'custom_name' => 'nullable|string|max:255',
         ]);
 
         if ($v->fails()) {
-            $this->logActivity(
-                $request,
-                'validation_failed',
-                $this->logModule,
-                $this->settingsTable,
-                null,
-                array_keys((array) $request->all()),
-                null,
-                ['errors' => $v->errors()->toArray()],
-                'Upsert: validation failed'
-            );
+            $this->logActivity($request, 'validation_failed', $this->logModule, $this->settingsTable, null, array_keys((array) $request->all()), null, ['errors' => $v->errors()->toArray()], 'Upsert: validation failed');
             return response()->json(['errors' => $v->errors()], 422);
         }
 
         $data  = $v->validated();
         $actor = $this->actor($request);
 
-        $dept = $this->resolveDepartment($data['department']);
-        if (!$dept) {
-            $this->logActivity($request, 'not_found', $this->logModule, $this->settingsTable, null, null, null, null, 'Upsert: department not found');
-            return response()->json(['message' => 'Department not found'], 404);
+        $course = $this->resolveCourse($data['course']);
+        if (!$course) {
+            $this->logActivity($request, 'not_found', $this->logModule, $this->settingsTable, null, null, null, null, 'Upsert: course not found');
+            return response()->json(['message' => 'Course not found'], 404);
         }
 
-        // Find existing setting row (unique department_id)
-        $existing = DB::table($this->settingsTable)->where('department_id', (int)$dept->id)->first();
+        // Find existing setting row
+        $existing = DB::table($this->settingsTable)->where('course_id', (int)$course->id)->first();
 
         if ($existing) {
             $old = $existing;
@@ -294,38 +279,30 @@ class DepartmentEnquirySettingsController extends Controller
             DB::table($this->settingsTable)
                 ->where('id', $existing->id)
                 ->update([
-                    'sort_order' => (int) $data['sort_order'],
-                    'featured'   => (bool) $data['featured'],
-                    'updated_at' => now(),
+                    'sort_order'  => (int) $data['sort_order'],
+                    'featured'    => (bool) $data['featured'],
+                    'custom_name' => $data['custom_name'] ?? null,
+                    'updated_at'  => now(),
                 ]);
 
             $row = DB::table($this->settingsTable)->where('id', $existing->id)->first();
 
-            $this->logActivity(
-                $request,
-                'update',
-                $this->logModule,
-                $this->settingsTable,
-                (int) $existing->id,
-                ['sort_order', 'featured'],
-                $old,
-                $row,
-                'Department enquiry settings updated'
-            );
+            $this->logActivity($request, 'update', $this->logModule, $this->settingsTable, (int) $existing->id, ['sort_order', 'featured'], $old, $row, 'Course enquiry settings updated');
 
             return response()->json([
-                'success'  => true,
-                'setting'  => $row,
-                'department' => $dept,
+                'success' => true,
+                'setting' => $row,
+                'course'  => $course,
             ]);
         }
 
         // Insert
         $payload = [
             'uuid'          => (string) Str::uuid(),
-            'department_id' => (int) $dept->id,
+            'course_id'     => (int) $course->id,
             'sort_order'    => (int) $data['sort_order'],
             'featured'      => (bool) $data['featured'],
+            'custom_name'   => $data['custom_name'] ?? null,
             'created_by'    => $actor['id'] ?: null,
             'created_at_ip' => $request->ip(),
             'created_at'    => now(),
@@ -335,28 +312,18 @@ class DepartmentEnquirySettingsController extends Controller
         $id  = DB::table($this->settingsTable)->insertGetId($payload);
         $row = DB::table($this->settingsTable)->where('id', $id)->first();
 
-        $this->logActivity(
-            $request,
-            'create',
-            $this->logModule,
-            $this->settingsTable,
-            (int) $id,
-            array_keys($payload),
-            null,
-            $row,
-            'Department enquiry settings created'
-        );
+        $this->logActivity($request, 'create', $this->logModule, $this->settingsTable, (int) $id, array_keys($payload), null, $row, 'Course enquiry settings created');
 
         return response()->json([
-            'success'    => true,
-            'setting'    => $row,
-            'department' => $dept,
+            'success' => true,
+            'setting' => $row,
+            'course'  => $course,
         ], 201);
     }
 
     /* ============================================================
      * ADMIN: Bulk save ordering & featured flags
-     * body: { items: [ {department:..., sort_order:..., featured:...}, ... ] }
+     * body: { items: [ {course:..., sort_order:..., featured:...}, ... ] }
      * ============================================================ */
     public function bulkUpsert(Request $request)
     {
@@ -369,174 +336,113 @@ class DepartmentEnquirySettingsController extends Controller
         }
 
         $v = Validator::make($request->all(), [
-            'items'                 => 'required|array|min:1|max:500',
-            'items.*.department'    => 'required',
-            'items.*.sort_order'    => 'required|integer|min:0|max:1000000',
-            'items.*.featured'      => 'required|boolean',
+            'items'               => 'required|array|min:1|max:500',
+            'items.*.course'      => 'required',
+            'items.*.sort_order'  => 'required|integer|min:0|max:1000000',
+            'items.*.featured'    => 'required|boolean',
+            'items.*.custom_name' => 'nullable|string|max:255',
         ]);
 
         if ($v->fails()) {
-            $this->logActivity(
-                $request,
-                'validation_failed',
-                $this->logModule,
-                $this->settingsTable,
-                null,
-                array_keys((array) $request->all()),
-                null,
-                ['errors' => $v->errors()->toArray()],
-                'Bulk upsert: validation failed'
-            );
             return response()->json(['errors' => $v->errors()], 422);
         }
 
         $actor = $this->actor($request);
         $items = $v->validated()['items'];
 
-        $result = [
-            'updated' => 0,
-            'created' => 0,
-            'errors'  => [],
-        ];
+        $result = ['updated' => 0, 'created' => 0, 'errors' => []];
 
         DB::beginTransaction();
         try {
             foreach ($items as $idx => $it) {
-                $dept = $this->resolveDepartment($it['department']);
-                if (!$dept) {
-                    $result['errors'][] = [
-                        'index' => $idx,
-                        'department' => $it['department'],
-                        'message' => 'Department not found',
-                    ];
+                $course = $this->resolveCourse($it['course']);
+                if (!$course) {
+                    $result['errors'][] = ['index' => $idx, 'course' => $it['course'], 'message' => 'Course not found'];
                     continue;
                 }
 
-                $existing = DB::table($this->settingsTable)->where('department_id', (int)$dept->id)->first();
+                $existing = DB::table($this->settingsTable)->where('course_id', (int)$course->id)->first();
 
                 if ($existing) {
                     DB::table($this->settingsTable)
                         ->where('id', $existing->id)
                         ->update([
-                            'sort_order' => (int) $it['sort_order'],
-                            'featured'   => (bool) $it['featured'],
-                            'updated_at' => now(),
+                            'sort_order'  => (int) $it['sort_order'],
+                            'featured'    => (bool) $it['featured'],
+                            'custom_name' => $it['custom_name'] ?? null,
+                            'updated_at'  => now(),
                         ]);
                     $result['updated']++;
                 } else {
                     DB::table($this->settingsTable)->insert([
-                        'uuid'          => (string) Str::uuid(),
-                        'department_id' => (int) $dept->id,
-                        'sort_order'    => (int) $it['sort_order'],
-                        'featured'      => (bool) $it['featured'],
-                        'created_by'    => $actor['id'] ?: null,
+                        'uuid'       => (string) Str::uuid(),
+                        'course_id'  => (int) $course->id,
+                        'sort_order' => (int) $it['sort_order'],
+                        'featured'   => (bool) $it['featured'],
+                        'custom_name'=> $it['custom_name'] ?? null,
+                        'created_by' => $actor['id'] ?: null,
                         'created_at_ip' => $request->ip(),
-                        'created_at'    => now(),
-                        'updated_at'    => now(),
+                        'created_at' => now(),
+                        'updated_at' => now(),
                     ]);
                     $result['created']++;
                 }
             }
 
             DB::commit();
-
-            $this->logActivity(
-                $request,
-                'bulk_upsert',
-                $this->logModule,
-                $this->settingsTable,
-                null,
-                ['items_count' => count($items)],
-                null,
-                $result,
-                'Bulk upsert completed'
-            );
-
-            return response()->json([
-                'success' => true,
-                'result'  => $result,
-            ]);
+            return response()->json(['success' => true, 'result' => $result]);
         } catch (\Throwable $e) {
             DB::rollBack();
-
-            $this->logActivity(
-                $request,
-                'error',
-                $this->logModule,
-                $this->settingsTable,
-                null,
-                null,
-                null,
-                ['exception' => $e->getMessage()],
-                'Bulk upsert failed'
-            );
-
             return response()->json(['error' => 'Bulk save failed'], 500);
         }
     }
 
     /* ============================================================
-     * PUBLIC: Departments for enquiry form (ordered by featured + sort_order)
-     * GET: /api/public/departments  (you can map this method)
-     * query:
-     *   per_page (optional)
-     *   q (optional)
-     *   active (optional; default true for public)
-     *   only_featured (optional)
+     * PUBLIC: Courses for enquiry form
+     * GET: /api/public/ordered-courses
      * ============================================================ */
-    public function publicDepartments(Request $request)
-{
-    $perPage = max(1, min(500, (int) $request->query('per_page', 200)));
+    public function publicCourses(Request $request)
+    {
+        $perPage = max(1, min(500, (int) $request->query('per_page', 200)));
 
-    $q = DB::table($this->deptTable . ' as d')
-        ->join($this->settingsTable . ' as s', 's.department_id', '=', 'd.id') // ✅ JOIN (only configured rows)
-        ->select([
-            'd.*',
-            's.uuid as enquiry_setting_uuid',
-            's.sort_order',
-            's.featured',
-        ])
-        ->where('s.featured', true); // ✅ ONLY featured
+        $q = DB::table($this->deptTable . ' as d')
+            ->join($this->settingsTable . ' as s', 's.course_id', '=', 'd.id')
+            ->select([
+                'd.*',
+                's.uuid as enquiry_setting_uuid',
+                's.sort_order',
+                's.featured',
+                's.custom_name',
+            ])
+            ->where('s.featured', true);
 
-    // departments deleted_at safe
-    if (Schema::hasColumn($this->deptTable, 'deleted_at')) {
-        $q->whereNull('d.deleted_at');
-    }
+        if (Schema::hasColumn($this->deptTable, 'deleted_at')) {
+            $q->whereNull('d.deleted_at');
+        }
 
-    // public default: active=true (if column exists)
-    if (Schema::hasColumn($this->deptTable, 'active')) {
-        if ($request->has('active')) {
-            $active = filter_var($request->query('active'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
-            if ($active !== null) $q->where('d.active', $active);
-        } else {
+        if (Schema::hasColumn($this->deptTable, 'active')) {
             $q->where('d.active', true);
         }
+
+        if ($request->filled('q')) {
+            $term = '%' . trim($request->query('q')) . '%';
+            $q->where(function ($sub) use ($term) {
+                $sub->where('d.title', 'like', $term)
+                    ->orWhere('d.slug', 'like', $term);
+            });
+        }
+
+        $q->orderBy('s.sort_order', 'asc');
+        $p = $q->paginate($perPage);
+
+        return response()->json([
+            'data' => $p->items(),
+            'pagination' => [
+                'page'      => $p->currentPage(),
+                'per_page'  => $p->perPage(),
+                'total'     => $p->total(),
+                'last_page' => $p->lastPage(),
+            ],
+        ]);
     }
-
-    // optional search
-    if ($request->filled('q')) {
-        $term = '%' . trim($request->query('q')) . '%';
-        $q->where(function ($sub) use ($term) {
-            $sub->where('d.title', 'like', $term)
-                ->orWhere('d.slug', 'like', $term)
-                ->orWhere('d.short_name', 'like', $term)
-                ->orWhere('d.department_type', 'like', $term);
-        });
-    }
-
-    // ✅ EXACT order as managed
-    $q->orderBy('s.sort_order', 'asc');
-
-    $p = $q->paginate($perPage);
-
-    return response()->json([
-        'data' => $p->items(),
-        'pagination' => [
-            'page'      => $p->currentPage(),
-            'per_page'  => $p->perPage(),
-            'total'     => $p->total(),
-            'last_page' => $p->lastPage(),
-        ],
-    ]);
-}
 }

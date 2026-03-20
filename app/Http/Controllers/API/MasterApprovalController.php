@@ -11,6 +11,8 @@ use Carbon\Carbon;
 
 class MasterApprovalController extends Controller
 {
+    use \App\Http\Controllers\API\Concerns\DepartmentScopeable;
+
     /* ============================================
      | Helpers
      |============================================ */
@@ -182,8 +184,20 @@ class MasterApprovalController extends Controller
                 'title_col' => 'title',
                 'slug_col'  => 'slug',
                 'body_col'  => 'description',
-                'image_col' => 'banner_image_url', // special
+                'image_col' => 'banner_image_url',
                 'attachments_col' => null,
+            ],
+            'pages' => [
+                'label'           => 'Pages',
+                'table'           => 'pages',
+                'alias'           => 'pg',
+                'has_department'  => true,
+                'title_col'       => 'title',
+                'slug_col'        => 'slug',
+                'body_col'        => 'content_html',
+                'image_col'       => null,
+                'attachments_col' => null,
+                'created_by_col'  => 'created_by_user_id',
             ],
         ];
     }
@@ -200,11 +214,25 @@ class MasterApprovalController extends Controller
         $t   = $cfg['table'];
         $a   = $cfg['alias'];
 
+        // Get department scope for current user
+        $__ac = $this->departmentAccessControl($request);
+
+        // If the user's role is not "active" or invalid, return null
+        if ($__ac['mode'] === 'none') return null;
+
         $q = DB::table($t . " as {$a}")
-            ->leftJoin('users as u', 'u.id', '=', "{$a}.created_by");
+            ->leftJoin('users as u', 'u.id', '=', "{$a}." . ($cfg['created_by_col'] ?? 'created_by'));
 
         if ($cfg['has_department']) {
             $q->leftJoin('departments as d', 'd.id', '=', "{$a}.department_id");
+            // Scope module to this specific department if user is restricted
+            $this->applyDeptScope($q, $__ac, "{$a}.department_id");
+        } else {
+            // Important: If a user is restricted to a department, they shouldn't see
+            // global (non-departmental) module requests like why_us or career_notices
+            if ($__ac['mode'] === 'department') {
+                $q->whereRaw('1=0');
+            }
         }
 
         // Soft delete respect
@@ -330,6 +358,8 @@ class MasterApprovalController extends Controller
             'is_featured_home'     => isset($arr['is_featured_home']) ? (int) $arr['is_featured_home'] : null,
             'request_for_approval' => isset($arr['request_for_approval']) ? (int) $arr['request_for_approval'] : 0,
             'is_approved'          => isset($arr['is_approved']) ? (int) $arr['is_approved'] : 0,
+            'is_rejected'          => isset($arr['is_rejected']) ? (int) $arr['is_rejected'] : 0,
+            'rejected_reason'      => $arr['rejected_reason'] ?? $arr['rejection_reason'] ?? null,
 
             'created_at'    => $arr['created_at'] ?? null,
             'updated_at'    => $arr['updated_at'] ?? null,
@@ -361,6 +391,8 @@ class MasterApprovalController extends Controller
      */
     protected function fetchTab(string $tab, Request $request): array
     {
+        static $rejectionCache = []; // memory cache for repeated describes
+
         $includeDeleted = filter_var($request->query('with_trashed', false), FILTER_VALIDATE_BOOLEAN);
         $perDivision    = max(1, min(500, (int) $request->query('per_division', 200)));
 
@@ -372,12 +404,30 @@ class MasterApprovalController extends Controller
             if (!$q) continue;
 
             $a = $cfg['alias'];
+            $t = $cfg['table'];
+
+            if (!isset($rejectionCache[$t])) {
+                $rejectionCache[$t] = Schema::hasColumn($t, 'is_rejected');
+            }
+            $hasRejection = $rejectionCache[$t];
 
             if ($tab === 'pending') {
                 $q->where("{$a}.request_for_approval", 1)
                   ->where("{$a}.is_approved", 0);
+                
+                if ($hasRejection) {
+                    $q->where(function($sub) use ($a) {
+                        $sub->where("{$a}.is_rejected", 0)->orWhereNull("{$a}.is_rejected");
+                    });
+                }
             } elseif ($tab === 'approved') {
                 $q->where("{$a}.is_approved", 1);
+            } elseif ($tab === 'rejected') {
+                if ($hasRejection) {
+                    $q->where("{$a}.is_rejected", 1);
+                } else {
+                    $q->whereRaw('1=0'); // fallback safely if not supported
+                }
             } else { // requests
                 $q->where("{$a}.request_for_approval", 1);
             }
@@ -520,16 +570,13 @@ class MasterApprovalController extends Controller
 
         $pending  = $this->fetchTab('pending', $request);
         $approved = $this->fetchTab('approved', $request);
+        $rejected = $this->fetchTab('rejected', $request);
         $requests = $this->fetchTab('requests', $request);
-
         $notifications = $this->buildNotifications($request);
-
         return response()->json([
             'success' => true,
             'message' => 'Master approval overview',
             'actor'   => $actor,
-
-            // ✅ This is what your UI will use for 2 tabs
             'tabs' => [
                 'not_approved' => [
                     'label' => 'Not Approved (Pending Requests)',
@@ -540,6 +587,11 @@ class MasterApprovalController extends Controller
                     'label' => 'Approved',
                     'count' => count($approved),
                     'items' => $approved,
+                ],
+                'rejected' => [
+                    'label' => 'Rejected',
+                    'count' => count($rejected),
+                    'items' => $rejected,
                 ],
             ],
 
@@ -568,6 +620,7 @@ class MasterApprovalController extends Controller
             'why_us'             => 'why_us',
             'scholarships'       => 'scholarships',
             'placement_notices'  => 'placement_notices',
+            'pages'              => 'pages',
         ];
     }
 
@@ -658,7 +711,7 @@ class MasterApprovalController extends Controller
             DB::beginTransaction();
 
             // ✅ Approve logic (only updates columns that exist)
-            $payload = $this->buildSafeUpdatePayload($table, [
+            $approvePayload = [
                 'is_approved'          => 1,
                 'request_for_approval' => 0,
                 'is_rejected'          => 0,
@@ -667,7 +720,12 @@ class MasterApprovalController extends Controller
                 'approval_status'      => 'approved',
                 'approved_at'          => Carbon::now(),
                 'approved_by'          => (int)($request->attributes->get('auth_tokenable_id') ?? 0),
-            ], $request);
+            ];
+            // For pages: also flip status to Active so it goes live
+            if ($table === 'pages') {
+                $approvePayload['status'] = 'Active';
+            }
+            $payload = $this->buildSafeUpdatePayload($table, $approvePayload, $request);
 
             if (empty($payload)) {
                 DB::rollBack();

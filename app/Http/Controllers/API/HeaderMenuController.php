@@ -13,6 +13,8 @@ use Carbon\Carbon;
 
 class HeaderMenuController extends Controller
 {
+    use \App\Http\Controllers\API\Concerns\DepartmentScopeable;
+
     /* ============================================
      | Helpers
      |============================================ */

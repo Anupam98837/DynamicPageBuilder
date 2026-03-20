@@ -19,12 +19,14 @@
   .map-table thead.sticky-top{z-index:3}
   .map-table tbody tr{border-top:1px solid var(--line-soft)}
   .map-table tbody tr:hover{background:var(--page-hover)}
+  .map-table th, .map-table td{padding: .55rem .75rem !important; vertical-align: middle;}
+  .map-title-cell{max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block;}
   .map-muted{color:var(--muted-color)}
   .map-small{font-size:12.5px}
 
   /* Horizontal scroll */
   .table-responsive{display:block;width:100%;max-width:100%;overflow-x:auto !important;overflow-y:visible !important;-webkit-overflow-scrolling:touch;position:relative;}
-  .table-responsive > table{width:max-content; min-width:1280px;}
+  .table-responsive > table{width:100%; min-width:auto;}
   .table-responsive th,.table-responsive td{white-space:nowrap;}
 
   /* Dropdown - keep high z-index */
@@ -115,179 +117,45 @@
   </div>
 
   {{-- Tabs --}}
-  <ul class="nav nav-tabs map-tabs mb-3" role="tablist">
-    <li class="nav-item">
-      <a class="nav-link active" data-bs-toggle="tab" href="#mapTabPending" role="tab" aria-selected="true">
-        <i class="fa-solid fa-clock me-2"></i>Pending
-      </a>
-    </li>
-    <li class="nav-item">
-      <a class="nav-link" data-bs-toggle="tab" href="#mapTabApproved" role="tab" aria-selected="false">
-        <i class="fa-solid fa-circle-check me-2"></i>Approved
-      </a>
-    </li>
-    <li class="nav-item">
-      <a class="nav-link" data-bs-toggle="tab" href="#mapTabRejected" role="tab" aria-selected="false">
-        <i class="fa-solid fa-circle-xmark me-2"></i>Rejected
-      </a>
-    </li>
-    <li class="nav-item">
-      <a class="nav-link" data-bs-toggle="tab" href="#mapTabAll" role="tab" aria-selected="false">
-        <i class="fa-solid fa-layer-group me-2"></i>All
-      </a>
-    </li>
+  {{-- Dynamic Tabs Navbar --}}
+  <ul class="nav nav-tabs map-tabs mb-3" id="mapTabNav" role="tablist">
+    {{-- Populated via JS --}}
   </ul>
 
   <div class="tab-content">
+    <div class="card map-card">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table map-table table-hover table-borderless align-middle mb-0">
+            <thead class="sticky-top">
+              <tr>
+                <th style="width:180px;">Module</th>
+                <th style="width:360px;">Title</th>
+                <th style="width:220px;">Department</th>
+                <th style="width:220px;" id="thSharedBy">Requested By</th>
+                <th style="width:220px;" id="thSharedAt">Requested At</th>
+                <th style="width:140px;">Status</th>
+                <th style="width:140px;">Featured</th>
+                <th style="width:108px;" class="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="mapTbodyShared">
+              <tr><td colspan="8" class="text-center map-muted" style="padding:38px;">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
 
-    {{-- PENDING --}}
-    <div class="tab-pane fade show active" id="mapTabPending" role="tabpanel">
-      <div class="card map-card">
-        <div class="card-body p-0">
-          <div class="table-responsive">
-            <table class="table map-table table-hover table-borderless align-middle mb-0">
-              <thead class="sticky-top">
-                <tr>
-                  <th style="width:180px;">Module</th>
-                  <th style="width:360px;">Title</th>
-                  <th style="width:220px;">Department</th>
-                  <th style="width:220px;">Requested By</th>
-                  <th style="width:220px;">Requested At</th>
-                  <th style="width:140px;">Status</th>
-                  <th style="width:140px;">Featured</th>
-                  <th style="width:108px;" class="text-end">Actions</th>
-                </tr>
-              </thead>
-              <tbody id="mapTbodyPending">
-                <tr><td colspan="8" class="text-center map-muted" style="padding:38px;">Loading…</td></tr>
-              </tbody>
-            </table>
-          </div>
+        <div id="mapEmptyShared" class="p-4 text-center" style="display:none;">
+          <i class="fa fa-clock mb-2" style="font-size:32px;opacity:.6;"></i>
+          <div class="map-muted">No items found.</div>
+        </div>
 
-          <div id="mapEmptyPending" class="p-4 text-center" style="display:none;">
-            <i class="fa fa-clock mb-2" style="font-size:32px;opacity:.6;"></i>
-            <div class="map-muted">No pending approvals.</div>
-          </div>
-
-          <div class="d-flex flex-wrap align-items-center justify-content-between p-3 gap-2">
-            <div class="map-small map-muted" id="mapInfoPending">—</div>
-            <nav><ul id="mapPagerPending" class="pagination mb-0"></ul></nav>
-          </div>
+        <div class="d-flex flex-wrap align-items-center justify-content-between p-3 gap-2">
+          <div class="map-small map-muted" id="mapInfoShared">—</div>
+          <nav><ul id="mapPagerShared" class="pagination mb-0"></ul></nav>
         </div>
       </div>
     </div>
-
-    {{-- APPROVED --}}
-    <div class="tab-pane fade" id="mapTabApproved" role="tabpanel">
-      <div class="card map-card">
-        <div class="card-body p-0">
-          <div class="table-responsive">
-            <table class="table map-table table-hover table-borderless align-middle mb-0">
-              <thead class="sticky-top">
-                <tr>
-                  <th style="width:180px;">Module</th>
-                  <th style="width:360px;">Title</th>
-                  <th style="width:220px;">Department</th>
-                  <th style="width:220px;">Approved By</th>
-                  <th style="width:220px;">Approved At</th>
-                  <th style="width:140px;">Status</th>
-                  <th style="width:140px;">Featured</th>
-                  <th style="width:108px;" class="text-end">Actions</th>
-                </tr>
-              </thead>
-              <tbody id="mapTbodyApproved">
-                <tr><td colspan="8" class="text-center map-muted" style="padding:38px;">Click Approved tab to load…</td></tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div id="mapEmptyApproved" class="p-4 text-center" style="display:none;">
-            <i class="fa fa-circle-check mb-2" style="font-size:32px;opacity:.6;"></i>
-            <div class="map-muted">No approved items.</div>
-          </div>
-
-          <div class="d-flex flex-wrap align-items-center justify-content-between p-3 gap-2">
-            <div class="map-small map-muted" id="mapInfoApproved">—</div>
-            <nav><ul id="mapPagerApproved" class="pagination mb-0"></ul></nav>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    {{-- REJECTED --}}
-    <div class="tab-pane fade" id="mapTabRejected" role="tabpanel">
-      <div class="card map-card">
-        <div class="card-body p-0">
-          <div class="table-responsive">
-            <table class="table map-table table-hover table-borderless align-middle mb-0">
-              <thead class="sticky-top">
-                <tr>
-                  <th style="width:180px;">Module</th>
-                  <th style="width:360px;">Title</th>
-                  <th style="width:220px;">Department</th>
-                  <th style="width:220px;">Rejected By</th>
-                  <th style="width:220px;">Rejected At</th>
-                  <th style="width:140px;">Status</th>
-                  <th style="width:140px;">Featured</th>
-                  <th style="width:108px;" class="text-end">Actions</th>
-                </tr>
-              </thead>
-              <tbody id="mapTbodyRejected">
-                <tr><td colspan="8" class="text-center map-muted" style="padding:38px;">Click Rejected tab to load…</td></tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div id="mapEmptyRejected" class="p-4 text-center" style="display:none;">
-            <i class="fa fa-circle-xmark mb-2" style="font-size:32px;opacity:.6;"></i>
-            <div class="map-muted">No rejected items.</div>
-          </div>
-
-          <div class="d-flex flex-wrap align-items-center justify-content-between p-3 gap-2">
-            <div class="map-small map-muted" id="mapInfoRejected">—</div>
-            <nav><ul id="mapPagerRejected" class="pagination mb-0"></ul></nav>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    {{-- ALL --}}
-    <div class="tab-pane fade" id="mapTabAll" role="tabpanel">
-      <div class="card map-card">
-        <div class="card-body p-0">
-          <div class="table-responsive">
-            <table class="table map-table table-hover table-borderless align-middle mb-0">
-              <thead class="sticky-top">
-                <tr>
-                  <th style="width:180px;">Module</th>
-                  <th style="width:360px;">Title</th>
-                  <th style="width:220px;">Department</th>
-                  <th style="width:220px;">Actor</th>
-                  <th style="width:220px;">Updated At</th>
-                  <th style="width:140px;">Status</th>
-                  <th style="width:140px;">Featured</th>
-                  <th style="width:108px;" class="text-end">Actions</th>
-                </tr>
-              </thead>
-              <tbody id="mapTbodyAll">
-                <tr><td colspan="8" class="text-center map-muted" style="padding:38px;">Click All tab to load…</td></tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div id="mapEmptyAll" class="p-4 text-center" style="display:none;">
-            <i class="fa fa-layer-group mb-2" style="font-size:32px;opacity:.6;"></i>
-            <div class="map-muted">No records found.</div>
-          </div>
-
-          <div class="d-flex flex-wrap align-items-center justify-content-between p-3 gap-2">
-            <div class="map-small map-muted" id="mapInfoAll">—</div>
-            <nav><ul id="mapPagerAll" class="pagination mb-0"></ul></nav>
-          </div>
-        </div>
-      </div>
-    </div>
-
   </div>
 </div>
 
@@ -595,15 +463,15 @@
 
   function badgeStatus(st){
     if (st === 'approved'){
-      return `<span class="badge-soft badge-soft-success"><i class="fa fa-circle-check"></i> Approved</span>`;
+      return `<span class="badge-soft badge-soft-success" title="Approved"><i class="fa fa-circle-check"></i></span>`;
     }
     if (st === 'rejected'){
-      return `<span class="badge-soft badge-soft-danger"><i class="fa fa-circle-xmark"></i> Rejected</span>`;
+      return `<span class="badge-soft badge-soft-danger" title="Rejected"><i class="fa fa-circle-xmark"></i></span>`;
     }
     if (st === 'pending'){
-      return `<span class="badge-soft badge-soft-warning"><i class="fa fa-clock"></i> Pending</span>`;
+      return `<span class="badge-soft badge-soft-warning" title="Pending"><i class="fa fa-clock"></i></span>`;
     }
-    return `<span class="badge-soft badge-soft-muted"><i class="fa fa-circle-question"></i> ${esc(st)}</span>`;
+    return `<span class="badge-soft badge-soft-muted" title="${esc(st)}"><i class="fa fa-circle-question"></i></span>`;
   }
 
   function badgeFeatured(on){
@@ -684,14 +552,14 @@
     };
 
     // ✅ permission state (computed from overview actor.role)
-    const ACTOR = { role: '' };
+    const ACTOR = { id: null, role: '', department_id: null };
+  let canAssignPrivilege = false;
     let canApprove = false;
 
     function computePermissions(){
       const r = (ACTOR.role || '').toLowerCase();
-      // keep strict for approve/reject (safe)
-      const approveRoles = ['admin','super_admin','director','principal'];
-      canApprove = approveRoles.includes(r);
+      // Remove static approval restrictions, allow anyone who can access this page to approve/reject
+      canApprove = true;
     }
 
     const perPageSel = $('mapPerPage');
@@ -773,29 +641,91 @@
     const state = {
       perPage: num(perPageSel?.value, 20),
       filters: { q:'', department:'', module:'', featured:'', sort:'created_at', direction:'desc' },
+      activeTab: 'pending',
       tabs: {
         pending:  { page: 1, lastPage: 1, items: [], pagination: { page:1, per_page:20, total:0, last_page:1 } },
         approved: { page: 1, lastPage: 1, items: [], pagination: { page:1, per_page:20, total:0, last_page:1 } },
-        rejected: { page: 1, lastPage: 1, items: [], pagination: { page:1, per_page:20, total:0, last_page:1 } },
-        all:      { page: 1, lastPage: 1, items: [], pagination: { page:1, per_page:20, total:0, last_page:1 } },
       },
-      approvedLoaded: false,
-      rejectedLoaded: false,
-      allLoaded: false
+      divisions: {}, // cache division configuration from API
+      rawItems: []   // cache flat de-duped rows from API
     };
 
-    const getTabKey = () => {
-      const a = document.querySelector('.map-tabs .nav-link.active');
-      const href = a?.getAttribute('href') || '#mapTabPending';
-      if (href === '#mapTabApproved') return 'approved';
-      if (href === '#mapTabRejected') return 'rejected';
-      if (href === '#mapTabAll') return 'all';
-      return 'pending';
-    };
+    const getTabKey = () => state.activeTab || 'pending';
 
-    function setEmpty(tabKey, show){
-      const el = tabKey==='pending' ? emptyP : tabKey==='approved' ? emptyA : tabKey==='rejected' ? emptyR : emptyAll;
+    function buildDynamicTabs() {
+      const navEl = $('mapTabNav');
+      if (!navEl) return;
+
+      let html = `
+        <li class="nav-item">
+          <a class="nav-link ${state.activeTab === 'pending' ? 'active' : ''}" href="#" data-tab="pending">
+            <i class="fa-solid fa-clock me-2"></i>Pending (All)
+          </a>
+        </li>
+      `;
+
+      for (const k in state.divisions) {
+        const div = state.divisions[k];
+        const count = div.counts?.pending || 0;
+        // Always render Pages, or other divisions with pending requests
+        if (count > 0 || k === 'pages') {
+          html += `
+            <li class="nav-item">
+              <a class="nav-link ${state.activeTab === k ? 'active' : ''}" href="#" data-tab="${esc(k)}">
+                <i class="fa-solid fa-layer-group me-2"></i>${esc(div.label)}
+              </a>
+            </li>
+          `;
+        }
+      }
+
+      html += `
+        <li class="nav-item">
+          <a class="nav-link ${state.activeTab === 'approved' ? 'active' : ''}" href="#" data-tab="approved">
+            <i class="fa-solid fa-circle-check me-2"></i>Approved
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link ${state.activeTab === 'rejected' ? 'active' : ''}" href="#" data-tab="rejected">
+            <i class="fa-solid fa-circle-xmark me-2"></i>Rejected
+          </a>
+        </li>
+      `;
+
+      navEl.innerHTML = html;
+      bindTabNavClicks();
+    }
+
+    function bindTabNavClicks() {
+      document.querySelectorAll('#mapTabNav .nav-link').forEach(link => {
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          const tab = link.dataset.tab;
+          if (!tab) return;
+          state.activeTab = tab;
+          
+          document.querySelectorAll('#mapTabNav .nav-link').forEach(l => l.classList.remove('active'));
+          link.classList.add('active');
+
+          // Update header titles based on viewing Mode
+          const thBy = $('thSharedBy');
+          const thAt = $('thSharedAt');
+          if (thBy) thBy.innerText = tab === 'approved' ? 'Approved By' : 'Requested By';
+          if (thAt) thAt.innerText = tab === 'approved' ? 'Approved At' : 'Requested At';
+
+          if (!state.tabs[tab]) {
+            state.tabs[tab] = { page: 1, lastPage: 1, items: [], pagination: { page: 1, per_page: state.perPage, total: 0, last_page: 1 } };
+          }
+          loadTab(tab); 
+        });
+      });
+    }
+
+    function setEmpty(show){
+      const el = $('mapEmptyShared');
       if (el) el.style.display = show ? '' : 'none';
+      const tb = $('mapTbodyShared');
+      if (tb && show) tb.innerHTML = '';
     }
 
     function rowActions(tabKey, row){
@@ -805,12 +735,7 @@
 
       let html = `
         <div class="dropdown text-end">
-          <button
-            type="button"
-            class="btn btn-light btn-sm map-dd-toggle"
-            aria-expanded="false"
-            title="Actions"
-          >
+          <button type="button" class="btn btn-light btn-sm map-dd-toggle" aria-expanded="false" title="Actions">
             <i class="fa fa-ellipsis-vertical"></i>
           </button>
           <ul class="dropdown-menu dropdown-menu-end">
@@ -835,41 +760,28 @@
           </li>
         `;
       }
-
       html += `</ul></div>`;
       return html;
     }
 
     function renderTab(tabKey){
       ROW_CACHE.clear();
-
-      const rows = state.tabs[tabKey].items || [];
-      const tbody =
-        tabKey==='pending' ? tbP :
-        tabKey==='approved' ? tbA :
-        tabKey==='rejected' ? tbR : tbAll;
-
-      const pager =
-        tabKey==='pending' ? pagerP :
-        tabKey==='approved' ? pagerA :
-        tabKey==='rejected' ? pagerR : pagerAll;
-
-      const info =
-        tabKey==='pending' ? infoP :
-        tabKey==='approved' ? infoA :
-        tabKey==='rejected' ? infoR : infoAll;
+      const rows = state.tabs[tabKey]?.items || [];
+      const tbody = $('mapTbodyShared');
+      const pager = $('mapPagerShared');
+      const info = $('mapInfoShared');
 
       if (!tbody) return;
 
       if (!rows.length){
         tbody.innerHTML = '';
-        setEmpty(tabKey, true);
-        renderPager(pager, tabKey, state.tabs[tabKey].pagination.page, state.tabs[tabKey].pagination.last_page);
-        if (info) info.textContent = infoText(state.tabs[tabKey].pagination, 0);
+        setEmpty(true);
+        renderPager(pager, tabKey, state.tabs[tabKey]?.pagination.page || 1, state.tabs[tabKey]?.pagination.last_page || 1);
+        if (info) info.textContent = infoText(state.tabs[tabKey]?.pagination, 0);
         return;
       }
 
-      setEmpty(tabKey, false);
+      setEmpty(false);
 
       tbody.innerHTML = rows.map(r => {
         const uuid = pickUUID(r);
@@ -882,26 +794,19 @@
         const st = approvalStatus(r);
         const featured = isFeatured(r);
 
-        const actorText =
-          tabKey === 'approved' ? safeString(r.approved_by_name || r.approved_by?.name || pickActor(r) || '—') :
-          tabKey === 'rejected' ? safeString(r.rejected_by_name || r.rejected_by?.name || pickActor(r) || '—') :
-          (pickActor(r) || '—');
+        const actorText = tabKey === 'approved' 
+          ? safeString(r.approved_by_name || r.approved_by?.name || pickActor(r) || '—') 
+          : (pickActor(r) || '—');
 
-        const timeText =
-          tabKey === 'approved' ? (pickApprovedAt(r) || safeString(r.updated_at || '—')) :
-          tabKey === 'rejected' ? (pickRejectedAt(r) || safeString(r.updated_at || '—')) :
-          tabKey === 'pending'  ? (pickRequestedAt(r) || safeString(r.created_at || '—')) :
-          (safeString(r.updated_at || r.created_at || '—'));
+        const timeText = tabKey === 'approved' 
+          ? (pickApprovedAt(r) || safeString(r.updated_at || '—')) 
+          : (pickRequestedAt(r) || safeString(r.created_at || '—'));
 
         return `
           <tr data-id="${esc(String(uuid))}" data-tab="${esc(tabKey)}">
+            <td>${badgeModule(moduleLabel)}</td>
             <td>
-              ${badgeModule(moduleLabel)}
-              <div class="map-small map-muted">${esc(moduleKey)}</div>
-            </td>
-            <td>
-              <div class="fw-semibold">${esc(title)}</div>
-              <div class="map-small map-muted">${esc(String(uuid))}</div>
+              <div class="fw-semibold map-title-cell" title="${esc(title)}">${esc(title)}</div>
             </td>
             <td>${badgeDept(dept)}</td>
             <td>${esc(actorText)}</td>
@@ -920,139 +825,98 @@
     function applyClientSide(tabKey, allItems){
       let items = Array.isArray(allItems) ? allItems.slice() : [];
 
-      // tab filter safety
-      if (tabKey !== 'all'){
-        const want = tabKey === 'pending' ? 'pending' : tabKey;
-        items = items.filter(x => approvalStatus(x) === want);
+      // Unified Tab and Module Splits filtering
+      if (tabKey === 'approved') {
+        items = items.filter(x => approvalStatus(x) === 'approved');
+      } else if (tabKey === 'rejected') {
+        items = items.filter(x => approvalStatus(x) === 'rejected');
+      } else if (tabKey === 'pending') {
+        items = items.filter(x => approvalStatus(x) === 'pending');
+      } else {
+        // Module tab key (filter by EXACT moduleKey lookup + status should be pending usually)
+        items = items.filter(x => (pickModuleKey(x) || '').toLowerCase() === tabKey.toLowerCase() && approvalStatus(x) === 'pending');
       }
 
-      // featured filter
+      // filters
       if (state.filters.featured !== ''){
-        const want = String(state.filters.featured);
-        items = items.filter(x => String(isFeatured(x) ? 1 : 0) === want);
+        items = items.filter(x => String(isFeatured(x) ? 1 : 0) === String(state.filters.featured));
       }
-
-      // module filter uses KEY
       if (state.filters.module){
-        const want = state.filters.module.toLowerCase().trim();
-        items = items.filter(x => (pickModuleKey(x) || '').toLowerCase() === want);
+        items = items.filter(x => (pickModuleKey(x) || '').toLowerCase() === state.filters.module.toLowerCase().trim());
       }
-
-      // dept filter
       if (state.filters.department){
-        const dep = String(state.filters.department);
-        items = items.filter(x => String(x?.department?.id || x?.record?.department_id || x?.department_id || '') === dep);
+        items = items.filter(x => String(x?.department?.id || x?.record?.department_id || x?.department_id || '') === String(state.filters.department));
       }
 
-      // search filter
       const q = (state.filters.q || '').toLowerCase().trim();
       if (q){
-        items = items.filter(x => {
-          const hay = [
-            pickTitle(x),
-            pickModuleKey(x),
-            pickModuleLabel(x),
-            pickDept(x),
-            pickActor(x),
-            safeString(x?.slug),
-            safeString(x?.uuid),
-            safeString(x?.record?.uuid),
-          ].join(' ').toLowerCase();
-          return hay.includes(q);
-        });
+        items = items.filter(x => [pickTitle(x), pickModuleKey(x), pickModuleLabel(x), pickDept(x), pickActor(x), safeString(x?.uuid)].join(' ').toLowerCase().includes(q));
       }
 
       // sorting
       const sk = (state.filters.sort || 'created_at').trim();
       const dir = (state.filters.direction || 'desc') === 'asc' ? 1 : -1;
 
-      const getSortVal = (x) => {
-        if (sk === 'title') return pickTitle(x);
-        if (sk === 'module') return pickModuleKey(x);
-        if (sk === 'updated_at') return safeString(x?.updated_at || x?.record?.updated_at || x?.created_at || '');
-        if (sk === 'id') return num(x?.id || x?.record?.id, 0);
-        return safeString(x?.created_at || x?.record?.created_at || x?.updated_at || '');
-      };
-
       items.sort((a,b) => {
-        const av = getSortVal(a);
-        const bv = getSortVal(b);
-        if (typeof av === 'number' && typeof bv === 'number') return dir * (av - bv);
-        return dir * String(av).localeCompare(String(bv));
+        const getVal = (x) => sk === 'title' ? pickTitle(x) : sk === 'module' ? pickModuleKey(x) : safeString(x?.created_at || x?.record?.created_at || '');
+        return dir * String(getVal(a)).localeCompare(String(getVal(b)));
       });
 
-      // pagination (client)
       const total = items.length;
       const per = Math.max(1, state.perPage || 20);
-      const last = Math.max(1, Math.ceil((total || 1) / per));
-      const page = Math.min(Math.max(1, state.tabs[tabKey].page || 1), last);
-
+      const last = Math.max(1, Math.ceil(total / per));
+      const page = Math.min(Math.max(1, state.tabs[tabKey]?.page || 1), last);
       const start = (page - 1) * per;
-      const pageItems = items.slice(start, start + per);
 
-      return {
-        pageItems,
-        pagination: { page, per_page: per, total, last_page: last }
-      };
+      return { pageItems: items.slice(start, start + per), pagination: { page, per_page: per, total, last_page: last } };
     }
 
     async function loadTab(tabKey){
-      const tbody =
-        tabKey==='pending' ? tbP :
-        tabKey==='approved' ? tbA :
-        tabKey==='rejected' ? tbR : tbAll;
+      const tbody = $('mapTbodyShared');
+      if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="text-center map-muted" style="padding:38px;">Loading…</td></tr>`;
 
-      if (tbody){
-        tbody.innerHTML = `<tr><td colspan="8" class="text-center map-muted" style="padding:38px;">Loading…</td></tr>`;
-      }
+      try {
+        const res = await fetchWithTimeout(API.list(), { headers: authHeaders(false) }, 40000);
+        const js = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(js?.message || 'Failed to load');
 
-      try{
-        const res = await fetchWithTimeout(API.list(), { headers: authHeaders(false) }, 20000);
-        if (res.status === 401 || res.status === 403) { window.location.href = '/'; return; }
-
-        const js = await res.json().catch(()=> ({}));
-        if (!res.ok) throw new Error(js?.message || js?.error || 'Failed to load');
-
-        // ✅ FIX A: permissions from js.actor.role (present in your response)
-        const roleFromApi = safeString(js?.actor?.role || '').toLowerCase();
-        if (roleFromApi){
-          ACTOR.role = roleFromApi;
-        }else{
-          // fallback only if API did not provide (rare)
-          ACTOR.role = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
-        }
+        ACTOR.role = safeString(js?.actor?.role || '').toLowerCase();
         computePermissions();
 
-        const norm = normalizeListResponse(js, state.tabs[tabKey].page, state.perPage);
-        const processed = applyClientSide(tabKey, norm.items);
+        // Save layout structures to caches
+        state.divisions = js?.notifications?.divisions || {};
+        const norm = normalizeListResponse(js, state.tabs[tabKey]?.page || 1, state.perPage);
+        state.rawItems = norm.items;
 
+        buildDynamicTabs();
+
+        const processed = applyClientSide(tabKey, state.rawItems);
+        if (!state.tabs[tabKey]) state.tabs[tabKey] = {};
         state.tabs[tabKey].items = processed.pageItems;
         state.tabs[tabKey].pagination = processed.pagination;
-        state.tabs[tabKey].page = processed.pagination.page;
-        state.tabs[tabKey].lastPage = processed.pagination.last_page;
 
         renderTab(tabKey);
-      }catch(e){
-        state.tabs[tabKey].items = [];
-        state.tabs[tabKey].pagination = { page:1, per_page:state.perPage, total:0, last_page:1 };
+      } catch(e) {
+        if (state.tabs[tabKey]) state.tabs[tabKey].items = [];
         renderTab(tabKey);
-        err(e?.name === 'AbortError' ? 'Request timed out' : (e.message || 'Failed'));
-        console.error('MasterApproval load error:', e);
+        err(e.message || 'Failed');
       }
     }
 
     // pager click
     document.addEventListener('click', (e) => {
-      const a = e.target.closest('a.page-link[data-page][data-tab]');
+      const a = e.target.closest('a.page-link[data-page]');
       if (!a) return;
       e.preventDefault();
 
-      const tab = a.dataset.tab;
+      const tab = getTabKey();
       const p = num(a.dataset.page, 1);
       if (!tab) return;
-      if (p === state.tabs[tab].page) return;
+      if (p === state.tabs[tab]?.page) return;
 
+      if (!state.tabs[tab]) state.tabs[tab] = { page: 1 };
       state.tabs[tab].page = p;
+
       loadTab(tab);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
@@ -1060,13 +924,13 @@
     // filters
     searchInput?.addEventListener('input', debounce(() => {
       state.filters.q = (searchInput.value || '').trim();
-      Object.keys(state.tabs).forEach(k => state.tabs[k].page = 1);
+      Object.keys(state.tabs).forEach(k => { if (state.tabs[k]) state.tabs[k].page = 1; });
       loadTab(getTabKey());
     }, 320));
 
     perPageSel?.addEventListener('change', () => {
       state.perPage = num(perPageSel.value, 20);
-      Object.keys(state.tabs).forEach(k => state.tabs[k].page = 1);
+      Object.keys(state.tabs).forEach(k => { if (state.tabs[k]) state.tabs[k].page = 1; });
       loadTab(getTabKey());
     });
 
@@ -1078,7 +942,6 @@
       if (modalDir) modalDir.value = state.filters.direction || 'desc';
     });
 
-    // ✅ CHANGED: close modal first (robust), then reload AFTER it is actually closed (prevents stuck backdrop)
     btnApplyFilters?.addEventListener('click', () => {
       state.filters.department = (modalDept?.value || '').trim();
       state.filters.module = (modalModule?.value || '').trim();
@@ -1086,7 +949,7 @@
       state.filters.sort = modalSort?.value || 'created_at';
       state.filters.direction = modalDir?.value || 'desc';
 
-      Object.keys(state.tabs).forEach(k => state.tabs[k].page = 1);
+      Object.keys(state.tabs).forEach(k => { if (state.tabs[k]) state.tabs[k].page = 1; });
 
       const activeTab = getTabKey();
 
@@ -1098,11 +961,8 @@
         loadTab(activeTab);
       };
 
-      if (filterModalEl){
-        // run after hide completes (best path)
+      if (filterModalEl) {
         filterModalEl.addEventListener('hidden.bs.modal', done, { once: true });
-
-        // trigger hide (works whether opened by data-api or programmatically)
         try{
           bootstrap.Modal.getOrCreateInstance(filterModalEl).hide();
         }catch(_){
@@ -1192,6 +1052,15 @@
       closeAllDropdownsExcept(null);
     }, { capture: true });
 
+    function pickViewUrl(r){
+      const key = (pickModuleKey(r) || '').toLowerCase().trim();
+      const uuid = pickUUID(r);
+      const rowSlug = r?.slug || r?.record?.slug || '';
+      if (!key || !uuid) return null;
+      if (key === 'pages') return `/page/${rowSlug}`;
+      return `/${key}/view/${uuid}`;
+    }
+
     // ---- View / Approve / Reject ----
     function openViewModal(data){
       const m = pickModuleLabel(data) || '—';
@@ -1226,26 +1095,23 @@
 
       showLoading(true);
       try{
-        // ✅ FIX C: send as FormData (most compatible with Laravel)
         const fd = new FormData();
+        const row = ROW_CACHE.get(uuid);
+        if (row) fd.append('division_key', pickModuleKey(row));
 
         const res = await fetchWithTimeout(API.approve(uuid), {
           method: 'POST',
-          headers: authHeaders(false), // no JSON content-type
+          headers: authHeaders(false),
           body: fd
         }, 20000);
 
         const js = await res.json().catch(()=>({}));
-        if(!res.ok || js.success === false) throw new Error(js?.message || js?.error || 'Approve failed');
+        if(!res.ok || js.success === false) throw new Error(js?.message || 'Approve failed');
 
         ok(js?.message || 'Approved');
-
-        // refresh current + others if loaded
-        await loadTab('pending');
-        if (state.approvedLoaded) await loadTab('approved');
-        if (state.allLoaded) await loadTab('all');
+        await loadTab(getTabKey());
       }catch(ex){
-        err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
+        err(ex.message || 'Failed');
       }finally{
         showLoading(false);
       }
@@ -1270,23 +1136,22 @@
       try{
         const fd = new FormData();
         if (reason) fd.append('reason', reason);
+        const row = ROW_CACHE.get(uuid);
+        if (row) fd.append('division_key', pickModuleKey(row));
 
         const res = await fetchWithTimeout(API.reject(uuid), {
           method: 'POST',
-          headers: authHeaders(false), // no JSON content-type
+          headers: authHeaders(false),
           body: fd
         }, 20000);
 
         const js = await res.json().catch(()=>({}));
-        if(!res.ok || js.success === false) throw new Error(js?.message || js?.error || 'Reject failed');
+        if(!res.ok || js.success === false) throw new Error(js?.message || 'Reject failed');
 
         ok(js?.message || 'Rejected');
-
-        await loadTab('pending');
-        if (state.rejectedLoaded) await loadTab('rejected');
-        if (state.allLoaded) await loadTab('all');
+        await loadTab(getTabKey());
       }catch(ex){
-        err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed'));
+        err(ex.message || 'Failed');
       }finally{
         showLoading(false);
       }
@@ -1308,7 +1173,12 @@
 
       if (act === 'view'){
         const row = ROW_CACHE.get(uuid) || {};
-        openViewModal(row);
+        const url = pickViewUrl(row);
+        if (url) {
+          window.open(url, '_blank');
+        } else {
+          openViewModal(row);
+        }
         return;
       }
 

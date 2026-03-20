@@ -679,8 +679,8 @@
 
   function computePermissions(){
     const r = (state.actorRole || '').toLowerCase();
-    const writeRoles = ['admin','director','principal','hod','faculty','technical_assistant','it_person'];
-    state.canWrite = writeRoles.includes(r);
+    
+    state.canWrite = (!ACTOR.department_id);
 
     $('btnSave').disabled = !state.canWrite;
     $('modeBadge').textContent = editId ? (state.canWrite ? 'Edit' : 'View') : (state.canWrite ? 'Create' : 'View');

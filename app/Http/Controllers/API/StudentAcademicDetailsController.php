@@ -12,6 +12,8 @@ use Illuminate\Support\Str;
 
 class StudentAcademicDetailsController extends Controller
 {
+    use \App\Http\Controllers\API\Concerns\DepartmentScopeable;
+
     private string $table = 'student_academic_details';
     private string $activityLogTable = 'user_data_activity_log';
 
@@ -253,6 +255,11 @@ class StudentAcademicDetailsController extends Controller
     // GET /api/student-academic-details
     public function index(Request $request)
     {
+        $__ac = $this->departmentAccessControl($request);
+        if ($__ac['mode'] === 'none') {
+            return response()->json(['data' => [], 'pagination' => ['page' => 1, 'per_page' => 20, 'total' => 0, 'last_page' => 1]], 200);
+        }
+
         if ($resp = $this->ensureTable()) return $resp;
 
         $q            = trim((string) $request->query('q', ''));

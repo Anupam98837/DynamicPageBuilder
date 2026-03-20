@@ -81,7 +81,7 @@ class CourseController extends Controller
             return ['mode' => 'department', 'department_id' => $deptId];
         }
 
-        return ['mode' => 'all', 'department_id' => null];
+        return ['mode' => 'none', 'department_id' => null];
     }
 
     private function normSlug(?string $s): string
@@ -607,7 +607,12 @@ class CourseController extends Controller
             'publish_at'        => ['nullable', 'date'],
             'expire_at'         => ['nullable', 'date'],
 
+            'approvals'         => ['nullable', 'string', 'max:120'],
             'metadata'          => ['nullable'],
+            'cover_image_link'  => ['nullable', 'string', 'max:255'],
+            'title_link'        => ['nullable', 'string', 'max:255'],
+            'summary_link'      => ['nullable', 'string', 'max:255'],
+            'buttons_json'      => ['nullable'],
 
             'cover_image'       => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,gif', 'max:5120'],
             'attachments'       => ['nullable', 'array'],
@@ -690,6 +695,13 @@ class CourseController extends Controller
             if (json_last_error() === JSON_ERROR_NONE) $metadata = $decoded;
         }
 
+        // buttons_json normalize
+        $buttons_json = $request->input('buttons_json', null);
+        if (is_string($buttons_json)) {
+            $decoded = json_decode($buttons_json, true);
+            if (json_last_error() === JSON_ERROR_NONE) $buttons_json = $decoded;
+        }
+
         $insert = [
             'uuid'             => $uuid,
             'department_id'    => $validated['department_id'] ?? null,
@@ -715,6 +727,7 @@ class CourseController extends Controller
                 : 0,
 
             'eligibility'      => $validated['eligibility'] ?? null,
+            'approvals'        => $validated['approvals'] ?? null,
             'highlights'       => $validated['highlights'] ?? null,
             'syllabus_url'     => $validated['syllabus_url'] ?? null,
             'career_scope'     => $validated['career_scope'] ?? null,
@@ -735,6 +748,10 @@ class CourseController extends Controller
             'updated_at_ip'    => $request->ip(),
 
             'metadata'         => $metadata !== null ? json_encode($metadata) : null,
+            'cover_image_link' => $validated['cover_image_link'] ?? null,
+            'title_link'       => $validated['title_link'] ?? null,
+            'summary_link'     => $validated['summary_link'] ?? null,
+            'buttons_json'     => $buttons_json !== null ? json_encode($buttons_json) : null,
         ];
 
         $id = DB::table('courses')->insertGetId($insert);
@@ -821,7 +838,12 @@ class CourseController extends Controller
             'status'             => ['nullable', 'in:draft,published,archived'],
             'publish_at'         => ['nullable', 'date'],
             'expire_at'          => ['nullable', 'date'],
+            'approvals'          => ['nullable', 'string', 'max:120'],
             'metadata'           => ['nullable'],
+            'cover_image_link'   => ['nullable', 'string', 'max:255'],
+            'title_link'         => ['nullable', 'string', 'max:255'],
+            'summary_link'       => ['nullable', 'string', 'max:255'],
+            'buttons_json'       => ['nullable'],
 
             'cover_image'        => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,gif', 'max:5120'],
             'cover_image_remove' => ['nullable', 'in:0,1', 'boolean'],
@@ -850,8 +872,9 @@ class CourseController extends Controller
         // normal fields
         foreach ([
             'title','summary','body','program_level','program_type','mode',
-            'duration_value','duration_unit','credits','eligibility','highlights',
-            'syllabus_url','career_scope','status','sort_order'
+            'duration_value','duration_unit','credits','eligibility','highlights','approvals',
+            'syllabus_url','career_scope','status','sort_order',
+            'cover_image_link', 'title_link', 'summary_link'
         ] as $k) {
             if (array_key_exists($k, $validated)) {
                 $update[$k] = $validated[$k];
@@ -889,6 +912,15 @@ class CourseController extends Controller
                 if (json_last_error() === JSON_ERROR_NONE) $metadata = $decoded;
             }
             $update['metadata'] = $metadata !== null ? json_encode($metadata) : null;
+        }
+
+        if (array_key_exists('buttons_json', $validated)) {
+            $buttons_json = $request->input('buttons_json', null);
+            if (is_string($buttons_json)) {
+                $decoded = json_decode($buttons_json, true);
+                if (json_last_error() === JSON_ERROR_NONE) $buttons_json = $decoded;
+            }
+            $update['buttons_json'] = $buttons_json !== null ? json_encode($buttons_json) : null;
         }
 
         $deptKey = $newDeptId ? (string) $newDeptId : 'global';

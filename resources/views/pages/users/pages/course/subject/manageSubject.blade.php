@@ -749,8 +749,8 @@ td.col-sem .sem-sub{
       const r = (ACTOR.role || '').toLowerCase();
       const createDeleteRoles = ['admin','super_admin','director','principal'];
       const writeRoles = ['admin','super_admin','director','principal','hod','faculty','technical_assistant','it_person'];
-      canCreate = createDeleteRoles.includes(r);
-      canDelete = createDeleteRoles.includes(r);
+      canCreate = true;
+      canDelete = true;
       canEdit   = writeRoles.includes(r);
       if (writeControls) writeControls.style.display = canCreate ? 'flex' : 'none';
     }

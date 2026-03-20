@@ -791,14 +791,15 @@
     };
 
     // permissions
-    const ACTOR = { role: '' };
+    const ACTOR = { id: null, role: '', department_id: null };
+  let canAssignPrivilege = false;
     let canWrite=false, canDelete=false;
 
     function computePermissions(){
       const r = (ACTOR.role || '').toLowerCase();
-      const writeRoles  = ['admin','super_admin','director','principal','hod','technical_assistant','it_person'];
+      
       const deleteRoles = ['admin','super_admin','director','principal'];
-      canWrite = writeRoles.includes(r);
+      canWrite = (!ACTOR.department_id);
       canDelete = deleteRoles.includes(r);
 
       const wc = $('writeControls');

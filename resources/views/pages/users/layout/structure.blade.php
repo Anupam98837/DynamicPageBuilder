@@ -265,7 +265,7 @@
 
           <!-- Master Approval -->
           <a href="/master-approval/manage" class="w3-link">
-            <i class="fa-solid fa-clipboard-check"></i><span>Master Approval</span>
+            <i class="fa-solid fa-clipboard-check"></i><span>Approvals</span>
           </a>
         </div>
 
@@ -386,7 +386,7 @@
             <div id="sm-contact-info" class="w3-submenu" role="group" aria-label="Contact Info submenu">
               <a href="/contact-info/manage" class="w3-link">Manage Contact Info</a>
               <a href="/contact-us/manage" class="w3-link">Manage Enquiries</a>
-              <a href="/department-enquiry-settings" class="w3-link">Department Preview Order (Enquiries)</a>
+              <a href="/course-enquiry-settings" class="w3-link">Course Preview Order (Enquiries)</a>
               <a href="/contact-us-visibility/manage" class="w3-link">Contact Visibility</a>
             </div>
           </div>
@@ -591,10 +591,10 @@
           <a href="/user/personal-information/manage" class="w3-link">Personal Information</a>
           <a href="/user/education/manage" class="w3-link">Educations</a>
           <a href="/user/honors/manage" class="w3-link">Honors & Awards</a>
-          <a href="/user/journals/manage" class="w3-link">Journals</a>
-          <a href="/user/conference-publications/manage" class="w3-link">Conference Publications</a>
-          <a href="/user/teaching-engagements/manage" class="w3-link">Teaching Engagements</a>
-          <a href="/user/social-media/manage" class="w3-link">Social Media</a>
+          <a href="/user/journals/manage" class="w3-link">Patents</a>
+          <a href="/user/conference-publications/manage" class="w3-link">Publications</a>
+          <a href="/user/teaching-engagements/manage" class="w3-link">Engagements</a>
+          <a href="/user/social-media/manage" class="w3-link">Social Links</a>
         </div>
       </div>
 

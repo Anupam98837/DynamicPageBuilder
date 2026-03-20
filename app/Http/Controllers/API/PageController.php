@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\Schema;
 
 class PageController extends Controller
 {
+    use \App\Http\Controllers\API\Concerns\DepartmentScopeable;
+
     /* ============================================
      | Helpers
      |============================================ */
@@ -204,6 +206,11 @@ class PageController extends Controller
 
     public function index(Request $request)
     {
+        $__ac = $this->departmentAccessControl($request);
+        if ($__ac['mode'] === 'none') {
+            return response()->json(['data' => [], 'pagination' => ['page' => 1, 'per_page' => 20, 'total' => 0, 'last_page' => 1]], 200);
+        }
+
         $page = max(1, (int) $request->query('page', 1));
         $per  = min(100, max(5, (int) $request->query('per_page', 20)));
         $q    = trim((string) $request->query('q', ''));
@@ -254,7 +261,9 @@ class PageController extends Controller
             $base->where('layout_key', $layoutKey);
         }
 
-        if ($departmentId !== null && $departmentId !== '') {
+        if ($__ac['mode'] === 'department') {
+            $base->where('department_id', (int) $__ac['department_id']);
+        } elseif ($departmentId !== null && $departmentId !== '') {
             $base->where('department_id', (int) $departmentId);
         }
 
@@ -304,12 +313,19 @@ class PageController extends Controller
 
     public function indexTrash(Request $request)
     {
+        $__ac = $this->departmentAccessControl($request);
+        if ($__ac['mode'] === 'none') {
+            return response()->json(['data' => []], 200);
+        }
+
         $page = max(1, (int) $request->query('page', 1));
         $per  = min(100, max(5, (int) $request->query('per_page', 20)));
         $q    = trim((string) $request->query('q', ''));
 
         $base = DB::table('pages')
             ->whereNotNull('deleted_at');
+
+        $this->applyDeptScope($base, $__ac);
 
         if ($q !== '') {
             $base->where(function ($x) use ($q) {
@@ -448,10 +464,15 @@ public function resolve(Request $request)
 
     public function store(Request $request)
     {
+        $__ac = $this->departmentAccessControl($request);
+        if ($__ac['mode'] === 'none') {
+            return response()->json(['error' => 'Unauthorized access'], 403);
+        }
+
         $data = $request->validate([
             'title'            => 'required|string|max:200',
-            'page_title'       => 'sometimes|nullable|string|max:200', // ✅ NEW
-            'page_url'         => 'sometimes|nullable|string|max:255', // ✅ NEW
+            'page_title'       => 'sometimes|nullable|string|max:200',
+            'page_url'         => 'sometimes|nullable|string|max:255',
             'slug'             => 'sometimes|nullable|string|max:200',
             'shortcode'        => 'sometimes|nullable|string|max:12',
             'page_type'        => 'sometimes|string|max:30',
@@ -464,6 +485,13 @@ public function resolve(Request $request)
             'department_id'    => 'sometimes|nullable|integer|exists:departments,id',
             'submenu_exists'   => 'sometimes|in:yes,no',
         ]);
+
+        if ($__ac['mode'] === 'department') {
+            $data['department_id'] = (int) $__ac['department_id'];
+        }
+
+        // ✅ Checker-Maker: dept-scoped users submit for approval instead of publishing directly
+        $requiresApproval = ($__ac['mode'] === 'department');
 
         /* ---------------- Slug ---------------- */
         $slugBase = $this->normSlug($data['slug'] ?? $data['title'] ?? '');
@@ -506,7 +534,13 @@ public function resolve(Request $request)
 
         /* ---------------- Defaults ---------------- */
         $pageType = $data['page_type'] ?? 'page';
-        $status   = $data['status'] ?? 'Active';
+
+        // Dept-scoped users: force Inactive + pending approval
+        if ($requiresApproval) {
+            $status = 'Inactive';
+        } else {
+            $status = $data['status'] ?? 'Active';
+        }
 
         $publishedAt = null;
         if (!empty($data['published_at'])) {
@@ -546,6 +580,12 @@ public function resolve(Request $request)
             'meta_description'   => $data['meta_description'] ?? null,
             'status'             => $status,
             'published_at'       => $publishedAt,
+
+            // Approval columns
+            'request_for_approval' => $requiresApproval ? 1 : 0,
+            'is_approved'          => 0,
+            'is_rejected'          => 0,
+
             'created_by_user_id' => $actor['id'] ?: null,
             'updated_by_user_id' => $actor['id'] ?: null,
             'created_at_ip'      => $ip,
@@ -586,13 +626,22 @@ public function resolve(Request $request)
         );
 
         return response()->json([
-            'success' => true,
-            'data'    => $row
+            'success'          => true,
+            'message'          => $requiresApproval
+                ? 'Page submitted for approval. It will be visible once approved by an HOD.'
+                : 'Page created successfully.',
+            'pending_approval' => $requiresApproval,
+            'data'             => $row
         ], 201);
     }
 
     public function update(Request $request, $identifier)
     {
+        $__ac = $this->departmentAccessControl($request);
+        if ($__ac['mode'] === 'none') {
+            return response()->json(['error' => 'Unauthorized access'], 403);
+        }
+
         $page = $this->resolvePage($identifier, false);
         if (! $page) {
             $this->logActivity(
@@ -609,10 +658,19 @@ public function resolve(Request $request)
             return response()->json(['error' => 'Not found'], 404);
         }
 
+        // Ownership check
+        if ($__ac['mode'] === 'department' && (int)$page->department_id !== (int)$__ac['department_id']) {
+            $this->logActivity($request, 'update_denied', 'pages', 'pages', (int)$page->id, null, null, null, 'Access denied: another department page');
+            return response()->json(['error' => 'You can only manage pages for your own department.'], 403);
+        }
+
+        // Checker-Maker: dept-scoped users re-trigger approval on edit
+        $requiresApproval = ($__ac['mode'] === 'department');
+
         $data = $request->validate([
             'title'            => 'sometimes|string|max:200',
-            'page_title'       => 'sometimes|nullable|string|max:200', // ✅ NEW
-            'page_url'         => 'sometimes|nullable|string|max:255', // ✅ NEW
+            'page_title'       => 'sometimes|nullable|string|max:200',
+            'page_url'         => 'sometimes|nullable|string|max:255',
             'slug'             => 'sometimes|nullable|string|max:200',
             'shortcode'        => 'sometimes|string|max:12',
             'page_type'        => 'sometimes|string|max:30',
@@ -626,6 +684,10 @@ public function resolve(Request $request)
             'department_id'    => 'sometimes|nullable|integer|exists:departments,id',
             'submenu_exists'   => 'sometimes|in:yes,no',
         ]);
+
+        if ($__ac['mode'] === 'department') {
+            $data['department_id'] = (int) $__ac['department_id'];
+        }
 
         $before = $page;
 
@@ -736,8 +798,12 @@ public function resolve(Request $request)
             'includable_id'      => $includableId,
             'layout_key'         => $data['layout_key'] ?? $page->layout_key,
             'meta_description'   => $data['meta_description'] ?? $page->meta_description,
-            'status'             => $data['status'] ?? $page->status,
+            'status'             => $requiresApproval ? 'Inactive' : ($data['status'] ?? $page->status),
             'published_at'       => $publishedAt,
+
+            // Checker-maker approval resets
+            'request_for_approval' => $requiresApproval ? 1 : ($page->request_for_approval ?? 0),
+            'is_approved'          => $requiresApproval ? 0 : ($page->is_approved ?? 0),
 
             'department_id'      => $data['department_id'] ?? $page->department_id,
             'submenu_exists'     => $data['submenu_exists'] ?? $page->submenu_exists,
@@ -776,6 +842,11 @@ public function resolve(Request $request)
 
     public function destroy(Request $request, $identifier)
     {
+        $__ac = $this->departmentAccessControl($request);
+        if ($__ac['mode'] === 'none') {
+            return response()->json(['error' => 'Unauthorized access'], 403);
+        }
+
         $page = $this->resolvePage($identifier, false);
         if (! $page) {
             $this->logActivity(
@@ -790,6 +861,12 @@ public function resolve(Request $request)
                 'Soft delete failed: page not found'
             );
             return response()->json(['error' => 'Not found'], 404);
+        }
+
+        // Ownership check
+        if ($__ac['mode'] === 'department' && (int)$page->department_id !== (int)$__ac['department_id']) {
+            $this->logActivity($request, 'delete_denied', 'pages', 'pages', (int)$page->id, null, null, null, 'Access denied: another department page');
+            return response()->json(['error' => 'You can only manage pages for your own department.'], 403);
         }
 
         $before = $page;
@@ -823,6 +900,11 @@ public function resolve(Request $request)
 
     public function restore(Request $request, $identifier)
     {
+        $__ac = $this->departmentAccessControl($request);
+        if ($__ac['mode'] === 'none') {
+            return response()->json(['error' => 'Unauthorized access'], 403);
+        }
+
         $page = $this->resolvePage($identifier, true);
         if (! $page || $page->deleted_at === null) {
             $this->logActivity(
@@ -837,6 +919,12 @@ public function resolve(Request $request)
                 'Restore failed: not found in bin'
             );
             return response()->json(['error' => 'Not found in bin'], 404);
+        }
+
+        // Ownership check
+        if ($__ac['mode'] === 'department' && (int)$page->department_id !== (int)$__ac['department_id']) {
+            $this->logActivity($request, 'restore_denied', 'pages', 'pages', (int)$page->id, null, null, null, 'Access denied: another department page');
+            return response()->json(['error' => 'You can only manage pages for your own department.'], 403);
         }
 
         $before = $page;
@@ -870,6 +958,11 @@ public function resolve(Request $request)
 
     public function forceDelete(Request $request, $identifier)
     {
+        $__ac = $this->departmentAccessControl($request);
+        if ($__ac['mode'] === 'none') {
+            return response()->json(['error' => 'Unauthorized access'], 403);
+        }
+
         $page = $this->resolvePage($identifier, true);
         if (! $page) {
             $this->logActivity(
@@ -884,6 +977,12 @@ public function resolve(Request $request)
                 'Force delete failed: page not found'
             );
             return response()->json(['error' => 'Not found'], 404);
+        }
+
+        // Ownership check
+        if ($__ac['mode'] === 'department' && (int)$page->department_id !== (int)$__ac['department_id']) {
+            $this->logActivity($request, 'force_delete_denied', 'pages', 'pages', (int)$page->id, null, null, null, 'Access denied: another department page');
+            return response()->json(['error' => 'You can only manage pages for your own department.'], 403);
         }
 
         $before = $page;

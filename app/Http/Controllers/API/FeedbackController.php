@@ -13,6 +13,8 @@ use Carbon\Carbon;
 
 class FeedbackController extends Controller
 {
+    use \App\Http\Controllers\API\Concerns\DepartmentScopeable;
+
     // ✅ Table (migration): feedbacks
     private const TABLE_FEEDBACKS       = 'feedbacks';
     private const TABLE_USERS           = 'users';

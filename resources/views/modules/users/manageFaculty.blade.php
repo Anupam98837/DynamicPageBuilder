@@ -418,7 +418,25 @@ td .fw-semibold{color:var(--ink)}
 @endsection
 
 @push('scripts')
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js">
+
+  // ✅ Polyfill for fetchWithTimeout if missing
+  async function fetchWithTimeout(resource, options = {}, timeout = 15000) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+      const response = await fetch(resource, {
+        ...options,
+        signal: controller.signal
+      });
+      clearTimeout(id);
+      return response;
+    } catch (error) {
+      clearTimeout(id);
+      throw error;
+    }
+  }
+</script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
@@ -588,7 +606,8 @@ document.addEventListener('DOMContentLoaded', function () {
   const imgPrev = document.getElementById('imagePreview');
 
   // Actor & permissions
-  const ACTOR = { id: null, role: '' };
+  const ACTOR = { id: null, role: '', department_id: null };
+  let canAssignPrivilege = false;
   let canCreate = false, canEdit = false, canDelete = false;
 
   const state = {
@@ -609,11 +628,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function computePermissions() {
     const r = (ACTOR?.role || '').toLowerCase();
-      const adminRoles = ['admin', 'director', 'principal'];
-      if(adminRoles.includes(r)){
-          canCreate = canEdit = canDelete = true;
+      if(!ACTOR.department_id){
+          canCreate = canEdit = canDelete = canAssignPrivilege = true;
       } else {
-          canCreate = canEdit = canDelete = false;
+          canCreate = canEdit = canDelete = canAssignPrivilege = false;
           if (window.ACTOR_MENU_TREE && Array.isArray(window.ACTOR_MENU_TREE)) {
              const path = window.location.pathname.replace(/\/+$/, '') || '/';
              let myActions = [];
@@ -621,17 +639,18 @@ document.addEventListener('DOMContentLoaded', function () {
                 if(group.children) {
                    for(const child of group.children) {
                       const childPath = (child.href || '').replace(/\/+$/, '') || '/';
-                      if(childPath === path) {
+                      if (path === childPath || path.endsWith(childPath)) {
                          myActions = child.actions || [];
                          break;
                       }
                    }
                 }
              }
-             const actionsStr = myActions.map(a => a.toLowerCase());
+             const actionsStr = myActions.map(a => String(a).trim().toLowerCase());
              if (actionsStr.includes('add') || actionsStr.includes('create')) canCreate = true;
              if (actionsStr.includes('edit') || actionsStr.includes('update')) canEdit = true;
              if (actionsStr.includes('delete') || actionsStr.includes('remove')) canDelete = true;
+             if (actionsStr.includes('assign_privilege') || actionsStr.includes('assign privileges') || actionsStr.includes('privilege')) canAssignPrivilege = true;
           }
       }
 
@@ -647,6 +666,8 @@ document.addEventListener('DOMContentLoaded', function () {
       if (js && js.success && js.data) {
         ACTOR.id = js.data.id || null;
         ACTOR.role = (js.data.role || '').toLowerCase();
+        ACTOR.department_id = js.data.department_id || null;
+        ACTOR.department_id = js.data.department_id || null;
       } else {
         ACTOR.role = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
       }
@@ -695,10 +716,17 @@ document.addEventListener('DOMContentLoaded', function () {
   function renderDepartmentsOptions() {
     if (!deptInput) return;
     const current = (deptInput.value || '').toString();
-    let html = `<option value="" selected disabled>Select Department</option>`;
+    let html = '';
+    if ((!ACTOR.department_id)) {
+        html += '<option value="" selected disabled>Select Department</option>';
+    }
     (state.departments || []).forEach(d => {
       const id = d?.id ?? d?.value ?? d?.department_id;
       if (id === undefined || id === null || id === '') return;
+      
+      if (!(!ACTOR.department_id) && String(id) !== String(ACTOR.department_id)) return;
+      
+      if (!(!ACTOR.department_id) && String(id) !== String(ACTOR.department_id)) return;
       html += `<option value="${escapeHtml(String(id))}">${escapeHtml(deptName(d))}</option>`;
     });
     deptInput.innerHTML = html;
@@ -710,10 +738,19 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!modalDept) return;
     const current = (state.departmentFilter || modalDept.value || '').toString();
 
-    let html = `<option value="">All Departments</option>`;
+    
+    let html = '';
+    if ((!ACTOR.department_id)) {
+        html += '<option value="">All Departments</option>';
+    }
+
     (state.departments || []).forEach(d => {
       const id = d?.id ?? d?.value ?? d?.department_id;
       if (id === undefined || id === null || id === '') return;
+      
+      if (!(!ACTOR.department_id) && String(id) !== String(ACTOR.department_id)) return;
+      
+      if (!(!ACTOR.department_id) && String(id) !== String(ACTOR.department_id)) return;
       html += `<option value="${escapeHtml(String(id))}">${escapeHtml(deptName(d))}</option>`;
     });
 
@@ -945,11 +982,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 <i class="fa fa-user"></i> Profile
               </button>
             </li>
+            ${canAssignPrivilege ? `
             <li>
               <button type="button" class="dropdown-item" data-action="assign_privilege">
                 <i class="fa fa-key"></i> Assign Privilege
               </button>
-            </li>
+            </li>` : ''}
             <li><button type="button" class="dropdown-item" data-action="view">
               <i class="fa fa-eye"></i> View
             </button></li>`;

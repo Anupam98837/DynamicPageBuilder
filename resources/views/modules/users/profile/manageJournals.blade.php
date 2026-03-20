@@ -160,7 +160,7 @@ td .fw-semibold{color:var(--ink)}
   <ul class="nav nav-tabs mb-3" role="tablist">
     <li class="nav-item">
       <a class="nav-link active" data-bs-toggle="tab" href="#pane-active" role="tab" aria-selected="true">
-        <i class="fa fa-book-open me-1"></i> Journals
+        <i class="fa fa-book-open me-1"></i> Patents
       </a>
     </li>
     <li class="nav-item">
@@ -173,7 +173,7 @@ td .fw-semibold{color:var(--ink)}
   <div class="tab-content mb-3">
 
     {{-- =========================
-       Active Journals
+       Active Patents
        ========================= --}}
     <div class="tab-pane fade show active" id="pane-active" role="tabpanel">
 
@@ -203,7 +203,7 @@ td .fw-semibold{color:var(--ink)}
         <div class="col-12 col-lg-auto ms-lg-auto d-flex justify-content-lg-end">
           <div class="toolbar-buttons" id="writeControls" style="display:none;">
             <button type="button" class="btn btn-primary" id="btnAdd">
-              <i class="fa fa-plus me-1"></i> Add Journal
+              <i class="fa fa-plus me-1"></i> Add Patent
             </button>
           </div>
         </div>
@@ -233,7 +233,7 @@ td .fw-semibold{color:var(--ink)}
 
           <div id="empty" class="empty p-4 text-center" style="display:none;">
             <i class="fa fa-book-open mb-2" style="font-size:32px;opacity:.6;"></i>
-            <div>No journals found for current filters.</div>
+            <div>No patents found for current filters.</div>
           </div>
 
           <div class="d-flex flex-wrap align-items-center justify-content-between p-3 gap-2">
@@ -260,7 +260,7 @@ td .fw-semibold{color:var(--ink)}
           </div>
 
           <div class="position-relative" style="min-width:280px;">
-            <input id="binSearchInput" type="search" class="form-control ps-5" placeholder="Search in deleted journals…">
+            <input id="binSearchInput" type="search" class="form-control ps-5" placeholder="Search in deleted patents…">
             <i class="fa fa-search position-absolute" style="left:12px;top:50%;transform:translateY(-50%);opacity:.6;"></i>
           </div>
 
@@ -304,7 +304,7 @@ td .fw-semibold{color:var(--ink)}
 
           <div id="binEmpty" class="empty p-4 text-center" style="display:none;">
             <i class="fa fa-trash-can mb-2" style="font-size:32px;opacity:.6;"></i>
-            <div>No deleted journals in Bin.</div>
+            <div>No deleted patents in Bin.</div>
           </div>
 
           <div class="d-flex flex-wrap align-items-center justify-content-between p-3 gap-2">
@@ -324,7 +324,7 @@ td .fw-semibold{color:var(--ink)}
   <div class="modal-dialog modal-md">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title"><i class="fa fa-sliders me-2"></i>Filter Journals</h5>
+        <h5 class="modal-title"><i class="fa fa-sliders me-2"></i>Filter Patents</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
@@ -371,7 +371,7 @@ td .fw-semibold{color:var(--ink)}
   <div class="modal-dialog modal-xl modal-dialog-centered">
     <form class="modal-content" id="jrnForm">
       <div class="modal-header">
-        <h5 class="modal-title" id="jrnModalTitle">Add Journal</h5>
+        <h5 class="modal-title" id="jrnModalTitle">Add Patent</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
 
@@ -630,6 +630,8 @@ document.addEventListener('DOMContentLoaded', function () {
     ACTOR.id = js.data.id || null;
     ACTOR.uuid = js.data.uuid;
     ACTOR.role = (js.data.role || '').toLowerCase();
+        ACTOR.department_id = js.data.department_id || null;
+        ACTOR.department_id = js.data.department_id || null;
     computePermissions();
   }
 
@@ -874,7 +876,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if(showLoader) showInlineLoading(true);
       const res = await fetch(`/api/users/${encodeURIComponent(ACTOR.uuid)}/journals`, { headers: authHeaders() });
       const js = await res.json().catch(()=>({}));
-      if(!res.ok || js.success === false) throw new Error(js.error || js.message || 'Failed to load journals');
+      if(!res.ok || js.success === false) throw new Error(js.error || js.message || 'Failed to load patents');
       state.items = Array.isArray(js.data) ? js.data : [];
       state.page = 1;
       renderAll();
@@ -890,7 +892,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if(showLoader) showInlineLoading(true);
       const res = await fetch(`/api/users/${encodeURIComponent(ACTOR.uuid)}/journals/deleted`, { headers: authHeaders() });
       const js = await res.json().catch(()=>({}));
-      if(!res.ok || js.success === false) throw new Error(js.error || js.message || 'Failed to load deleted journals');
+      if(!res.ok || js.success === false) throw new Error(js.error || js.message || 'Failed to load deleted patents');
       binState.items = Array.isArray(js.data) ? js.data : [];
       binState.page = 1;
       binLoaded = true;
@@ -1071,7 +1073,7 @@ document.addEventListener('DOMContentLoaded', function () {
   btnAdd?.addEventListener('click', ()=>{
     if(!canWrite) return;
     resetForm();
-    jrnModalTitle.textContent = 'Add Journal';
+    jrnModalTitle.textContent = 'Add Patent';
     jrnForm.dataset.mode = 'edit';
     setFormReadonly(false);
     saveBtn.style.display = '';
@@ -1099,7 +1101,7 @@ document.addEventListener('DOMContentLoaded', function () {
         resetForm();
         fillForm(data || {});
         const viewOnly = (act==='view');
-        jrnModalTitle.textContent = viewOnly ? 'View Journal' : 'Edit Journal';
+        jrnModalTitle.textContent = viewOnly ? 'View Patent' : 'Edit Patent';
         jrnForm.dataset.mode = viewOnly ? 'view' : 'edit';
         setFormReadonly(viewOnly);
         saveBtn.style.display = viewOnly ? 'none' : '';
@@ -1162,7 +1164,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if(act === 'restore'){
       const conf = await Swal.fire({
-        title:'Restore journal?',
+        title:'Restore Patent?',
         text:'This will restore the record from Bin.',
         icon:'question',
         showCancelButton:true,
@@ -1317,7 +1319,7 @@ document.addEventListener('DOMContentLoaded', function () {
       }
 
       jrnModal.hide();
-      ok(isEdit ? 'Journal updated' : 'Journal created');
+      ok(isEdit ? 'Patent updated' : 'Patent created');
       await loadJournals(false);
       if(binLoaded) await loadBin(false);
     }catch(ex){

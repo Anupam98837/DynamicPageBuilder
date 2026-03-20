@@ -119,7 +119,6 @@
         </div>
       </div>
 
-      {{-- ✅ This is the “another one” -> EMPTY + DISABLED --}}
       <div class="fg" style="min-width:320px;">
         <label>Page link (disabled)</label>
         <input id="{{ $mtUid }}_pageLink" type="text" value="" readonly placeholder="(not used)" />
@@ -251,10 +250,58 @@
 
   const FALLBACK_TYPE_DEFS = [
     { typeKey:'charset',   label:'Charset',                attrName:'charset',   attributes:[] },
-    { typeKey:'standard',  label:'Standard (name)',        attrName:'name',      attributes:['description','keywords','robots','googlebot','viewport'] },
-    { typeKey:'opengraph', label:'Open Graph (property)',  attrName:'property',  attributes:['og:title','og:description','og:image','og:url','og:type'] },
-    { typeKey:'twitter',   label:'Twitter (name)',         attrName:'name',      attributes:['twitter:card','twitter:title','twitter:description','twitter:image'] },
-    { typeKey:'http',      label:'HTTP-Equiv',             attrName:'http-equiv',attributes:['refresh','content-security-policy','x-ua-compatible'] },
+
+    { typeKey:'standard',  label:'Standard (name)',        attrName:'name',      attributes:[
+      'description','keywords','robots','googlebot','bingbot',
+      'viewport','theme-color','color-scheme','referrer','format-detection',
+      'application-name','generator',
+      'apple-mobile-web-app-title','apple-mobile-web-app-capable','apple-mobile-web-app-status-bar-style',
+      'mobile-web-app-capable',
+      'google-site-verification','msvalidate.01','yandex-verification','baidu-site-verification',
+      'facebook-domain-verification','p:domain_verify','norton-safeweb-site-verification',
+      'author','publisher','copyright','rating','distribution','revisit-after','language',
+      'HandheldFriendly','MobileOptimized',
+      'msapplication-TileColor','msapplication-config','msapplication-navbutton-color','msapplication-starturl'
+    ]},
+
+    { typeKey:'opengraph', label:'Open Graph (property)',  attrName:'property',  attributes:[
+      'og:title','og:description','og:url','og:type','og:site_name','og:locale',
+      'og:locale:alternate','og:determiner','og:updated_time','og:see_also',
+
+      'og:image','og:image:secure_url','og:image:url',
+      'og:image:type','og:image:width','og:image:height','og:image:alt',
+
+      'og:video','og:video:secure_url','og:video:type','og:video:width','og:video:height',
+      'og:audio','og:audio:secure_url','og:audio:type',
+
+      'fb:app_id','fb:admins',
+
+      'article:published_time','article:modified_time','article:expiration_time',
+      'article:author','article:section','article:tag',
+
+      'product:price:amount','product:price:currency'
+    ]},
+
+    { typeKey:'twitter',   label:'Twitter (name)',         attrName:'name',      attributes:[
+      'twitter:card','twitter:title','twitter:description','twitter:site','twitter:creator',
+
+      'twitter:image','twitter:image:alt',
+
+      'twitter:url','twitter:domain',
+
+      'twitter:player','twitter:player:width','twitter:player:height',
+
+      'twitter:app:name:iphone','twitter:app:id:iphone','twitter:app:url:iphone',
+      'twitter:app:name:ipad','twitter:app:id:ipad','twitter:app:url:ipad',
+      'twitter:app:name:googleplay','twitter:app:id:googleplay','twitter:app:url:googleplay',
+
+      'twitter:label1','twitter:data1','twitter:label2','twitter:data2'
+    ]},
+
+    { typeKey:'http',      label:'HTTP-Equiv',             attrName:'http-equiv',attributes:[
+      'refresh','content-security-policy','x-ua-compatible',
+      'cache-control','expires','pragma','default-style'
+    ]},
   ];
 
   const state = {
@@ -270,6 +317,7 @@
   function normalizeTypeKey(rawType, rawAttr){
     const t = cleanStr(rawType).toLowerCase();
     const a = cleanStr(rawAttr).toLowerCase();
+
     if (t === 'charset' || a === 'charset') return 'charset';
     if (t === 'standard') return 'standard';
     if (t === 'opengraph' || t === 'open_graph' || t === 'og') return 'opengraph';
@@ -277,8 +325,9 @@
     if (t === 'http' || t === 'http-equiv' || t === 'http_equiv') return 'http';
     if (t === 'name') return (a.startsWith('twitter:') ? 'twitter' : 'standard');
     if (t === 'property') return 'opengraph';
-    if (a.startsWith('og:')) return 'opengraph';
+    if (a.startsWith('og:') || a.startsWith('fb:') || a.startsWith('article:') || a.startsWith('product:')) return 'opengraph';
     if (a.startsWith('twitter:')) return 'twitter';
+
     return t || 'standard';
   }
 
@@ -426,15 +475,20 @@
       const res = await fetchWithTimeout(API.types(), { headers: authHeaders() }, 15000);
       const js = await res.json().catch(()=> ({}));
       const list = normalizeList(js);
+
       if (Array.isArray(list) && list.length){
         state.typeDefs = list.map(t => ({
           typeKey: t.typeKey ?? t.key ?? t.type ?? t.tag_type ?? 'standard',
           label: t.label ?? t.name ?? 'Type',
-          attrName: t.attrName ?? t.attr_name ?? t.attribute_name ?? 'name',
+          attrName: t.attrName ?? t.attr_name ?? t.attribute_name ?? (String((t.typeKey || t.key || 'standard')) === 'charset' ? 'charset' : 'name'),
           attributes: Array.isArray(t.attributes) ? t.attributes : [],
         }));
+      } else {
+        state.typeDefs = [...FALLBACK_TYPE_DEFS];
       }
-    }catch(_){}
+    }catch(_){
+      state.typeDefs = [...FALLBACK_TYPE_DEFS];
+    }
   }
 
   async function loadTags(){
@@ -484,7 +538,6 @@
   function buildPayload(){
     return {
       page_id: parseInt(state.pageId, 10),
-      // page_link NOT used (kept null for compatibility if backend accepts it)
       page_link: null,
       tags: state.rows.map(r => ({
         id: r.id || null,

@@ -343,7 +343,12 @@ min-height: calc(18px * 1.25 * 2);
 /* ✅ Recruiters wrapper like other sections */
 .recruiters-wrap{background: var(--surface);border: 1px solid var(--line);border-radius: var(--r-xl);box-shadow: var(--shadow);padding: 22px 18px;overflow: hidden;}
 
+@media (max-width: 991.98px){
+.hero-slide{ min-height: 380px; }
+}
+
 @media (max-width: 768px){
+.hero-slide{ min-height: 280px; }
 .hero-inner{ padding: 40px 24px; }
 .info-boxes{ margin-top: 0; }
 .stat-num{ font-size: 36px; }

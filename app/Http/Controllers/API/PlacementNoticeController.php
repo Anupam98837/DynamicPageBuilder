@@ -11,6 +11,8 @@ use Carbon\Carbon;
 
 class PlacementNoticeController extends Controller
 {
+    use \App\Http\Controllers\API\Concerns\DepartmentScopeable;
+
     /* ============================================
      | Helpers
      |============================================ */
@@ -580,6 +582,11 @@ class PlacementNoticeController extends Controller
 
     public function index(Request $request)
     {
+        $__ac = $this->departmentAccessControl($request);
+        if ($__ac['mode'] === 'none') {
+            return response()->json(['data' => [], 'pagination' => ['page' => 1, 'per_page' => 20, 'total' => 0, 'last_page' => 1]], 200);
+        }
+
         $perPage = max(1, min(200, (int) $request->query('per_page', 20)));
 
         $includeDeleted = filter_var($request->query('with_trashed', false), FILTER_VALIDATE_BOOLEAN);
@@ -589,6 +596,7 @@ class PlacementNoticeController extends Controller
         $deptList = array_values($deptMap);
 
         $query = $this->baseQuery($request, $includeDeleted || $onlyDeleted);
+        $this->applyDeptScope($query, $__ac, 'p.department_id');
         if ($onlyDeleted) $query->whereNotNull('p.deleted_at');
 
         $paginator = $query->paginate($perPage);

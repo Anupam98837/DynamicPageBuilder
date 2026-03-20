@@ -11,7 +11,23 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ asset('/assets/css/common/main.css') }}">
 
-<style>:root{--surface-alt:#f1f5f9;--ink:#1e293b;--muted-color:#64748b;--line-strong:#e2e8f0;--line-light:#f1f5f9;--success:#10b981;--warning:#f59e0b;--danger:#ef4444;--shadow-1:0 1px 3px rgba(0,0,0,0.1);--shadow-2:0 4px 6px -1px rgba(0,0,0,0.1);--shadow-3:0 10px 15px -3px rgba(0,0,0,0.1);--shadow-sm:0 1px 2px 0 rgb(0 0 0 / 0.05);--shadow-md:0 4px 6px -1px rgb(0 0 0 / 0.1),0 2px 4px -2px rgb(0 0 0 / 0.1);--shadow-lg:0 10px 15px -3px rgb(0 0 0 / 0.1),0 4px 6px -4px rgb(0 0 0 / 0.1);--shadow-focus:0 0 0 4px var(--primary-light-transparent);--radius-sm:6px;--radius-md:10px;--radius-lg:16px;--radius-xl:24px}body{background-color:var(--bg-body);color:var(--ink);font-family:'Inter',system-ui,-apple-system,sans-serif;line-height:1.6;min-height:100vh;-webkit-font-smoothing:antialiased}.profile-layout{max-width:1400px;margin:0 auto;padding:30px;display:grid;grid-template-columns:340px 1fr;gap:40px;min-height:calc(100vh - 48px);position:relative}@media(max-width:1024px){.profile-layout{grid-template-columns:300px 1fr;gap:24px}}@media(max-width:992px){.profile-layout{grid-template-columns:1fr;padding:20px}}.profile-sidebar{background:var(--surface);border-radius:var(--radius-xl);padding:32px 24px;position:sticky;top:24px;height:fit-content;max-height:calc(100vh - 48px);overflow-y:auto;border:1px solid var(--line-strong);box-shadow:var(--shadow-lg);display:flex;flex-direction:column}.profile-sidebar::-webkit-scrollbar{width:6px}.profile-sidebar::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:10px}.profile-sidebar::-webkit-scrollbar-track{background:transparent}.profile-avatar-container{position:relative;width:120px;height:120px;margin:0 auto 16px}.profile-avatar{width:100%;height:100%;border-radius:50%;overflow:hidden;background:var(--surface-alt);display:flex;align-items:center;justify-content:center;font-size:40px;color:var(--primary-color);border:4px solid var(--surface);box-shadow:0 0 0 2px var(--line-strong);transition:transform 0.3s ease}.profile-avatar img{width:100%;height:100%;object-fit:cover}.profile-avatar:hover{transform:scale(1.02)}.profile-badge{position:absolute;bottom:0;right:0;background:var(--primary-color);color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;border:3px solid var(--surface);box-shadow:var(--shadow-sm)}.profile-name{font-weight:700;font-size:1.25rem;color:var(--ink);text-align:center;margin-bottom:4px;letter-spacing:-0.02em}.profile-role{font-size:0.75rem;font-weight:600;text-transform:uppercase;color:var(--primary-color);background:var(--primary-light);padding:4px 12px;border-radius:99px;display:table;margin:0 auto 24px;letter-spacing:0.05em}.profile-contact{background:var(--surface-alt);padding:20px;border-radius:var(--radius-lg);margin-bottom:24px;border:1px solid var(--line-light)}.contact-item{display:flex;align-items:center;gap:12px;margin-bottom:12px;font-size:0.9rem;color:var(--ink-light)}.contact-item:last-child{margin-bottom:0}.contact-item i{color:var(--muted-color);width:18px;text-align:center}.profile-nav{display:flex;flex-direction:column;gap:6px;margin-top:10px}.profile-nav button{border:none;background:transparent;text-align:left;padding:12px 16px;border-radius:var(--radius-md);color:var(--muted-color);font-weight:500;font-size:0.95rem;display:flex;align-items:center;gap:14px;transition:all 0.2s ease;cursor:pointer}.profile-nav button i{width:20px;text-align:center;transition:transform 0.2s}.profile-nav button:hover{background:var(--surface-alt);color:var(--ink)}.profile-nav button:hover i{transform:translateX(2px);color:var(--primary-color)}.profile-nav button.active{background:var(--primary-color);color:white;box-shadow:0 4px 12px var(--primary-light-transparent)}.profile-nav button.active i{color:white}.profile-social{display:flex;justify-content:center;gap:10px;margin-bottom:20px;flex-wrap:wrap}.profile-social a{width:36px;height:36px;border-radius:50%;background:var(--surface);border:1px solid var(--line-strong);display:flex;align-items:center;justify-content:center;color:var(--muted-color);transition:all 0.2s;font-size:14px;overflow:hidden}.profile-social a:hover{border-color:var(--primary-color);color:var(--primary-color);transform:translateY(-2px);box-shadow:var(--shadow-sm)}.profile-social a img{width:100%;height:100%;object-fit:cover;display:block}.profile-content{position:relative;min-height:600px}.content-topbar{position:sticky;top:24px;z-index:40;margin-bottom:24px;background:rgba(255,255,255,0.85);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-radius:var(--radius-lg);padding:16px 24px;border:1px solid rgba(255,255,255,0.4);box-shadow:var(--shadow-md);display:flex;align-items:center;justify-content:space-between}.content-topbar .title{font-weight:800;font-size:1.15rem;color:var(--ink);letter-spacing:-0.01em}.content-topbar .sub{font-size:0.85rem;color:var(--muted-color);font-weight:500}.profile-card{background:var(--surface);border-radius:var(--radius-xl);padding:40px;box-shadow:var(--shadow-sm);border:1px solid var(--line-strong);animation:slideUpFade 0.4s cubic-bezier(0.16,1,0.3,1)}@keyframes slideUpFade{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}.profile-card h5{font-size:1.25rem;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:12px;margin-bottom:32px;padding-bottom:20px;border-bottom:1px solid var(--line-light)}.profile-card h5 i{color:var(--primary-color);background:var(--primary-light);width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.1rem}.form-label{font-size:0.85rem;font-weight:600;color:var(--ink-light);margin-bottom:8px}.form-control,.form-select{background-color:var(--surface-alt);border:1px solid transparent;border-radius:var(--radius-md)!important;padding:12px 16px;font-size:0.95rem;color:var(--ink);transition:all 0.2s ease}.form-control::placeholder{color:#94a3b8}.form-control:focus,.form-select:focus{background-color:var(--surface);border-color:var(--primary-color)!important;box-shadow:var(--shadow-focus)}.form-text{font-size:0.8rem;color:var(--muted-color);margin-top:6px}.editor-list{display:grid;gap:20px}.editor-row{background:#ffffff;border:1px solid var(--line-strong);border-radius:var(--radius-lg);padding:24px;transition:border-color 0.2s}.editor-row:hover{border-color:#cbd5e1}.editor-row .row-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding-bottom:12px;border-bottom:1px dashed var(--line-strong)}.editor-row .title{font-weight:600;font-size:0.95rem;color:var(--ink)}.editor-row .title .pill{font-size:0.7rem;font-weight:700;background:var(--surface-alt);color:var(--muted-color);padding:2px 8px;border-radius:6px;margin-left:8px;vertical-align:middle}.btn{padding:10px 20px;font-weight:500;border-radius:var(--radius-md);transition:all 0.2s;display:inline-flex;align-items:center;justify-content:center;gap:8px}.btn-primary{background-color:var(--primary-color);border-color:var(--primary-color);box-shadow:0 4px 6px rgba(79,70,229,0.2)}.btn-primary:hover{background-color:var(--primary-hover);border-color:var(--primary-hover);transform:translateY(-1px);box-shadow:0 6px 12px rgba(79,70,229,0.25)}.btn-light{background:white;border:1px solid var(--line-strong);color:var(--ink-light)}.btn-light:hover{background:var(--surface-alt);color:var(--ink);border-color:#cbd5e1}.btn-soft{background:var(--surface-alt);color:var(--ink);border:1px solid transparent}.btn-soft:hover{background:#e2e8f0;color:var(--ink)}.btn-danger-soft{background:var(--danger-bg);color:var(--danger);border:1px solid transparent}.btn-danger-soft:hover{background:#fee2e2}.loading-indicator{position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);text-align:center;color:var(--muted-color)}.loading-spinner{width:48px;height:48px;border:4px solid var(--line-light);border-top-color:var(--primary-color);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 20px}@keyframes spin{100%{transform:rotate(360deg)}}.loading-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.7);backdrop-filter:blur(4px);z-index:9999;display:flex;justify-content:center;align-items:center}.toast{border-radius:12px;box-shadow:var(--shadow-lg);font-weight:500;border:none}.scroll-hint{position:absolute;bottom:20px;left:0;right:0;display:flex;justify-content:center;pointer-events:none;opacity:0;transition:opacity 0.3s}.profile-sidebar:hover .scroll-hint{opacity:1}.scroll-hint .hint-pill{background:rgba(0,0,0,0.6);color:white;padding:6px 14px;border-radius:20px;font-size:12px;backdrop-filter:blur(4px)}.icon-preview-pill{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line-strong);background:var(--surface-alt);border-radius:14px}.icon-preview-pill .box{width:36px;height:36px;border-radius:10px;background:#fff;border:1px solid var(--line-strong);display:flex;align-items:center;justify-content:center;overflow:hidden}.icon-preview-pill .box img{width:100%;height:100%;object-fit:cover}.icon-preview-pill .meta{font-size:.82rem;color:var(--muted-color);line-height:1.2}.tags-box{border:1px solid var(--line-strong);border-radius:14px;padding:10px 10px;background:color-mix(in oklab,var(--surface) 92%,transparent)}.tag-input-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.tag-input{flex:1;min-width:240px}.tags{margin-top:10px;display:flex;flex-wrap:wrap;gap:8px}.tag{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;border:1px solid var(--line-soft);background:color-mix(in oklab,var(--primary-color) 10%,transparent);color:var(--ink);font-size:12.5px}.tag .x{border:0;background:transparent;color:var(--muted-color);cursor:pointer;padding:0 2px}.tag .x:hover{color:var(--danger-color)}.rte-help{font-size:12px;color:var(--muted-color);margin-top:6px}.rte-row{margin-bottom:16px}.rte-wrap{border:1px solid var(--line-strong);border-radius:14px;overflow:hidden;background:var(--surface)}.rte-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px;border-bottom:1px solid var(--line-strong);background:color-mix(in oklab,var(--surface) 92%,transparent)}.rte-btn{border:1px solid var(--line-soft);background:transparent;color:var(--ink);padding:7px 9px;border-radius:10px;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;user-select:none}.rte-btn:hover{background:var(--page-hover)}.rte-btn.active{background:color-mix(in oklab,var(--primary-color) 14%,transparent);border-color:color-mix(in oklab,var(--primary-color) 35%,var(--line-soft))}.rte-sep{width:1px;height:24px;background:var(--line-soft);margin:0 4px}.rte-tabs{margin-left:auto;display:flex;border:1px solid var(--line-soft);border-radius:0;overflow:hidden}.rte-tabs .tab{border:0;border-right:1px solid var(--line-soft);border-radius:0;padding:7px 12px;font-size:12px;cursor:pointer;background:transparent;color:var(--ink);line-height:1;user-select:none}.rte-tabs .tab:last-child{border-right:0}.rte-tabs .tab.active{background:color-mix(in oklab,var(--primary-color) 12%,transparent);font-weight:700}.rte-area{position:relative}.rte-editor{min-height:180px;padding:12px 12px;outline:none}.rte-editor:empty:before{content:attr(data-placeholder);color:var(--muted-color)}.rte-editor b,.rte-editor strong{font-weight:800}.rte-editor i,.rte-editor em{font-style:italic}.rte-editor u{text-decoration:underline}.rte-editor h1{font-size:20px;margin:8px 0}.rte-editor h2{font-size:18px;margin:8px 0}.rte-editor h3{font-size:16px;margin:8px 0}.rte-editor ul,.rte-editor ol{padding-left:22px}.rte-editor p{margin:0 0 10px}.rte-editor a{color:var(--primary-color);text-decoration:underline}.rte-editor code{padding:2px 6px;border-radius:0;background:color-mix(in oklab,var(--muted-color) 14%,transparent);border:1px solid var(--line-soft);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-size:12.5px}.rte-editor pre{padding:10px 12px;border-radius:0;background:color-mix(in oklab,var(--muted-color) 10%,transparent);border:1px solid var(--line-soft);overflow:auto;margin:8px 0}.rte-editor pre code{border:0;background:transparent;padding:0;display:block;white-space:pre}.rte-code{display:none;width:100%;min-height:180px;padding:12px 12px;border:0;outline:none;resize:vertical;background:transparent;color:var(--ink);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-size:12.5px;line-height:1.45}.rte-wrap.mode-code .rte-editor{display:none}.rte-wrap.mode-code .rte-code{display:block}</style>
+<style>:root{--surface-alt:#f1f5f9;--ink:#1e293b;--muted-color:#64748b;--line-strong:#e2e8f0;--line-light:#f1f5f9;--success:#10b981;--warning:#f59e0b;--danger:#ef4444;--shadow-1:0 1px 3px rgba(0,0,0,0.1);--shadow-2:0 4px 6px -1px rgba(0,0,0,0.1);--shadow-3:0 10px 15px -3px rgba(0,0,0,0.1);--shadow-sm:0 1px 2px 0 rgb(0 0 0 / 0.05);--shadow-md:0 4px 6px -1px rgb(0 0 0 / 0.1),0 2px 4px -2px rgb(0 0 0 / 0.1);--shadow-lg:0 10px 15px -3px rgb(0 0 0 / 0.1),0 4px 6px -4px rgb(0 0 0 / 0.1);--shadow-focus:0 0 0 4px var(--primary-light-transparent);--radius-sm:6px;--radius-md:10px;--radius-lg:16px;--radius-xl:24px}body{background-color:var(--bg-body);color:var(--ink);font-family:'Inter',system-ui,-apple-system,sans-serif;line-height:1.6;min-height:100vh;-webkit-font-smoothing:antialiased}.profile-layout{max-width:1400px;margin:0 auto;padding:30px;display:grid;grid-template-columns:340px 1fr;gap:40px;min-height:calc(100vh - 48px);position:relative}@media(max-width:1024px){.profile-layout{grid-template-columns:300px 1fr;gap:24px}}@media(max-width:992px){.profile-layout{grid-template-columns:1fr;padding:20px}}.profile-sidebar{background:var(--surface);border-radius:var(--radius-xl);padding:32px 24px;position:sticky;top:24px;height:fit-content;max-height:calc(100vh - 48px);overflow-y:auto;border:1px solid var(--line-strong);box-shadow:var(--shadow-lg);display:flex;flex-direction:column}.profile-sidebar::-webkit-scrollbar{width:6px}.profile-sidebar::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:10px}.profile-sidebar::-webkit-scrollbar-track{background:transparent}.profile-avatar-container{position:relative;width:120px;height:120px;margin:0 auto 16px}.profile-avatar{width:100%;height:100%;border-radius:50%;overflow:hidden;background:var(--surface-alt);display:flex;align-items:center;justify-content:center;font-size:40px;color:var(--primary-color);border:4px solid var(--surface);box-shadow:0 0 0 2px var(--line-strong);transition:transform 0.3s ease}.profile-avatar img{width:100%;height:100%;object-fit:cover}.profile-avatar:hover{transform:scale(1.02)}.profile-badge{position:absolute;bottom:0;right:0;background:var(--primary-color);color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;border:3px solid var(--surface);box-shadow:var(--shadow-sm)}.profile-name{font-weight:700;font-size:1.25rem;color:var(--ink);text-align:center;margin-bottom:4px;letter-spacing:-0.02em}.profile-role{font-size:0.75rem;font-weight:600;text-transform:uppercase;color:var(--primary-color);background:var(--primary-light);padding:4px 12px;border-radius:99px;display:table;margin:0 auto 24px;letter-spacing:0.05em}.profile-contact{background:var(--surface-alt);padding:20px;border-radius:var(--radius-lg);margin-bottom:24px;border:1px solid var(--line-light)}.contact-item{display:flex;align-items:center;gap:12px;margin-bottom:12px;font-size:0.9rem;color:var(--ink-light)}.contact-item:last-child{margin-bottom:0}.contact-item i{color:var(--muted-color);width:18px;text-align:center}.profile-nav{display:flex;flex-direction:column;gap:6px;margin-top:10px}.profile-nav button{border:none;background:transparent;text-align:left;padding:12px 16px;border-radius:var(--radius-md);color:var(--muted-color);font-weight:500;font-size:0.95rem;display:flex;align-items:center;gap:14px;transition:all 0.2s ease;cursor:pointer}.profile-nav button i{width:20px;text-align:center;transition:transform 0.2s}.profile-nav button:hover{background:var(--surface-alt);color:var(--ink)}.profile-nav button:hover i{transform:translateX(2px);color:var(--primary-color)}.profile-nav button.active{background:var(--primary-color);color:white;box-shadow:0 4px 12px var(--primary-light-transparent)}.profile-nav button.active i{color:white}.profile-social{display:flex;justify-content:center;gap:10px;margin-bottom:20px;flex-wrap:wrap}.profile-social a{width:36px;height:36px;border-radius:50%;background:var(--surface);border:1px solid var(--line-strong);display:flex;align-items:center;justify-content:center;color:var(--muted-color);transition:all 0.2s;font-size:14px;overflow:hidden}.profile-social a:hover{border-color:var(--primary-color);color:var(--primary-color);transform:translateY(-2px);box-shadow:var(--shadow-sm)}.profile-social a img{width:100%;height:100%;object-fit:contain;display:block}.profile-content{position:relative;min-height:600px}.content-topbar{position:sticky;top:24px;z-index:40;margin-bottom:24px;background:rgba(255,255,255,0.85);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-radius:var(--radius-lg);padding:16px 24px;border:1px solid rgba(255,255,255,0.4);box-shadow:var(--shadow-md);display:flex;align-items:center;justify-content:space-between}.content-topbar .title{font-weight:800;font-size:1.15rem;color:var(--ink);letter-spacing:-0.01em}.content-topbar .sub{font-size:0.85rem;color:var(--muted-color);font-weight:500}.profile-card{background:var(--surface);border-radius:var(--radius-xl);padding:40px;box-shadow:var(--shadow-sm);border:1px solid var(--line-strong);animation:slideUpFade 0.4s cubic-bezier(0.16,1,0.3,1)}@keyframes slideUpFade{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}.profile-card h5{font-size:1.25rem;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:12px;margin-bottom:32px;padding-bottom:20px;border-bottom:1px solid var(--line-light)}.profile-card h5 i{color:var(--primary-color);background:var(--primary-light);width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.1rem}.form-label{font-size:0.85rem;font-weight:600;color:var(--ink-light);margin-bottom:8px}.form-control,.form-select{background-color:var(--surface-alt);border:1px solid transparent;border-radius:var(--radius-md)!important;padding:12px 16px;font-size:0.95rem;color:var(--ink);transition:all 0.2s ease}.form-control::placeholder{color:#94a3b8}.form-control:focus,.form-select:focus{background-color:var(--surface);border-color:var(--primary-color)!important;box-shadow:var(--shadow-focus)}.form-text{font-size:0.8rem;color:var(--muted-color);margin-top:6px}.editor-list{display:grid;gap:20px}.editor-row{background:#ffffff;border:1px solid var(--line-strong);border-radius:var(--radius-lg);padding:24px;transition:border-color 0.2s}.editor-row:hover{border-color:#cbd5e1}.editor-row .row-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding-bottom:12px;border-bottom:1px dashed var(--line-strong)}.editor-row .title{font-weight:600;font-size:0.95rem;color:var(--ink)}.editor-row .title .pill{font-size:0.7rem;font-weight:700;background:var(--surface-alt);color:var(--muted-color);padding:2px 8px;border-radius:6px;margin-left:8px;vertical-align:middle}.btn{padding:10px 20px;font-weight:500;border-radius:var(--radius-md);transition:all 0.2s;display:inline-flex;align-items:center;justify-content:center;gap:8px}.btn-primary{background-color:var(--primary-color);border-color:var(--primary-color);box-shadow:0 4px 6px rgba(79,70,229,0.2)}.btn-primary:hover{background-color:var(--primary-hover);border-color:var(--primary-hover);transform:translateY(-1px);box-shadow:0 6px 12px rgba(79,70,229,0.25)}.btn-light{background:white;border:1px solid var(--line-strong);color:var(--ink-light)}.btn-light:hover{background:var(--surface-alt);color:var(--ink);border-color:#cbd5e1}.btn-soft{background:var(--surface-alt);color:var(--ink);border:1px solid transparent}.btn-soft:hover{background:#e2e8f0;color:var(--ink)}.btn-danger-soft{background:var(--danger-bg);color:var(--danger);border:1px solid transparent}.btn-danger-soft:hover{background:#fee2e2}.loading-indicator{position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);text-align:center;color:var(--muted-color)}.loading-spinner{width:48px;height:48px;border:4px solid var(--line-light);border-top-color:var(--primary-color);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 20px}@keyframes spin{100%{transform:rotate(360deg)}}.loading-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.7);backdrop-filter:blur(4px);z-index:9999;display:flex;justify-content:center;align-items:center}.toast{border-radius:12px;box-shadow:var(--shadow-lg);font-weight:500;border:none}.scroll-hint{position:absolute;bottom:20px;left:0;right:0;display:flex;justify-content:center;pointer-events:none;opacity:0;transition:opacity 0.3s}.profile-sidebar:hover .scroll-hint{opacity:1}.scroll-hint .hint-pill{background:rgba(0,0,0,0.6);color:white;padding:6px 14px;border-radius:20px;font-size:12px;backdrop-filter:blur(4px)}.icon-preview-pill{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line-strong);background:var(--surface-alt);border-radius:14px}.icon-preview-pill .box{width:36px;height:36px;border-radius:10px;background:#fff;border:1px solid var(--line-strong);display:flex;align-items:center;justify-content:center;overflow:hidden}.icon-preview-pill .box img{width:100%;height:100%;object-fit:cover}.icon-preview-pill .meta{font-size:.82rem;color:var(--muted-color);line-height:1.2}.tags-box{border:1px solid var(--line-strong);border-radius:14px;padding:10px 10px;background:color-mix(in oklab,var(--surface) 92%,transparent)}.tag-input-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.tag-input{flex:1;min-width:240px}.tags{margin-top:10px;display:flex;flex-wrap:wrap;gap:8px}.tag{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;border:1px solid var(--line-soft);background:color-mix(in oklab,var(--primary-color) 10%,transparent);color:var(--ink);font-size:12.5px}.tag .x{border:0;background:transparent;color:var(--muted-color);cursor:pointer;padding:0 2px}.tag .x:hover{color:var(--danger-color)}.rte-help{font-size:12px;color:var(--muted-color);margin-top:6px}.rte-row{margin-bottom:16px}.rte-wrap{border:1px solid var(--line-strong);border-radius:14px;overflow:hidden;background:var(--surface)}.rte-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px;border-bottom:1px solid var(--line-strong);background:color-mix(in oklab,var(--surface) 92%,transparent)}.rte-btn{border:1px solid var(--line-soft);background:transparent;color:var(--ink);padding:7px 9px;border-radius:10px;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;user-select:none}.rte-btn:hover{background:var(--page-hover)}.rte-btn.active{background:color-mix(in oklab,var(--primary-color) 14%,transparent);border-color:color-mix(in oklab,var(--primary-color) 35%,var(--line-soft))}.rte-sep{width:1px;height:24px;background:var(--line-soft);margin:0 4px}.rte-tabs{margin-left:auto;display:flex;border:1px solid var(--line-soft);border-radius:0;overflow:hidden}.rte-tabs .tab{border:0;border-right:1px solid var(--line-soft);border-radius:0;padding:7px 12px;font-size:12px;cursor:pointer;background:transparent;color:var(--ink);line-height:1;user-select:none}.rte-tabs .tab:last-child{border-right:0}.rte-tabs .tab.active{background:color-mix(in oklab,var(--primary-color) 12%,transparent);font-weight:700}.rte-area{position:relative}.rte-editor{min-height:180px;padding:12px 12px;outline:none}.rte-editor:empty:before{content:attr(data-placeholder);color:var(--muted-color)}.rte-editor b,.rte-editor strong{font-weight:800}.rte-editor i,.rte-editor em{font-style:italic}.rte-editor u{text-decoration:underline}.rte-editor h1{font-size:20px;margin:8px 0}.rte-editor h2{font-size:18px;margin:8px 0}.rte-editor h3{font-size:16px;margin:8px 0}.rte-editor ul,.rte-editor ol{padding-left:22px}.rte-editor p{margin:0 0 10px}.rte-editor a{color:var(--primary-color);text-decoration:underline}.rte-editor code{padding:2px 6px;border-radius:0;background:color-mix(in oklab,var(--muted-color) 14%,transparent);border:1px solid var(--line-soft);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-size:12.5px}.rte-editor pre{padding:10px 12px;border-radius:0;background:color-mix(in oklab,var(--muted-color) 10%,transparent);border:1px solid var(--line-soft);overflow:auto;margin:8px 0}.rte-editor pre code{border:0;background:transparent;padding:0;display:block;white-space:pre}.rte-code{display:none;width:100%;min-height:180px;padding:12px 12px;border:0;outline:none;resize:vertical;background:transparent;color:var(--ink);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-size:12.5px;line-height:1.45}.rte-wrap.mode-code .rte-editor{display:none}.rte-wrap.mode-code .rte-code{display:block}
+
+/* ✅ Social row logo styling (matches manageSocialMedia) */
+.social-logo-badge{
+  width:36px;height:36px;border-radius:10px;
+  border:1px solid var(--line-strong);
+  display:flex;align-items:center;justify-content:center;
+  background:color-mix(in oklab, var(--muted-color) 10%, transparent);
+  flex:0 0 36px;
+  overflow:hidden;
+}
+.social-logo-badge img{
+  width:22px;height:22px;
+  object-fit:contain;
+  display:block;
+}
+</style>
 
 </head>
 
@@ -96,13 +112,13 @@
         <i class="fa fa-award"></i> <span>Honors & Awards</span>
       </button>
       <button data-section="journals">
-        <i class="fa fa-book"></i> <span>Journal Publications</span>
+        <i class="fa fa-book"></i> <span>Patents</span>
       </button>
       <button data-section="conferences">
-        <i class="fa fa-microphone"></i> <span>Conferences</span>
+        <i class="fa fa-microphone"></i> <span>Publications</span>
       </button>
       <button data-section="teaching">
-        <i class="fa fa-chalkboard-teacher"></i> <span>Teaching</span>
+        <i class="fa fa-chalkboard-teacher"></i> <span>Engagements</span>
       </button>
     </div>
 
@@ -139,9 +155,6 @@
   Viewing: <span id="currentSectionName">Basic Details</span>
 </div>
 
-{{-- ✅ Removed extra Bootstrap modal for image upload.
-     Now every image/file field uses the native file chooser and uploads directly. --}}
-
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 /* =========================
@@ -172,15 +185,29 @@ const state = {
   }
 };
 
+/* =========================
+   ✅ DEFAULT SOCIAL LINKS (6 pre-defined rows)
+   ✅ UPDATED: Now uses image asset paths (matching manageSocialMedia.blade.php)
+   ✅ REMOVED: Font Awesome icon classes
+========================= */
+const DEFAULT_SOCIAL_LINKS = [
+  { platform: 'LinkedIn',        icon: @json(asset('assets/media/userSocialIcons/linkedin.png')),          sort_order: 1 },
+  { platform: 'Vidyan Portal',   icon: @json(asset('assets/media/userSocialIcons/irins.jpeg')),            sort_order: 2 },
+  { platform: 'Scopus',          icon: @json(asset('assets/media/userSocialIcons/scopus.svg')),            sort_order: 3 },
+  { platform: 'Google Scholar',  icon: @json(asset('assets/media/userSocialIcons/google.png')),            sort_order: 4 },
+  { platform: 'Web of Science',  icon: @json(asset('assets/media/userSocialIcons/webofscience.jpeg')),     sort_order: 5 },
+  { platform: 'ResearchGate',    icon: @json(asset('assets/media/userSocialIcons/researchgate.jpeg')),     sort_order: 6 },
+];
+
 const sections = {
   basic: { title:'Basic Details', icon:'fa-user', render: renderBasicSection },
   personal: { title:'Personal Information', icon:'fa-id-card', render: renderPersonalSection },
   social: { title:'Social Links', icon:'fa-share-nodes', render: renderSocialSection },
   education: { title:'Education', icon:'fa-graduation-cap', render: renderEducationSection },
   honors: { title:'Honors & Awards', icon:'fa-award', render: renderHonorsSection },
-  journals: { title:'Journal Publications', icon:'fa-book', render: renderJournalsSection },
-  conferences: { title:'Conference Publications', icon:'fa-microphone', render: renderConferencesSection },
-  teaching: { title:'Teaching Engagements', icon:'fa-chalkboard-teacher', render: renderTeachingSection }
+  journals: { title:'Patents', icon:'fa-book', render: renderJournalsSection },
+  conferences: { title:'Publications', icon:'fa-microphone', render: renderConferencesSection },
+  teaching: { title:'Engagements', icon:'fa-chalkboard-teacher', render: renderTeachingSection }
 };
 
 const PERSONAL_RTE_KEYS = ['affiliation','specification','experience','interest','administration','research_project'];
@@ -698,6 +725,57 @@ function getPersonalRTEHtml(key){
   return (ensureWrappedInPreCode(html) || '').trim();
 }
 
+/* =========================
+   ✅ normalizePlatform: strips a platform string to lowercase alphanumeric
+   (matches manageSocialMedia.blade.php logic for robust matching)
+========================= */
+function normalizePlatform(str){
+  return (str || '')
+    .toString()
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9]+/g, '');
+}
+
+/* =========================
+   ✅ PLATFORM ALIAS MAP
+   Maps various DB platform names to a canonical key used by DEFAULT_SOCIAL_LINKS.
+   This ensures saved data populates correctly even if platform names differ slightly.
+========================= */
+const PLATFORM_ALIASES = {
+  'linkedin':              'linkedin',
+  'linkedinprofile':       'linkedin',
+  'linkedinprofileurl':    'linkedin',
+  'linkedin':              'linkedin',
+  'vidyanportal':          'vidyan portal',
+  'vidyan':                'vidyan portal',
+  'scopus':                'scopus',
+  'googlescholar':         'google scholar',
+  'scholargoogle':         'google scholar',
+  'webofscience':          'web of science',
+  'researchgate':          'researchgate',
+};
+
+function resolveCanonicalPlatform(rawPlatform, sortOrder){
+  const normalized = normalizePlatform(rawPlatform);
+
+  // 1. Try alias map
+  const aliasMatch = PLATFORM_ALIASES[normalized];
+  if (aliasMatch) return aliasMatch;
+
+  // 2. Try direct match against DEFAULT_SOCIAL_LINKS platform names
+  const directMatch = DEFAULT_SOCIAL_LINKS.find(d => normalizePlatform(d.platform) === normalized);
+  if (directMatch) return directMatch.platform.toLowerCase();
+
+  // 3. Fallback: match by sort_order
+  if (sortOrder !== undefined && sortOrder !== null && sortOrder !== ''){
+    const bySort = DEFAULT_SOCIAL_LINKS.find(d => Number(d.sort_order) === Number(sortOrder));
+    if (bySort) return bySort.platform.toLowerCase();
+  }
+
+  return null;
+}
+
 /* ===== Sidebar init ===== */
 function initSidebar(){
   const d = (state.profile?.basic || {});
@@ -718,20 +796,16 @@ function initSidebar(){
   $('topbarSub').textContent = state.uuid ? `UUID: ${state.uuid}` : '—';
 }
 
+/* =========================
+   ✅ UPDATED: renderSocialIcons now uses image asset paths from DEFAULT_SOCIAL_LINKS
+   instead of Font Awesome classes. Falls back to image if available, then FA, then generic.
+========================= */
 function renderSocialIcons(arr){
-  const socialIconsMap = {
-    'linkedin': 'fa-brands fa-linkedin',
-    'github': 'fa-brands fa-github',
-    'orcid': 'fa-brands fa-orcid',
-    'google scholar': 'fa fa-graduation-cap',
-    'researchgate': 'fa-brands fa-researchgate',
-    'twitter': 'fa-brands fa-twitter',
-    'x': 'fa-brands fa-x-twitter',
-    'facebook': 'fa-brands fa-facebook',
-    'instagram': 'fa-brands fa-instagram',
-    'youtube': 'fa-brands fa-youtube',
-    'website': 'fa fa-globe'
-  };
+  // ✅ Build a map from canonical platform name → image icon from DEFAULT_SOCIAL_LINKS
+  const defaultIconMap = {};
+  DEFAULT_SOCIAL_LINKS.forEach(d => {
+    defaultIconMap[d.platform.toLowerCase()] = d.icon;
+  });
 
   const el = $('socialIcons');
   if (!el) return;
@@ -751,10 +825,13 @@ function renderSocialIcons(arr){
       return 0;
     })
     .forEach(s => {
-      const platform = (s?.platform || '').toLowerCase();
-      const customIcon = (s?.icon || '').toString().trim();
       if (!s?.link) return;
 
+      const customIcon = (s?.icon || '').toString().trim();
+      const canonicalKey = resolveCanonicalPlatform(s?.platform, s?.sort_order);
+      const defaultImg = canonicalKey ? (defaultIconMap[canonicalKey] || '') : '';
+
+      // ✅ Priority: custom image icon → default image from DEFAULT_SOCIAL_LINKS → FA class fallback → generic
       if (customIcon && isProbablyImagePath(customIcon) && !isProbablyPdf(customIcon)){
         el.insertAdjacentHTML('beforeend', `
           <a href="${escapeAttr(s.link)}" target="_blank" title="${escapeAttr(s.platform || 'Link')}" rel="noopener noreferrer">
@@ -764,13 +841,28 @@ function renderSocialIcons(arr){
         return;
       }
 
-      const iconClass = (customIcon && isProbablyFAClass(customIcon))
-        ? customIcon
-        : (socialIconsMap[platform] || 'fa fa-link');
+      if (defaultImg && isProbablyImagePath(defaultImg)){
+        el.insertAdjacentHTML('beforeend', `
+          <a href="${escapeAttr(s.link)}" target="_blank" title="${escapeAttr(s.platform || 'Link')}" rel="noopener noreferrer">
+            <img src="${escapeAttr(defaultImg)}" alt="${escapeAttr(s.platform || 'icon')}">
+          </a>
+        `);
+        return;
+      }
+
+      // Fallback: if icon is a FA class, use it; otherwise generic link icon
+      if (customIcon && isProbablyFAClass(customIcon)){
+        el.insertAdjacentHTML('beforeend', `
+          <a href="${escapeAttr(s.link)}" target="_blank" title="${escapeAttr(s.platform || 'Link')}" rel="noopener noreferrer">
+            <i class="${escapeAttr(customIcon)}"></i>
+          </a>
+        `);
+        return;
+      }
 
       el.insertAdjacentHTML('beforeend', `
         <a href="${escapeAttr(s.link)}" target="_blank" title="${escapeAttr(s.platform || 'Link')}" rel="noopener noreferrer">
-          <i class="${escapeAttr(iconClass)}"></i>
+          <i class="fa fa-link"></i>
         </a>
       `);
     });
@@ -981,7 +1073,10 @@ function renderBasicSection(){
 
   const deptOptions = (() => {
     if (!state.departmentsLoaded) return `<option value="">(Departments not loaded)</option>`;
-    let html = `<option value="">Select Department (optional)</option>`;
+    
+    let html = '';
+    html += '<option value="">Select Department</option>';
+
     (state.departments || []).forEach(dep => {
       const id = deptId(dep);
       if (id === null || id === undefined || id === '') return;
@@ -1237,24 +1332,64 @@ function renderPersonalSection(){
   `;
 }
 
-/* Social Links (kept: icon can be FA class OR uploaded image) */
+/* =========================
+   ✅ SOCIAL LINKS SECTION (UPDATED)
+   - "Add Link" button is HIDDEN
+   - 6 default rows always appear (LinkedIn, Vidyan Portal, Scopus, Google Scholar, Web of Science, ResearchGate)
+   - ✅ FIXED: Existing data is merged using normalizePlatform + aliases (handles "Linked In" vs "LinkedIn" etc.)
+   - ✅ UPDATED: Icons are now image asset paths, not FA classes
+   - Platform name, icon, and sort order are pre-filled and readonly
+========================= */
+function buildMergedSocialRows(){
+  const existing = Array.isArray(state.profile?.social_media) ? state.profile.social_media : [];
+
+  // ✅ Build a lookup map from existing data by canonical platform key
+  const existingMap = {};
+  existing.forEach(s => {
+    const canonicalKey = resolveCanonicalPlatform(s?.platform, s?.sort_order);
+    if (canonicalKey && !existingMap[canonicalKey]) {
+      existingMap[canonicalKey] = s;
+    }
+  });
+
+  // Merge defaults with existing data
+  return DEFAULT_SOCIAL_LINKS.map(def => {
+    const key = def.platform.toLowerCase();
+    const saved = existingMap[key] || null;
+
+    return {
+      uuid:       saved?.uuid || '',
+      platform:   def.platform,
+      link:       saved?.link || '',
+      icon:       saved?.icon || def.icon,   // ✅ Now an image path
+      sort_order: def.sort_order,
+      active:     saved ? (saved.active ?? '1') : '1',
+      _isDefault: true,   // marker for readonly fields
+      _defaultIcon: def.icon  // ✅ Always keep the default image path for rendering
+    };
+  });
+}
+
 function renderSocialSection(){
-  const rows = Array.isArray(state.profile?.social_media) ? state.profile.social_media : [];
-  const list = rows.map((s, i) => socialRowHTML(s, i+1)).join('');
+  const mergedRows = buildMergedSocialRows();
+  const list = mergedRows.map((s, i) => socialRowHTML(s, i+1)).join('');
 
   return `
     <section id="social" class="profile-card">
       <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
           <h5 class="mb-0 border-0 p-0"><i class="fa fa-share-nodes"></i> Social Links</h5>
-          <button type="button" class="btn btn-sm btn-soft" data-add="social">
-            <i class="fa fa-plus"></i> Add Link
-          </button>
+          {{-- ✅ Add Link button is HIDDEN --}}
+      </div>
+
+      <div class="mb-3">
+        <div class="small text-muted">
+          <i class="fa fa-info-circle me-1"></i>
+          Fill in the URL for each platform below. Platform names and sort order are pre-configured.
+        </div>
       </div>
 
       <div id="socialList" class="editor-list">
-        ${list || `<div class="text-center py-5 text-muted bg-light rounded-3 border border-dashed">
-            <i class="fa fa-link fa-2x mb-3 opacity-25"></i><br>No social links added yet.
-        </div>`}
+        ${list}
       </div>
 
       <div class="d-flex gap-2 flex-wrap mt-4">
@@ -1266,6 +1401,9 @@ function renderSocialSection(){
   `;
 }
 
+/* =========================
+   ✅ UPDATED: socialRowHTML now renders image logos instead of FA icons
+========================= */
 function socialRowHTML(s, idx){
   const uuid = s?.uuid || '';
   const platform = s?.platform || '';
@@ -1274,24 +1412,45 @@ function socialRowHTML(s, idx){
   const sortOrder = (s?.sort_order ?? 0);
   const activeRaw = (s?.active ?? true);
   const activeVal = (String(activeRaw).toLowerCase() === '0' || String(activeRaw).toLowerCase() === 'false') ? '0' : '1';
+  const isDefault = !!(s?._isDefault);
+  const defaultIcon = s?._defaultIcon || icon;
+
+  // ✅ Determine the logo HTML: always prefer image for default rows
+  const logoIconSrc = (isDefault && defaultIcon) ? defaultIcon : icon;
+  let logoHtml = '';
+  if (logoIconSrc && isProbablyImagePath(logoIconSrc) && !isProbablyPdf(logoIconSrc)){
+    logoHtml = `<img src="${escapeAttr(logoIconSrc)}" alt="${escapeAttr(platform)}" style="width:22px;height:22px;object-fit:contain;border-radius:4px;">`;
+  } else if (logoIconSrc && isProbablyFAClass(logoIconSrc)){
+    logoHtml = `<i class="${escapeAttr(logoIconSrc)} text-primary"></i>`;
+  } else {
+    logoHtml = `<i class="fa fa-link text-muted"></i>`;
+  }
 
   return `
     <div class="editor-row" data-row="social">
       <input type="hidden" data-field="uuid" value="${escapeAttr(uuid)}">
 
       <div class="row-head">
-        <div class="title"><i class="fa fa-link text-muted me-2"></i> Link <span class="pill">#${idx}</span></div>
+        <div class="title">
+          <span class="d-inline-flex align-items-center gap-2">
+            <span class="social-logo-badge">${logoHtml}</span>
+            ${escapeHtml(platform || 'Link')}
+          </span>
+          <span class="pill">#${idx}</span>
+        </div>
+        ${!isDefault ? `
         <div class="editor-actions d-flex gap-2">
           <button type="button" class="btn btn-danger-soft btn-sm" data-remove="row">
             <i class="fa fa-trash"></i>
           </button>
         </div>
+        ` : ''}
       </div>
 
       <div class="row g-3">
         <div class="col-md-4">
           <label class="form-label">Platform</label>
-          <input class="form-control" data-field="platform" value="${escapeAttr(platform)}" placeholder="e.g. LinkedIn">
+          <input class="form-control" data-field="platform" value="${escapeAttr(platform)}" placeholder="e.g. LinkedIn" ${isDefault ? 'readonly style="background:#e9ecef;cursor:not-allowed;"' : ''}>
         </div>
 
         <div class="col-md-8">
@@ -1300,10 +1459,18 @@ function socialRowHTML(s, idx){
         </div>
 
         <div class="col-md-6">
-          <label class="form-label">Icon (FA class OR Upload Image)</label>
+          <label class="form-label">Icon (Image path)</label>
           <div class="input-group">
-            <span class="input-group-text bg-light border-0"><i class="fa fa-icons text-muted"></i></span>
-            <input class="form-control" data-field="icon" value="${escapeAttr(icon)}" placeholder="fa-brands fa-linkedin OR (upload an icon)">
+            <span class="input-group-text bg-light border-0">
+              <span class="social-logo-badge" style="width:24px;height:24px;border:none;background:none;">
+                ${(logoIconSrc && isProbablyImagePath(logoIconSrc) && !isProbablyPdf(logoIconSrc))
+                  ? `<img src="${escapeAttr(logoIconSrc)}" alt="" style="width:18px;height:18px;object-fit:contain;">`
+                  : `<i class="fa fa-image text-muted"></i>`
+                }
+              </span>
+            </span>
+            <input class="form-control" data-field="icon" value="${escapeAttr(icon)}" placeholder="Image path or URL" ${isDefault ? 'readonly style="background:#e9ecef;cursor:not-allowed;"' : ''}>
+            ${!isDefault ? `
             <button class="btn btn-soft" type="button" data-file-browse="1">
               <i class="fa fa-upload"></i> Choose File
             </button>
@@ -1312,11 +1479,19 @@ function socialRowHTML(s, idx){
                    accept="image/*"
                    data-uploader="1"
                    data-target-field="icon">
+            ` : ''}
           </div>
-          <div class="form-text">If you type a FontAwesome class, it renders as an icon. If you upload/select an image, it saves the URL/path.</div>
+          ${!isDefault ? `<div class="form-text">Upload an image or paste a URL/path for the icon.</div>` : ''}
 
           <div class="icon-preview-pill mt-2">
-            <div class="box" data-preview="social_icon_preview"></div>
+            <div class="box" data-preview="social_icon_preview">
+              ${(logoIconSrc && isProbablyImagePath(logoIconSrc) && !isProbablyPdf(logoIconSrc))
+                ? `<img src="${escapeAttr(logoIconSrc)}" alt="icon">`
+                : (logoIconSrc && isProbablyFAClass(logoIconSrc))
+                  ? `<i class="${escapeAttr(logoIconSrc)}"></i>`
+                  : `<i class="fa fa-link text-muted"></i>`
+              }
+            </div>
             <div class="meta">
               <div class="fw-semibold text-dark">Preview</div>
               <div>Auto-updates as you type / upload</div>
@@ -1326,7 +1501,7 @@ function socialRowHTML(s, idx){
 
         <div class="col-md-3">
           <label class="form-label">Sort Order</label>
-          <input type="number" class="form-control" data-field="sort_order" value="${escapeAttr(String(sortOrder))}" placeholder="0" min="0" step="1">
+          <input type="number" class="form-control" data-field="sort_order" value="${escapeAttr(String(sortOrder))}" placeholder="0" min="0" step="1" ${isDefault ? 'readonly style="background:#e9ecef;cursor:not-allowed;"' : ''}>
         </div>
 
         <div class="col-md-3">
@@ -1572,15 +1747,15 @@ function renderJournalsSection(){
   return `
     <section id="journals" class="profile-card">
       <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
-          <h5 class="mb-0 border-0 p-0"><i class="fa fa-book"></i> Journal Publications</h5>
+          <h5 class="mb-0 border-0 p-0"><i class="fa fa-book"></i> Patents</h5>
           <button type="button" class="btn btn-sm btn-soft" data-add="journals">
-            <i class="fa fa-plus"></i> Add Journal
+            <i class="fa fa-plus"></i> Add Patent
           </button>
       </div>
 
       <div id="journalsList" class="editor-list">
         ${list || `<div class="text-center py-5 text-muted bg-light rounded-3 border border-dashed">
-            <i class="fa fa-book-open fa-2x mb-3 opacity-25"></i><br>No journal publications added yet.
+            <i class="fa fa-book-open fa-2x mb-3 opacity-25"></i><br>No patents added yet.
         </div>`}
       </div>
 
@@ -1600,7 +1775,7 @@ function journalRowHTML(j, idx){
     <div class="editor-row" data-row="journals">
       <input type="hidden" data-field="uuid" value="${escapeAttr(uuid)}">
       <div class="row-head">
-        <div class="title"><i class="fa fa-newspaper text-muted me-2"></i> Journal <span class="pill">#${idx}</span></div>
+        <div class="title"><i class="fa fa-newspaper text-muted me-2"></i> Patent <span class="pill">#${idx}</span></div>
         <div class="editor-actions">
           <button type="button" class="btn btn-danger-soft btn-sm" data-remove="row"><i class="fa fa-trash"></i></button>
         </div>
@@ -1613,7 +1788,7 @@ function journalRowHTML(j, idx){
         </div>
         <div class="col-md-6">
           <label class="form-label">Publisher</label>
-          <input class="form-control" data-field="publication_organization" value="${escapeAttr(j?.publication_organization || '')}" placeholder="Journal/Org Name">
+          <input class="form-control" data-field="publication_organization" value="${escapeAttr(j?.publication_organization || '')}" placeholder="Patent/Org Name">
         </div>
 
         <div class="col-md-3">
@@ -1664,15 +1839,15 @@ function renderConferencesSection(){
   return `
     <section id="conferences" class="profile-card">
       <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
-          <h5 class="mb-0 border-0 p-0"><i class="fa fa-microphone"></i> Conference Publications</h5>
+          <h5 class="mb-0 border-0 p-0"><i class="fa fa-microphone"></i> Publications</h5>
           <button type="button" class="btn btn-sm btn-soft" data-add="conferences">
-            <i class="fa fa-plus"></i> Add Conference
+            <i class="fa fa-plus"></i> Add Publication
           </button>
       </div>
 
       <div id="conferencesList" class="editor-list">
         ${list || `<div class="text-center py-5 text-muted bg-light rounded-3 border border-dashed">
-            <i class="fa fa-users fa-2x mb-3 opacity-25"></i><br>No conference papers added yet.
+            <i class="fa fa-users fa-2x mb-3 opacity-25"></i><br>No publication papers added yet.
         </div>`}
       </div>
 
@@ -1691,7 +1866,7 @@ function confRowHTML(c, idx){
     <div class="editor-row" data-row="conferences">
       <input type="hidden" data-field="uuid" value="${escapeAttr(uuid)}">
       <div class="row-head">
-        <div class="title"><i class="fa fa-microphone text-muted me-2"></i> Conference <span class="pill">#${idx}</span></div>
+        <div class="title"><i class="fa fa-microphone text-muted me-2"></i> Publication <span class="pill">#${idx}</span></div>
         <div class="editor-actions">
           <button type="button" class="btn btn-danger-soft btn-sm" data-remove="row"><i class="fa fa-trash"></i></button>
         </div>
@@ -1703,8 +1878,8 @@ function confRowHTML(c, idx){
           <input class="form-control" data-field="title" value="${escapeAttr(c?.title || '')}" placeholder="Paper Title">
         </div>
         <div class="col-md-6">
-          <label class="form-label">Conference Name</label>
-          <input class="form-control" data-field="conference_name" value="${escapeAttr(c?.conference_name || '')}" placeholder="Conference Name">
+          <label class="form-label">Publication Name</label>
+          <input class="form-control" data-field="conference_name" value="${escapeAttr(c?.conference_name || '')}" placeholder="Publication Name">
         </div>
 
         <div class="col-md-6">
@@ -1766,15 +1941,15 @@ function renderTeachingSection(){
   return `
     <section id="teaching" class="profile-card">
       <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
-          <h5 class="mb-0 border-0 p-0"><i class="fa fa-chalkboard-teacher"></i> Teaching Engagements</h5>
+          <h5 class="mb-0 border-0 p-0"><i class="fa fa-chalkboard-teacher"></i> Engagements</h5>
           <button type="button" class="btn btn-sm btn-soft" data-add="teaching">
-            <i class="fa fa-plus"></i> Add Teaching
+            <i class="fa fa-plus"></i> Add Engagements
           </button>
       </div>
 
       <div id="teachingList" class="editor-list">
         ${list || `<div class="text-center py-5 text-muted bg-light rounded-3 border border-dashed">
-            <i class="fa fa-chalkboard fa-2x mb-3 opacity-25"></i><br>No teaching engagements added.
+            <i class="fa fa-chalkboard fa-2x mb-3 opacity-25"></i><br>No engagements added.
         </div>`}
       </div>
 
@@ -1793,7 +1968,7 @@ function teachingRowHTML(t, idx){
     <div class="editor-row" data-row="teaching">
       <input type="hidden" data-field="uuid" value="${escapeAttr(uuid)}">
       <div class="row-head">
-        <div class="title"><i class="fa fa-chalkboard-teacher text-muted me-2"></i> Teaching <span class="pill">#${idx}</span></div>
+        <div class="title"><i class="fa fa-chalkboard-teacher text-muted me-2"></i> Engagements <span class="pill">#${idx}</span></div>
         <div class="editor-actions">
           <button type="button" class="btn btn-danger-soft btn-sm" data-remove="row"><i class="fa fa-trash"></i></button>
         </div>
@@ -2050,6 +2225,8 @@ function addRow(type){
   };
 
   if (type === 'social'){
+    // ✅ Social rows are pre-populated, no dynamic add needed
+    // This block is kept in case future use, but the Add button is hidden
     const list = cleanList('socialList');
     const idx = list.querySelectorAll('[data-row="social"]').length + 1;
     list.insertAdjacentHTML('beforeend', socialRowHTML({uuid:'', platform:'', link:'', icon:'', sort_order:0, active:true}, idx));
@@ -2160,6 +2337,9 @@ function refreshSidebarSocialFromInputs(){
   renderSocialIcons(rows);
 }
 
+/* =========================
+   ✅ UPDATED: updateSocialRowPreview now prefers image rendering
+========================= */
 function updateSocialRowPreview(row){
   if (!row) return;
   const iconVal = row.querySelector('[data-field="icon"]')?.value?.trim() || '';
@@ -2168,6 +2348,16 @@ function updateSocialRowPreview(row){
 
   box.innerHTML = '';
   if (!iconVal){
+    // ✅ For default rows, check if there's a default icon from DEFAULT_SOCIAL_LINKS
+    const platformVal = row.querySelector('[data-field="platform"]')?.value?.trim() || '';
+    const canonicalKey = resolveCanonicalPlatform(platformVal);
+    if (canonicalKey){
+      const def = DEFAULT_SOCIAL_LINKS.find(d => d.platform.toLowerCase() === canonicalKey);
+      if (def && def.icon && isProbablyImagePath(def.icon)){
+        box.innerHTML = `<img src="${escapeAttr(def.icon)}" alt="icon">`;
+        return;
+      }
+    }
     box.innerHTML = `<i class="fa fa-link text-muted"></i>`;
     return;
   }
@@ -2177,7 +2367,12 @@ function updateSocialRowPreview(row){
     return;
   }
 
-  box.innerHTML = `<i class="${escapeAttr(iconVal)}"></i>`;
+  if (isProbablyFAClass(iconVal)){
+    box.innerHTML = `<i class="${escapeAttr(iconVal)}"></i>`;
+    return;
+  }
+
+  box.innerHTML = `<i class="fa fa-link text-muted"></i>`;
 }
 
 function updateAllSocialRowPreviews(){
@@ -2344,7 +2539,7 @@ async function saveAll(){
 if ($('socialList')) profilePayload.social_media = collectList('socialList', 'social');
 if ($('eduList')) profilePayload.educations = collectList('eduList', 'education');
 if ($('honorsList')) profilePayload.honors = collectList('honorsList', 'honors');
-if ($('journalsList')) profilePayload.journals = collectList('journalsList', 'journals');
+if ($('journalsList')) profilePayload.journals = collectList('journalsList', 'patents');
 if ($('conferencesList')) profilePayload.conference_publications = collectList('conferencesList', 'conferences');
 if ($('teachingList')) profilePayload.teaching_engagements = collectList('teachingList', 'teaching');
 

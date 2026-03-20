@@ -10,21 +10,25 @@
 /* Dropdowns inside table */
 .table-wrap .dropdown{position:relative}
 .dropdown [data-bs-toggle="dropdown"]{border-radius:10px}
-.dropdown-menu{border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:220px;z-index:1085}
+.dropdown-menu{
+  border-radius:12px;
+  border:1px solid var(--line-strong);
+  box-shadow:var(--shadow-2);
+  min-width:220px;
+  z-index:1085
+}
 .dropdown-item{display:flex;align-items:center;gap:.6rem}
 .dropdown-item i{width:16px;text-align:center}
 .dropdown-item.text-danger{color:var(--danger-color) !important}
 
-/* ✅ FIX: allow horizontal scroll on small screens, keep dropdowns visible vertically */
+/* Table */
 .table-responsive{
   overflow-x:auto !important;
   overflow-y:visible !important;
   -webkit-overflow-scrolling:touch;
 }
 .card-body{overflow:visible !important}
-
-/* optional: makes tables easier to scroll on mobile */
-.table{min-width:1120px}
+.table{min-width:980px}
 
 .table-wrap.card{
   position:relative;
@@ -49,6 +53,7 @@
 td .fw-semibold{color:var(--ink)}
 .small{font-size:12.5px}
 
+/* Badges */
 .badge-soft-primary{
   background:color-mix(in oklab, var(--primary-color) 12%, transparent);
   color:var(--primary-color)
@@ -57,8 +62,12 @@ td .fw-semibold{color:var(--ink)}
   background:color-mix(in oklab, var(--muted-color) 12%, transparent);
   color:var(--muted-color)
 }
+.badge-soft-success{
+  background:color-mix(in oklab, #198754 12%, transparent);
+  color:#198754
+}
 
-/* ✅ centered loader overlay */
+/* Loader */
 .inline-loader{
   position:fixed;
   top:0;left:0;width:100%;height:100%;
@@ -107,7 +116,7 @@ td .fw-semibold{color:var(--ink)}
 .soc-toolbar .form-select,
 .soc-toolbar .form-control{border-radius:12px}
 
-/* ✅ Tabs style */
+/* Tabs */
 .nav.nav-tabs{border-color:var(--line-strong)}
 .nav-tabs .nav-link{color:var(--ink)}
 .nav-tabs .nav-link.active{
@@ -116,7 +125,7 @@ td .fw-semibold{color:var(--ink)}
 }
 .tab-content,.tab-pane{overflow:visible}
 
-/* Icon preview (first col) */
+/* Preset logo */
 .icon-cell{display:flex;align-items:center;gap:10px}
 .icon-badge{
   width:44px;height:44px;border-radius:12px;
@@ -126,17 +135,79 @@ td .fw-semibold{color:var(--ink)}
   flex:0 0 44px;
 }
 .icon-badge i{font-size:18px}
-.icon-badge img{width:26px;height:26px;object-fit:contain;display:block}
+.icon-badge .tag-logo{
+  min-width:26px;
+  height:26px;
+  border-radius:8px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:0 7px;
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:.02em;
+  background:color-mix(in oklab, var(--primary-color) 14%, transparent);
+  color:var(--primary-color);
+  line-height:1;
+}
 .icon-meta{display:flex;flex-direction:column;gap:2px}
 .icon-meta .muted{font-size:12px;color:var(--muted-color)}
 .icon-meta a{font-size:12.5px;text-decoration:none}
 
+.preset-link-input{
+  min-width:320px;
+  border-radius:12px;
+}
+.sort-pill{
+  min-width:40px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  height:32px;
+  border-radius:999px;
+  border:1px solid var(--line-strong);
+  background:var(--surface);
+  font-weight:700;
+  color:var(--ink)
+}
+.preset-note{
+  font-size:12.5px;
+  color:var(--muted-color)
+}
+.fixed-count-pill{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 12px;
+  border-radius:999px;
+  background:color-mix(in oklab, var(--primary-color) 10%, transparent);
+  color:var(--primary-color);
+  font-size:12.5px;
+  font-weight:600
+}
+.icon-badge img,
+.icon-badge svg{
+  width:22px;
+  height:22px;
+  object-fit:contain;
+  display:block;
+}
 @media (max-width: 768px){
-  .soc-toolbar .d-flex{flex-direction:column;gap:12px !important}
-  .soc-toolbar .position-relative{min-width:100% !important}
-  .toolbar-buttons{display:flex;gap:8px;flex-wrap:wrap}
-  .toolbar-buttons .btn{flex:1;min-width:140px}
-  .table{min-width:1080px}
+  .soc-toolbar .toolbar-main{
+    flex-direction:column;
+    align-items:stretch !important;
+  }
+  .soc-toolbar .toolbar-actions{
+    width:100%;
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  .soc-toolbar .toolbar-actions .btn{
+    flex:1;
+    min-width:140px;
+  }
+  .table{min-width:920px}
 }
 </style>
 @endpush
@@ -164,34 +235,31 @@ td .fw-semibold{color:var(--ink)}
   <div class="tab-content mb-3">
 
     {{-- =========================
-       Active
+       Active - Fixed Preset Rows
        ========================= --}}
     <div class="tab-pane fade show active" id="pane-active" role="tabpanel">
 
       <div class="row align-items-center g-2 mb-3 soc-toolbar panel">
-        <div class="col-12 col-lg d-flex align-items-center flex-wrap gap-2">
-          <div class="d-flex align-items-center gap-2">
-            <label class="text-muted small mb-0">Per Page</label>
-            <select id="perPage" class="form-select" style="width:96px;">
-              <option>10</option><option>20</option><option>50</option><option>100</option>
-            </select>
-          </div>
+        <div class="col-12">
+          <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap toolbar-main">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <span class="fixed-count-pill">
+                <i class="fa fa-list-ol"></i>
+                Fixed sequence: 6 platforms
+              </span>
+              <div class="preset-note">
+                Platform names and sort order are locked. Only the links are editable.
+              </div>
+            </div>
 
-          <div class="position-relative" style="min-width:280px;">
-            <input id="searchInput" type="search" class="form-control ps-5" placeholder="Search platform, link, icon, metadata…">
-            <i class="fa fa-search position-absolute" style="left:12px;top:50%;transform:translateY(-50%);opacity:.6;"></i>
-          </div>
-
-          <button id="btnReset" class="btn btn-light">
-            <i class="fa fa-rotate-left me-1"></i>Reset
-          </button>
-        </div>
-
-        <div class="col-12 col-lg-auto ms-lg-auto d-flex justify-content-lg-end">
-          <div class="toolbar-buttons" id="writeControls" style="display:none;">
-            <button type="button" class="btn btn-primary" id="btnAdd">
-              <i class="fa fa-plus me-1"></i> Add Social Link
-            </button>
+            <div class="toolbar-actions ms-lg-auto">
+              <button id="btnReloadRows" class="btn btn-light">
+                <i class="fa fa-rotate-right me-1"></i> Reload
+              </button>
+              <button id="btnSaveAll" class="btn btn-primary">
+                <i class="fa fa-floppy-disk me-1"></i> Save
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -202,30 +270,24 @@ td .fw-semibold{color:var(--ink)}
             <table class="table table-hover table-borderless align-middle mb-0">
               <thead class="sticky-top">
                 <tr>
-                  <th style="width:260px;">Icon</th>
-                  <th style="width:240px;">Platform</th>
-                  <th style="width:420px;">Link</th>
-                  <th style="width:120px;">Active</th>
-                  <th style="width:160px;">Sort</th>
-                  <th style="width:110px;" class="text-end">Actions</th>
+                  <th style="width:260px;">Logo</th>
+                  <th style="width:260px;">Platform</th>
+                  <th style="width:460px;">Link</th>
+                  <th style="width:140px;">Sort Order</th>
+                  <th style="width:140px;">Status</th>
                 </tr>
               </thead>
               <tbody id="socTbody">
                 <tr>
-                  <td colspan="6" class="text-center text-muted" style="padding:38px;">Loading…</td>
+                  <td colspan="5" class="text-center text-muted" style="padding:38px;">Loading…</td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          <div id="empty" class="empty p-4 text-center" style="display:none;">
-            <i class="fa-brands fa-hubspot mb-2" style="font-size:32px;opacity:.6;"></i>
-            <div>No social links found.</div>
-          </div>
-
           <div class="d-flex flex-wrap align-items-center justify-content-between p-3 gap-2">
-            <div class="text-muted small" id="resultsInfo">—</div>
-            <nav><ul id="pager" class="pagination mb-0"></ul></nav>
+            <div class="text-muted small" id="resultsInfo">6 fixed rows</div>
+            <div class="text-muted small">Blank link = not saved / removed</div>
           </div>
         </div>
       </div>
@@ -305,78 +367,6 @@ td .fw-semibold{color:var(--ink)}
   </div>
 </div>
 
-{{-- Add/Edit/View Modal --}}
-<div class="modal fade" id="socModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-centered">
-    <form class="modal-content" id="socForm">
-      <div class="modal-header">
-        <h5 class="modal-title" id="socModalTitle">Add Social Link</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-
-      <div class="modal-body">
-        <input type="hidden" id="socUuid" />
-
-        <div class="row g-3">
-          <div class="col-md-6">
-            <label class="form-label">Platform <span class="text-danger">*</span></label>
-            <input class="form-control" id="platform" required maxlength="100" placeholder="e.g., LinkedIn / GitHub / X">
-          </div>
-
-          <div class="col-md-6">
-            <label class="form-label">Icon (FA class OR image path)</label>
-            <input class="form-control" id="icon" maxlength="100" placeholder="e.g., fa-brands fa-linkedin OR /icons/linkedin.svg">
-            <div class="form-text">If it looks like an image path/url, we’ll preview as image.</div>
-          </div>
-
-          <div class="col-12">
-            <label class="form-label">Link <span class="text-danger">*</span></label>
-            <input class="form-control" id="link" required maxlength="500" placeholder="https://...">
-          </div>
-
-          <div class="col-md-4">
-            <label class="form-label">Sort Order</label>
-            <input type="number" class="form-control" id="sort_order" placeholder="0">
-          </div>
-
-          <div class="col-md-4">
-            <label class="form-label">Active</label>
-            <select class="form-select" id="active">
-              <option value="1">Yes</option>
-              <option value="0">No</option>
-            </select>
-          </div>
-
-          <div class="col-md-4">
-            <label class="form-label">Preview</label>
-            <div class="d-flex align-items-center gap-2">
-              <div class="icon-badge" style="width:46px;height:46px;">
-                <i id="previewIconI" class="fa-solid fa-link"></i>
-                <img id="previewIconImg" src="" alt="icon" style="display:none;">
-              </div>
-              <div class="small text-muted" id="previewText">—</div>
-            </div>
-          </div>
-
-          <div class="col-12">
-            <label class="form-label">Metadata (JSON)</label>
-            <textarea class="form-control" id="metadata" rows="4" placeholder='{"username":"...","verified":true}'></textarea>
-            <div class="form-text">Optional. Keep it valid JSON. Empty = null.</div>
-          </div>
-
-        </div>
-      </div>
-
-      <div class="modal-footer">
-        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-        <button type="submit" class="btn btn-primary" id="saveBtn">
-          <i class="fa fa-floppy-disk me-1"></i> Save
-        </button>
-      </div>
-    </form>
-  </div>
-</div>
-
 {{-- Toasts --}}
 <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index:1080">
   <div id="toastSuccess" class="toast align-items-center text-bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
@@ -400,7 +390,7 @@ td .fw-semibold{color:var(--ink)}
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
-// ✅ dropdown fix (safe)
+// dropdown fix
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('.dd-toggle');
   if (!btn) return;
@@ -414,14 +404,84 @@ document.addEventListener('click', (e) => {
 });
 
 document.addEventListener('DOMContentLoaded', function () {
-  // ✅ prevent double-init (also prevents double-submit / double listeners)
   if (window.__SOCIAL_MANAGE_INIT__) return;
   window.__SOCIAL_MANAGE_INIT__ = true;
 
   const token = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
   if (!token) { window.location.href = '/'; return; }
 
+  const PRESET_SOCIALS = [
+    {
+      key: 'linkedin',
+      platform: 'Linked In',
+      sort_order: 1,
+      db_icon: @json(asset('assets/media/userSocialIcons/linkedin.png')),
+      logo_type: 'img',
+      logo_value: @json(asset('assets/media/userSocialIcons/linkedin.png')),
+      placeholder: 'https://...'
+    },
+    {
+      key: 'vidyan-portal',
+      platform: 'Vidyan Portal',
+      sort_order: 2,
+      db_icon: @json(asset('assets/media/userSocialIcons/irins.jpeg')),
+      logo_type: 'img',
+      logo_value: @json(asset('assets/media/userSocialIcons/irins.jpeg')),
+      placeholder: 'https://...'
+    },
+    {
+      key: 'scopus',
+      platform: 'Scopus',
+      sort_order: 3,
+      db_icon: @json(asset('assets/media/userSocialIcons/scopus.svg')),
+      logo_type: 'img',
+      logo_value: @json(asset('assets/media/userSocialIcons/scopus.svg')),
+      placeholder: 'https://...'
+    },
+    {
+      key: 'google-scholar',
+      platform: 'Google Scholar',
+      sort_order: 4,
+      db_icon: @json(asset('assets/media/userSocialIcons/google.png')),
+      logo_type: 'img',
+      logo_value: @json(asset('assets/media/userSocialIcons/google.png')),
+      placeholder: 'https://...'
+    },
+    {
+      key: 'web-of-science',
+      platform: 'Web of Science',
+      sort_order: 5,
+      db_icon: @json(asset('assets/media/userSocialIcons/webofscience.jpeg')),
+      logo_type: 'img',
+      logo_value: @json(asset('assets/media/userSocialIcons/webofscience.jpeg')),
+      placeholder: 'https://...'
+    },
+    {
+      key: 'researchgate',
+      platform: 'ResearchGate',
+      sort_order: 6,
+      db_icon: @json(asset('assets/media/userSocialIcons/researchgate.jpeg')),
+      logo_type: 'img',
+      logo_value: @json(asset('assets/media/userSocialIcons/researchgate.jpeg')),
+      placeholder: 'https://...'
+    }
+  ];
+
   const inlineLoader = document.getElementById('inlineLoader');
+  const tbody = document.getElementById('socTbody');
+  const resultsInfo = document.getElementById('resultsInfo');
+  const btnSaveAll = document.getElementById('btnSaveAll');
+  const btnReloadRows = document.getElementById('btnReloadRows');
+
+  const binPerPageSel = document.getElementById('binPerPage');
+  const binSearchInput = document.getElementById('binSearchInput');
+  const binReset = document.getElementById('binReset');
+  const binTbody = document.getElementById('binTbody');
+  const binEmptyEl = document.getElementById('binEmpty');
+  const binPager = document.getElementById('binPager');
+  const binResultsInfo = document.getElementById('binResultsInfo');
+  const btnEmptyBin = document.getElementById('btnEmptyBin');
+
   function showInlineLoading(show){
     if(!inlineLoader) return;
     inlineLoader.classList.toggle('show', !!show);
@@ -432,34 +492,19 @@ document.addEventListener('DOMContentLoaded', function () {
   function escapeHtml(str){
     return (str ?? '').toString().replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
   }
-  function debounce(fn, ms=350){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
 
-  function parseJsonOrThrow(txt){
-    const s=(txt||'').trim(); if(!s) return null;
-    try{
-      const obj=JSON.parse(s);
-      if(obj===null) return null;
-      if(typeof obj!=='object') throw new Error('Metadata must be a JSON object/array');
-      return obj;
-    }catch(e){ throw new Error('Metadata JSON invalid: '+e.message); }
-  }
+  function debounce(fn, ms=350){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
 
   function normalizeLink(src){
     const s = (src ?? '').toString().trim();
     if(!s) return '';
-    if(/^https?:\/\//i.test(s)) return s;
-    if(s.startsWith('//')) return s;
-    if(s.startsWith('/')) return s;
-    return '/' + s;
+    return s;
   }
 
-  function looksLikeImagePath(v){
-    const s = (v||'').toString().trim();
-    if(!s) return false;
-    if(/^https?:\/\//i.test(s) || s.startsWith('/') || s.startsWith('//')){
-      return /\.(png|jpg|jpeg|webp|gif|svg)(\?.*)?$/i.test(s);
-    }
-    return /\.(png|jpg|jpeg|webp|gif|svg)(\?.*)?$/i.test(s);
+  function setButtonLoading(button, loading){
+    if(!button) return;
+    button.disabled = !!loading;
+    button.classList.toggle('btn-loading', !!loading);
   }
 
   const toastOk = new bootstrap.Toast(document.getElementById('toastSuccess'));
@@ -469,82 +514,10 @@ document.addEventListener('DOMContentLoaded', function () {
   const ok = m => { okTxt.textContent = m || 'Done'; toastOk.show(); };
   const err = m => { errTxt.textContent = m || 'Something went wrong'; toastErr.show(); };
 
-  const perPageSel = document.getElementById('perPage');
-  const searchInput = document.getElementById('searchInput');
-  const btnReset = document.getElementById('btnReset');
-  const writeControls = document.getElementById('writeControls');
-  const btnAdd = document.getElementById('btnAdd');
-
-  const tbody = document.getElementById('socTbody');
-  const emptyEl = document.getElementById('empty');
-  const pager = document.getElementById('pager');
-  const resultsInfo = document.getElementById('resultsInfo');
-
-  // Bin elements
-  const binPerPageSel = document.getElementById('binPerPage');
-  const binSearchInput = document.getElementById('binSearchInput');
-  const binReset = document.getElementById('binReset');
-  const binTbody = document.getElementById('binTbody');
-  const binEmptyEl = document.getElementById('binEmpty');
-  const binPager = document.getElementById('binPager');
-  const binResultsInfo = document.getElementById('binResultsInfo');
-  const btnEmptyBin = document.getElementById('btnEmptyBin');
-
-  const socModalEl = document.getElementById('socModal');
-  const socModal = new bootstrap.Modal(socModalEl);
-  const socForm = document.getElementById('socForm');
-  const socModalTitle = document.getElementById('socModalTitle');
-  const saveBtn = document.getElementById('saveBtn');
-
-  function cleanupModalBackdrops(){
-    document.querySelectorAll('.modal-backdrop').forEach(b=>b.remove());
-    document.body.classList.remove('modal-open');
-    document.body.style.removeProperty('padding-right');
-  }
-  ['hidden.bs.modal','hide.bs.modal'].forEach(ev=>{
-    socModalEl.addEventListener(ev, cleanupModalBackdrops);
-  });
-  window.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') setTimeout(cleanupModalBackdrops, 0); });
-  window.addEventListener('beforeunload', cleanupModalBackdrops);
-
-  // Form fields
-  const socUuid = document.getElementById('socUuid');
-  const platform = document.getElementById('platform');
-  const icon = document.getElementById('icon');
-  const link = document.getElementById('link');
-  const sort_order = document.getElementById('sort_order');
-  const active = document.getElementById('active');
-  const metadata = document.getElementById('metadata');
-
-  // preview
-  const previewIconI = document.getElementById('previewIconI');
-  const previewIconImg = document.getElementById('previewIconImg');
-  const previewText = document.getElementById('previewText');
-
-  const ACTOR = { id:null, uuid:'', role:'' };
+  const ACTOR = { id:null, uuid:'', role:'', department_id:null };
   let canWrite = true;
   let binLoaded = false;
-
-  function computePermissions(){
-    // you can adjust: canWrite = !['student'].includes((ACTOR.role||'').toLowerCase());
-    writeControls.style.display = canWrite ? 'flex' : 'none';
-    if(btnEmptyBin) btnEmptyBin.disabled = !canWrite;
-  }
-
-  function setButtonLoading(button, loading){
-    if(!button) return;
-    button.disabled = !!loading;
-    button.classList.toggle('btn-loading', !!loading);
-  }
-
-  const state = {
-    items: [],
-    q: '',
-    perPage: 10,
-    page: 1,
-    total: 0,
-    totalPages: 1,
-  };
+  let currentPresetRecords = {};
 
   const binState = {
     items: [],
@@ -555,6 +528,13 @@ document.addEventListener('DOMContentLoaded', function () {
     totalPages: 1,
   };
 
+  function computePermissions(){
+    btnSaveAll.disabled = !canWrite;
+    btnReloadRows.disabled = false;
+    if(btnEmptyBin) btnEmptyBin.disabled = !canWrite;
+    document.querySelectorAll('.preset-link-input').forEach(inp => inp.disabled = !canWrite);
+  }
+
   async function fetchMe(){
     const res = await fetch('/api/users/me', { headers: authHeaders() });
     const js = await res.json().catch(()=>({}));
@@ -563,15 +543,8 @@ document.addEventListener('DOMContentLoaded', function () {
     ACTOR.id = js.data.id || null;
     ACTOR.uuid = js.data.uuid;
     ACTOR.role = (js.data.role || '').toLowerCase();
+    ACTOR.department_id = js.data.department_id || null;
     computePermissions();
-  }
-
-  function renderInfo(total, shown, el, per, page){
-    if(!el) return;
-    if(!total || !shown){ el.textContent = `0 of ${total||0}`; return; }
-    const from = (page-1)*per+1;
-    const to = (page-1)*per+shown;
-    el.textContent = `Showing ${from} to ${to} of ${total} entries`;
   }
 
   function renderPagerGeneric(pagerEl, page, totalPages){
@@ -590,10 +563,143 @@ document.addEventListener('DOMContentLoaded', function () {
     pagerEl.innerHTML = html;
   }
 
-  function activeBadge(v){
-    const on = (v === 1 || v === true || v === '1');
-    if(on) return `<span class="badge badge-soft-primary">Yes</span>`;
-    return `<span class="badge badge-soft-muted">No</span>`;
+  function renderInfo(total, shown, el, per, page){
+    if(!el) return;
+    if(!total || !shown){ el.textContent = `0 of ${total||0}`; return; }
+    const from = (page-1)*per+1;
+    const to = (page-1)*per+shown;
+    el.textContent = `Showing ${from} to ${to} of ${total} entries`;
+  }
+
+  function normalizePlatform(str){
+    return (str || '')
+      .toString()
+      .toLowerCase()
+      .replace(/&/g, 'and')
+      .replace(/[^a-z0-9]+/g, '');
+  }
+
+  function getPresetKeyFromRecord(rec){
+    if(!rec || typeof rec !== 'object') return null;
+
+    const metaKey = rec.metadata && typeof rec.metadata === 'object' ? (rec.metadata.preset_key || '') : '';
+    if(metaKey && PRESET_SOCIALS.some(x => x.key === metaKey)) return metaKey;
+
+    const normalized = normalizePlatform(rec.platform || '');
+    const aliases = {
+      'linkedin': 'linkedin',
+      'linkedinprofile': 'linkedin',
+      'linkedinprofileurl': 'linkedin',
+      'linked in': 'linkedin',
+      'vidyanportal': 'vidyan-portal',
+      'vidyan': 'vidyan-portal',
+      'scopus': 'scopus',
+      'googlescholar': 'google-scholar',
+      'scholargoogle': 'google-scholar',
+      'webofscience': 'web-of-science',
+      'researchgate': 'researchgate'
+    };
+
+    if(aliases[normalized]) return aliases[normalized];
+
+    const presetBySort = PRESET_SOCIALS.find(x => Number(x.sort_order) === Number(rec.sort_order));
+    if(presetBySort) return presetBySort.key;
+
+    return null;
+  }
+
+  function mapPresetRecords(items){
+    const map = {};
+    (items || []).forEach(rec => {
+      const key = getPresetKeyFromRecord(rec);
+      if(!key) return;
+      if(!map[key]) map[key] = rec;
+    });
+    return map;
+  }
+
+  function getLogoHtml(item){
+  const type = (item.logo_type || '').toString().trim().toLowerCase();
+
+  if(type === 'fa'){
+    return `<i class="${escapeHtml(item.logo_value || '')}"></i>`;
+  }
+
+  if(type === 'img'){
+    return `<img src="${escapeHtml(item.logo_value || '')}" alt="${escapeHtml(item.platform || 'Logo')}">`;
+  }
+
+  if(type === 'svg'){
+    return item.logo_value || '';
+  }
+
+  return `<span class="tag-logo">${escapeHtml(item.logo_value || '')}</span>`;
+}
+
+  function presetStatusBadge(record){
+    const hasLink = !!String(record?.link || '').trim();
+    return hasLink
+      ? `<span class="badge badge-soft-success">Saved</span>`
+      : `<span class="badge badge-soft-muted">Pending</span>`;
+  }
+
+  function renderPresetRows(){
+    tbody.innerHTML = PRESET_SOCIALS.map(item => {
+      const record = currentPresetRecords[item.key] || null;
+      const linkVal = normalizeLink(record?.link || '');
+
+      return `
+        <tr data-preset-key="${escapeHtml(item.key)}" data-uuid="${escapeHtml(record?.uuid || '')}">
+          <td>
+            <div class="icon-cell">
+              <div class="icon-badge">${getLogoHtml(item)}</div>
+              <div class="icon-meta">
+                <div class="fw-semibold">${escapeHtml(item.platform)}</div>
+                <div class="muted">Locked platform row</div>
+              </div>
+            </div>
+          </td>
+          <td>
+            <div class="fw-semibold">${escapeHtml(item.platform)}</div>
+            <div class="small text-muted">Predefined</div>
+          </td>
+          <td>
+            <input
+              type="url"
+              class="form-control preset-link-input"
+              placeholder="${escapeHtml(item.placeholder)}"
+              value="${escapeHtml(linkVal)}"
+              ${canWrite ? '' : 'disabled'}
+            >
+          </td>
+          <td>
+            <span class="sort-pill">${escapeHtml(String(item.sort_order))}</span>
+          </td>
+          <td>${presetStatusBadge(record)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    resultsInfo.textContent = `${PRESET_SOCIALS.length} fixed rows`;
+  }
+
+  async function loadSocial(showLoader=true){
+    try{
+      if(showLoader) showInlineLoading(true);
+      const res = await fetch(`/api/users/${encodeURIComponent(ACTOR.uuid)}/social`, { headers: authHeaders() });
+      const js = await res.json().catch(()=>({}));
+      if(!res.ok || js.success === false) throw new Error(js.error || js.message || 'Failed to load social links');
+
+      const items = Array.isArray(js.data) ? js.data : [];
+      currentPresetRecords = mapPresetRecords(items);
+      renderPresetRows();
+      computePermissions();
+    }catch(e){
+      err(e.message);
+      console.error(e);
+    }finally{
+      if(showLoader) showInlineLoading(false);
+    }
   }
 
   function iconCell(iconVal, platformVal, linkVal){
@@ -601,11 +707,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const plat = (platformVal || '').toString().trim();
     const href = normalizeLink(linkVal);
 
-    if(looksLikeImagePath(ic)){
-      const src = normalizeLink(ic);
+    const isFA = /^fa[srlbd]?\s|^fa-/.test(ic) || ic.includes('fa-');
+    if(isFA){
       return `
         <div class="icon-cell">
-          <div class="icon-badge"><img src="${escapeHtml(src)}" alt="icon" loading="lazy"></div>
+          <div class="icon-badge"><i class="${escapeHtml(ic || 'fa-solid fa-link')}"></i></div>
           <div class="icon-meta">
             <div class="fw-semibold">${escapeHtml(plat || '—')}</div>
             ${href ? `<a href="${escapeHtml(href)}" target="_blank" rel="noopener">Open link</a>` : `<span class="muted">—</span>`}
@@ -613,102 +719,15 @@ document.addEventListener('DOMContentLoaded', function () {
         </div>`;
     }
 
-    // FontAwesome class
-    const faClass = ic ? ic : 'fa-solid fa-link';
+    const tag = (plat || 'SM').slice(0,2).toUpperCase();
     return `
       <div class="icon-cell">
-        <div class="icon-badge"><i class="${escapeHtml(faClass)}"></i></div>
+        <div class="icon-badge"><span class="tag-logo">${escapeHtml(tag)}</span></div>
         <div class="icon-meta">
           <div class="fw-semibold">${escapeHtml(plat || '—')}</div>
           ${href ? `<a href="${escapeHtml(href)}" target="_blank" rel="noopener">Open link</a>` : `<span class="muted">—</span>`}
-          <div class="muted">${escapeHtml(ic || 'no icon')}</div>
         </div>
       </div>`;
-  }
-
-  function applyFilters(arr){
-    let out = arr.slice();
-    const q = (state.q||'').toLowerCase().trim();
-    if(q){
-      out = out.filter(r=>{
-        const meta = (r.metadata && typeof r.metadata === 'object') ? JSON.stringify(r.metadata) : (r.metadata||'');
-        const hay = [r.platform, r.link, r.icon, meta]
-          .map(x=>(x||'').toString().toLowerCase()).join(' | ');
-        return hay.includes(q);
-      });
-    }
-    return out;
-  }
-
-  function sortRows(arr){
-    // keep server order (sort_order asc, id desc); do stable sort by sort_order then id desc
-    return arr.slice().sort((a,b)=>{
-      const aso = Number(a.sort_order ?? 0);
-      const bso = Number(b.sort_order ?? 0);
-      if(aso !== bso) return aso - bso;
-      const aid = Number(a.id ?? 0);
-      const bid = Number(b.id ?? 0);
-      return bid - aid;
-    });
-  }
-
-  function renderTable(rows){
-    if(!tbody) return;
-
-    if(!rows.length){
-      tbody.innerHTML = '';
-      return;
-    }
-
-    tbody.innerHTML = rows.map(r=>{
-      const plat = (r.platform || '').toString();
-      const lnk = (r.link || '').toString();
-      const act = `
-        <div class="dropdown text-end" data-bs-display="static">
-          <button type="button" class="btn btn-light btn-sm dd-toggle"
-                  data-bs-toggle="dropdown" data-bs-auto-close="outside"
-                  data-bs-boundary="viewport" aria-expanded="false">
-            <i class="fa fa-ellipsis-vertical"></i>
-          </button>
-          <ul class="dropdown-menu dropdown-menu-end">
-            <li><button type="button" class="dropdown-item" data-action="view"><i class="fa fa-eye"></i> View</button></li>
-            <li><button type="button" class="dropdown-item" data-action="edit"><i class="fa fa-pen-to-square"></i> Edit</button></li>
-            <li><hr class="dropdown-divider"></li>
-            <li><button type="button" class="dropdown-item text-danger" data-action="delete"><i class="fa fa-trash"></i> Delete</button></li>
-          </ul>
-        </div>`;
-
-      return `
-        <tr data-uuid="${escapeHtml(r.uuid)}">
-          <td>${iconCell(r.icon, plat, lnk)}</td>
-          <td>${escapeHtml(plat || '—')}</td>
-          <td>
-            ${lnk ? `<a href="${escapeHtml(normalizeLink(lnk))}" target="_blank" rel="noopener">${escapeHtml(lnk)}</a>`
-                 : `<span class="text-muted">—</span>`}
-          </td>
-          <td>${activeBadge(r.active)}</td>
-          <td>${escapeHtml(String(r.sort_order ?? 0))}</td>
-          <td class="text-end">${act}</td>
-        </tr>`;
-    }).join('');
-  }
-
-  function renderAll(){
-    const filtered = sortRows(applyFilters(state.items));
-    const total = filtered.length;
-    const per = state.perPage || 10;
-    const pages = Math.max(1, Math.ceil(total / per));
-    state.total = total;
-    state.totalPages = pages;
-    if (state.page > pages) state.page = pages;
-
-    const start = (state.page - 1) * per;
-    const rows = filtered.slice(start, start + per);
-
-    renderTable(rows);
-    renderPagerGeneric(pager, state.page, state.totalPages);
-    renderInfo(total, rows.length, resultsInfo, per, state.page);
-    emptyEl.style.display = total === 0 ? '' : 'none';
   }
 
   function applyBinFilters(arr){
@@ -792,22 +811,6 @@ document.addEventListener('DOMContentLoaded', function () {
     binEmptyEl.style.display = total === 0 ? '' : 'none';
   }
 
-  async function loadSocial(showLoader=true){
-    try{
-      if(showLoader) showInlineLoading(true);
-      const res = await fetch(`/api/users/${encodeURIComponent(ACTOR.uuid)}/social`, { headers: authHeaders() });
-      const js = await res.json().catch(()=>({}));
-      if(!res.ok || js.success === false) throw new Error(js.error || js.message || 'Failed to load social links');
-      state.items = Array.isArray(js.data) ? js.data : [];
-      state.page = 1;
-      renderAll();
-    }catch(e){
-      err(e.message); console.error(e);
-    }finally{
-      if(showLoader) showInlineLoading(false);
-    }
-  }
-
   async function loadBin(showLoader=true){
     try{
       if(showLoader) showInlineLoading(true);
@@ -819,118 +822,114 @@ document.addEventListener('DOMContentLoaded', function () {
       binLoaded = true;
       renderBinAll();
     }catch(e){
-      err(e.message); console.error(e);
+      err(e.message);
+      console.error(e);
     }finally{
       if(showLoader) showInlineLoading(false);
     }
   }
 
-  async function fetchOne(uuid){
-    // no show endpoint in controller; we can reuse index list item
-    const hit = state.items.find(x => String(x.uuid) === String(uuid)) || binState.items.find(x => String(x.uuid) === String(uuid));
-    return hit || null;
-  }
-
-  function resetForm(){
-    socForm.reset();
-    socUuid.value = '';
-    metadata.value = '';
-    active.value = '1';
-    updatePreview();
-  }
-
-  function setFormReadonly(on){
-    Array.from(socForm.querySelectorAll('input,select,textarea')).forEach(el=>{
-      if(el.id==='socUuid') return;
-      if(on){
-        if(el.tagName==='SELECT') el.disabled=true;
-        else el.readOnly=true;
-      }else{
-        el.disabled=false;
-        el.readOnly=false;
-      }
-    });
-  }
-
-  function fillForm(r){
-    socUuid.value = r.uuid || '';
-    platform.value = r.platform || '';
-    icon.value = r.icon || '';
-    link.value = r.link || '';
-    sort_order.value = (r.sort_order ?? 0);
-    active.value = (r.active === 0 || r.active === false || r.active === '0') ? '0' : '1';
-
-    if(r.metadata && typeof r.metadata === 'object'){
-      try{ metadata.value = JSON.stringify(r.metadata, null, 2); }catch(_){ metadata.value=''; }
-    } else metadata.value = '';
-
-    updatePreview();
-  }
-
-  function updatePreview(){
-    const ic = (icon.value || '').toString().trim();
-    const plat = (platform.value || '').toString().trim();
-    if(looksLikeImagePath(ic)){
-      previewIconI.style.display = 'none';
-      previewIconImg.style.display = '';
-      previewIconImg.src = normalizeLink(ic);
-      previewText.textContent = plat ? `Image icon for ${plat}` : 'Image icon';
+  async function saveAllPresetRows(){
+    if(!canWrite){
+      err('You do not have permission for this action');
       return;
     }
-    previewIconImg.style.display = 'none';
-    previewIconI.style.display = '';
-    previewIconI.className = ic ? ic : 'fa-solid fa-link';
-    previewText.textContent = plat ? `FA icon for ${plat}` : 'FA icon';
+
+    const rows = Array.from(document.querySelectorAll('#socTbody tr[data-preset-key]'));
+    if(!rows.length){
+      err('No rows available to save');
+      return;
+    }
+
+    let created = 0;
+    let updated = 0;
+    let removed = 0;
+
+    setButtonLoading(btnSaveAll, true);
+    showInlineLoading(true);
+
+    try{
+      for(const row of rows){
+        const key = row.dataset.presetKey;
+        const preset = PRESET_SOCIALS.find(x => x.key === key);
+        if(!preset) continue;
+
+        const input = row.querySelector('.preset-link-input');
+        const existing = currentPresetRecords[key] || null;
+        const link = (input?.value || '').trim();
+
+        if(!link){
+          if(existing?.uuid){
+            const delRes = await fetch(`/api/users/${encodeURIComponent(ACTOR.uuid)}/social/${encodeURIComponent(existing.uuid)}`, {
+              method:'DELETE',
+              headers: authHeaders()
+            });
+            const delJs = await delRes.json().catch(()=>({}));
+            if(!delRes.ok || delJs.success === false){
+              throw new Error(delJs.error || delJs.message || `Failed to remove ${preset.platform}`);
+            }
+            removed++;
+          }
+          continue;
+        }
+
+        const payload = {
+          platform: preset.platform,
+          icon: preset.db_icon,
+          link: link,
+          sort_order: preset.sort_order,
+          active: true,
+          metadata: {
+            preset_key: preset.key,
+            fixed_sequence: true
+          }
+        };
+
+        if(existing?.uuid){
+          const updRes = await fetch(`/api/users/${encodeURIComponent(ACTOR.uuid)}/social/${encodeURIComponent(existing.uuid)}`, {
+            method:'PUT',
+            headers: authHeaders({ 'Content-Type':'application/json' }),
+            body: JSON.stringify(payload)
+          });
+          const updJs = await updRes.json().catch(()=>({}));
+          if(!updRes.ok || updJs.success === false){
+            throw new Error(updJs.error || updJs.message || `Failed to update ${preset.platform}`);
+          }
+          updated++;
+        }else{
+          const crtRes = await fetch(`/api/users/${encodeURIComponent(ACTOR.uuid)}/social`, {
+            method:'POST',
+            headers: authHeaders({ 'Content-Type':'application/json' }),
+            body: JSON.stringify(payload)
+          });
+          const crtJs = await crtRes.json().catch(()=>({}));
+          if(!crtRes.ok || crtJs.success === false){
+            throw new Error(crtJs.error || crtJs.message || `Failed to create ${preset.platform}`);
+          }
+          created++;
+        }
+      }
+
+      await loadSocial(false);
+      if(binLoaded) await loadBin(false);
+
+      const parts = [];
+      if(created) parts.push(`${created} created`);
+      if(updated) parts.push(`${updated} updated`);
+      if(removed) parts.push(`${removed} removed`);
+
+      ok(parts.length ? `Saved successfully (${parts.join(', ')})` : 'No changes to save');
+    }catch(ex){
+      err(ex.message);
+      console.error(ex);
+    }finally{
+      setButtonLoading(btnSaveAll, false);
+      showInlineLoading(false);
+    }
   }
 
-  icon.addEventListener('input', debounce(updatePreview, 120));
-  platform.addEventListener('input', debounce(updatePreview, 120));
-
-  // ✅ Load Bin on first time tab click
-  const binTabLink = document.querySelector('a[href="#pane-bin"][data-bs-toggle="tab"]');
-  if (binTabLink) {
-    binTabLink.addEventListener('shown.bs.tab', async () => {
-      if (!binLoaded) await loadBin(true);
-    });
-  }
-
-  // Active pager
-  document.addEventListener('click', e=>{
-    const a = e.target.closest('#pager a.page-link[data-page]');
-    if(!a) return;
-    e.preventDefault();
-    const p = parseInt(a.dataset.page, 10);
-    if(Number.isNaN(p) || p===state.page) return;
-    state.page = p;
-    renderAll();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  });
-
-  // Bin pager
-  document.addEventListener('click', e=>{
-    const a = e.target.closest('#binPager a.page-link[data-page]');
-    if(!a) return;
-    e.preventDefault();
-    if(!binLoaded) return;
-    const p = parseInt(a.dataset.page, 10);
-    if(Number.isNaN(p) || p===binState.page) return;
-    binState.page = p;
-    renderBinAll();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  });
-
-  const onSearch = debounce(()=>{
-    state.q = searchInput.value.trim();
-    state.page = 1;
-    renderAll();
-  }, 320);
-  searchInput.addEventListener('input', onSearch);
-
-  perPageSel.addEventListener('change', ()=>{
-    state.perPage = parseInt(perPageSel.value, 10) || 10;
-    state.page = 1;
-    renderAll();
-  });
+  btnSaveAll?.addEventListener('click', saveAllPresetRows);
+  btnReloadRows?.addEventListener('click', () => loadSocial(true));
 
   const onBinSearch = debounce(()=>{
     if(!binLoaded) return;
@@ -945,12 +944,6 @@ document.addEventListener('DOMContentLoaded', function () {
     binState.perPage = parseInt(binPerPageSel.value, 10) || 10;
     binState.page = 1;
     renderBinAll();
-  });
-
-  btnReset.addEventListener('click', ()=>{
-    state.q=''; state.perPage=10; state.page=1;
-    searchInput.value=''; perPageSel.value='10';
-    renderAll();
   });
 
   binReset.addEventListener('click', ()=>{
@@ -971,78 +964,25 @@ document.addEventListener('DOMContentLoaded', function () {
     renderBinAll();
   });
 
-  // Add
-  btnAdd?.addEventListener('click', ()=>{
-    if(!canWrite) return;
-    resetForm();
-    socModalTitle.textContent = 'Add Social Link';
-    socForm.dataset.mode = 'edit';
-    setFormReadonly(false);
-    saveBtn.style.display = '';
-    socModal.show();
+  const binTabLink = document.querySelector('a[href="#pane-bin"][data-bs-toggle="tab"]');
+  if (binTabLink) {
+    binTabLink.addEventListener('shown.bs.tab', async () => {
+      if (!binLoaded) await loadBin(true);
+    });
+  }
+
+  document.addEventListener('click', e=>{
+    const a = e.target.closest('#binPager a.page-link[data-page]');
+    if(!a) return;
+    e.preventDefault();
+    if(!binLoaded) return;
+    const p = parseInt(a.dataset.page, 10);
+    if(Number.isNaN(p) || p===binState.page) return;
+    binState.page = p;
+    renderBinAll();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   });
 
-  // Actions (Active table)
-  document.addEventListener('click', async (e)=>{
-    const btn = e.target.closest('#pane-active button[data-action]');
-    if(!btn) return;
-
-    const tr = btn.closest('tr');
-    const uuid = tr?.dataset?.uuid;
-    if(!uuid) return;
-
-    const act = btn.dataset.action;
-
-    const toggle = btn.closest('.dropdown')?.querySelector('.dd-toggle');
-    if(toggle){ try{ bootstrap.Dropdown.getOrCreateInstance(toggle).hide(); }catch(_){} }
-
-    if(act === 'view' || act === 'edit'){
-      showInlineLoading(true);
-      try{
-        const data = await fetchOne(uuid);
-        if(!data) throw new Error('Record not found in current list');
-        resetForm();
-        fillForm(data);
-
-        const viewOnly = (act==='view');
-        socModalTitle.textContent = viewOnly ? 'View Social Link' : 'Edit Social Link';
-        socForm.dataset.mode = viewOnly ? 'view' : 'edit';
-        setFormReadonly(viewOnly);
-        saveBtn.style.display = viewOnly ? 'none' : '';
-        socModal.show();
-      }catch(ex){ err(ex.message); }
-      finally{ showInlineLoading(false); }
-      return;
-    }
-
-    if(act === 'delete'){
-      const conf = await Swal.fire({
-        title:'Move to Bin?',
-        text:'This will soft delete the record.',
-        icon:'warning',
-        showCancelButton:true,
-        confirmButtonText:'Delete',
-        confirmButtonColor:'#ef4444'
-      });
-      if(!conf.isConfirmed) return;
-
-      showInlineLoading(true);
-      try{
-        const res = await fetch(`/api/users/${encodeURIComponent(ACTOR.uuid)}/social/${encodeURIComponent(uuid)}`, {
-          method:'DELETE',
-          headers: authHeaders()
-        });
-        const js = await res.json().catch(()=>({}));
-        if(!res.ok || js.success === false) throw new Error(js.error || js.message || 'Delete failed');
-        ok('Moved to Bin');
-        await loadSocial(false);
-        if(binLoaded) await loadBin(false);
-      }catch(ex){ err(ex.message); }
-      finally{ showInlineLoading(false); }
-    }
-  });
-
-  // Actions (Bin table)
   document.addEventListener('click', async (e)=>{
     const btn = e.target.closest('#pane-bin button[data-bin-action]');
     if(!btn) return;
@@ -1119,7 +1059,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 
-  // Empty Bin
   btnEmptyBin?.addEventListener('click', async ()=>{
     if(!canWrite){
       err('You do not have permission for this action');
@@ -1153,75 +1092,8 @@ document.addEventListener('DOMContentLoaded', function () {
       await loadSocial(false);
     }catch(ex){
       err(ex.message);
-    }
-    finally{
-      showInlineLoading(false);
-    }
-  });
-
-  // ✅ Submit lock to prevent double entry
-  let submitting = false;
-
-  // Save (Add/Edit) - JSON (no file)
-  socForm.addEventListener('submit', async (e)=>{
-    e.preventDefault();
-    if(socForm.dataset.mode === 'view') return;
-    if(submitting) return; // ✅ prevents double submit
-
-    if(!platform.value.trim()){ platform.focus(); return; }
-    if(!link.value.trim()){ link.focus(); return; }
-
-    let metaObj = null;
-    try{ metaObj = parseJsonOrThrow(metadata.value); }
-    catch(ex){ err(ex.message); metadata.focus(); return; }
-
-    const isEdit = !!socUuid.value;
-    const endpoint = isEdit
-      ? `/api/users/${encodeURIComponent(ACTOR.uuid)}/social/${encodeURIComponent(socUuid.value)}`
-      : `/api/users/${encodeURIComponent(ACTOR.uuid)}/social`;
-    const method = isEdit ? 'PUT' : 'POST';
-
-    const payload = {
-      platform: platform.value.trim(),
-      icon: (icon.value || '').trim() || null,
-      link: link.value.trim(),
-      sort_order: sort_order.value ? (parseInt(sort_order.value,10) || 0) : 0,
-      active: active.value === '1',
-    };
-    if(metaObj !== null) payload.metadata = metaObj;
-
-    submitting = true;
-    try{
-      setButtonLoading(saveBtn, true);
-      showInlineLoading(true);
-
-      const res = await fetch(endpoint, {
-        method,
-        headers: authHeaders({ 'Content-Type':'application/json' }),
-        body: JSON.stringify(payload)
-      });
-      const js = await res.json().catch(()=>({}));
-
-      if(!res.ok || js.success === false){
-        let msg = js.error || js.message || 'Save failed';
-        if(js.errors){
-          const k = Object.keys(js.errors)[0];
-          if(k && js.errors[k] && js.errors[k][0]) msg = js.errors[k][0];
-        }
-        throw new Error(msg);
-      }
-
-      socModal.hide();
-      ok(isEdit ? 'Social link updated' : 'Social link created');
-      await loadSocial(false);
-      if(binLoaded) await loadBin(false);
-    }catch(ex){
-      err(ex.message);
     }finally{
-      submitting = false;
-      setButtonLoading(saveBtn, false);
       showInlineLoading(false);
-      cleanupModalBackdrops();
     }
   });
 
@@ -1230,15 +1102,12 @@ document.addEventListener('DOMContentLoaded', function () {
     try{
       await fetchMe();
       await loadSocial(false);
-      // ✅ No bin load here
     }catch(ex){
       err(ex.message);
     }finally{
       showInlineLoading(false);
-      cleanupModalBackdrops();
     }
   })();
-
 });
 </script>
 @endpush
