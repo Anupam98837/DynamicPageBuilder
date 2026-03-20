@@ -944,17 +944,24 @@ Route::get('/public/departments/{department}/student-activities', [StudentActivi
 */
 
 // Public (no auth)
-Route::get('/public/gallery',                          [GalleryController::class, 'publicIndex']);
+Route::get('/public/gallery',                           [GalleryController::class, 'publicIndex']);
 Route::get('/public/departments/{department}/gallery', [GalleryController::class, 'publicIndexByDepartment']);
 Route::get('/public/gallery/{identifier}',             [GalleryController::class, 'publicShow']);
 
+// NEW: public event album cards + album details
+Route::get('/public/gallery-events',                   [GalleryController::class, 'publicEvents']);
+Route::get('/public/gallery-events/{shortcode}',       [GalleryController::class, 'publicEventShow']);
+
 // Read-only (authenticated)
 Route::middleware('checkRole')->group(function () {
-    Route::get('/gallery',              [GalleryController::class, 'index']);
-    Route::get('/gallery/{identifier}', [GalleryController::class, 'show']);
+    Route::get('/gallery',               [GalleryController::class, 'index']);
+    Route::get('/gallery/{identifier}',  [GalleryController::class, 'show']);
 
     Route::get('/departments/{department}/gallery',              [GalleryController::class, 'indexByDepartment']);
     Route::get('/departments/{department}/gallery/{identifier}', [GalleryController::class, 'showByDepartment']);
+
+    // NEW: event dropdown options
+    Route::get('/gallery-events',        [GalleryController::class, 'eventOptions']);
 });
 
 // Modify (authenticated role-based)
@@ -972,6 +979,7 @@ Route::middleware('checkRole')->group(function () {
     Route::post('/gallery/{identifier}/restore', [GalleryController::class, 'restore']);
     Route::delete('/gallery/{identifier}/force-delete', [GalleryController::class, 'forceDelete']);
 });
+
 
 
 /*

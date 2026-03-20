@@ -263,6 +263,7 @@ input[type="checkbox"] {
 }
 .empty-state i { font-size: 40px; margin-bottom: 16px; opacity: 0.5; }
 .empty-state .title { font-size: 18px; font-weight: 700; color: #334155; }
+
 </style>
 @endpush
 
@@ -722,18 +723,62 @@ input[type="checkbox"] {
     $('btnSave').addEventListener('click', save);
 
     document.addEventListener('change', (e) => {
-      const h = e.target.closest('.chk-sub-all');
-      if (h) {
-        const sid_list = state.students.map(st => idNum(st?.student_id ?? st?.id));
-        sid_list.forEach(sid => setCell(sid, idNum(h.dataset.subid), { checked: h.checked }));
-        renderTable();
-      }
-      const c = e.target.closest('.chk-cell');
-      if (c) {
-        setCell(idNum(c.dataset.sid), idNum(c.dataset.subid), { checked: c.checked });
-        renderTable();
+  const h = e.target.closest('.chk-sub-all');
+  if (h) {
+    const subid = idNum(h.dataset.subid);
+
+    state.students.forEach(st => {
+      const sid = idNum(st?.student_id ?? st?.id);
+      setCell(sid, subid, { checked: h.checked });
+
+      const td = document.querySelector(`td[data-sid="${sid}"][data-subid="${subid}"]`);
+      if (!td) return;
+
+      const input = td.querySelector('.att-input');
+      const na = td.querySelector('.cell-na');
+      const chk = td.querySelector('.chk-cell');
+
+      if (chk) chk.checked = h.checked;
+
+      if (h.checked) {
+        if (input) input.style.display = '';
+        if (na) na.style.display = 'none';
+      } else {
+        if (input) input.style.display = 'none';
+        if (na) na.style.display = '';
       }
     });
+
+    syncAllHeaderCheckboxes();
+    updateSummaryBadge();
+    return;
+  }
+
+  const c = e.target.closest('.chk-cell');
+  if (c) {
+    const sid = idNum(c.dataset.sid);
+    const subid = idNum(c.dataset.subid);
+
+    setCell(sid, subid, { checked: c.checked });
+
+    const td = document.querySelector(`td[data-sid="${sid}"][data-subid="${subid}"]`);
+    if (td) {
+      const input = td.querySelector('.att-input');
+      const na = td.querySelector('.cell-na');
+
+      if (c.checked) {
+        if (input) input.style.display = '';
+        if (na) na.style.display = 'none';
+      } else {
+        if (input) input.style.display = 'none';
+        if (na) na.style.display = '';
+      }
+    }
+
+    syncAllHeaderCheckboxes();
+    updateSummaryBadge();
+  }
+});
 
     document.addEventListener('input', (e) => {
       const inp = e.target.closest('.att-input');
