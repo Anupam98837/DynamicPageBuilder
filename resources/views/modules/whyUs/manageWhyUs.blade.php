@@ -101,6 +101,81 @@ td .fw-semibold{color:var(--ink)}
   background:color-mix(in oklab, var(--primary-color) 12%, transparent);
   color:var(--primary-color)
 }
+.badge-soft-danger{background:color-mix(in oklab, var(--danger-color) 12%, transparent);color:var(--danger-color)}
+.badge-soft-info{background:color-mix(in oklab, #0ea5e9 14%, transparent);color:#0ea5e9}
+
+/* Timeline Styles */
+.timeline {
+  position: relative;
+  padding: 0;
+  list-style: none;
+}
+.timeline:before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 31px;
+  width: 2px;
+  background: var(--line-soft);
+}
+.timeline-item {
+  position: relative;
+  margin-bottom: 20px;
+}
+.timeline-marker {
+  position: absolute;
+  top: 0;
+  left: 20px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--primary-color);
+  z-index: 10;
+}
+.timeline-content {
+  margin-left: 60px;
+  padding: 12px 16px;
+  background: color-mix(in oklab, var(--surface) 95%, var(--bg-body));
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+}
+.timeline-date {
+  font-size: 11px;
+  color: var(--muted-color);
+  margin-bottom: 4px;
+}
+.timeline-title {
+  font-weight: 600;
+  font-size: 13.5px;
+  margin-bottom: 4px;
+}
+.timeline-author {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.timeline-comment {
+  font-size: 12.5px;
+  color: var(--muted-color);
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: rgba(0,0,0,0.03);
+  border-left: 2px solid var(--line-strong);
+  font-style: italic;
+}
+.badge-pending-draft {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--warning-color);
+  color: #fff;
+  vertical-align: middle;
+  margin-left: 4px;
+  text-transform: uppercase;
+  font-weight: 700;
+}
 
 /* Loading overlay */
 .wu-loading{
@@ -243,7 +318,7 @@ td .fw-semibold{color:var(--ink)}
         <i class="fa-solid fa-circle-minus me-2"></i>Inactive
       </a>
     </li>
-    <li class="nav-item">
+    <li class="nav-item" id="wuTabHeaderTrash" style="display:none;">
       <a class="nav-link" data-bs-toggle="tab" href="#wu-tab-trash" role="tab" aria-selected="false">
         <i class="fa-solid fa-trash-can me-2"></i>Trash
       </a>
@@ -305,12 +380,13 @@ td .fw-semibold{color:var(--ink)}
                   <th style="width:120px;">Status</th>
                   <th style="width:120px;">Featured</th>
                   <th style="width:110px;">Sort</th>
+                  <th style="width:170px;">Workflow</th>
                   <th style="width:170px;">Updated</th>
                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
               </thead>
               <tbody id="wuTbodyActive">
-                <tr><td colspan="8" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+                <tr><td colspan="9" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -342,12 +418,13 @@ td .fw-semibold{color:var(--ink)}
                   <th style="width:120px;">Status</th>
                   <th style="width:120px;">Featured</th>
                   <th style="width:110px;">Sort</th>
+                  <th style="width:170px;">Workflow</th>
                   <th style="width:170px;">Updated</th>
                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
               </thead>
               <tbody id="wuTbodyInactive">
-                <tr><td colspan="8" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+                <tr><td colspan="9" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -470,6 +547,17 @@ td .fw-semibold{color:var(--ink)}
         <input type="hidden" id="wuUuid">
         <input type="hidden" id="wuId">
 
+
+
+        {{-- Pending Draft Alert --}}
+        <div id="wuDraftAlert" class="alert alert-warning mb-3" style="display:none;">
+          <div class="d-flex align-items-center gap-2">
+            <i class="fa fa-pen-nib fs-5"></i>
+            <h6 class="mb-0 fw-bold">Pending Changes</h6>
+          </div>
+          <div class="ms-4 small">This item has updates waiting for approval. Editing now will replace those pending changes.</div>
+        </div>
+
         <div class="row g-3">
           <div class="col-lg-6">
             <div class="row g-3">
@@ -591,6 +679,54 @@ td .fw-semibold{color:var(--ink)}
 </div>
 @endsection
 
+{{-- Rejection Reason Modal --}}
+<div class="modal fade" id="rejectReasonModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title text-danger"><i class="fa fa-circle-xmark me-2"></i>Rejection Reason</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="p-3 bg-light rounded-3 border">
+          <div id="rejectReasonModalText" class="text-dark" style="font-size: 14.5px; line-height: 1.6; white-space: pre-wrap;">—</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{{-- Workflow History Modal --}}
+<div class="modal fade" id="wuHistoryModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-md modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-clock-rotate-left me-2"></i>Workflow History</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="wuHistoryLoading" class="text-center py-4">
+          <div class="spinner-border text-primary" role="status"></div>
+          <div class="mt-2 text-muted">Loading history…</div>
+        </div>
+        <div id="wuHistoryContent" style="display:none;">
+          <ul class="timeline" id="wuHistoryTimeline"></ul>
+        </div>
+        <div id="wuHistoryEmpty" class="text-center py-4 text-muted" style="display:none;">
+          <i class="fa fa-history mb-2 fs-3 opacity-50"></i>
+          <div>No history found for this item.</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -642,6 +778,12 @@ td .fw-semibold{color:var(--ink)}
     const toastErr = toastErrEl ? new bootstrap.Toast(toastErrEl) : null;
     const ok = (m) => { const el=$('wuToastOkText'); if(el) el.textContent=m||'Done'; toastOk && toastOk.show(); };
     const err = (m) => { const el=$('wuToastErrText'); if(el) el.textContent=m||'Something went wrong'; toastErr && toastErr.show(); };
+ 
+    const setBtnLoading = (btn, loading) => {
+      if (!btn) return;
+      btn.disabled = !!loading;
+      btn.classList.toggle('btn-loading', !!loading);
+    };
 
     const authHeaders = () => ({
       'Authorization': 'Bearer ' + token,
@@ -652,7 +794,7 @@ td .fw-semibold{color:var(--ink)}
      * Permissions (updated with publish control)
      * ========================= */
     const ACTOR = { id: null, role: '', department_id: null };
-  let canAssignPrivilege = false;
+    let canAssignPrivilege = false;
     let canCreate=false, canEdit=false, canDelete=false, canPublish=false;
 
     function computePermissions(){
@@ -684,6 +826,12 @@ td .fw-semibold{color:var(--ink)}
       }
       canPublish = true; // Only specific roles can publish
       
+      const allowedTrashRoles = ['hod', 'admin', 'director', 'principal', 'author', 'super_admin'];
+      const tabHeaderTrash = $('wuTabHeaderTrash');
+      if (tabHeaderTrash) {
+        tabHeaderTrash.style.display = allowedTrashRoles.includes(r) ? 'block' : 'none';
+      }
+
       const wc = $('wuWriteControls');
       if (wc) wc.style.display = canCreate ? 'flex' : 'none';
       
@@ -710,6 +858,8 @@ td .fw-semibold{color:var(--ink)}
           const js = await res.json().catch(()=> ({}));
           const role = js?.data?.role || js?.role;
           if (role) ACTOR.role = String(role).toLowerCase();
+          const deptId = js?.data?.department_id || js?.department_id;
+          if (deptId) ACTOR.department_id = deptId;
         }
       }catch(_){}
       if (!ACTOR.role){
@@ -772,12 +922,27 @@ td .fw-semibold{color:var(--ink)}
       return `${API.list}?${params.toString()}`;
     }
 
-    function badgeStatus(status){
+    function badgeStatus(status, hasDraft){
       const s = (status || '').toString().toLowerCase();
-      if (s === 'published') return `<span class="badge badge-soft-success">Published</span>`;
-      if (s === 'draft') return `<span class="badge badge-soft-warning">Draft</span>`;
-      if (s === 'archived') return `<span class="badge badge-soft-muted">Archived</span>`;
-      return `<span class="badge badge-soft-muted">${esc(s || '—')}</span>`;
+      let html = '';
+      if (s === 'published') html = `<span class="badge badge-soft-success">Published</span>`;
+      else if (s === 'draft') html = `<span class="badge badge-soft-warning">Draft</span>`;
+      else if (s === 'archived') html = `<span class="badge badge-soft-muted">Archived</span>`;
+      else html = `<span class="badge badge-soft-muted">${esc(s || '—')}</span>`;
+
+      if (hasDraft) {
+        html += `<span class="badge-pending-draft" title="Pending Changes">Draft</span>`;
+      }
+      return html;
+    }
+
+    function workflowBadge(ws){
+      const s = (ws || '').toString().toLowerCase();
+      if (s === 'pending_check') return `<span class="badge-soft-warning p-1 px-2 rounded-pill small"><i class="fa fa-hourglass-start me-1"></i>Pending Check</span>`;
+      if (s === 'checked') return `<span class="badge-soft-info p-1 px-2 rounded-pill small"><i class="fa fa-check-double me-1"></i>Checked</span>`;
+      if (s === 'approved') return `<span class="badge-soft-success p-1 px-2 rounded-pill small"><i class="fa fa-circle-check me-1"></i>Approved</span>`;
+      if (s === 'rejected') return `<span class="badge-soft-danger p-1 px-2 rounded-pill small"><i class="fa fa-circle-xmark me-1"></i>Rejected</span>`;
+      return `<span class="badge-soft-muted p-1 px-2 rounded-pill small">${esc(s || '—')}</span>`;
     }
 
     function badgeFeatured(v){
@@ -844,7 +1009,6 @@ td .fw-semibold{color:var(--ink)}
           ? `<span class="d-inline-flex align-items-center gap-2"><i class="${esc(icon)}"></i><span class="small text-muted">${esc(icon)}</span></span>`
           : `<span class="text-muted small">—</span>`;
 
-        // ✅ UPDATED: Added "Make Published" button
         let actions = `
           <div class="dropdown text-end">
             <button type="button" class="btn btn-light btn-sm wu-dd-toggle"
@@ -852,12 +1016,18 @@ td .fw-semibold{color:var(--ink)}
               <i class="fa fa-ellipsis-vertical"></i>
             </button>
             <ul class="dropdown-menu dropdown-menu-end">
-              <li><button type="button" class="dropdown-item" data-action="view"><i class="fa fa-eye"></i> View</button></li>`;
+              <li><button type="button" class="dropdown-item" data-action="view"><i class="fa fa-eye"></i> View</button></li>
+              <li><button type="button" class="dropdown-item" data-action="history"><i class="fa fa-clock-rotate-left"></i> Workflow History</button></li>`;
 
-        if (canEdit && tabKey !== 'trash'){
-          actions += `<li><button type="button" class="dropdown-item" data-action="edit"><i class="fa fa-pen-to-square"></i> Edit</button></li>`;
+        if (r.workflow_status === 'rejected') {
+          actions += `<li><button type="button" class="dropdown-item text-danger" data-action="reject_reason" data-reason="${esc(r.rejected_reason || r.rejection_reason || 'No reason provided')}">
+            <i class="fa fa-circle-xmark"></i> Rejection Reason
+          </button></li>`;
+        }
+
+        if (canEdit && tabKey !== 'trash' && !r.deleted_at){
+          actions += `<li><button type="button" class="dropdown-item" onclick="whyUsModule.openModal('edit', '${esc(uuid)}')"><i class="fa fa-pen-to-square"></i> Edit</button></li>`;
           
-          // ✅ ADDED: "Make Published" option ONLY for publishers when status is not published
           const statusLower = (status || 'draft').toString().toLowerCase();
           if (canPublish && statusLower !== 'published'){
             actions += `<li><button type="button" class="dropdown-item" data-action="make-publish"><i class="fa fa-circle-check"></i> Make Published</button></li>`;
@@ -894,9 +1064,10 @@ td .fw-semibold{color:var(--ink)}
             <td class="fw-semibold">${esc(title)}</td>
             <td>${esc(String(subtitle || '—'))}</td>
             <td>${iconCell}</td>
-            <td>${badgeStatus(status)}</td>
+            <td>${badgeStatus(status, !!r.draft_data)}</td>
             <td>${badgeFeatured(featured)}</td>
             <td>${esc(String(sortOrder))}</td>
+            <td>${workflowBadge(r.workflow_status)}</td>
             <td>${esc(String(updated))}</td>
             <td class="text-end">${actions}</td>
           </tr>`;
@@ -908,7 +1079,7 @@ td .fw-semibold{color:var(--ink)}
     async function loadTab(tabKey){
       const tbody = tabKey==='active' ? $('wuTbodyActive') : (tabKey==='inactive' ? $('wuTbodyInactive') : $('wuTbodyTrash'));
       if (tbody){
-        const cols = (tabKey==='trash') ? 4 : 8;
+        const cols = (tabKey==='trash') ? 4 : 9;
         tbody.innerHTML = `<tr><td colspan="${cols}" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>`;
       }
 
@@ -1000,12 +1171,21 @@ td .fw-semibold{color:var(--ink)}
       reloadCurrent();
     });
 
+    $('wuBtnAdd')?.addEventListener('click', () => openModal('add'));
+
     document.querySelector('a[href="#wu-tab-active"]')?.addEventListener('shown.bs.tab', () => loadTab('active'));
     document.querySelector('a[href="#wu-tab-inactive"]')?.addEventListener('shown.bs.tab', () => loadTab('inactive'));
     document.querySelector('a[href="#wu-tab-trash"]')?.addEventListener('shown.bs.tab', () => loadTab('trash'));
 
+    // Export
+    window.whyUsModule = {
+      openModal,
+      reload: reloadCurrent,
+      showHistory
+    };
+
     /* =========================
-     * ✅ ACTION DROPDOWN FIX (same approach as Contact Info)
+     * ✅ ACTION DROPDOWN FIX
      * ========================= */
     function closeAllDropdownsExcept(exceptToggle){
       document.querySelectorAll('.wu-dd-toggle').forEach(t => {
@@ -1017,7 +1197,6 @@ td .fw-semibold{color:var(--ink)}
       });
     }
 
-    // Toggle dropdown manually with Popper "fixed" strategy (escapes overflow clipping)
     document.addEventListener('click', (e) => {
       const toggle = e.target.closest('.wu-dd-toggle');
       if (!toggle) return;
@@ -1042,7 +1221,6 @@ td .fw-semibold{color:var(--ink)}
       }catch(_){}
     });
 
-    // Clicking elsewhere closes dropdowns (capture so it works consistently)
     document.addEventListener('click', () => {
       closeAllDropdownsExcept(null);
     }, { capture: true });
@@ -1079,11 +1257,6 @@ td .fw-semibold{color:var(--ink)}
       enabled: true
     };
 
-    const setBtnLoading = (btn, loading) => {
-      if (!btn) return;
-      btn.disabled = !!loading;
-      btn.classList.toggle('btn-loading', !!loading);
-    };
 
     function rteFocus(){
       try { rte.editor?.focus({ preventScroll:true }); }
@@ -1198,7 +1371,6 @@ td .fw-semibold{color:var(--ink)}
       form.dataset.intent = 'create';
       if (saveBtn) saveBtn.style.display = '';
       
-      // ✅ ADD THIS: Update publish option for new items
       setTimeout(() => updatePublishOption(), 50);
     }
 
@@ -1220,7 +1392,6 @@ td .fw-semibold{color:var(--ink)}
       syncToHidden();
       setRteMode('text');
 
-      // icon preview
       const cls = (fIcon.value || '').trim();
       if (iconPrev){
         iconPrev.className = cls ? cls : 'fa-regular fa-circle-question';
@@ -1251,7 +1422,6 @@ td .fw-semibold{color:var(--ink)}
         form.dataset.intent = 'edit';
       }
       
-      // ✅ ADD THIS: Update publish option visibility when opening form
       if (!viewOnly) {
         setTimeout(() => updatePublishOption(), 50);
       }
@@ -1266,25 +1436,33 @@ td .fw-semibold{color:var(--ink)}
       return all.find(x => x?.uuid === uuid) || null;
     }
 
-    // icon live preview
     fIcon?.addEventListener('input', debounce(() => {
       const cls = (fIcon.value || '').trim();
       if (iconPrev) iconPrev.className = cls ? cls : 'fa-regular fa-circle-question';
       if (iconPrevText) iconPrevText.textContent = cls ? cls : 'Type an icon class to preview';
     }, 120));
 
-    // open add
-    $('wuBtnAdd')?.addEventListener('click', () => {
-      if (!canCreate) return;
+    let currentItemForHistory = null;
+    function openModal(mode, uuid=null){
       resetForm();
-      if ($('wuItemModalTitle')) $('wuItemModalTitle').textContent = 'Add Why Us';
-      form.dataset.intent = 'create';
-      itemModal && itemModal.show();
-    });
+      const titleText = (mode === 'view') ? 'View Why Us' : (mode === 'edit' ? 'Edit Why Us' : 'Add Why Us');
+      if ($('wuItemModalTitle')) $('wuItemModalTitle').textContent = titleText;
 
-    /* =========================
-     * Row actions (updated with "make-publish")
-     * ========================= */
+      $('wuDraftAlert').style.display = 'none';
+
+      if (uuid){
+        const r = findRow(uuid);
+        if (r) {
+          currentItemForHistory = { table: 'why_us', id: r.uuid };
+          fillFormFromRow(r, mode === 'view');
+          
+          if (r.draft_data) {
+            $('wuDraftAlert').style.display = 'block';
+          }
+        }
+      }
+      itemModal && itemModal.show();
+    }
     document.addEventListener('click', async (e) => {
       const btn = e.target.closest('button[data-action]');
       if (!btn) return;
@@ -1300,11 +1478,37 @@ td .fw-semibold{color:var(--ink)}
       const toggle = btn.closest('.dropdown')?.querySelector('.wu-dd-toggle');
       if (toggle) { try { bootstrap.Dropdown.getInstance(toggle)?.hide(); } catch (_) {} }
 
-      if (act === 'view' || act === 'edit'){
-        if (act === 'edit' && !canEdit) return;
+      if (act === 'view'){
+        const slug = row?.slug || row?.uuid || row?.id;
+        if (slug) window.open(`/why-us/view/${slug}`, '_blank');
+        return;
+      }
+
+      if (act === 'history'){
+        if (row && row.id) {
+            whyUsModule.showHistory('why_us', row.id);
+        } else if (row && row.uuid) {
+            whyUsModule.showHistory('why_us', row.uuid);
+        }
+        return;
+      }
+
+      if (act === 'reject_reason'){
+        const reason = btn.dataset.reason || 'No reason provided';
+        Swal.fire({
+          title: 'Rejection Reason',
+          text: reason,
+          icon: 'error',
+          confirmButtonText: 'Close'
+        });
+        return;
+      }
+
+      if (act === 'edit'){
+        if (!canEdit) return;
         resetForm();
-        if ($('wuItemModalTitle')) $('wuItemModalTitle').textContent = act === 'view' ? 'View Why Us' : 'Edit Why Us';
-        fillFormFromRow(row || {}, act === 'view');
+        if ($('wuItemModalTitle')) $('wuItemModalTitle').textContent = 'Edit Why Us';
+        fillFormFromRow(row || {}, false);
         itemModal && itemModal.show();
         return;
       }
@@ -1427,6 +1631,78 @@ td .fw-semibold{color:var(--ink)}
         }
       }
     });
+const wuHistoryModalEl = $('wuHistoryModal');
+const wuHistoryModal = wuHistoryModalEl ? new bootstrap.Modal(wuHistoryModalEl) : null;
+
+function getStatusClass(status) {
+  const s = String(status || '').toLowerCase();
+  if (s === 'approved') return 'badge-soft-success';
+  if (s === 'rejected') return 'badge-soft-danger';
+  if (s === 'checked') return 'badge-soft-info';
+  if (s === 'pending_check') return 'badge-soft-warning';
+  return 'badge-soft-muted';
+}
+
+    const globalRejectReasonModalEl = document.getElementById('rejectReasonModal');
+    const globalRejectReasonModal = globalRejectReasonModalEl ? new bootstrap.Modal(globalRejectReasonModalEl) : null;
+    window.showRejectReason = (msg) => {
+      const txt = document.getElementById('rejectReasonModalText');
+      if (txt) txt.textContent = msg || 'No reason provided';
+      if (globalRejectReasonModal) globalRejectReasonModal.show();
+    };
+
+    async function showHistory(table, id) {
+  if (!wuHistoryModal) return;
+
+  $('wuHistoryLoading').style.display = 'block';
+  $('wuHistoryContent').style.display = 'none';
+  $('wuHistoryEmpty').style.display = 'none';
+  $('wuHistoryTimeline').innerHTML = '';
+
+  wuHistoryModal.show();
+
+  try {
+    const res = await fetchWithTimeout(
+      `/api/master-approval/history/${encodeURIComponent(table)}/${encodeURIComponent(id)}`,
+      { headers: authHeaders() },
+      15000
+    );
+
+    const js = await res.json().catch(() => ({}));
+    $('wuHistoryLoading').style.display = 'none';
+
+    if (js.success && Array.isArray(js.data) && js.data.length) {
+      $('wuHistoryTimeline').innerHTML = js.data.map(log => `
+        <li class="timeline-item">
+          <div class="timeline-marker"></div>
+          <div class="timeline-content">
+            <div class="timeline-date">
+              ${log.created_at ? new Date(log.created_at).toLocaleString() : '—'}
+            </div>
+            <div class="timeline-title">
+              Status changed to
+              <span class="badge ${getStatusClass(log.to_status)}">
+                ${esc(String(log.to_status || 'unknown').replace(/_/g, ' '))}
+              </span>
+            </div>
+            <div class="timeline-author">
+              Action by: ${esc(log.user_name || 'System')} (${esc(log.user_role || 'unknown')})
+            </div>
+            ${log.comment ? `<div class="timeline-comment">${esc(log.comment)}</div>` : ''}
+          </div>
+        </li>
+      `).join('');
+
+      $('wuHistoryContent').style.display = 'block';
+    } else {
+      $('wuHistoryEmpty').style.display = 'block';
+    }
+  } catch (_) {
+    $('wuHistoryLoading').style.display = 'none';
+    $('wuHistoryEmpty').style.display = 'block';
+  }
+}
+
 
     /* =========================
      * Submit create/edit
@@ -1521,6 +1797,7 @@ td .fw-semibold{color:var(--ink)}
         await fetchMe();
         await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
       }catch(ex){
+        console.error('Why Us Init Error:', ex);
         err(ex?.message || 'Initialization failed');
       }finally{
         showLoading(false);

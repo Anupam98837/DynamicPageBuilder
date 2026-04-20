@@ -14,14 +14,6 @@
   <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}">
 
   <style>
-    /* =========================================================
-      ✅ Notices (Public) — SAME UI STRUCTURE as Announcements reference
-      - Scoped CSS (no :root / no global body)
-      - Dept dropdown UI added (pill + icon + caret)
-      - Dept filtering FIXED (client-side filter by department_id / department_uuid)
-      - Deep-link ?d-{uuid} auto-selects dept + filters
-    ========================================================= */
-
     .ntx-wrap{
       /* scoped tokens */
       --ntx-brand: var(--primary-color, #9E363A);
@@ -460,7 +452,50 @@
 
     // cache
     let allNotices = null;
-    let deptByUuid = new Map(); // uuid -> {id, title, uuid}
+    let deptByUuid = new Map();
+    let deptByShortcode = new Map();
+
+    function getUrlObj(){
+      return new URL(window.location.href);
+    }
+
+    function syncUrl(){
+      const url = getUrlObj();
+      const ALL = (typeof ALL_DEPTS !== 'undefined' ? ALL_DEPTS : '');
+      if (typeof state === 'undefined') return;
+      if (state.deptUuid && state.deptUuid !== ALL) {
+        let sc = '';
+        if (typeof deptByUuid !== 'undefined' && deptByUuid.has(state.deptUuid)) {
+          sc = deptByUuid.get(state.deptUuid).shortcode;
+        }
+        if (sc) {
+          url.searchParams.set('dept', sc);
+          url.searchParams.delete('department');
+        } else {
+          url.searchParams.set('department', state.deptUuid);
+          url.searchParams.delete('dept');
+        }
+      } else {
+        url.searchParams.delete('department');
+        url.searchParams.delete('dept');
+      }
+      history.replaceState({}, '', url.pathname + url.search + url.hash);
+    }
+
+    function extractDeptUuidFromUrl(){
+      const url = getUrlObj();
+      const direct = (url.searchParams.get('department') || url.searchParams.get('dept') || '').trim();
+      if (direct) {
+        if (typeof deptByShortcode !== 'undefined' && deptByShortcode.has(direct.toLowerCase())) {
+          return deptByShortcode.get(direct.toLowerCase()).uuid;
+        }
+        return direct;
+      }
+      const hay = url.search + ' ' + url.href;
+      const m = hay.match(/d-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+      return m ? m[1] : '';
+    }
+ // uuid -> {id, title, uuid}
 
     function esc(str){
       return (str ?? '').toString().replace(/[&<>"']/g, s => ({
@@ -543,10 +578,10 @@
       const deptTitle = (item?.department_title || item?.department?.title || '').toString().trim();
 
       // open
-      const uuid = item?.uuid ? String(item.uuid) : '';
       const slug = item?.slug ? String(item.slug) : '';
+      const uuid = item?.uuid ? String(item.uuid) : '';
       const id   = (item?.id !== null && item?.id !== undefined) ? String(item.id) : '';
-      const identifier = uuid || slug || id;
+      const identifier = slug || uuid || id;
 
       const href = identifier ? (VIEW_BASE + '/' + encodeURIComponent(identifier)) : '#';
 
@@ -617,12 +652,7 @@
       return js;
     }
 
-    function extractDeptUuidFromUrl(){
-      // matches "?d-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" anywhere
-      const hay = (window.location.search || '') + ' ' + (window.location.href || '');
-      const m = hay.match(/d-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
-      return m ? m[1] : '';
-    }
+    
 
     function setDeptSelection(uuid){
       const sel = els.dept;
@@ -674,12 +704,14 @@
           .map(d => ({
             id: d?.id ?? null,
             uuid: (d?.uuid ?? '').toString().trim(),
+            shortcode: (d?.short_name ?? d?.slug ?? '').toString().trim().toLowerCase(),
             title: (d?.title ?? d?.name ?? '').toString().trim(),
             active: (d?.active ?? 1),
           }))
           .filter(x => x.uuid && x.title && String(x.active) === '1'); // ✅ only active
 
         deptByUuid = new Map(depts.map(d => [d.uuid, d]));
+        deptByShortcode = new Map(depts.map(d => [d.shortcode, d]));
 
         // sort A-Z
         depts.sort((a,b) => a.title.localeCompare(b.title));
@@ -870,6 +902,7 @@ st.innerHTML = `
       } else {
         setDeptSelection('');
       }
+      syncUrl();
 
       // load notices once, then filter client-side (keeps dept filter reliable)
       await ensureNoticesLoaded(false);
@@ -895,7 +928,11 @@ st.innerHTML = `
           setDeptSelection('');
         } else {
           setDeptSelection(v);
+
+        
         }
+
+        syncUrl();
 
         state.page = 1;
         repaint();

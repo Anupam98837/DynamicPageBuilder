@@ -801,6 +801,12 @@ td.col-slug code{
           const js = await res.json().catch(()=> ({}));
           const role = js?.data?.role || js?.role;
           if (role) ACTOR.role = String(role).toLowerCase();
+
+          // ✅ Fetch and set department_id for FE scoping
+          const deptId = js?.data?.department_id ?? js?.department_id ?? null;
+          if (deptId !== null) {
+              ACTOR.department_id = parseInt(deptId, 10) || null;
+          }
         }
       }catch(_){}
       if (!ACTOR.role){
@@ -1048,6 +1054,9 @@ td.col-slug code{
       if (tabKey === 'active') params.set('status', 'active');
       if (tabKey === 'inactive') params.set('status', 'inactive');
       if (tabKey === 'trash') params.set('only_trashed', '1');
+
+      // ✅ Cache buster
+      params.set('_t', String(Date.now()));
 
       return `/api/recruiters?${params.toString()}`;
     }
@@ -1481,7 +1490,17 @@ td.col-slug code{
       setLogoPreview('', '');
 
       applyDeptOptions();
-      if (deptSelEl) deptSelEl.value = '';
+      
+      // ✅ Pre-select and disable if department user
+      if (deptSelEl) {
+        if (ACTOR.department_id) {
+          deptSelEl.value = String(ACTOR.department_id);
+          deptSelEl.disabled = true;
+        } else {
+          deptSelEl.value = '';
+          deptSelEl.disabled = false;
+        }
+      }
 
       form?.querySelectorAll('input,select,textarea').forEach(el => {
         if (el.id === 'recUuid' || el.id === 'recId') return;

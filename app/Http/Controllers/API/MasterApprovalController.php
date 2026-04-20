@@ -20,10 +20,12 @@ class MasterApprovalController extends Controller
     private function actor(Request $r): array
     {
         return [
-            'id'   => (int) ($r->attributes->get('auth_tokenable_id') ?? optional($r->user())->id ?? 0),
-            'role' => (string) ($r->attributes->get('auth_role') ?? ($r->user()->role ?? '')),
-            'type' => (string) ($r->attributes->get('auth_tokenable_type') ?? ($r->user() ? get_class($r->user()) : '')),
-            'uuid' => (string) ($r->attributes->get('auth_user_uuid') ?? ($r->user()->uuid ?? '')),
+            'id'    => (int) ($r->attributes->get('auth_tokenable_id') ?? optional($r->user())->id ?? 0),
+            'role'  => strtolower((string) ($r->attributes->get('auth_role') ?? ($r->user()->role ?? ''))),
+            'type'  => (string) ($r->attributes->get('auth_tokenable_type') ?? ($r->user() ? get_class($r->user()) : '')),
+            'uuid'  => (string) ($r->attributes->get('auth_user_uuid') ?? ($r->user()->uuid ?? '')),
+            'is_hod' => strtolower((string) ($r->attributes->get('auth_role') ?? ($r->user()->role ?? ''))) === 'hod',
+            'is_upper_role' => in_array(strtolower((string) ($r->attributes->get('auth_role') ?? ($r->user()->role ?? ''))), ['admin', 'principal', 'director', 'author']),
         ];
     }
 
@@ -199,6 +201,28 @@ class MasterApprovalController extends Controller
                 'attachments_col' => null,
                 'created_by_col'  => 'created_by_user_id',
             ],
+            'gallery' => [
+                'label'           => 'Gallery',
+                'table'           => 'gallery',
+                'alias'           => 'g',
+                'has_department'  => true,
+                'title_col'       => 'title',
+                'slug_col'        => 'slug',
+                'body_col'        => 'description',
+                'image_col'       => 'image',
+                'attachments_col' => null,
+            ],
+            'events' => [
+                'label'           => 'Events',
+                'table'           => 'events',
+                'alias'           => 'e',
+                'has_department'  => true,
+                'title_col'       => 'title',
+                'slug_col'        => 'slug',
+                'body_col'        => 'description',
+                'image_col'       => 'cover_image_url',
+                'attachments_col' => null,
+            ],
         ];
     }
 
@@ -355,10 +379,12 @@ class MasterApprovalController extends Controller
             'slug'  => $arr[$cfg['slug_col']] ?? null,
 
             'status'               => $arr['status'] ?? null,
+            'workflow_status'      => $arr['workflow_status'] ?? null,
+            'draft_data'           => isset($arr['draft_data']) ? (is_string($arr['draft_data']) ? json_decode($arr['draft_data'], true) : $arr['draft_data']) : null,
             'is_featured_home'     => isset($arr['is_featured_home']) ? (int) $arr['is_featured_home'] : null,
-            'request_for_approval' => isset($arr['request_for_approval']) ? (int) $arr['request_for_approval'] : 0,
-            'is_approved'          => isset($arr['is_approved']) ? (int) $arr['is_approved'] : 0,
-            'is_rejected'          => isset($arr['is_rejected']) ? (int) $arr['is_rejected'] : 0,
+            'request_for_approval' => in_array(($arr['workflow_status'] ?? ''), ['pending_check', 'checked']) ? 1 : 0,
+            'is_approved'          => ($arr['workflow_status'] ?? '') === 'approved' ? 1 : 0,
+            'is_rejected'          => ($arr['workflow_status'] ?? '') === 'rejected' ? 1 : 0,
             'rejected_reason'      => $arr['rejected_reason'] ?? $arr['rejection_reason'] ?? null,
 
             'created_at'    => $arr['created_at'] ?? null,
@@ -411,25 +437,27 @@ class MasterApprovalController extends Controller
             }
             $hasRejection = $rejectionCache[$t];
 
+            $actor = $this->actor($request);
+
             if ($tab === 'pending') {
-                $q->where("{$a}.request_for_approval", 1)
-                  ->where("{$a}.is_approved", 0);
-                
-                if ($hasRejection) {
-                    $q->where(function($sub) use ($a) {
-                        $sub->where("{$a}.is_rejected", 0)->orWhereNull("{$a}.is_rejected");
-                    });
-                }
+                $q->where(function($sub) use ($a, $actor) {
+                    if ($actor['is_upper_role']) {
+                        // Admin/Principal can see both pending_check and checked
+                        $sub->whereIn("{$a}.workflow_status", ['pending_check', 'checked']);
+                    } elseif ($actor['is_hod']) {
+                        // HOD only sees pending_check
+                        $sub->where("{$a}.workflow_status", 'pending_check');
+                    } else {
+                        // Others (Faculty/Author) see their own pending items if applicable
+                        $sub->whereIn("{$a}.workflow_status", ['pending_check', 'checked']);
+                    }
+                });
             } elseif ($tab === 'approved') {
-                $q->where("{$a}.is_approved", 1);
+                $q->where("{$a}.workflow_status", 'approved');
             } elseif ($tab === 'rejected') {
-                if ($hasRejection) {
-                    $q->where("{$a}.is_rejected", 1);
-                } else {
-                    $q->whereRaw('1=0'); // fallback safely if not supported
-                }
+                $q->where("{$a}.workflow_status", 'rejected');
             } else { // requests
-                $q->where("{$a}.request_for_approval", 1);
+                $q->whereIn("{$a}.workflow_status", ['pending_check', 'checked', 'rejected']);
             }
 
             $rows = $q->limit($perDivision)->get();
@@ -441,8 +469,10 @@ class MasterApprovalController extends Controller
 
         // Global sort by created_at desc
         usort($out, function ($x, $y) {
-            $tx = isset($x['created_at']) ? strtotime($x['created_at']) : 0;
-            $ty = isset($y['created_at']) ? strtotime($y['created_at']) : 0;
+            $cx = (string)($x['created_at'] ?? '');
+            $cy = (string)($y['created_at'] ?? '');
+            $tx = $cx !== '' ? strtotime($cx) : 0;
+            $ty = $cy !== '' ? strtotime($cy) : 0;
             return $ty <=> $tx;
         });
 
@@ -476,26 +506,41 @@ class MasterApprovalController extends Controller
                 $base->whereNull("{$a}.deleted_at");
             }
 
+            $actor = $this->actor($request);
+
             $pendingCount = (clone $base)
-                ->where("{$a}.request_for_approval", 1)
-                ->where("{$a}.is_approved", 0)
-                ->count();
+                ->where(function($sub) use ($a, $actor) {
+                    if ($actor['is_upper_role']) {
+                        $sub->whereIn("{$a}.workflow_status", ['pending_check', 'checked']);
+                    } elseif ($actor['is_hod']) {
+                        $sub->where("{$a}.workflow_status", 'pending_check');
+                    } else {
+                        $sub->whereIn("{$a}.workflow_status", ['pending_check', 'checked']);
+                    }
+                })->count();
 
             $approvedCount = (clone $base)
-                ->where("{$a}.is_approved", 1)
+                ->where("{$a}.workflow_status", 'approved')
                 ->count();
 
             $requestsCount = (clone $base)
-                ->where("{$a}.request_for_approval", 1)
+                ->whereIn("{$a}.workflow_status", ['pending_check', 'checked', 'rejected'])
                 ->count();
 
             // latest pending rows
             $latestPending = [];
+            $actor = $this->actor($request);
             $q = $this->moduleQuery($key, $request, $includeDeleted);
             if ($q) {
-                $q->where("{$a}.request_for_approval", 1)
-                  ->where("{$a}.is_approved", 0)
-                  ->limit($latestLimit);
+                $q->where(function($sub) use ($a, $actor) {
+                    if ($actor['is_upper_role']) {
+                        $sub->whereIn("{$a}.workflow_status", ['pending_check', 'checked']);
+                    } elseif ($actor['is_hod']) {
+                        $sub->where("{$a}.workflow_status", 'pending_check');
+                    } else {
+                        $sub->whereIn("{$a}.workflow_status", ['pending_check', 'checked']);
+                    }
+                })->limit($latestLimit);
 
                 $rows = $q->get();
                 foreach ($rows as $r) {
@@ -621,6 +666,8 @@ class MasterApprovalController extends Controller
             'scholarships'       => 'scholarships',
             'placement_notices'  => 'placement_notices',
             'pages'              => 'pages',
+            'gallery'            => 'gallery',
+            'events'             => 'events',
         ];
     }
 
@@ -710,21 +757,37 @@ class MasterApprovalController extends Controller
 
             DB::beginTransaction();
 
-            // ✅ Approve logic (only updates columns that exist)
+            $actor = $this->actor($request);
+            $isFinalApproval = $actor['is_upper_role'];
+
+            // ✅ Approve logic
             $approvePayload = [
-                'is_approved'          => 1,
-                'request_for_approval' => 0,
+                'workflow_status'      => $isFinalApproval ? 'approved' : 'checked',
+                'is_approved'          => $isFinalApproval ? 1 : 0,
+                'request_for_approval' => $isFinalApproval ? 0 : 1, // still in the pipeline
                 'is_rejected'          => 0,
-                'rejected_reason'      => null,
-                'rejection_reason'     => null,
-                'approval_status'      => 'approved',
                 'approved_at'          => Carbon::now(),
-                'approved_by'          => (int)($request->attributes->get('auth_tokenable_id') ?? 0),
+                'approved_by'          => (int)($actor['id'] ?? 0),
             ];
-            // For pages: also flip status to Active so it goes live
-            if ($table === 'pages') {
+
+            // For pages: also flip status to Active so it goes live only on final approval
+            if ($isFinalApproval && $table === 'pages') {
                 $approvePayload['status'] = 'Active';
             }
+
+            // ✅ Merge draft_data ONLY on final approval
+            if ($isFinalApproval && !empty($before->draft_data)) {
+                $draft = is_string($before->draft_data) ? json_decode($before->draft_data, true) : $before->draft_data;
+                if ($draft && is_array($draft)) {
+                    foreach ($draft as $k => $v) {
+                        if (Schema::hasColumn($table, $k)) {
+                            $approvePayload[$k] = $v;
+                        }
+                    }
+                }
+                $approvePayload['draft_data'] = null;
+            }
+
             $payload = $this->buildSafeUpdatePayload($table, $approvePayload, $request);
 
             if (empty($payload)) {
@@ -750,6 +813,19 @@ class MasterApprovalController extends Controller
             }
 
             DB::table($table)->where('uuid', $uuid)->update($payload);
+
+            // ✅ Log to content_approval_logs
+            DB::table('content_approval_logs')->insert([
+                'model_type'  => $table,
+                'model_id'    => (int) $before->id,
+                'user_id'     => (int) ($actor['id'] ?? 0),
+                'action'      => $isFinalApproval ? 'approved' : 'checked',
+                'from_status' => (string) ($before->workflow_status ?? ''),
+                'to_status'   => $isFinalApproval ? 'approved' : 'checked',
+                'comment'     => $isFinalApproval ? 'Final Approval' : 'Checked by HOD',
+                'created_at'  => Carbon::now(),
+                'updated_at'  => Carbon::now(),
+            ]);
 
             $updated = DB::table($table)->where('uuid', $uuid)->first();
 
@@ -844,17 +920,19 @@ class MasterApprovalController extends Controller
 
             DB::beginTransaction();
 
-            // ✅ Reject logic (only updates columns that exist)
-            $payload = $this->buildSafeUpdatePayload($table, [
+            // ✅ Reject logic
+            $rejectPayload = [
+                'workflow_status'      => 'rejected',
                 'is_approved'          => 0,
-                'request_for_approval' => 0,
                 'is_rejected'          => 1,
+                'request_for_approval' => 0,
                 'rejected_reason'      => $reason ?: null,
-                'rejection_reason'     => $reason ?: null,
-                'approval_status'      => 'rejected',
-                'rejected_at'          => Carbon::now(),
-                'rejected_by'          => (int)($request->attributes->get('auth_tokenable_id') ?? 0),
-            ], $request);
+                'approved_at'          => null,
+                'approved_by'          => null,
+                'draft_data'           => null,
+            ];
+
+            $payload = $this->buildSafeUpdatePayload($table, $rejectPayload, $request);
 
             if (empty($payload)) {
                 DB::rollBack();
@@ -879,6 +957,19 @@ class MasterApprovalController extends Controller
             }
 
             DB::table($table)->where('uuid', $uuid)->update($payload);
+
+            // ✅ Log to content_approval_logs
+            DB::table('content_approval_logs')->insert([
+                'model_type'  => $table,
+                'model_id'    => (int) $before->id,
+                'user_id'     => (int) ($request->attributes->get('auth_tokenable_id') ?? 0),
+                'action'      => 'rejected',
+                'from_status' => (string) ($before->workflow_status ?? ''),
+                'to_status'   => 'rejected',
+                'comment'     => $reason ?: null,
+                'created_at'  => Carbon::now(),
+                'updated_at'  => Carbon::now(),
+            ]);
 
             $updated = DB::table($table)->where('uuid', $uuid)->first();
 
@@ -932,6 +1023,56 @@ class MasterApprovalController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Reject failed: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * ✅ GET: /api/master-approval/logs/{table}/{id}
+     * Fetches approval/rejection history for a record.
+     */
+    public function history(Request $request, string $table, $id)
+    {
+        try {
+            // Find the record to get its ID if UUID was passed
+            $query = DB::table($table);
+            if (ctype_digit((string)$id)) {
+                $query->where('id', (int)$id);
+            } else {
+                $query->where('uuid', (string)$id);
+            }
+            $row = $query->first();
+
+            if (!$row) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Record not found',
+                    'data'    => []
+                ], 404);
+            }
+
+            $realId = (int) $row->id;
+
+            $logs = DB::table('content_approval_logs')
+                ->where('model_type', $table)
+                ->where('model_id', $realId)
+                ->leftJoin('users', 'users.id', '=', 'content_approval_logs.user_id')
+                ->select(
+                    'content_approval_logs.*',
+                    'users.name as user_name',
+                    'users.role as user_role'
+                )
+                ->orderBy('content_approval_logs.created_at', 'desc')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data'    => $logs
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'History fetch error: ' . $e->getMessage()
             ], 500);
         }
     }

@@ -102,6 +102,81 @@ td.col-slug code{
   background:color-mix(in oklab, var(--primary-color) 12%, transparent);
   color:var(--primary-color);
 }
+.badge-soft-danger{background:color-mix(in oklab, var(--danger-color) 12%, transparent);color:var(--danger-color)}
+.badge-soft-info{background:color-mix(in oklab, #0ea5e9 14%, transparent);color:#0ea5e9}
+
+/* Timeline Styles */
+.timeline {
+  position: relative;
+  padding: 0;
+  list-style: none;
+}
+.timeline:before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 31px;
+  width: 2px;
+  background: var(--line-soft);
+}
+.timeline-item {
+  position: relative;
+  margin-bottom: 20px;
+}
+.timeline-marker {
+  position: absolute;
+  top: 0;
+  left: 20px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--primary-color);
+  z-index: 10;
+}
+.timeline-content {
+  margin-left: 60px;
+  padding: 12px 16px;
+  background: color-mix(in oklab, var(--surface) 95%, var(--bg-body));
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+}
+.timeline-date {
+  font-size: 11px;
+  color: var(--muted-color);
+  margin-bottom: 4px;
+}
+.timeline-title {
+  font-weight: 600;
+  font-size: 13.5px;
+  margin-bottom: 4px;
+}
+.timeline-author {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.timeline-comment {
+  font-size: 12.5px;
+  color: var(--muted-color);
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: rgba(0,0,0,0.03);
+  border-left: 2px solid var(--line-strong);
+  font-style: italic;
+}
+.badge-pending-draft {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--warning-color);
+  color: #fff;
+  vertical-align: middle;
+  margin-left: 4px;
+  text-transform: uppercase;
+  font-weight: 700;
+}
 
 /* Dropdown toggle */
 .ev-dd-toggle{
@@ -364,12 +439,13 @@ td.col-slug code{
                   <th style="width:240px;">Location</th>
                   <th style="width:120px;">Status</th>
                   <th style="width:120px;">Featured</th>
+                  <th style="width:170px;">Workflow</th>
                   <th style="width:170px;">Updated</th>
                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
               </thead>
               <tbody id="evTbodyActive">
-                <tr><td colspan="8" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+                <tr><td colspan="9" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -401,12 +477,13 @@ td.col-slug code{
                   <th style="width:240px;">Location</th>
                   <th style="width:120px;">Status</th>
                   <th style="width:120px;">Featured</th>
+                  <th style="width:170px;">Workflow</th>
                   <th style="width:170px;">Updated</th>
                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
               </thead>
               <tbody id="evTbodyInactive">
-                <tr><td colspan="8" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+                <tr><td colspan="9" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -547,6 +624,29 @@ td.col-slug code{
       <div class="modal-body">
         <input type="hidden" id="evItemKey">
         <input type="hidden" id="evItemId">
+
+        {{-- Rejection Alert --}}
+        <div id="evRejectionAlert" class="alert alert-danger mb-3" style="display:none;">
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <i class="fa fa-circle-exclamation fs-5"></i>
+            <h6 class="mb-0 fw-bold">Rejected by Authority</h6>
+          </div>
+          <div id="evRejectionReasonText" class="ms-4 small" style="white-space: pre-wrap;">Reason...</div>
+          <div class="mt-2 ms-4">
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="viewEventHistoryFromAlert()">
+              <i class="fa fa-clock-rotate-left me-1"></i>View Full History
+            </button>
+          </div>
+        </div>
+
+        {{-- Pending Draft Alert --}}
+        <div id="evDraftAlert" class="alert alert-warning mb-3" style="display:none;">
+          <div class="d-flex align-items-center gap-2">
+            <i class="fa fa-pen-nib fs-5"></i>
+            <h6 class="mb-0 fw-bold">Pending Changes</h6>
+          </div>
+          <div class="ms-4 small">This event has updates waiting for approval. Editing now will replace those pending changes.</div>
+        </div>
 
         <div class="row g-3">
           {{-- Left --}}
@@ -719,6 +819,34 @@ td.col-slug code{
 </div>
 @endsection
 
+{{-- Workflow History Modal --}}
+<div class="modal fade" id="evHistoryModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-md modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-clock-rotate-left me-2"></i>Workflow History</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="evHistoryLoading" class="text-center py-4">
+          <div class="spinner-border text-primary" role="status"></div>
+          <div class="mt-2 text-muted">Loading history…</div>
+        </div>
+        <div id="evHistoryContent" style="display:none;">
+          <ul class="timeline" id="evHistoryTimeline"></ul>
+        </div>
+        <div id="evHistoryEmpty" class="text-center py-4 text-muted" style="display:none;">
+          <i class="fa fa-history mb-2 fs-3 opacity-50"></i>
+          <div>No history found for this event.</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -783,12 +911,27 @@ td.col-slug code{
     return '';
   }
 
-  function statusBadge(status){
+  function statusBadge(status, hasDraft){
     const s = (status || '').toString().toLowerCase();
-    if (s === 'published') return `<span class="badge badge-soft-success">Published</span>`;
-    if (s === 'draft') return `<span class="badge badge-soft-warning">Draft</span>`;
-    if (s === 'archived') return `<span class="badge badge-soft-muted">Archived</span>`;
-    return `<span class="badge badge-soft-muted">${esc(s || '—')}</span>`;
+    let html = '';
+    if (s === 'published') html = `<span class="badge badge-soft-success">Published</span>`;
+    else if (s === 'draft') html = `<span class="badge badge-soft-warning">Draft</span>`;
+    else if (s === 'archived') html = `<span class="badge badge-soft-muted">Archived</span>`;
+    else html = `<span class="badge badge-soft-muted">${esc(s || '—')}</span>`;
+
+    if (hasDraft) {
+      html += `<span class="badge-pending-draft" title="Pending Changes">Draft</span>`;
+    }
+    return html;
+  }
+
+  function workflowBadge(ws){
+    const s = (ws || '').toString().toLowerCase();
+    if (s === 'pending_check') return `<span class="badge-soft-warning p-1 px-2 rounded-pill small"><i class="fa fa-hourglass-start me-1"></i>Pending Check</span>`;
+    if (s === 'checked') return `<span class="badge-soft-info p-1 px-2 rounded-pill small"><i class="fa fa-check-double me-1"></i>Checked</span>`;
+    if (s === 'approved') return `<span class="badge-soft-success p-1 px-2 rounded-pill small"><i class="fa fa-circle-check me-1"></i>Approved</span>`;
+    if (s === 'rejected') return `<span class="badge-soft-danger p-1 px-2 rounded-pill small"><i class="fa fa-circle-xmark me-1"></i>Rejected</span>`;
+    return `<span class="badge-soft-muted p-1 px-2 rounded-pill small">${esc(s || '—')}</span>`;
   }
 
   function featuredBadge(v){
@@ -911,6 +1054,17 @@ td.col-slug code{
     const coverMeta = $('evCoverMeta');
     const btnOpenCover = $('evOpenCover');
 
+    const rejectionAlert = $('evRejectionAlert');
+    const rejectionReasonText = $('evRejectionReasonText');
+    const draftAlert = $('evDraftAlert');
+
+    const historyModalEl = $('evHistoryModal');
+    const historyModal = historyModalEl ? new bootstrap.Modal(historyModalEl) : null;
+    const historyLoading = $('evHistoryLoading');
+    const historyContent = $('evHistoryContent');
+    const historyEmpty = $('evHistoryEmpty');
+    const historyTimeline = $('evHistoryTimeline');
+
     const API = {
       list:   '/api/events',
       one:    (key) => `/api/events/${encodeURIComponent(key)}`,
@@ -920,15 +1074,14 @@ td.col-slug code{
     };
 
     const ACTOR = { id: null, role: '', department_id: null };
-  let canAssignPrivilege = false;
     let canCreate=false, canEdit=false, canDelete=false;
 
     function computePermissions(){
       const r = (ACTOR?.role || '').toLowerCase();
       if(!ACTOR.department_id){
-          canCreate = canEdit = canDelete = canAssignPrivilege = true;
+          canCreate = canEdit = canDelete = true;
       } else {
-          canCreate = canEdit = canDelete = canAssignPrivilege = false;
+          canCreate = canEdit = canDelete = false;
           if (window.ACTOR_MENU_TREE && Array.isArray(window.ACTOR_MENU_TREE)) {
              const path = window.location.pathname.replace(/\/+$/, '') || '/';
              let myActions = [];
@@ -947,7 +1100,6 @@ td.col-slug code{
              if (actionsStr.includes('add') || actionsStr.includes('create')) canCreate = true;
              if (actionsStr.includes('edit') || actionsStr.includes('update')) canEdit = true;
              if (actionsStr.includes('delete') || actionsStr.includes('remove')) canDelete = true;
-             if (actionsStr.includes('assign_privilege') || actionsStr.includes('assign privileges') || actionsStr.includes('privilege')) canAssignPrivilege = true;
           }
       }
       if (writeControls) writeControls.style.display = canCreate ? 'flex' : 'none';
@@ -1070,24 +1222,21 @@ td.col-slug code{
       tbody.innerHTML = rows.map(r => {
         const key = rowKey(r);
         const title = coalesce(r.title, r.name, '—');
-        const slug = coalesce(r.slug, '—');
         const when = formatWhen(r);
-        const location = coalesce(r.location, r.venue, r.place, '—');
-        const status = coalesce(r.status, (r.active ? 'published' : 'draft'), '—');
-        const featured = !!(r.is_featured_home ?? r.is_featured ?? r.featured ?? 0);
+        const loc = coalesce(r.location, r.venue, r.place, '—');
         const updated = coalesce(r.updated_at, '—');
-        const deleted = coalesce(r.deleted_at, '—');
 
         let actions = `
           <div class="dropdown text-end">
-            <button type="button" class="btn btn-light btn-sm ev-dd-toggle" aria-expanded="false" title="Actions">
+            <button type="button" class="btn btn-light btn-sm ev-dd-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Actions">
               <i class="fa fa-ellipsis-vertical"></i>
             </button>
-            <ul class="dropdown-menu dropdown-menu-end">
-              <li><button type="button" class="dropdown-item" data-action="view"><i class="fa fa-eye"></i> View</button></li>`;
+            <ul class="dropdown-menu dropdown-menu-end ev-dd-portal">
+              <li><button type="button" class="dropdown-item" onclick="eventsModule.openModal('view', ${JSON.stringify(r).replace(/"/g, '&quot;')})"><i class="fa fa-eye"></i> View</button></li>
+              <li><button type="button" class="dropdown-item" onclick="eventsModule.showHistory('events', ${r.id})"><i class="fa fa-clock-rotate-left"></i> Workflow History</button></li>`;
 
-        if (canEdit && tabKey !== 'trash'){
-          actions += `<li><button type="button" class="dropdown-item" data-action="edit"><i class="fa fa-pen-to-square"></i> Edit</button></li>`;
+        if (tabKey !== 'trash' && canEdit){
+          actions += `<li><button type="button" class="dropdown-item" onclick="eventsModule.openModal('edit', ${JSON.stringify(r).replace(/"/g, '&quot;')})"><i class="fa fa-pen-to-square"></i> Edit</button></li>`;
         }
 
         if (tabKey !== 'trash'){
@@ -1109,8 +1258,8 @@ td.col-slug code{
           return `
             <tr data-key="${esc(key)}">
               <td class="fw-semibold">${esc(title)}</td>
-              <td class="col-slug"><code>${esc(slug)}</code></td>
-              <td>${esc(deleted)}</td>
+              <td class="col-slug"><code>${esc(r.slug || '—')}</code></td>
+              <td>${esc(coalesce(r.deleted_at, '—'))}</td>
               <td class="text-end">${actions}</td>
             </tr>`;
         }
@@ -1118,12 +1267,13 @@ td.col-slug code{
         return `
           <tr data-key="${esc(key)}">
             <td class="fw-semibold">${esc(title)}</td>
-            <td class="col-slug"><code>${esc(slug)}</code></td>
+            <td><code>${esc(r.slug || '—')}</code></td>
             <td>${esc(when)}</td>
-            <td>${esc(location)}</td>
-            <td>${statusBadge(status)}</td>
-            <td>${featuredBadge(featured)}</td>
-            <td>${esc(String(updated))}</td>
+            <td>${esc(loc)}</td>
+            <td>${statusBadge(r.status, !!r.draft_data)}</td>
+            <td>${featuredBadge(r.is_featured_home)}</td>
+            <td>${workflowBadge(r.workflow_status)}</td>
+            <td>${esc(updated)}</td>
             <td class="text-end">${actions}</td>
           </tr>`;
       }).join('');
@@ -1132,9 +1282,9 @@ td.col-slug code{
     }
 
     async function loadTab(tabKey){
-      const tbody = tabKey==='active' ? tbodyActive : (tabKey==='inactive' ? tbodyInactive : tbodyTrash);
+      const tbody = (tabKey==='active' ? tbodyActive : (tabKey==='inactive' ? tbodyInactive : tbodyTrash));
       if (tbody){
-        const cols = (tabKey === 'trash') ? 4 : 8;
+        const cols = (tabKey==='trash' ? 4 : 9);
         tbody.innerHTML = `<tr><td colspan="${cols}" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>`;
       }
 
@@ -1166,7 +1316,7 @@ td.col-slug code{
       }
     }
 
-    function reloadCurrent(){ loadTab(getTabKey()); }
+    function reloadAll(){ loadTab('active'); loadTab('inactive'); loadTab('trash'); }
 
     // Pager clicks
     document.addEventListener('click', (e) => {
@@ -1186,13 +1336,13 @@ td.col-slug code{
     searchInput?.addEventListener('input', debounce(() => {
       state.filters.q = (searchInput.value || '').trim();
       state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
-      reloadCurrent();
+      reloadAll();
     }, 320));
 
     perPageSel?.addEventListener('change', () => {
       state.perPage = parseInt(perPageSel.value, 10) || 20;
       state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
-      reloadCurrent();
+      reloadAll();
     });
 
     filterModalEl?.addEventListener('show.bs.modal', () => {
@@ -1212,7 +1362,7 @@ td.col-slug code{
 
       state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
       filterModal && filterModal.hide();
-      reloadCurrent();
+      reloadAll();
     });
 
     btnReset?.addEventListener('click', () => {
@@ -1229,115 +1379,12 @@ td.col-slug code{
       if (fDateTo) fDateTo.value = '';
 
       state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
-      reloadCurrent();
+      reloadAll();
     });
 
     document.querySelector('a[href="#ev-tab-active"]')?.addEventListener('shown.bs.tab', () => loadTab('active'));
     document.querySelector('a[href="#ev-tab-inactive"]')?.addEventListener('shown.bs.tab', () => loadTab('inactive'));
     document.querySelector('a[href="#ev-tab-trash"]')?.addEventListener('shown.bs.tab', () => loadTab('trash'));
-
-    // ✅✅ PORTAL DROPDOWN (Fixes hiding under footer/table)
-    let openDD = null;
-
-    function portalClose(){
-      if (!openDD) return;
-      const { toggle, menu, placeholder, wrap } = openDD;
-
-      menu.classList.remove('show', 'ev-dd-portal');
-      menu.style.cssText = '';
-
-      try{
-        if (placeholder && placeholder.parentNode){
-          placeholder.parentNode.insertBefore(menu, placeholder);
-          placeholder.remove();
-        } else if (wrap) {
-          wrap.appendChild(menu);
-        }
-      }catch(_){}
-
-      toggle?.setAttribute('aria-expanded', 'false');
-      openDD = null;
-    }
-
-    function portalPosition(){
-      if (!openDD) return;
-      const { toggle, menu } = openDD;
-      if (!toggle || !menu) return;
-
-      menu.style.visibility = 'hidden';
-      menu.style.position = 'fixed';
-      menu.style.top = '0px';
-      menu.style.left = '0px';
-
-      const rect = toggle.getBoundingClientRect();
-      const mw = menu.offsetWidth || 230;
-      const mh = menu.offsetHeight || 10;
-      const gap = 8;
-
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-
-      const spaceBelow = vh - rect.bottom;
-      const spaceAbove = rect.top;
-
-      const openUp = (spaceBelow < (mh + 10)) && (spaceAbove > spaceBelow);
-
-      let top  = openUp ? (rect.top - mh - 6) : (rect.bottom + 6);
-      let left = rect.right - mw;
-
-      left = Math.max(gap, Math.min(left, vw - mw - gap));
-      top  = Math.max(gap, Math.min(top,  vh - mh - gap));
-
-      menu.style.left = `${left}px`;
-      menu.style.top  = `${top}px`;
-      menu.style.visibility = '';
-    }
-
-    function portalOpen(toggle){
-      portalClose();
-
-      const wrap = toggle.closest('.dropdown');
-      const menu = wrap?.querySelector('.dropdown-menu');
-      if (!menu) return;
-
-      const placeholder = document.createComment('ev-dd-placeholder');
-      wrap.insertBefore(placeholder, menu);
-      document.body.appendChild(menu);
-
-      menu.classList.add('ev-dd-portal', 'show');
-      toggle.setAttribute('aria-expanded', 'true');
-
-      openDD = { toggle, menu, placeholder, wrap };
-      portalPosition();
-    }
-
-    function portalToggle(toggle){
-      if (openDD && openDD.toggle === toggle){
-        portalClose();
-        return;
-      }
-      portalOpen(toggle);
-    }
-
-    document.addEventListener('click', (e) => {
-      const toggle = e.target.closest('.ev-dd-toggle');
-      if (toggle){
-        e.preventDefault();
-        e.stopPropagation();
-        portalToggle(toggle);
-        return;
-      }
-
-      if (openDD && openDD.menu && (e.target === openDD.menu || openDD.menu.contains(e.target))) return;
-      portalClose();
-    }, true);
-
-    document.addEventListener('click', (e) => {
-      if (e.target.closest('.dropdown-item[data-action]')) portalClose();
-    }, true);
-
-    window.addEventListener('resize', portalPosition);
-    window.addEventListener('scroll', portalPosition, true);
 
     // ---------- RTE + rest of your logic stays as-is ----------
     const rte = {
@@ -1367,14 +1414,10 @@ td.col-slug code{
       if (rte.mode === 'text') rte.code.value = ensurePreHasCode(rte.editor.innerHTML || '');
     }
 
-    /* =========================================================
-       ✅ FIX: Active state for toolbar buttons (like Recruiters)
-    ========================================================= */
     function updateRteActive(){
       if (rte.mode !== 'text' || !rte.enabled) return;
       if (!rte.wrap || !rte.editor) return;
 
-      // only update when selection is inside editor (or editor focused)
       const sel = window.getSelection?.();
       const anchor = sel?.anchorNode || null;
       const inEditor = !!(anchor && rte.editor.contains(anchor));
@@ -1392,16 +1435,14 @@ td.col-slug code{
         setCmd('insertUnorderedList', document.queryCommandState('insertUnorderedList'));
         setCmd('insertOrderedList', document.queryCommandState('insertOrderedList'));
 
-        // Headings active (H2/H3)
         let fb = (document.queryCommandValue('formatBlock') || '').toString().toLowerCase().trim();
-        fb = fb.replace(/[<>]/g,''); // sometimes returns "<h2>"
+        fb = fb.replace(/[<>]/g,'');
         rte.wrap.querySelectorAll('.ev-rte-btn[data-block]').forEach(btn => {
           const blk = (btn.getAttribute('data-block') || '').toLowerCase().trim();
           btn.classList.toggle('active', !!blk && fb === blk);
         });
       }catch(_){}
     }
-    /* ====================== end active-state fix ====================== */
 
     function setRteMode(mode){
       rte.mode = (mode === 'code') ? 'code' : 'text';
@@ -1434,7 +1475,6 @@ td.col-slug code{
       updateRteActive();
     });
 
-    // keep active state synced when selection changes inside editor
     ['mouseup','keyup','click'].forEach(ev => rte.editor?.addEventListener(ev, updateRteActive));
     document.addEventListener('selectionchange', () => {
       if (document.activeElement === rte.editor) updateRteActive();
@@ -1498,14 +1538,12 @@ td.col-slug code{
       if (rte.editor) rte.editor.setAttribute('contenteditable', on ? 'true' : 'false');
       if (rte.code) rte.code.disabled = !on;
 
-      // when disabling (view mode), clear active UI safely
       if (!on && rte.wrap){
         rte.wrap.querySelectorAll('.ev-rte-btn.active').forEach(b => b.classList.remove('active'));
       }
       if (on) setTimeout(updateRteActive, 0);
     }
 
-    // Cover preview
     let coverObjectUrl = null;
 
     function clearCover(revoke=true){
@@ -1562,7 +1600,6 @@ td.col-slug code{
       if (attText) attText.textContent = `${files.length} selected`;
     });
 
-    // Modal helpers
     let saving = false;
     let slugDirty = false;
     let settingSlug = false;
@@ -1604,7 +1641,7 @@ td.col-slug code{
       }
     }
 
-    function fillFormFromRow(r, viewOnly=false){
+    function fillFormFromItem(r, viewOnly=false){
       const key = rowKey(r);
       itemKey.value = key;
       itemId.value = coalesce(r.id, '') || '';
@@ -1687,13 +1724,174 @@ td.col-slug code{
       slugDirty = !!(inSlug.value || '').trim();
     });
 
+    function setHistoryState(stateName){
+      if (historyLoading) historyLoading.style.display = stateName === 'loading' ? '' : 'none';
+      if (historyContent) historyContent.style.display = stateName === 'content' ? '' : 'none';
+      if (historyEmpty) historyEmpty.style.display = stateName === 'empty' ? '' : 'none';
+    }
+
+    function normalizeHistoryItems(payload){
+      if (Array.isArray(payload)) return payload;
+      if (Array.isArray(payload?.data)) return payload.data;
+      if (Array.isArray(payload?.items)) return payload.items;
+      if (Array.isArray(payload?.history)) return payload.history;
+      if (Array.isArray(payload?.logs)) return payload.logs;
+      if (Array.isArray(payload?.workflow_history)) return payload.workflow_history;
+      if (Array.isArray(payload?.data?.history)) return payload.data.history;
+      if (Array.isArray(payload?.data?.logs)) return payload.data.logs;
+      if (Array.isArray(payload?.data?.workflow_history)) return payload.data.workflow_history;
+      return [];
+    }
+
+    function renderHistory(items){
+      if (!historyTimeline) return;
+      historyTimeline.innerHTML = (items || []).map((item) => {
+        const when = esc(coalesce(item.created_at, item.updated_at, item.acted_at, item.action_at, item.date, item.timestamp, '—'));
+        const action = esc(coalesce(item.action, item.status, item.workflow_status, item.type, 'Updated'));
+        const author = esc(coalesce(item.actor_name, item.user_name, item.author, item.created_by_name, item.updated_by_name, item.actor, 'System'));
+        const comment = coalesce(item.comment, item.reason, item.notes, item.rejection_reason, item.remarks, '');
+        return `
+          <li class="timeline-item">
+            <div class="timeline-marker"></div>
+            <div class="timeline-content">
+              <div class="timeline-date">${when}</div>
+              <div class="timeline-title">${action}</div>
+              <div class="timeline-author">${author}</div>
+              ${comment ? `<div class="timeline-comment">${esc(comment)}</div>` : ''}
+            </div>
+          </li>`;
+      }).join('');
+    }
+
+    function updateWorkflowAlerts(row){
+      const workflow = String(coalesce(row?.workflow_status, '')).toLowerCase();
+      const rejectionReason = coalesce(
+        row?.rejection_reason,
+        row?.reject_reason,
+        row?.checker_comment,
+        row?.approver_comment,
+        row?.comment,
+        row?.remarks,
+        ''
+      );
+      const showRejected = workflow === 'rejected' || !!String(rejectionReason || '').trim();
+      if (rejectionAlert) rejectionAlert.style.display = showRejected ? '' : 'none';
+      if (rejectionReasonText) rejectionReasonText.textContent = rejectionReason || 'No rejection reason available.';
+
+      const hasPendingDraft = !!(row?.draft_data || row?.pending_draft || row?.has_pending_draft || row?.draft);
+      if (draftAlert) draftAlert.style.display = hasPendingDraft ? '' : 'none';
+    }
+
+    let currentHistoryEventId = null;
+
+    async function showHistory(moduleName='events', id=null){
+      const historyId = id || currentHistoryEventId || itemId?.value || null;
+      if (!historyId){
+        err('History is not available for this event');
+        return;
+      }
+
+      currentHistoryEventId = historyId;
+      setHistoryState('loading');
+      historyModal && historyModal.show();
+
+      const urls = [
+        `/api/${moduleName}/${encodeURIComponent(historyId)}/workflow-history`,
+        `/api/${moduleName}/${encodeURIComponent(historyId)}/history`
+      ];
+
+      let items = [];
+      let lastError = null;
+
+      for (const url of urls){
+        try{
+          const res = await fetchWithTimeout(url, { headers: authHeaders() }, 15000);
+          if (!res.ok) {
+            lastError = new Error(`Failed with status ${res.status}`);
+            continue;
+          }
+          const js = await res.json().catch(()=> ({}));
+          items = normalizeHistoryItems(js);
+          if (items.length) break;
+        }catch(ex){
+          lastError = ex;
+        }
+      }
+
+      if (items.length){
+        renderHistory(items);
+        setHistoryState('content');
+        return;
+      }
+
+      if (lastError && lastError.name !== 'AbortError') {
+        console.warn('Workflow history could not be loaded:', lastError);
+      }
+      renderHistory([]);
+      setHistoryState('empty');
+    }
+
+    async function openModal(mode='add', row=null){
+      const modalMode = String(mode || 'add').toLowerCase();
+
+      if (modalMode === 'add'){
+        if (!canCreate) return;
+        resetForm();
+        currentHistoryEventId = null;
+        updateWorkflowAlerts({});
+        if (itemTitle) itemTitle.textContent = 'Add Event';
+        if (itemForm){
+          itemForm.dataset.mode = 'edit';
+          itemForm.dataset.intent = 'create';
+        }
+        itemModal && itemModal.show();
+        return;
+      }
+
+      const seedRow = (row && typeof row === 'object') ? row : (findRowByKey(row) || { id: row, uuid: row, slug: row });
+      const key = rowKey(seedRow);
+      if (!key){
+        err('Unable to open this event');
+        return;
+      }
+
+      showLoading(true);
+      try{
+        const res = await fetchWithTimeout(API.one(key), { headers: authHeaders() }, 15000);
+        const js = await res.json().catch(()=> ({}));
+        if (!res.ok) throw new Error(js?.message || 'Failed to load event');
+
+        const fullRow = js?.data || js?.item || js?.event || seedRow;
+        resetForm();
+        fillFormFromItem(fullRow, modalMode === 'view');
+        updateWorkflowAlerts(fullRow);
+        currentHistoryEventId = coalesce(fullRow?.id, seedRow?.id, null);
+
+        if (itemTitle) itemTitle.textContent = modalMode === 'view' ? 'View Event' : 'Edit Event';
+        if (itemForm){
+          itemForm.dataset.mode = modalMode === 'view' ? 'view' : 'edit';
+          itemForm.dataset.intent = modalMode === 'view' ? 'view' : 'edit';
+        }
+        itemModal && itemModal.show();
+      }catch(ex){
+        err(ex?.name === 'AbortError' ? 'Request timed out' : (ex.message || 'Failed to load event'));
+      }finally{
+        showLoading(false);
+      }
+    }
+
+    window.eventsModule = {
+      openModal,
+      showHistory
+    };
+
+    window.viewEventHistoryFromAlert = function(){
+      showHistory('events', currentHistoryEventId || itemId?.value || null);
+    };
+
     btnAdd?.addEventListener('click', () => {
       if (!canCreate) return;
-      resetForm();
-      if (itemTitle) itemTitle.textContent = 'Add Event';
-      itemForm.dataset.intent = 'create';
-      itemModal && itemModal.show();
-      setTimeout(()=>{ try{ rte.editor?.focus({preventScroll:true}); }catch(_){ } updateRteActive(); }, 0);
+      window.eventsModule?.openModal('add');
     });
 
     itemModalEl?.addEventListener('hidden.bs.modal', () => {
@@ -1714,15 +1912,6 @@ td.col-slug code{
       if (!key) return;
 
       const row = findRowByKey(key);
-
-      if (act === 'view' || act === 'edit'){
-        if (act === 'edit' && !canEdit) return;
-        resetForm();
-        if (itemTitle) itemTitle.textContent = (act === 'view') ? 'View Event' : 'Edit Event';
-        fillFormFromRow(row || {}, act === 'view');
-        itemModal && itemModal.show();
-        return;
-      }
 
       if (act === 'delete'){
         if (!canDelete) return;

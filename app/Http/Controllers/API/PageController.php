@@ -367,86 +367,63 @@ class PageController extends Controller
 
 
 
-// In app/Http/Controllers/API/PublicPageController.php
 
-public function resolve(Request $request)
-{
-    $link = trim((string) $request->query('link', ''));
-    $slug = trim((string) $request->query('slug', ''));
+    /* ============================================
+     | Resolve Page (used by routes and editor)
+     |============================================ */
+    public function resolve(Request $request)
+    {
+        $link = trim((string) $request->query('link', ''));
+        $slug = trim((string) $request->query('slug', ''));
+        $identifier = $slug ?: $link;
 
-    // normalize slug
-    $slug = $slug !== '' ? \Illuminate\Support\Str::slug($slug, '-') : '';
-
-    // ✅ allow slug-only requests
-    if ($link === '' && $slug === '') {
-        return response()->json(['error' => 'Missing link or slug'], 422);
-    }
-
-    $now = \Carbon\Carbon::now();
-
-    // base constraints (kept consistent)
-    $baseQuery = DB::table('pages')
-        ->whereNull('deleted_at')
-        ->where('status', 'Active')
-        ->where(function ($q) use ($now) {
-            $q->whereNull('published_at')
-              ->orWhere('published_at', '<=', $now);
-        });
-
-    $page = null;
-
-    // ✅ 1) Try LINK resolve first (KEEP YOUR LOGIC AS-IS)
-    if ($link !== '') {
-        $path = parse_url($link, PHP_URL_PATH) ?: $link;
-        $path = '/' . ltrim($path, '/');
-        $pathNoTrail = rtrim($path, '/') ?: '/';
-        $pathTrail   = ($pathNoTrail === '/') ? '/' : ($pathNoTrail . '/');
-
-        $base = $request->getSchemeAndHttpHost();
-
-        $candidates = array_values(array_unique(array_filter([
-            $pathNoTrail,
-            ltrim($pathNoTrail, '/'),
-            $pathTrail,
-            ltrim($pathTrail, '/'),
-            rtrim($base, '/') . $pathNoTrail,
-            rtrim($base, '/') . $pathTrail,
-        ])));
-
-        $page = (clone $baseQuery)
-            ->whereIn('page_url', $candidates)
-            ->orderByDesc('id')
-            ->first();
-    }
-
-    // ✅ 2) If link didn’t match, fallback to SLUG (only then)
-    if (!$page && $slug !== '') {
-        $page = (clone $baseQuery)
-            ->where('slug', $slug)
-            ->orderByDesc('id')
-            ->first();
-    }
-
-    // (Optional but helpful) If link exists and slug not provided, try last segment as slug
-    if (!$page && $link !== '' && $slug === '') {
-        $path = parse_url($link, PHP_URL_PATH) ?: $link;
-        $last = trim(\Illuminate\Support\Str::afterLast(rtrim($path, '/'), '/'));
-        $last = $last !== '' ? \Illuminate\Support\Str::slug($last, '-') : '';
-
-        if ($last !== '') {
-            $page = (clone $baseQuery)
-                ->where('slug', $last)
-                ->orderByDesc('id')
-                ->first();
+        if ($identifier === '') {
+            return response()->json(['error' => 'Missing slug or link'], 422);
         }
+
+        $page = $this->resolvePage($identifier, false);
+
+        if (!$page) {
+            return response()->json(['error' => 'Not found'], 404);
+        }
+
+        return response()->json(['success' => true, 'data' => $page, 'page' => $page]);
     }
 
-    if (!$page) {
-        return response()->json(['error' => 'Not found'], 404);
-    }
+    /* ============================================
+     | Public Resolve Page
+     |============================================ */
+    public function publicResolve(Request $request)
+    {
+        $link = trim((string) $request->query('link', ''));
+        $slug = trim((string) $request->query('slug', ''));
+        $identifier = $slug ?: $link;
 
-    return response()->json(['success' => true, 'page' => $page, 'data' => $page]);
-}
+        if ($identifier === '') {
+            return response()->json(['error' => 'Missing slug or link'], 422);
+        }
+
+        $query = DB::table('pages')
+            ->whereNull('deleted_at')
+            ->where('status', 'Active')
+            ->where('workflow_status', 'approved');
+
+        if (ctype_digit((string) $identifier)) {
+            $query->where('id', (int) $identifier);
+        } elseif (Str::isUuid((string) $identifier)) {
+            $query->where('uuid', (string) $identifier);
+        } else {
+            $query->where('slug', $this->normSlug((string) $identifier));
+        }
+
+        $page = $query->first();
+
+        if (!$page) {
+            return response()->json(['error' => 'Not found'], 404);
+        }
+
+        return response()->json(['success' => true, 'data' => $page, 'page' => $page]);
+    }
 
     /* ============================================
      | CRUD
@@ -455,9 +432,10 @@ public function resolve(Request $request)
     public function show(Request $request, $identifier)
     {
         $page = $this->resolvePage($identifier, false);
-        if (! $page) {
+        if (!$page) {
             return response()->json(['error' => 'Not found'], 404);
         }
+
 
         return response()->json(['success' => true, 'data' => $page]);
     }
@@ -578,12 +556,13 @@ public function resolve(Request $request)
             'includable_id'      => $includableId,
             'layout_key'         => $data['layout_key'] ?? null,
             'meta_description'   => $data['meta_description'] ?? null,
-            'status'             => $status,
+            'status'             => $requiresApproval ? 'Inactive' : 'Active',
             'published_at'       => $publishedAt,
 
             // Approval columns
+            'workflow_status'      => $requiresApproval ? 'pending_check' : 'approved',
             'request_for_approval' => $requiresApproval ? 1 : 0,
-            'is_approved'          => 0,
+            'is_approved'          => $requiresApproval ? 0 : 1,
             'is_rejected'          => 0,
 
             'created_by_user_id' => $actor['id'] ?: null,
@@ -802,8 +781,9 @@ public function resolve(Request $request)
             'published_at'       => $publishedAt,
 
             // Checker-maker approval resets
-            'request_for_approval' => $requiresApproval ? 1 : ($page->request_for_approval ?? 0),
-            'is_approved'          => $requiresApproval ? 0 : ($page->is_approved ?? 0),
+            'workflow_status'      => $requiresApproval ? 'pending_check' : 'approved',
+            'request_for_approval' => $requiresApproval ? 1 : 0,
+            'is_approved'          => $requiresApproval ? 0 : 1,
 
             'department_id'      => $data['department_id'] ?? $page->department_id,
             'submenu_exists'     => $data['submenu_exists'] ?? $page->submenu_exists,
@@ -1065,6 +1045,7 @@ public function resolve(Request $request)
                     ->orWhere('shortcode', $identifier);
             })
             ->where('status', 'Active')
+            ->where('workflow_status', 'approved')
             ->whereNull('deleted_at')
             ->first([
                 // ✅ Keep old fields + add new ones

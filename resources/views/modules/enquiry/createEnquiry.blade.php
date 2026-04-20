@@ -46,9 +46,10 @@
   .cu-form-head h3{ margin:0; font-weight:900; color:var(--contact-ink); font-size:17px; }
   .cu-form-head p{ margin:2px 0 0; color:var(--contact-muted); font-size:12.5px; }
 
-  /* ✅ Tighter grid gaps */
-  .cu-form{ margin-top:6px; display:grid; grid-template-columns:1fr 1fr; gap:7px 12px; }
+  /* ✅ Tighter grid gaps - updated to 3 columns */
+  .cu-form{ margin-top:6px; display:grid; grid-template-columns:repeat(3, 1fr); gap:7px 12px; }
   .cu-form .full{ grid-column: 1 / -1; }
+  .cu-form > div { min-width: 0; }
 
   .cu-form label{ display:block; font-weight:800; color:var(--contact-ink); font-size:12px; margin:0 0 3px; }
 
@@ -178,12 +179,13 @@
 
   /* ✅ Consent - single row, compact */
   .cu-consent{
-    grid-column: 1 / -1;
     margin-top: 0;
     padding-top: 6px;
-    border-top: 1px dashed rgba(15,23,42,.12);
     display:grid;
     gap:4px 14px;
+  }
+  .legal-text{
+    font-weight: 500;
   }
   .cu-check{
     display:flex;
@@ -203,7 +205,6 @@
 
   /* ✅ Captcha - compact single row */
   .cu-captcha{
-    grid-column: 1 / -1;
     margin-top: 0;
     padding-top: 6px;
     border-top: 1px dashed rgba(15,23,42,.12);
@@ -215,7 +216,6 @@
     display:flex;
     align-items:center;
     gap:8px;
-    flex-wrap:nowrap;
   }
   .cu-canvas{
     width:130px;
@@ -272,7 +272,6 @@
   }
 
   .cu-actions{
-    grid-column: 1 / -1;
     display:flex; gap:10px; align-items:center; justify-content:flex-start;
     margin-top:2px;
   }
@@ -364,10 +363,65 @@
   }
   .cu-toast-close:hover{ background:#f1f5f9; color:#0f172a; }
 
+  .courses-grid{
+    display:grid; grid-template-columns: repeat(4, 1fr); gap: 8px;margin-bottom: 5px;
+  }
+  .courses-grid-2{
+    display:grid; grid-template-columns: repeat(2, 1fr); gap: 8px;
+  }
+  @media(max-width: 1024px){
+    .courses-grid{ grid-template-columns: repeat(3, 1fr); }
+  }
+  @media(max-width: 768px){
+    .courses-grid{ grid-template-columns: repeat(2, 1fr); }
+  }
+  @media(max-width: 480px){
+    .courses-grid{ grid-template-columns: 1fr; }
+    .courses-grid-2{ grid-template-columns: 1fr; }
+  }
+
+  .cu-form-bottom {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+  }
+
+  .cu-actions-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    align-items: flex-end;
+    margin-top: 5px;
+  }
+
+.course-name-gradient{
+  display:inline-block;
+  font-weight:500;
+  background: linear-gradient(
+    to bottom,
+    #111111 0%,
+    #2b1516 25%,
+    #5d1f21 55%,
+    var(--contact-accent) 78%,
+    var(--contact-accent) 100%
+  );
+  -webkit-background-clip:text;
+  background-clip:text;
+  -webkit-text-fill-color:transparent;
+  color:transparent;
+}
+
+  @media (max-width: 768px) {
+    .courses-grid, .courses-grid-2 { grid-template-columns: 1fr !important; }
+  }
+
   @media(max-width: 900px){
-    .cu-form{ grid-template-columns:1fr; }
-    .cu-consent{ grid-template-columns:1fr; }
-    .cu-captcha-row{ flex-wrap:wrap; }
+    .cu-form{ display: block !important; }
+    .cu-form > div{ margin-bottom: 12px; }
+    .cu-form-bottom { display: block !important; }
+    .cu-consent, .cu-captcha { grid-column: auto !important; }
+    .cu-actions-row { display: block !important; }
   }
 </style>
 
@@ -379,20 +433,14 @@
     <div class="cu-form-head">
       <div>
         <h3 class="home-popup-title">Enquiry</h3>
-        <p>Fill the form and we'll get back to you as soon as possible.</p>
       </div>
     </div>
 
     <form id="contactForm" class="cu-form" autocomplete="off">
 
       <div>
-        <label for="first_name">First Name *</label>
-        <input id="first_name" type="text" placeholder="Your first name" required>
-      </div>
-
-      <div>
-        <label for="last_name">Last Name</label>
-        <input id="last_name" type="text" placeholder="Your last name (optional)">
+        <label for="name">Name *</label>
+        <input id="name" type="text" placeholder="Your full name" required>
       </div>
 
       {{-- ✅ UPDATED: Email nullable --}}
@@ -431,59 +479,64 @@
         </div>
       </div>
 
-      <div class="full">
-        <label for="message">Message *</label>
-        <textarea id="message" placeholder="Write your message..." required></textarea>
+      {{-- Continuous Divider Line separates section from Courses above --}}
+      <div style="grid-column: 1 / -1; border-top: 1px dashed rgba(15,23,42,.12); margin-top: 6px; padding-top: 6px;"></div>
+
+      {{-- Row: Message (1 col) + Consent (2 cols) --}}
+      <div style="grid-column: span 1;">
+        <label for="message" style="margin-bottom: 3px; display:block;">Message</label>
+        <textarea id="message" placeholder="Write your message..."></textarea>
       </div>
 
-      {{-- ✅ Consent checkboxes --}}
-      <div class="cu-consent">
-        <label class="cu-check" for="consent_terms">
-          <input id="consent_terms" type="checkbox">
-          <span>{{ $legalText1 }}</span>
-        </label>
-
-        <label class="cu-check" for="consent_promotions">
-          <input id="consent_promotions" type="checkbox">
-          <span>I agree to receive communication on newsletters, promotional content, offers & events via SMS/RCS *</span>
-        </label>
-      </div>
-
-      {{-- ✅ Captcha (before submit) --}}
-      <div class="cu-captcha">
-        <label for="captcha_input">Captcha *</label>
-        <div class="cu-captcha-row">
-          <div class="cu-canvas" aria-hidden="true">
-            <canvas id="captchaCanvas" width="130" height="42"></canvas>
-          </div>
-
-          <div class="cu-cap-actions">
-            <button id="refreshCaptcha" class="cu-cap-btn" type="button">
-              <i class="fa-solid fa-rotate-right"></i> Refresh
-            </button>
-            <div class="cu-cap-hint">CAPITAL letters only</div>
-          </div>
-
-          <div class="cu-cap-input-wrap">
-            <input
-              id="captcha_input"
-              type="text"
-              inputmode="text"
-              placeholder="Enter captcha (CAPITAL)"
-              autocomplete="off"
-              autocapitalize="characters"
-              spellcheck="false"
-              required
-            >
-          </div>
+      <div style="grid-column: span 2;">
+        <label style="margin-bottom: 3px; display:block;">Agreements *</label>
+        <div class="cu-consent" style="border:none; padding-top:0; margin-top:0;">
+          <label class="cu-check" for="consent_terms">
+            <input id="consent_terms" type="checkbox">
+            <span class="legal-text">{{ $legalText1 }}</span>
+          </label>
+          <label class="cu-check" for="consent_promotions">
+            <input id="consent_promotions" type="checkbox">
+            <span class="legal-text">I agree to receive communication on newsletters, promotional content, offers & events via SMS/RCS *</span>
+          </label>
         </div>
       </div>
 
-      <div class="cu-actions">
-        <button id="submitBtn" class="cu-btn" type="submit" disabled>
-          <i class="fa-solid fa-paper-plane"></i> Send Message
-        </button>
-        <span class="cu-note">We never share your details.</span>
+      <div class="full cu-actions-row">
+        <div class="cu-captcha" style="border-top:none; padding-top:0; margin-top:0;">
+          <label for="captcha_input">Captcha *</label>
+          <div class="cu-captcha-row">
+            <div class="cu-canvas" aria-hidden="true">
+              <canvas id="captchaCanvas" width="130" height="42"></canvas>
+            </div>
+  
+            <div class="cu-cap-actions">
+              <button id="refreshCaptcha" class="cu-cap-btn" type="button">
+                <i class="fa-solid fa-rotate-right"></i> Refresh
+              </button>
+            </div>
+  
+            <div class="cu-cap-input-wrap">
+              <input
+                id="captcha_input"
+                type="text"
+                inputmode="text"
+                placeholder="Enter captcha (CAPITAL)"
+                autocomplete="off"
+                autocapitalize="characters"
+                spellcheck="false"
+                required
+              >
+            </div>
+          </div>
+        </div>
+  
+        <div class="cu-actions" style="margin-top:0;">
+          <button id="submitBtn" class="cu-btn" type="submit" disabled style="min-width: 140px;">
+            <i class="fa-solid fa-paper-plane"></i> Send Message
+          </button>
+          <span class="cu-note" style="font-size: 11.5px; line-height: 1.25;">We'll get back to you as soon as possible.</span>
+        </div>
       </div>
     </form>
   </div>
@@ -499,8 +552,7 @@
     const btn  = document.getElementById('submitBtn');
     if(!form || !btn) return;
 
-    const firstNameEl = document.getElementById('first_name');
-    const lastNameEl  = document.getElementById('last_name');
+    const nameEl = document.getElementById('name');
     const emailEl     = document.getElementById('email');
     const phoneEl     = document.getElementById('phone');
     const msgEl       = document.getElementById('message');
@@ -737,14 +789,15 @@
         let html = '';
         for (const [title, items] of Object.entries(groups)) {
           if (items.length > 0) {
-            html += `<div style="margin-top:12px; margin-bottom: 6px; font-size:13px; font-weight:600; color:var(--contact-accent); border-bottom: 1px dashed var(--contact-line); padding-bottom:3px;">${title}</div>`;
-            html += `<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px;">`;
+            html += `<div style="margin-bottom: 6px; font-size:13px; font-weight:600; color:var(--contact-accent); border-bottom: 1px dashed var(--contact-line); padding-bottom:3px;">${title}</div>`;
+            const gridClass = (title === 'MCA & MBA') ? 'courses-grid-2' : 'courses-grid';
+            html += `<div class="${gridClass}">`;
             html += items.map(c => `
-              <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; cursor:pointer; color:var(--contact-ink);">
-                <input type="checkbox" name="course_ids" value="${c.id}" class="course-check-input" style="accent-color:var(--contact-accent); width:15px; height:15px; cursor:pointer;">
-                <span>${escapeHtml(c.custom_name || c.title)}</span>
-              </label>
-            `).join('');
+  <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; cursor:pointer;">
+    <input type="checkbox" name="course_ids" value="${c.id}" class="course-check-input" style="accent-color:var(--contact-accent); width:15px; height:15px; cursor:pointer;">
+    <span class="course-name-gradient">${escapeHtml(c.custom_name || c.title)}</span>
+  </label>
+`).join('');
             html += `</div>`;
           }
         }
@@ -784,9 +837,8 @@
 
     // Submit enable logic
     function canSubmit(){
-      const firstOk = !!firstNameEl.value.trim();
+      const nameOk = !!nameEl.value.trim();
       const phoneOk = !!phoneEl.value.trim();     // ✅ phone required
-      const msgOk   = !!msgEl.value.trim();
       const consentOk = termsEl.checked && promoEl.checked;
       const captchaIsOk = captchaOk();
 
@@ -795,7 +847,7 @@
       const checkedCount = courseCheckboxesEl ? courseCheckboxesEl.querySelectorAll('.course-check-input:checked').length : 0;
       const deptOk = !admissionOn ? true : (checkedCount > 0);
 
-      return !!(firstOk && phoneOk && msgOk && consentOk && captchaIsOk && deptOk);
+      return !!(nameOk && phoneOk && consentOk && captchaIsOk && deptOk);
     }
 
     function syncBtn(){
@@ -818,7 +870,7 @@
     });
 
     // Live sync
-    [firstNameEl, lastNameEl, emailEl, phoneEl, msgEl, termsEl, promoEl, capInputEl].forEach(el => {
+    [nameEl, emailEl, phoneEl, msgEl, termsEl, promoEl, capInputEl].forEach(el => {
       el.addEventListener('input', syncBtn);
       el.addEventListener('change', syncBtn);
     });
@@ -827,8 +879,7 @@
     form.addEventListener('submit', async function(e){
       e.preventDefault();
 
-      const first_name = firstNameEl.value.trim();
-      const last_name  = lastNameEl.value.trim();
+      const name       = nameEl.value.trim();
       const email      = emailEl.value.trim();       // ✅ nullable
       const phone      = phoneEl.value.trim();       // ✅ required
       const message    = msgEl.value.trim();
@@ -837,8 +888,8 @@
       const checkedBoxes = Array.from(courseCheckboxesEl.querySelectorAll('.course-check-input:checked'));
       const courseIds = checkedBoxes.map(b => parseInt(b.value, 10));
 
-      if(!first_name || !phone || !message){
-        showToast('error','Error','Please fill all required fields (First name, Phone, Message).');
+      if(!name || !phone){
+        showToast('error','Error','Please fill all required fields (Name, Phone).');
         syncBtn();
         return;
       }
@@ -875,11 +926,10 @@
       ];
 
       const payload = {
-        first_name,
-        last_name: (last_name !== '' ? last_name : null),
+        name,
         email: (email !== '' ? email : null),
         phone,
-        message,
+        message: (message !== '' ? message : null),
         is_admission_enquiry: admissionOn ? true : null,
         course_ids: admissionOn ? courseIds : null,
         legal_authority_json

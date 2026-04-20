@@ -342,21 +342,49 @@
 
     @keyframes shimmer { to { transform: translateX(100%); } }
 
-    /* Error */
+    /* Error / Coming Soon */
     .error-container{
-      background:#fee;
-      border:1px solid #fcc;
-      border-radius: var(--radius-lg);
-      padding: 24px;
-      color: #c00;
-      line-height: 1.6;
-      margin: 40px 0;
+      background: var(--surface);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-xl);
+      padding: clamp(40px, 8vw, 80px) 24px;
+      text-align: center;
+      margin: 40px auto;
+      max-width: 700px;
+      box-shadow: var(--shadow-3);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
     }
 
     .error-container i{
-      font-size: 24px;
-      margin-bottom: 12px;
-      display:block;
+      font-size: clamp(48px, 8vw, 80px);
+      color: var(--primary-color);
+      margin-bottom: 8px;
+      filter: drop-shadow(0 8px 16px var(--primary-light));
+      animation: pulse-soft 3s infinite ease-in-out;
+    }
+
+    .error-title{
+      font-size: clamp(24px, 4vw, 36px);
+      font-weight: 900;
+      color: var(--ink);
+      letter-spacing: -0.03em;
+      margin: 0;
+    }
+
+    .error-message{
+      font-size: 16px;
+      color: var(--muted-color);
+      max-width: 480px;
+      margin: 0 auto;
+      line-height: 1.7;
+    }
+
+    @keyframes pulse-soft {
+      0%, 100% { transform: translateY(0); opacity: 1; }
+      50% { transform: translateY(-10px); opacity: 0.8; }
     }
 
     /* Responsive */
@@ -368,6 +396,7 @@
       .attachment-icon{ width: 40px; height: 40px; font-size: 18px; }
       .sc-headbar{ gap: 10px; }
     }
+    .meta-pill-date, #metaFeatured { display: none !important; }
   </style>
 </head>
 
@@ -428,10 +457,15 @@
       <div class="loading-bar" style="width:58%"></div>
     </section>
 
-    <!-- Error -->
+    <!-- Error / Coming Soon -->
     <div id="errorSection" class="error-container" style="display:none">
-      <i class="fa-solid fa-exclamation-triangle"></i>
-      <div id="errorMessage"></div>
+      <i class="fa-solid fa-hourglass-half"></i>
+      <h2 class="error-title">Coming Soon!</h2>
+      <div id="errorMessage" class="error-message">This content is currently undergoing review and will be published shortly.</div>
+      <a href="/" class="action-btn" style="margin-top:24px;">
+        <i class="fa-solid fa-house"></i>
+        Explore Website
+      </a>
     </div>
 
     <!-- Cover -->
@@ -524,7 +558,11 @@
 
       function setError(msg) {
         $('errorSection').style.display = msg ? '' : 'none';
-        $('errorMessage').textContent = msg || '';
+        // If it's the default "not found" or 404 related, we keep our pretty static message
+        // only override if it's a specific technical error
+        if (msg && !msg.toLowerCase().includes('not found') && !msg.toLowerCase().includes('reachable')) {
+          $('errorMessage').textContent = msg;
+        }
       }
 
       function renderAttachments(attachments_json) {

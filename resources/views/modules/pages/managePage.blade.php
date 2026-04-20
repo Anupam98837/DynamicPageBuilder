@@ -133,6 +133,86 @@
   animation:mpSpin 1s linear infinite;
 }
 @keyframes mpSpin{to{transform:rotate(360deg)}}
+
+.badge-soft-success{background:color-mix(in oklab, var(--success-color) 12%, transparent);color:var(--success-color)}
+.badge-soft-warning{background:color-mix(in oklab, var(--warning-color, #f59e0b) 14%, transparent);color:var(--warning-color, #f59e0b)}
+.badge-soft-muted{background:color-mix(in oklab, var(--muted-color) 10%, transparent);color:var(--muted-color)}
+.badge-soft-primary{background:color-mix(in oklab, var(--primary-color) 12%, transparent);color:var(--primary-color)}
+.badge-soft-danger{background:color-mix(in oklab, var(--danger-color) 12%, transparent);color:var(--danger-color)}
+.badge-soft-info{background:color-mix(in oklab, #0ea5e9 14%, transparent);color:#0ea5e9}
+
+/* Timeline Styles */
+.timeline {
+  position: relative;
+  padding: 0;
+  list-style: none;
+}
+.timeline:before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 31px;
+  width: 2px;
+  background: var(--line-soft);
+}
+.timeline-item {
+  position: relative;
+  margin-bottom: 20px;
+}
+.timeline-marker {
+  position: absolute;
+  top: 0;
+  left: 20px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--primary-color);
+  z-index: 10;
+}
+.timeline-content {
+  margin-left: 60px;
+  padding: 12px 16px;
+  background: color-mix(in oklab, var(--surface) 95%, var(--bg-body));
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+}
+.timeline-date {
+  font-size: 11px;
+  color: var(--muted-color);
+  margin-bottom: 4px;
+}
+.timeline-title {
+  font-weight: 600;
+  font-size: 13.5px;
+  margin-bottom: 4px;
+}
+.timeline-author {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.timeline-comment {
+  font-size: 12.5px;
+  color: var(--muted-color);
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: rgba(0,0,0,0.03);
+  border-left: 2px solid var(--line-strong);
+  font-style: italic;
+}
+.badge-pending-draft {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--warning-color);
+  color: #fff;
+  vertical-align: middle;
+  margin-left: 4px;
+  text-transform: uppercase;
+  font-weight: 700;
+}
 </style>
 @endpush
 
@@ -195,7 +275,7 @@
         <i class="fa-solid fa-box-archive me-2"></i>Archived
       </a>
     </li>
-    <li class="nav-item">
+    <li class="nav-item" id="mpTabHeaderBin" style="display:none;">
       <a class="nav-link" data-bs-toggle="tab" href="#mpTabBin" role="tab" aria-selected="false">
         <i class="fa-solid fa-trash-can me-2"></i>Bin
       </a>
@@ -216,12 +296,12 @@
                   <th>Slug</th>
                   <th>Shortcode</th>
                   <th>Status</th>
-                  <th>Published</th>
+                  <th>Workflow</th>
                   <th class="text-end" style="width:108px;">Actions</th>
                 </tr>
               </thead>
               <tbody id="mpRowsActive">
-                <tr><td colspan="6" class="text-center mp-muted" style="padding:38px;">Loading…</td></tr>
+                <tr><td colspan="7" class="text-center mp-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -249,12 +329,13 @@
                 <tr>
                   <th>Title</th>
                   <th>Slug</th>
+                  <th>Workflow</th>
                   <th>Archived At</th>
                   <th class="text-end" style="width:108px;">Actions</th>
                 </tr>
               </thead>
               <tbody id="mpRowsArchived">
-                <tr><td colspan="4" class="text-center mp-muted" style="padding:38px;">Loading…</td></tr>
+                <tr><td colspan="5" class="text-center mp-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -308,6 +389,54 @@
 </div>
 @endsection
 
+{{-- Rejection Reason Modal --}}
+<div class="modal fade" id="rejectReasonModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title text-danger"><i class="fa fa-circle-xmark me-2"></i>Rejection Reason</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="p-3 bg-light rounded-3 border">
+          <div id="rejectReasonText" class="text-dark" style="font-size: 14.5px; line-height: 1.6; white-space: pre-wrap;">—</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{{-- Workflow History Modal --}}
+<div class="modal fade" id="historyModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-md modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-clock-rotate-left me-2"></i>Workflow History</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="historyLoading" class="text-center py-4">
+          <div class="spinner-border text-primary" role="status"></div>
+          <div class="mt-2 text-muted">Loading history…</div>
+        </div>
+        <div id="historyContent" style="display:none;">
+          <ul class="timeline" id="historyTimeline"></ul>
+        </div>
+        <div id="historyEmpty" class="text-center py-4 text-muted" style="display:none;">
+          <i class="fa fa-history mb-2 fs-3 opacity-50"></i>
+          <div>No history found for this item.</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -331,8 +460,22 @@
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
   }[m]));
 
-  const badge = (s) =>
-    `<span class="badge ${String(s)==='Active'?'badge-success':'badge-secondary'}">${esc(s||'-')}</span>`;
+  const badge = (s, hasDraft) => {
+    let html = `<span class="badge ${String(s)==='Active'?'badge-success':'badge-secondary'}">${esc(s||'-')}</span>`;
+    if (hasDraft) {
+      html += `<span class="badge-pending-draft" title="Pending Changes">Draft</span>`;
+    }
+    return html;
+  };
+
+  const workflowBadge = (ws) => {
+    const s = (ws || '').toString().toLowerCase();
+    if (s === 'pending_check') return `<span class="badge-soft-warning p-1 px-2 rounded-pill small"><i class="fa fa-hourglass-start me-1"></i>Pending Check</span>`;
+    if (s === 'checked') return `<span class="badge-soft-primary p-1 px-2 rounded-pill small"><i class="fa fa-check-double me-1"></i>Checked</span>`;
+    if (s === 'approved') return `<span class="badge-soft-success p-1 px-2 rounded-pill small"><i class="fa fa-circle-check me-1"></i>Approved</span>`;
+    if (s === 'rejected') return `<span class="badge-soft-danger p-1 px-2 rounded-pill small"><i class="fa fa-circle-xmark me-1"></i>Rejected</span>`;
+    return `<span class="badge-soft-muted p-1 px-2 rounded-pill small">${esc(s || '—')}</span>`;
+  };
 
   const api = async (url, opt={}) => {
     const ctrl = new AbortController();
@@ -387,6 +530,7 @@
         ACTOR.id = js.data.id || null;
         ACTOR.role = (js.data.role || '').toLowerCase();
         ACTOR.department_id = js.data.department_id || null;
+        computePermissions();
       }
     } catch (e) {
       console.error('Failed to fetch /me', e);
@@ -399,6 +543,15 @@
     bin:      { page: 1, lastPage: 1, total: 0, perPage: 10 },
     departments: []
   };
+
+  function computePermissions() {
+    const r = (ACTOR.role || '').toLowerCase().trim();
+    const allowedBinRoles = ['hod', 'admin', 'director', 'principal', 'author', 'super_admin'];
+    const tabHeaderBin = $('mpTabHeaderBin');
+    if (tabHeaderBin) {
+      tabHeaderBin.style.display = allowedBinRoles.includes(r) ? 'block' : 'none';
+    }
+  }
 
   /* ================== PAGINATION NORMALIZER (same concept as Manage Users) ================== */
   function pickPagination(j){
@@ -585,7 +738,7 @@
     params.set('page', String(state.active.page));
 
     const tbody = $('mpRowsActive');
-    if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="text-center mp-muted" style="padding:38px;">Loading…</td></tr>`;
+    if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="text-center mp-muted" style="padding:38px;">Loading…</td></tr>`;
     setEmpty('active', false);
 
     try{
@@ -618,8 +771,8 @@
             <td class="fw-semibold">${esc(r.title || '—')}</td>
             <td><a target="_blank" href="${viewUrl}">/${esc(slug)}</a></td>
             <td><code>${esc(r.shortcode || '-')}</code></td>
-            <td>${badge(r.status || '-')}</td>
-            <td>${esc(r.published_at || '-')}</td>
+            <td>${badge(r.status || '-', !!r.draft_data)}</td>
+            <td>${workflowBadge(r.workflow_status)}</td>
             <td class="text-end">
               <div class="dropdown">
                 <button type="button" class="btn btn-sm btn-primary mp-dd-toggle" aria-expanded="false" title="Actions">
@@ -631,6 +784,17 @@
                       <i class="fa fa-eye me-1"></i> View
                     </a>
                   </li>
+                  <li>
+                    <button type="button" class="dropdown-item" onclick="showHistory('pages', '${esc(String(r.uuid || r.id))}')">
+                      <i class="fa fa-clock-rotate-left me-1"></i> Workflow History
+                    </button>
+                  </li>
+                  ${(r.workflow_status === 'rejected') ? `
+                  <li>
+                    <button type="button" class="dropdown-item text-danger" onclick="showRejectReason('${esc(r.rejected_reason || 'No reason provided')}')">
+                      <i class="fa fa-circle-xmark me-1"></i> Rejection Reason
+                    </button>
+                  </li>` : ''}
                   <li>
                     <button type="button" class="dropdown-item" onclick="editPage('${esc(String(editKey))}')">
                       <i class="fa fa-edit me-1"></i> Edit
@@ -675,7 +839,7 @@
     const params = new URLSearchParams({ page: String(state.archived.page) });
 
     const tbody = $('mpRowsArchived');
-    if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="text-center mp-muted" style="padding:38px;">Loading…</td></tr>`;
+    if (tbody) tbody.innerHTML = `<tr><td colspan="5" class="text-center mp-muted" style="padding:38px;">Loading…</td></tr>`;
     setEmpty('archived', false);
 
     try{
@@ -703,6 +867,7 @@
           <tr>
             <td class="fw-semibold">${esc(r.title || '—')}</td>
             <td>/${esc(r.slug || '')}</td>
+            <td>${workflowBadge(r.workflow_status)}</td>
             <td>${esc(r.updated_at || '-')}</td>
             <td class="text-end">
               <div class="dropdown">
@@ -813,6 +978,57 @@
 
   /* ================== ACTIONS (kept same endpoints/behavior) ================== */
   window.editPage = (uuid) => { location.href = `/pages/create?uuid=${encodeURIComponent(uuid)}`; };
+
+  const rejectReasonModal = new bootstrap.Modal($('rejectReasonModal'));
+  window.showRejectReason = (msg) => {
+    $('rejectReasonText').textContent = msg || 'No reason provided';
+    rejectReasonModal.show();
+  };
+
+  const historyModal = new bootstrap.Modal($('historyModal'));
+  window.showHistory = async (table, id) => {
+    historyModal.show();
+    $('historyLoading').style.display = 'block';
+    $('historyContent').style.display = 'none';
+    $('historyEmpty').style.display = 'none';
+    $('historyTimeline').innerHTML = '';
+
+    try {
+      const j = await api(`/api/master-approval/history/${table}/${id}`);
+      $('historyLoading').style.display = 'none';
+
+      if (j.success && j.data && j.data.length) {
+        $('historyTimeline').innerHTML = j.data.map(log => `
+          <li class="timeline-item">
+            <div class="timeline-marker"></div>
+            <div class="timeline-content">
+              <div class="timeline-date">${new Date(log.created_at).toLocaleString()}</div>
+              <div class="timeline-title">
+                Status changed to <span class="badge ${getStatusClass(log.to_status)}">${log.to_status.replace('_', ' ')}</span>
+              </div>
+              <div class="timeline-author">Action by: ${esc(log.user_name || 'System')} (${esc(log.user_role || 'unknown')})</div>
+              ${log.comment ? `<div class="timeline-comment">${esc(log.comment)}</div>` : ''}
+            </div>
+          </li>
+        `).join('');
+        $('historyContent').style.display = 'block';
+      } else {
+        $('historyEmpty').style.display = 'block';
+      }
+    } catch (e) {
+      $('historyLoading').style.display = 'none';
+      $('historyEmpty').style.display = 'block';
+    }
+  };
+
+  function getStatusClass(s) {
+    s = s.toLowerCase();
+    if (s === 'approved') return 'badge-soft-success text-success';
+    if (s === 'rejected') return 'badge-soft-danger text-danger';
+    if (s === 'checked') return 'badge-soft-info text-info';
+    if (s === 'pending_check') return 'badge-soft-warning text-warning';
+    return 'badge-soft-muted text-muted';
+  }
 
   window.archivePage = (id) => {
     Swal.fire({

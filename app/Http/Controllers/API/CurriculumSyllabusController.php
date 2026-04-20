@@ -63,7 +63,7 @@ class CurriculumSyllabusController extends Controller
         $deptId = $u->department_id !== null ? (int)$u->department_id : null;
         if ($deptId !== null && $deptId <= 0) $deptId = null;
 
-        $adminRoles = ['admin', 'super_admin', 'director', 'principal'];
+        $adminRoles = ['admin', 'super_admin', 'director', 'principal', 'author'];
         if (in_array($role, $adminRoles, true)) {
             return ['mode' => 'all', 'department_id' => null];
         }
@@ -299,10 +299,9 @@ class CurriculumSyllabusController extends Controller
         if (ctype_digit((string) $identifier)) {
             $q->where('cs.id', (int) $identifier);
         } elseif (Str::isUuid((string) $identifier)) {
-            $q->where('cs.uuid', (string) $identifier);
+            $q->where('cs.uuid', (string)  $identifier);
         } else {
-            $q->where('cs.slug', (string) $identifier)
-              ->orderBy('cs.created_at', 'desc'); // if slug not unique globally
+            $q->where('cs.slug', (string) $identifier);
         }
 
         $row = $q->first();
@@ -315,6 +314,26 @@ class CurriculumSyllabusController extends Controller
         $row->department_uuid  = $dept->uuid ?? null;
 
         return $row;
+    }
+
+    protected function ensureUniqueSlug(string $slug, ?string $ignoreUuid = null): string
+    {
+        $base = $slug;
+        $i = 2;
+
+        while (
+            DB::table('curriculum_syllabuses')
+                ->where('slug', $slug)
+                ->when($ignoreUuid, function ($q) use ($ignoreUuid) {
+                    $q->where('uuid', '!=', $ignoreUuid);
+                })
+                ->whereNull('deleted_at')
+                ->exists()
+        ) {
+            $slug = $base . '-' . $i++;
+        }
+
+        return $slug;
     }
 
     /**
@@ -575,18 +594,7 @@ class CurriculumSyllabusController extends Controller
         // slug
         $slug = trim((string)($validated['slug'] ?? ''));
         $slug = $slug !== '' ? Str::slug($slug) : Str::slug($validated['title']);
-
-        // ✅ ensure unique slug per department (ignoring soft-deleted rows)
-        $baseSlug = $slug;
-        $i = 2;
-        while (DB::table('curriculum_syllabuses')
-            ->where('department_id', (int)$validated['department_id'])
-            ->where('slug', $slug)
-            ->whereNull('deleted_at')
-            ->exists()
-        ) {
-            $slug = $baseSlug . '-' . $i++;
-        }
+        $slug = $this->ensureUniqueSlug($slug);
 
         // destination (public/)
         $dirRel = 'depy_uploads/curriculum_syllabuses/' . (int)$validated['department_id'];

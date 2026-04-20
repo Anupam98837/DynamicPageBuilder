@@ -15,9 +15,9 @@
     }
 
     /* Navbar Container */
-    .dynamic-navbar{background: var(--primary-color, #9E363A);box-shadow: 0 2px 4px rgba(0,0,0,0.1);position: sticky;top: 0;z-index: 1000;width: 100%;overflow: visible;padding-left: var(--menu-gutter);padding-right: var(--menu-gutter);}
+    .dynamic-navbar{background: var(--primary-color, #9E363A);box-shadow: 0 2px 4px rgba(0,0,0,0.1);position: sticky;top: 0;z-index: 1000;width: 100%;overflow: visible;}
 
-    .dynamic-navbar .navbar-container {display:flex;align-items:stretch;justify-content:flex-start;width:100%;position:relative;overflow: visible;max-width: var(--menu-max-w);margin: 0 auto;}
+    .dynamic-navbar .navbar-container {display:flex;align-items:stretch;justify-content:flex-start;width:100%;position:relative;overflow: visible;max-width: var(--menu-max-w);margin: 0 auto;padding-left: calc(var(--menu-gutter) / 2);padding-right: calc(var(--menu-gutter) / 2);}
 
     .dynamic-navbar .menu-row {flex: 1 1 auto;display:flex;justify-content:flex-start;align-items:stretch;min-width: 0;width: 100%;max-width: var(--menu-max-w);overflow-x: auto;overflow-y: hidden;-webkit-overflow-scrolling: touch;padding-right: 44px;scrollbar-width: none;-ms-overflow-style: none;}
     .menu-row::-webkit-scrollbar{ width:0; height:0; display:none; } /* Chrome/Safari */
@@ -45,10 +45,11 @@
     /* Menu List - single row */
     .dynamic-navbar .navbar-nav {display:flex;flex-direction:row;flex-wrap:nowrap;list-style:none;margin:0;padding:0;align-items:stretch;justify-content:flex-start;min-width:0;width: max-content;}
     .dynamic-navbar .nav-item {position: relative;margin:0;display:flex;flex: 0 0 auto;min-width: 0;}
-    .dynamic-navbar .nav-link{display:flex;align-items:center;justify-content:center;color:#fff !important;font-weight:400 !important;font-size: 0.95rem !important;padding: 0.75rem 1.2rem;text-decoration:none;white-space: nowrap;border: none;background: transparent;cursor:pointer;width:100%;text-align:center;transition: background-color .25s ease, color .25s ease, transform .25s ease;}
-    .navbar-nav.compact .nav-link{ font-size:.85rem; padding:.75rem .8rem; }
-    .navbar-nav.very-compact .nav-link{ font-size:.8rem; padding:.75rem .55rem; }
-    .navbar-nav.ultra-compact .nav-link{ font-size:.75rem; padding:.75rem .45rem; }
+    .dynamic-navbar .nav-link{display:flex;align-items:center;justify-content:center;color:#fff !important;font-weight:400 !important;font-size: 0.95rem !important;padding: 0.75rem 0.8rem;text-decoration:none;white-space: nowrap;border: none;background: transparent;cursor:pointer;width:100%;text-align:center;transition: background-color .25s ease, color .25s ease, transform .25s ease;}
+    .nav-item.nav-home .nav-link{ padding-left: 0.6rem; padding-right: 0.6rem; min-width: 44px; }
+    .navbar-nav.compact .nav-link{ font-size:.85rem; padding:.75rem .6rem; }
+    .navbar-nav.very-compact .nav-link{ font-size:.8rem; padding:.75rem .4rem; }
+    .navbar-nav.ultra-compact .nav-link{ font-size:.76rem; padding:.75rem .25rem; }
     .nav-link:hover,
     .nav-link.active{background-color: var(--secondary-color, #6B2528);color:#fff !important;}
     .dynamic-navbar .dropdown-menu{display:block;position:absolute;top: 100%;left: 0;background: transparent;padding: 0;margin: 0;z-index: 9999;overflow: visible;width: max-content;min-width: 0;max-width: min(var(--menu-max-w), calc(100vw - 20px));opacity: 0;visibility: hidden;transform: translateY(8px);pointer-events: none;transition: opacity .25s ease, transform .25s ease, visibility .25s ease;}
@@ -223,6 +224,7 @@
             this.apiDepartmentsPublic = '{{ url("/api/public/departments") }}';
             this.apiDepartments       = '{{ url("/api/departments") }}';
             this.deptUuidById = new Map();
+            this.deptShortcodeById = new Map();
 
             this.nodeById = new Map();
             this.childrenById = new Map();
@@ -321,11 +323,27 @@
 
         buildDeptMap(depts) {
             this.deptUuidById.clear();
+            this.deptShortcodeById.clear();
             (depts || []).forEach(d => {
                 const id = Number(d.id);
                 const uuid = (d.uuid ?? d.department_uuid ?? d.dept_uuid ?? '').toString().trim();
+                const shortcode = (d.short_name ?? d.slug ?? '').toString().trim();
                 if (id && uuid) this.deptUuidById.set(id, uuid);
+                if (id && shortcode) this.deptShortcodeById.set(id, shortcode);
             });
+        }
+
+        getItemDeptShortcode(item) {
+            const direct = (item?.department?.short_name ?? item?.department?.slug ?? '');
+            const directTrim = (direct || '').toString().trim();
+            if (directTrim) return directTrim;
+
+            const did = item?.department_id;
+            if (did !== undefined && did !== null) {
+                const mapped = this.deptShortcodeById.get(Number(did));
+                if (mapped) return mapped;
+            }
+            return '';
         }
 
         getItemDeptUuid(item) {
@@ -341,6 +359,38 @@
                 if (mapped) return mapped;
             }
             return '';
+        }
+
+        applyDepartmentShortcode(url, shortcode) {
+            shortcode = (shortcode || '').toString().trim();
+            if (!shortcode) return url;
+            if (!url || url === '#') return url;
+
+            let u;
+            try {
+                u = new URL(url, window.location.origin);
+            } catch (e) {
+                const sep = url.includes('?') ? '&' : '?';
+                return `${url}${sep}dept=${shortcode}`;
+            }
+
+            if (u.origin !== window.location.origin) return url;
+
+            const raw = (u.search || '').replace(/^\?/, '');
+            const parts = raw ? raw.split('&').filter(Boolean) : [];
+
+            const kept = parts.filter(p => {
+                const key = (p.split('=')[0] || '').trim();
+                if (!key) return false;
+                if (key === 'department_uuid') return false;
+                if (key === 'dept') return false; // scrub existing dept param
+                if (key.startsWith('d-')) return false; // scrub legacy
+                return true;
+            });
+
+            kept.push(`dept=${shortcode}`);
+            u.search = `?${kept.join('&')}`;
+            return u.toString();
         }
 
         applyDepartmentUuid(url, deptUuid) {
@@ -580,13 +630,10 @@ getMenuItemUrl(item){
 
     if (!url || url === '#') return '#';
 
-    // ✅ Only mutate same-origin URLs with dept/header_menu_id
+    // ✅ Only mutate same-origin URLs with dept shortcode (h-uuid removed — server detects header menu automatically)
     if (this.isSameOrigin(url)) {
-        const deptUuid = this.getItemDeptUuid(item);
-        url = this.applyDepartmentUuid(url, deptUuid);
-
-const hUuid = this.getItemMenuUuid(item);
-url = this.applyHeaderMenuHUuid(url, hUuid);
+        const deptShortcode = this.getItemDeptShortcode(item);
+        url = this.applyDepartmentShortcode(url, deptShortcode);
     }
 
     return url;
@@ -707,9 +754,9 @@ if (keys.includes(target)) return [n];
             const rowWidth = row.offsetWidth || row.clientWidth || 0;
             const estimatedItemWidth = rowWidth / itemCount;
 
-            if (estimatedItemWidth < 90) container.classList.add('ultra-compact');
-            else if (estimatedItemWidth < 110) container.classList.add('very-compact');
-            else if (estimatedItemWidth < 140) container.classList.add('compact');
+            if (estimatedItemWidth < 70) container.classList.add('ultra-compact');
+            else if (estimatedItemWidth < 85) container.classList.add('very-compact');
+            else if (estimatedItemWidth < 115) container.classList.add('compact');
         }
 
         toggleOverflowMode() {
@@ -745,14 +792,14 @@ if (keys.includes(target)) return [n];
 
         buildHomeNavItem() {
             const li = document.createElement('li');
-            li.className = 'nav-item';
+            li.className = 'nav-item nav-home';
             li.dataset.id = 'home_static';
             li.dataset.slug = '__HOME__';
 
             const a = document.createElement('a');
             a.className = 'nav-link';
             a.href = '{{ url("/") }}';
-            a.innerHTML = `Home`;
+            a.innerHTML = `<i class="fa-solid fa-house"></i>`;
 
             if (this.currentSlug === '__HOME__') a.classList.add('active');
 
@@ -772,7 +819,7 @@ if (keys.includes(target)) return [n];
             const link = document.createElement('a');
             link.className = 'oc-link';
             link.href = '{{ url("/") }}';
-            link.innerHTML = `<i class="fa-solid fa-house me-2"></i>Home`;
+            link.innerHTML = `<i class="fa-solid fa-house"></i>`;
 
             if (this.currentSlug === '__HOME__') link.classList.add('active');
 

@@ -11,6 +11,7 @@ use Carbon\Carbon;
 class EventController extends Controller
 {
     use \App\Http\Controllers\API\Concerns\DepartmentScopeable;
+    use \App\Http\Controllers\API\Concerns\HasWorkflowManagement;
 
     /* ============================================
      | Helpers
@@ -19,10 +20,10 @@ class EventController extends Controller
     private function actor(Request $r): array
     {
         return [
-            'id'   => (int) ($r->attributes->get('auth_tokenable_id') ?? optional($r->user())->id ?? 0),
-            'role' => (string) ($r->attributes->get('auth_role') ?? ($r->user()->role ?? '')),
+            'id'   => (int) ($r->attributes->get('auth_tokenable_id') ?? $r->user()?->id ?? 0),
+            'role' => (string) ($r->attributes->get('auth_role') ?? ($r->user()?->role ?? '')),
             'type' => (string) ($r->attributes->get('auth_tokenable_type') ?? ($r->user() ? get_class($r->user()) : '')),
-            'uuid' => (string) ($r->attributes->get('auth_user_uuid') ?? ($r->user()->uuid ?? '')),
+            'uuid' => (string) ($r->attributes->get('auth_user_uuid') ?? ($r->user()?->uuid ?? '')),
         ];
     }
 
@@ -339,7 +340,23 @@ class EventController extends Controller
         if ($request->filled('department')) {
             $dept = $this->resolveDepartment($request->query('department'), true);
             if ($dept) {
-                $q->where('e.department_id', (int) $dept->id);
+                $userId = (int) ($request->attributes->get('auth_tokenable_id') ?? 0);
+                $skipFilter = false;
+
+                if ($userId > 0) {
+                    $u = DB::table('users')->select(['role', 'department_id'])->where('id', $userId)->first();
+                    if ($u) {
+                        $role = strtolower(trim((string) ($u?->role ?? '')));
+                        $higher = ['admin', 'author', 'principal', 'director', 'super_admin'];
+                        if (in_array($role, $higher, true) && $u?->department_id !== null && (int)$u?->department_id === (int)($dept?->id ?? 0)) {
+                            $skipFilter = true; // automatic frontend append skip
+                        }
+                    }
+                }
+
+                if (!$skipFilter) {
+                    $q->where('e.department_id', (int) $dept->id);
+                }
             } else {
                 $q->whereRaw('1=0');
             }
@@ -395,15 +412,19 @@ class EventController extends Controller
         if (! $row) return null;
 
         // attach department info
-        if (!empty($row->department_id)) {
+        if (!empty($row?->department_id)) {
             $dept = DB::table('departments')->where('id', (int) $row->department_id)->first();
-            $row->department_title = $dept->title ?? null;
-            $row->department_slug  = $dept->slug ?? null;
-            $row->department_uuid  = $dept->uuid ?? null;
+            if ($row) {
+                $row->department_title = $dept?->title ?? null;
+                $row->department_slug  = $dept?->slug ?? null;
+                $row->department_uuid  = $dept?->uuid ?? null;
+            }
         } else {
-            $row->department_title = null;
-            $row->department_slug  = null;
-            $row->department_uuid  = null;
+            if ($row) {
+                $row->department_title = null;
+                $row->department_slug  = null;
+                $row->department_uuid  = null;
+            }
         }
 
         return $row;
@@ -470,8 +491,8 @@ class EventController extends Controller
 
         // optional: ?inc_view=1
         if (filter_var($request->query('inc_view', false), FILTER_VALIDATE_BOOLEAN)) {
-            DB::table('events')->where('id', (int) $row->id)->increment('views_count');
-            $row->views_count = ((int) ($row->views_count ?? 0)) + 1;
+            DB::table('events')->where('id', (int) ($row?->id ?? 0))->increment('views_count');
+            if ($row) $row->views_count = ((int) ($row->views_count ?? 0)) + 1;
         }
 
         return response()->json([
@@ -611,6 +632,11 @@ class EventController extends Controller
             if (json_last_error() === JSON_ERROR_NONE) $metadata = $decoded;
         }
 
+        // Unified Workflow Status
+        $workflowStatus = $this->getInitialWorkflowStatus($request);
+        $featured = (int) ($validated['is_featured_home'] ?? 0);
+        $requestForApproval = ($workflowStatus === 'pending_check' || $workflowStatus === 'checked') ? 1 : 0;
+
         $id = DB::table('events')->insertGetId([
             'uuid'               => $uuid,
             'department_id'      => $validated['department_id'] ?? null,
@@ -627,10 +653,17 @@ class EventController extends Controller
             'event_start_time'   => $startTime,
             'event_end_time'     => $endTime,
 
-            'is_featured_home'   => (int) ($validated['is_featured_home'] ?? 0),
+            'is_featured_home'   => $featured,
             'sort_order'         => (int) ($validated['sort_order'] ?? 0),
 
-            'status'             => (string) ($validated['status'] ?? 'draft'),
+            'workflow_status'      => $workflowStatus,
+            'draft_data'           => null,
+
+            'request_for_approval' => $requestForApproval,
+            'is_approved'          => ($workflowStatus === 'approved') ? 1 : 0,
+            'is_rejected'          => ($workflowStatus === 'rejected') ? 1 : 0,
+
+            'status'             => (string) ($validated['status'] ?? ($workflowStatus === 'approved' ? 'published' : 'draft')),
             'publish_at'         => !empty($validated['publish_at']) ? Carbon::parse($validated['publish_at']) : null,
             'expire_at'          => !empty($validated['expire_at']) ? Carbon::parse($validated['expire_at']) : null,
 
@@ -681,7 +714,7 @@ class EventController extends Controller
         if (! $row) return response()->json(['message' => 'Event not found'], 404);
 
         // snapshot BEFORE (from actual table)
-        $beforeRow = DB::table('events')->where('id', (int) $row->id)->first();
+        $beforeRow = DB::table('events')->where('id', (int) ($row?->id ?? 0))->first();
         $beforeLog = $this->pickEventLogRow($beforeRow);
 
         $validated = $request->validate([
@@ -744,7 +777,7 @@ class EventController extends Controller
         // dept id for directory
         $newDeptId = array_key_exists('department_id', $validated)
             ? ($validated['department_id'] !== null ? (int) $validated['department_id'] : null)
-            : ($row->department_id !== null ? (int) $row->department_id : null);
+            : ($row?->department_id !== null ? (int) $row->department_id : null);
 
         // normal fields
         foreach (['title','description','location','status'] as $k) {
@@ -918,30 +951,53 @@ class EventController extends Controller
 
         $update['gallery_images_json'] = !empty($existing) ? json_encode($existing) : null;
 
-        DB::table('events')->where('id', (int) $row->id)->update($update);
+        /* ---------------- Execution ---------------- */
+        try {
+            $result = $this->handleWorkflowUpdate($request, 'events', $row->id, $update);
+            
+            $fresh = DB::table('events')->where('id', $row->id)->first();
+            
+            $msg = ($result === 'drafted') 
+                ? 'Your changes have been submitted for approval. The live content will remain unchanged until approved.'
+                : 'Event updated successfully.';
 
-        $fresh = DB::table('events')->where('id', (int) $row->id)->first();
+            $afterLog = $this->pickEventLogRow($fresh);
+            [$changed, $oldVals, $newVals] = $this->diffEventRows($beforeLog, $afterLog);
 
-        // ✅ LOG: update (diff)
-        $afterLog = $this->pickEventLogRow($fresh);
-        [$changedFields, $oldValues, $newValues] = $this->diffEventRows($beforeLog, $afterLog);
+            $this->logActivity(
+                $request,
+                'update',
+                'events',
+                'events',
+                (int) $row->id,
+                $changed,
+                $oldVals,
+                $newVals,
+                $msg
+            );
 
-        $this->logActivity(
-            $request,
-            'update',
-            'events',
-            'events',
-            (int) $row->id,
-            $changedFields,
-            $oldValues,
-            $newValues,
-            'Event updated'
-        );
-
-        return response()->json([
-            'success' => true,
-            'data'    => $fresh ? $this->normalizeRow($fresh) : null,
-        ]);
+            return response()->json([
+                'success' => true,
+                'message' => $msg,
+                'data'    => $fresh ? $this->normalizeRow($fresh) : null,
+            ]);
+        } catch (\Throwable $e) {
+            $this->logActivity(
+                $request,
+                'update_error',
+                'events',
+                'events',
+                (int) $row->id,
+                null,
+                null,
+                null,
+                'Error: ' . $e->getMessage()
+            );
+            return response()->json([
+                'success' => false,
+                'message' => 'Update failed: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     public function toggleFeatured(Request $request, $identifier)

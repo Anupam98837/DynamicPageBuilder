@@ -1298,12 +1298,18 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // View/Edit
-    if (act === 'view' || act === 'edit'){
-      if (act === 'edit' && !canEdit) return;
+    if (act === 'view'){
+      const slug = row.slug || row.uuid || row.id;
+      if (slug) window.open(`/curriculum-syllabus/view/${slug}`, '_blank');
+      return;
+    }
+
+    if (act === 'edit'){
+      if (!canEdit) return;
       resetForm();
-      itemModalTitle.textContent = act === 'view' ? 'View Curriculum & Syllabus' : 'Edit Curriculum & Syllabus';
-      fillFormFromRow(row || {}, act === 'view');
-      itemForm.dataset.intent = act === 'view' ? 'view' : 'edit';
+      itemModalTitle.textContent = 'Edit Curriculum & Syllabus';
+      fillFormFromRow(row || {}, false);
+      itemForm.dataset.intent = 'edit';
       itemModal.show();
       return;
     }

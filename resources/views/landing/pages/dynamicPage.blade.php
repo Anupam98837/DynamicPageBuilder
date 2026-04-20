@@ -146,6 +146,7 @@ try {
         if ($hasUrl) {
             $dpResolvedPage = DB::table('pages')
                 ->whereIn('page_url', $dpLinkCandidates)
+                ->where('workflow_status', 'approved') // Added strictness
                 ->orderByDesc('id')
                 ->first();
         }
@@ -166,6 +167,7 @@ try {
     if ($slugTry) {
         $dpResolvedPage = DB::table('pages')
             ->where('slug', $slugTry)
+            ->where('workflow_status', 'approved') // Added strictness
             ->orderByDesc('id')
             ->first();
     }
@@ -372,6 +374,90 @@ try {
             'title' => (string)(dp_pick_obj($dpResolvedSubmenu, ['title','name','label'], '') ?? ''),
         ];
     }
+
+    // --------- Resolve parent header menu by matching current page URL against header_menus ----------
+    // This replaces the old ?h-uuid approach: we find which header menu "owns" the current page link.
+    // Tries: page_url, page_link, page_slug, slug — in that order.
+    $dpHeaderMenuId   = 0;
+    $dpHeaderMenuUuid = '';
+    try {
+        if (!empty($dpLinkCandidates) && Schema::hasTable('header_menus')) {
+            $hasPageUrlCol   = Schema::hasColumn('header_menus', 'page_url');
+            $hasPageLinkCol  = Schema::hasColumn('header_menus', 'page_link');
+            $hasPageSlugCol  = Schema::hasColumn('header_menus', 'page_slug');
+            $hasSlugCol      = Schema::hasColumn('header_menus', 'slug');
+
+            // Build path-only candidates (no query string) for exact & LIKE match
+            $dpBasePathTrimmed = rtrim(ltrim($dpBasePath, '/'), '/');
+            $dpPathVariants = array_values(array_filter(array_unique([
+                $dpBasePath,
+                '/' . $dpBasePathTrimmed,
+                $dpBasePathTrimmed,
+            ])));
+
+            // Extract slug from the URL path (last segment, or segment after 'page/')
+            // e.g. '/about-us' => 'about-us', '/page/admissions' => 'admissions'
+            $dpUrlSlug = '';
+            $dpSegs = array_values(array_filter(explode('/', $dpBasePathTrimmed)));
+            if (count($dpSegs) >= 2 && strtolower($dpSegs[0]) === 'page') {
+                $dpUrlSlug = $dpSegs[1];
+            } elseif (count($dpSegs) >= 1) {
+                $dpUrlSlug = end($dpSegs);
+            }
+            $dpUrlSlug = \Illuminate\Support\Str::slug(trim((string)$dpUrlSlug), '-');
+
+            $hmRow = null;
+
+            // Helper: exact match by URL column, with LIKE fallback for stored URLs with ?d-uuid or ?h-uuid tokens
+            $tryFindByUrl = function(string $col) use ($dpLinkCandidates, $dpPathVariants): ?object {
+                $q = DB::table('header_menus')->whereNull('deleted_at');
+
+                // Exact match (clean path stored in DB)
+                $row = (clone $q)->whereIn($col, $dpLinkCandidates)->orderByDesc('id')->first();
+                if ($row) return $row;
+
+                // LIKE fallback: stored URL has extra ?d-uuid or query tokens after path
+                $likeQ = (clone $q)->where(function($lq) use ($dpPathVariants) {
+                    foreach ($dpPathVariants as $variant) {
+                        if (!$variant || $variant === '/') continue;
+                        $lq->orWhere('page_url', 'LIKE', $variant . '?%');
+                        $stripped = ltrim($variant, '/');
+                        if ($stripped && $stripped !== $variant) {
+                            $lq->orWhere('page_url', 'LIKE', $stripped . '?%');
+                        }
+                    }
+                });
+                return $likeQ->orderByDesc('id')->first();
+            };
+
+            // Helper: match by slug column
+            $tryFindBySlug = function(string $col) use ($dpUrlSlug): ?object {
+                if (!$dpUrlSlug) return null;
+                return DB::table('header_menus')
+                    ->whereNull('deleted_at')
+                    ->where($col, $dpUrlSlug)
+                    ->orderByDesc('id')
+                    ->first();
+            };
+
+            // Try in priority order: page_url → page_link → page_slug → slug
+            if ($hasPageUrlCol)  $hmRow = $tryFindByUrl('page_url');
+            if (!$hmRow && $hasPageLinkCol) $hmRow = $tryFindByUrl('page_link');
+            if (!$hmRow && $hasPageSlugCol && $dpUrlSlug) $hmRow = $tryFindBySlug('page_slug');
+            if (!$hmRow && $hasSlugCol && $dpUrlSlug) $hmRow = $tryFindBySlug('slug');
+
+            // ✅ Do NOT walk up to root here — the publicTree API already has its own walk-up chain:
+            // it tries the given header_menu_id, then parent, then grandparent until it finds submenus.
+            // Passing the directly-matched item's id lets the API find the CLOSEST ancestor with submenus.
+            if ($hmRow) {
+                $dpHeaderMenuId   = (int)($hmRow->id ?? 0);
+                $dpHeaderMenuUuid = (string)($hmRow->uuid ?? '');
+            }
+        }
+    } catch (\Throwable $e) {
+        $dpHeaderMenuId   = 0;
+        $dpHeaderMenuUuid = '';
+    }
 @endphp
 @php
 
@@ -498,6 +584,7 @@ try {
     } else {
         echo '<!-- No page resolved -->';
     }
+    echo '<!-- Header Menu ID: ' . $dpHeaderMenuId . ' | UUID: ' . $dpHeaderMenuUuid . ' -->';
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -692,6 +779,8 @@ try {
     window.__DP_SERVER_LINK_PATH__ = @json($dpBasePath);
     window.__DP_SERVER_SUBMENU_SLUG__ = @json($dpSubmenuSlug);
     window.__DP_SERVER_SUBMENU_DIRECT__ = @json($dpResolvedSubmenuFromDirectPath);
+    window.__DP_SERVER_HEADER_MENU_ID__   = {{ (int)$dpHeaderMenuId }};
+    window.__DP_SERVER_HEADER_MENU_UUID__ = @json($dpHeaderMenuUuid);
 </script>
 
 <script>
@@ -1164,6 +1253,8 @@ try {
     }
 
     function readSubmenuFromPathname(){
+        const qs = new URLSearchParams(window.location.search).get('submenu');
+        if (qs) return qs;
         const p = String(window.location.pathname || '');
         const m = p.match(/&submenu=([^\/?#]+)/);
         return m ? decodeURIComponent(m[1]) : '';
@@ -1378,20 +1469,20 @@ try {
         return newParams;
     }
 
-    function pushUrlStateSubmenu(submenuSlug, headerUuid, deptTokenMaybe){
+    function pushUrlStateSubmenu(submenuSlug, deptTokenMaybe){
         const u = new URL(window.location.href);
 
         let path = stripSubmenuFromPath(u.pathname);
         const s = String(submenuSlug || '').trim();
-        if (s) path += '&submenu=' + encodeURIComponent(s);
 
-        let params = new URLSearchParams(u.search);
-
-        const headerUuidFinal = headerUuid ||
-            (window.__DP_PAGE_SCOPE__?.header_menu_uuid) ||
-            readHeaderMenuUuidFromUrl();
-
-        params = buildSearchWithHeaderUuid(params, headerUuidFinal);
+        // ✅ No longer write h-uuid into URL — URLs stay clean for SEO
+        // Only preserve existing dept token and shortcode if present
+        let params = new URLSearchParams();
+        
+        const currentDept = u.searchParams.get('dept');
+        if (currentDept) params.set('dept', currentDept);
+        
+        if (s) params.set('submenu', s);
 
         const deptTokenFinal = (deptTokenMaybe && isDeptToken(deptTokenMaybe))
             ? deptTokenMaybe
@@ -1859,15 +1950,8 @@ if (hasPageScope) {
                     if (isSameOriginUrl(directLink)){
                         const u = normalizeToUrl(directLink);
                         if (u){
-                            // Preserve header token + dept token if needed
+                            // ✅ Only preserve dept token — no h-uuid needed (server detects it)
                             let params = new URLSearchParams(u.search || '');
-
-                            const headerUuidFinal =
-                                (a.dataset.headerUuid || '') ||
-                                (window.__DP_PAGE_SCOPE__?.header_menu_uuid) ||
-                                readHeaderMenuUuidFromUrl();
-
-                            params = buildSearchWithHeaderUuid(params, headerUuidFinal);
 
                             const deptTokenFinal = readDeptTokenFromUrl();
                             params = buildSearchWithDept(params, deptTokenFinal);
@@ -1928,7 +2012,7 @@ if (hasPageScope) {
     preWin,
     String(title || 'Coming Soon')
 );
-                pushUrlStateSubmenu(sslug, window.__DP_PAGE_SCOPE__?.header_menu_uuid || '', readDeptTokenFromUrl());
+                pushUrlStateSubmenu(sslug, readDeptTokenFromUrl());
             });
 
             row.appendChild(a);
@@ -1983,9 +2067,14 @@ if (hasPageScope) {
         const pageId   = pick(page, ['id']);
         const pageSlug = pick(page, ['slug']);
 
-        const headerFromUrl = readHeaderMenuUuidFromUrl();
+        // ✅ Prefer server-resolved header menu (detected by page URL match, no ?h-uuid needed)
+        const serverHeaderId   = Number(window.__DP_SERVER_HEADER_MENU_ID__ || 0);
+        const serverHeaderUuid = String(window.__DP_SERVER_HEADER_MENU_UUID__ || '').trim();
 
-        if (!pageId && !pageSlug && !headerFromUrl) {
+        // Fallback to URL token for backward compat (will be empty on clean URLs)
+        const headerFromUrl = serverHeaderUuid || readHeaderMenuUuidFromUrl();
+
+        if (!pageId && !pageSlug && !serverHeaderId && !headerFromUrl) {
             hideSidebarSkeleton();
             sidebarCol.classList.add('d-none');
             sidebarCol.classList.remove('dp-side-preload');
@@ -2003,9 +2092,10 @@ if (pageId) {
     treeUrl.searchParams.set('page_slug', String(pageSlug));
 }
 
-// keep header scope too for tree loading,
-// because many backends use it to identify the correct submenu group
-if (headerFromUrl) {
+// ✅ Header menu scope — prefer integer id (no extra uuid→id lookup on backend)
+if (serverHeaderId > 0) {
+    treeUrl.searchParams.set('header_menu_id', String(serverHeaderId));
+} else if (headerFromUrl) {
     if (isUuid(headerFromUrl)) {
         treeUrl.searchParams.set('header_uuid', headerFromUrl);
     } else {
@@ -2135,7 +2225,9 @@ function setupHeaderMenuClicks() {
 
     // ✅ Server resolved link path for header-link routes
     const serverLinkPath = String(window.__DP_SERVER_LINK_PATH__ || window.location.pathname || '').trim();
-    const headerFromUrl = readHeaderMenuUuidFromUrl();
+    // ✅ Prefer server-resolved header menu uuid (no ?h-uuid in URL needed)
+    const serverHeaderUuidInit = String(window.__DP_SERVER_HEADER_MENU_UUID__ || '').trim();
+    const headerFromUrl = serverHeaderUuidInit || readHeaderMenuUuidFromUrl();
 
         if (!slugCandidate && !serverLinkPath) {
     elLoading.classList.add('d-none');
@@ -2183,12 +2275,11 @@ function setupHeaderMenuClicks() {
     page_id: pick(page, ['id']) || null,
     page_slug: pick(page, ['slug']) || null,
 
-    // keep these only as reference for entry resolution,
-    // but render/tree must prefer page scope
-    header_menu_uuid: (isUuid(headerFromUrl) ? headerFromUrl : null) || null,
-    requested_header_menu_uuid: (isUuid(headerFromUrl) ? headerFromUrl : null) || null,
-    header_menu_id: (!isUuid(headerFromUrl) ? parseInt(headerFromUrl) : null) || null,
-    requested_header_menu_id: (!isUuid(headerFromUrl) ? parseInt(headerFromUrl) : null) || null,
+    // ✅ Use server-resolved header menu values (no ?h-uuid in URL)
+    header_menu_uuid: serverHeaderUuidInit || (isUuid(headerFromUrl) ? headerFromUrl : null) || null,
+    requested_header_menu_uuid: serverHeaderUuidInit || (isUuid(headerFromUrl) ? headerFromUrl : null) || null,
+    header_menu_id: Number(window.__DP_SERVER_HEADER_MENU_ID__ || 0) || (!isUuid(headerFromUrl) ? parseInt(headerFromUrl) : null) || null,
+    requested_header_menu_id: Number(window.__DP_SERVER_HEADER_MENU_ID__ || 0) || (!isUuid(headerFromUrl) ? parseInt(headerFromUrl) : null) || null,
 
     scope_mode: 'page'
 };

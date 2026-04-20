@@ -2067,11 +2067,17 @@ td.col-slug code{
       const toggle = btn.closest('.dropdown')?.querySelector('.se-dd-toggle');
       if (toggle) { try { bootstrap.Dropdown.getInstance(toggle)?.hide(); } catch (_) {} }
 
-      if (action === 'view' || action === 'edit'){
-        if (action === 'edit' && !canEdit) return;
+      if (action === 'view'){
+        const slug = row?.slug || row?.uuid || row?.id;
+        if (slug) window.open(`/successful-entrepreneurs/view/${slug}`, '_blank');
+        return;
+      }
+
+      if (action === 'edit'){
+        if (!canEdit) return;
         resetForm();
-        itemModalTitle.textContent = (action === 'view') ? 'View Entrepreneur' : 'Edit Entrepreneur';
-        fillForm(row || {}, action === 'view');
+        itemModalTitle.textContent = 'Edit Entrepreneur';
+        fillForm(row || {}, false);
         itemModal?.show();
         return;
       }

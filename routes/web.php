@@ -128,29 +128,35 @@ Route::get('/scholarships', function () {
 
 // Department View Pages
 
-Route::get('/department/view/{uuid}', function () {
+Route::get('/department/view/{slug}', function () {
     return view('modules.departments.viewDepartment');
 });
 
-Route::get('/curriculum-syllabus/view/{uuid}', function () {
+
+Route::get('/curriculum-syllabus/view/{slug}', function () {
     return view('modules.curriculumSyllabuses.viewCurriculumSyllabuses');
 });
 
-Route::get('/announcements/view/{uuid}', function () {
+
+Route::get('/announcements/view/{slug}', function () {
     return view('modules.announcements.viewAnnouncements');
 });
 
-Route::get('/achievements/view/{uuid}', function () {
+
+Route::get('/achievements/view/{slug}', function () {
     return view('modules.achievements.viewAchievements');
 });
 
-Route::get('/notices/view/{uuid}', function () {
+
+Route::get('/notices/view/{slug}', function () {
     return view('modules.notices.viewNotices');
 });
 
-Route::get('/student-activities/view/{uuid}', function () {
+
+Route::get('/student-activities/view/{slug}', function () {
     return view('modules.studentActivities.viewStudentActivities');
 });
+
 
 Route::get('/gallery/view/{uuid}', function () {
     return view('modules.gallery.viewGallery');
@@ -160,29 +166,35 @@ Route::get('/placed-students/view/{uuid}', function () {
     return view('modules.placedStudents.viewPlacedStudents');
 });
 
-Route::get('/placement-notices/view/{uuid}', function () {
+Route::get('/placement-notices/view/{slug}', function () {
     return view('modules.placementNotices.viewPlacementNotices');
 });
 
-Route::get('/successful-entrepreneurs/view/{uuid}', function () {
+
+Route::get('/successful-entrepreneurs/view/{slug}', function () {
     return view('modules.successfulEntrepreneurs.viewSuccessfulEntrepreneurs');
 });
 
-Route::get('/career-notices/view/{uuid}', function () {
+
+Route::get('/career-notices/view/{slug}', function () {
     return view('modules.careerNotices.viewCareerNotices');
 });
 
-Route::get('/why-us/view/{uuid}', function () {
+
+Route::get('/why-us/view/{slug}', function () {
     return view('modules.whyUs.viewWhyUs');
 });
 
-Route::get('/scholarships/view/{uuid}', function () {
+
+Route::get('/scholarships/view/{slug}', function () {
     return view('modules.scholarship.viewScholarships');
 });
 
-Route::get('/success-stories/view/{uuid}', function () {
+
+Route::get('/success-stories/view/{slug}', function () {
     return view('modules.successStory.viewSuccessStories');
 });
+
 
 
 // Course Manage
@@ -268,14 +280,14 @@ Route::get('/page-privilege/create', function () {
 //         return view('modules.privileges.assignPrivileges', compact('userId'));
 //     })->where('userId','[0-9]+')->name('admin.privileges.assign.user');
 
-  // Accept either numeric ID OR UUID via query params
+// Accept either numeric ID OR UUID via query params
 Route::get('/user-privileges/manage', function () {
     $userUuid = request('user_uuid');
-    $userId   = request('user_id'); // fallback
-    
+    $userId = request('user_id'); // fallback
+
     return view('modules.privileges.assignPrivileges', [
-        'userUuid' => $userUuid,
-        'userId'   => $userId,
+    'userUuid' => $userUuid,
+    'userId' => $userId,
     ]);
 })->name('modules.privileges.assign.user');
 
@@ -336,25 +348,25 @@ Route::get('/announcements', function () {
     return view('landing.pages.announcements.viewAllAnnouncements');
 
 });
- 
+
 Route::get('/achievements', function () {
 
     return view('landing.pages.achievements.viewAllAchievements');
 
 });
- 
+
 Route::get('/notices', function () {
 
     return view('landing.pages.notices.viewAllNotices');
 
 });
- 
+
 Route::get('/student-activities', function () {
 
     return view('landing.pages.studentActivities.viewAllStudentActivities');
 
 });
- 
+
 Route::get('/gallery', function () {
 
     return view('landing.pages.gallery.viewAllGallery');
@@ -367,31 +379,30 @@ Route::get('/gallery/all-images', function () {
     return view('landing.pages.gallery.viewAllGallery');
 
 });
- 
+
 Route::get('/our-recruiters', function () {
 
     return view('landing.pages.ourRecruiters.viewAllOurRecruiters');
 
 });
- 
+
 Route::get('/success-stories', function () {
 
-    return view('landing.pages.successStory.viewAllsuccessStory');
+    return view('landing.pages.successStory.viewAllSuccessStory');
 
 });
- 
+
 Route::get('/courses', function () {
 
     return view('landing.pages.course.viewAllCourses');
 
 });
- 
-Route::get('/courses/view/{uuid}', function () {
 
+Route::get('/courses/view/{slug}', function () {
     return view('modules.course.viewCourses');
-
 });
- 
+
+
 Route::get('/events', function () {
 
     return view('landing.pages.events.viewAllEvents');
@@ -433,7 +444,7 @@ Route::get('/program-toppers', function () {
     return view('landing.pages.programToppers.viewAllProgramToppers');
 
 });
- 
+
 Route::get('/tp-cell', function () {
 
     return view('landing.pages.t&pCell.viewAllT&PCell');
@@ -445,76 +456,76 @@ Route::get('/placement-notices', function () {
     return view('landing.pages.placementNotices.viewAllPlacementNotices');
 
 });
- 
+
 Route::get('/statistics', function () {
 
     return view('landing.pages.statistics.viewAllStatistics');
 
 });
- 
+
 Route::get('/contact-us', function () {
 
     return view('landing.pages.contactUs.viewContactUs');
 
 });
- 
+
 Route::get('/contact-us/manage', function () {
     return view('pages.users.pages.contactUs.manageContacts');
 });
- 
+
 Route::get('/contact-us-visibility/manage', function () {
     return view('pages.users.pages.contactUs.manageContactVisibility');
 });
 
-Route::get('/enquiry', function () {
+Route::get('/enquiry-form', function () {
     return view('landing.pages.enquiry.createEnquiry');
 });
- 
+
 Route::get('/students/manage', function () {
     return view('pages.users.pages.users.manageStudents');
 });
- 
+
 Route::get('/senior-authority/manage', function () {
     return view('pages.users.pages.users.manageSeniorAuthority');
 });
- 
+
 Route::get('/other-roles/manage', function () {
     return view('pages.users.pages.users.manageOtherRole');
 });
- 
+
 Route::get('/faculty/manage', function () {
     return view('pages.users.pages.users.manageFaculty');
 });
- 
+
 Route::get('/faculty-preview-order', function () {
     return view('pages.users.pages.faculty.facultyPreviewOrder');
 });
- 
+
 Route::get('/technical-assistant-preview-order', function () {
     return view('pages.users.pages.technicalAssistant.technicalAssistantPreviewOrder');
 });
- 
+
 Route::get('/placement-officer-preview-order', function () {
     return view('pages.users.pages.placementOfficer.placementOfficerPreviewOrder');
 });
- 
+
 Route::get('/sticky-buttons/manage', function () {
     return view('pages.users.pages.stickyButtons.manageStickyButtons');
 });
- 
+
 Route::get('/master-approval/manage', function () {
     return view('pages.users.pages.masterApproval.manageMasterApproval');
 });
- 
+
 Route::get('/student-subject-attendance', function () {
     return view('pages.users.pages.subject.studentSubjectAttendance');
 });
 
 
 // Activity Logs
-Route::get('/activity-logs', fn () => view('pages.users.pages.userActivityLogs.userActivityLogsView'));
+Route::get('/activity-logs', fn() => view('pages.users.pages.userActivityLogs.userActivityLogsView'));
 
- 
+
 Route::get('/meta-tags/manage', function () {
     return view('pages.users.pages.metaTags.manageMetaTags');
 });
@@ -528,7 +539,7 @@ Route::get('/course-enquiry-settings', function () {
 
 
 // S.E Routes
- 
+
 Route::get('/public/institute/contact-us', function () {
     return view('landing.pages.contactUs.viewContactUs');
 });

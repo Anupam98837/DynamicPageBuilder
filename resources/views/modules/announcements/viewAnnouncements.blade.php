@@ -350,21 +350,46 @@
 
     @keyframes shimmer { to { transform: translateX(100%); } }
 
-    /* Error */
+    /* Error / Coming Soon */
     .error-container{
-      background:#fee;
-      border:1px solid #fcc;
-      border-radius: var(--radius-lg);
-      padding:24px;
-      color:#c00;
-      line-height:1.6;
-      margin:40px 0;
+      background: var(--surface);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-xl);
+      padding: clamp(40px, 8vw, 80px) 24px;
+      text-align: center;
+      margin: 40px auto;
+      max-width: 700px;
+      box-shadow: var(--shadow-3);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
     }
-
     .error-container i{
-      font-size:24px;
-      margin-bottom:12px;
-      display:block;
+      font-size: clamp(48px, 8vw, 80px);
+      color: var(--primary-color);
+      margin-bottom: 8px;
+      filter: drop-shadow(0 8px 16px var(--primary-light));
+      animation: pulse-soft 3s infinite ease-in-out;
+      display: block;
+    }
+    .error-title{
+      font-size: clamp(24px, 4vw, 36px);
+      font-weight: 900;
+      color: var(--ink);
+      letter-spacing: -0.03em;
+      margin: 0;
+    }
+    .error-message{
+      font-size: 16px;
+      color: var(--muted-color);
+      max-width: 480px;
+      margin: 0 auto;
+      line-height: 1.7;
+    }
+    @keyframes pulse-soft {
+      0%, 100% { transform: translateY(0); opacity: 1; }
+      50% { transform: translateY(-10px); opacity: 0.8; }
     }
 
     /* Responsive */
@@ -390,11 +415,6 @@
       <div class="announcement-headbar">
         <h1 class="announcement-title" id="announcementTitle">Announcement</h1>
 
-        <!-- ✅ Date pill moved to top-right -->
-        <span class="meta-pill meta-pill-date" id="metaDate" style="display:none">
-          <i class="fa-regular fa-calendar"></i>
-          <span></span>
-        </span>
       </div>
 
       <div class="announcement-meta" id="announcementMeta" style="display:none">
@@ -405,10 +425,6 @@
 
         <!-- ✅ Views pill removed -->
 
-        <span class="meta-pill" id="metaFeatured" style="display:none">
-          <i class="fa-solid fa-star"></i>
-          <span>Featured</span>
-        </span>
       </div>
 
       <!-- Content inside header (same as Achievement page) -->
@@ -436,10 +452,15 @@
       <div class="loading-bar" style="width:58%"></div>
     </section>
 
-    <!-- Error -->
+    <!-- Error / Coming Soon -->
     <div id="errorSection" class="error-container" style="display:none">
-      <i class="fa-solid fa-exclamation-triangle"></i>
-      <div id="errorMessage"></div>
+      <i class="fa-solid fa-hourglass-half"></i>
+      <h2 class="error-title">Coming Soon!</h2>
+      <div id="errorMessage" class="error-message">This content is currently undergoing review and will be published shortly.</div>
+      <a href="/" class="action-btn" style="margin-top:24px;">
+        <i class="fa-solid fa-house"></i>
+        Explore Website
+      </a>
     </div>
 
     <!-- Cover -->
@@ -525,7 +546,11 @@
 
       function setError(msg) {
         $('errorSection').style.display = msg ? '' : 'none';
-        $('errorMessage').textContent = msg || '';
+        // If it's a "not found" or 404 related, we keep our pretty "Coming Soon" static message
+        // only override if it's a specific technical error
+        if (msg && !msg.toLowerCase().includes('not found') && !msg.toLowerCase().includes('reachable') && !msg.toLowerCase().includes('available')) {
+          $('errorMessage').textContent = msg;
+        }
       }
 
       function renderAttachments(attachments_json) {
@@ -587,15 +612,6 @@
         $('announcementTitle').textContent = title;
         document.title = title;
 
-        // ✅ Date pill now independent (top-right)
-        const date = formatDate(an.publish_at || an.created_at || an.updated_at);
-        if (date) {
-          $('metaDate').style.display = '';
-          $('metaDate').querySelector('span').textContent = date;
-        } else {
-          $('metaDate').style.display = 'none';
-          $('metaDate').querySelector('span').textContent = '';
-        }
 
         // ✅ Meta row (dept + featured only)
         let hasMeta = false;
@@ -615,10 +631,6 @@
           $('metaDept').querySelector('span').textContent = '';
         }
 
-        // Featured
-        const featured = (an.is_featured_home === 1 || an.is_featured_home === true || String(an.is_featured_home) === '1');
-        $('metaFeatured').style.display = featured ? '' : 'none';
-        if (featured) hasMeta = true;
 
         $('announcementMeta').style.display = hasMeta ? '' : 'none';
 

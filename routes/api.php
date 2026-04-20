@@ -157,7 +157,7 @@ Route::middleware(['checkRole'])
     });
 
 Route::get('/me/profile', [UserProfileController::class,'show']);
-Route::get('/users/{user_uuid}/profile', [UserProfileController::class,'show']);
+Route::get('/users/{identifier}/profile', [UserProfileController::class, 'show']);
     
 // ✅ Other user's profile (protected)
 Route::middleware(['checkRole'])->prefix('users')->group(function () {
@@ -689,7 +689,7 @@ Route::prefix('/public/page-submenus')->group(function () {
 
 
 Route::prefix('public/pages')->group(function () {
-    Route::get('/resolve', [PageController::class, 'resolve']); // ?slug=
+    Route::get('/resolve', [PageController::class, 'publicResolve']); // ?slug=
 });
 
 // Public
@@ -934,6 +934,7 @@ Route::middleware('checkRole')->group(function () {
 Route::get('/public/student-activities',              [StudentActivityController::class, 'publicIndex']);
 Route::get('/public/student-activities/{identifier}', [StudentActivityController::class, 'publicShow']);
 Route::get('/public/departments/{department}/student-activities', [StudentActivityController::class, 'publicIndexByDepartment']);
+
 
 
 
@@ -1367,7 +1368,7 @@ Route::prefix('hero-carousel-settings')->group(function () {
     Route::delete('/{idOrUuid}/force',     [HeroCarouselSettingsController::class, 'forceDelete']);
 });
 
-Route::prefix('recruiters')->group(function () {
+Route::middleware('checkRole')->prefix('recruiters')->group(function () {
     Route::get('/', [RecruiterController::class, 'index']);
     Route::get('/trash', [RecruiterController::class, 'trash']);
 
@@ -1521,23 +1522,25 @@ Route::prefix('program-toppers')->group(function () {
 | Placement Notices (Admin)
 |--------------------------------------------------------------------------
 */
-Route::get('placement-notices', [PlacementNoticeController::class, 'index']);
-Route::get('placement-notices/trash', [PlacementNoticeController::class, 'trash']);
-Route::get('placement-notices/department/{department}', [PlacementNoticeController::class, 'indexByDepartment']);
+Route::middleware('checkRole')->prefix('placement-notices')->group(function () {
+    Route::get('/', [PlacementNoticeController::class, 'index']);
+    Route::get('/trash', [PlacementNoticeController::class, 'trash']);
+    Route::get('/department/{department}', [PlacementNoticeController::class, 'indexByDepartment']);
 
-Route::get('placement-notices/{identifier}', [PlacementNoticeController::class, 'show']);
-Route::get('placement-notices/department/{department}/{identifier}', [PlacementNoticeController::class, 'showByDepartment']);
+    Route::get('/{identifier}', [PlacementNoticeController::class, 'show']);
+    Route::get('/department/{department}/{identifier}', [PlacementNoticeController::class, 'showByDepartment']);
 
-Route::post('placement-notices', [PlacementNoticeController::class, 'store']);
-Route::post('placement-notices/department/{department}', [PlacementNoticeController::class, 'storeForDepartment']);
+    Route::post('/', [PlacementNoticeController::class, 'store']);
+    Route::post('/department/{department}', [PlacementNoticeController::class, 'storeForDepartment']);
 
-Route::put('placement-notices/{identifier}', [PlacementNoticeController::class, 'update']);
+    Route::put('/{identifier}', [PlacementNoticeController::class, 'update']);
 
-Route::patch('placement-notices/{identifier}/toggle-featured', [PlacementNoticeController::class, 'toggleFeatured']);
+    Route::patch('/{identifier}/toggle-featured', [PlacementNoticeController::class, 'toggleFeatured']);
 
-Route::delete('placement-notices/{identifier}', [PlacementNoticeController::class, 'destroy']);
-Route::patch('placement-notices/{identifier}/restore', [PlacementNoticeController::class, 'restore']);
-Route::delete('placement-notices/{identifier}/force', [PlacementNoticeController::class, 'forceDelete']);
+    Route::delete('/{identifier}', [PlacementNoticeController::class, 'destroy']);
+    Route::patch('/{identifier}/restore', [PlacementNoticeController::class, 'restore']);
+    Route::delete('/{identifier}/force', [PlacementNoticeController::class, 'forceDelete']);
+});
 
 /*
 |--------------------------------------------------------------------------
@@ -2098,6 +2101,7 @@ Route::middleware('checkRole')->group(function () {
 
     Route::post('/master-approval/{uuid}/approve', [MasterApprovalController::class, 'approve']);
     Route::post('/master-approval/{uuid}/reject', [MasterApprovalController::class, 'reject']);
+    Route::get('/master-approval/history/{table}/{id}', [MasterApprovalController::class, 'history']);
 });
 
 

@@ -106,6 +106,87 @@ td.col-slug code{
   background:color-mix(in oklab, var(--primary-color) 12%, transparent);
   color:var(--primary-color)
 }
+.badge-soft-danger{
+  background:color-mix(in oklab, var(--danger-color) 12%, transparent);
+  color:var(--danger-color)
+}
+.badge-soft-info{
+  background:color-mix(in oklab, var(--info-color, #0ea5e9) 12%, transparent);
+  color:var(--info-color, #0ea5e9)
+}
+
+/* Timeline Styles */
+.timeline {
+  position: relative;
+  padding: 0;
+  list-style: none;
+}
+.timeline:before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 31px;
+  width: 2px;
+  background: var(--line-soft);
+}
+.timeline-item {
+  position: relative;
+  margin-bottom: 20px;
+}
+.timeline-marker {
+  position: absolute;
+  top: 0;
+  left: 20px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--primary-color);
+  z-index: 10;
+}
+.timeline-content {
+  margin-left: 60px;
+  padding: 12px 16px;
+  background: color-mix(in oklab, var(--surface) 95%, var(--bg-body));
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+}
+.timeline-date {
+  font-size: 11px;
+  color: var(--muted-color);
+  margin-bottom: 4px;
+}
+.timeline-title {
+  font-weight: 600;
+  font-size: 13.5px;
+  margin-bottom: 4px;
+}
+.timeline-author {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.timeline-comment {
+  font-size: 12.5px;
+  color: var(--muted-color);
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: rgba(0,0,0,0.03);
+  border-left: 2px solid var(--line-strong);
+  font-style: italic;
+}
+.badge-pending-draft {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--warning-color);
+  color: #fff;
+  vertical-align: middle;
+  margin-left: 4px;
+  text-transform: uppercase;
+  font-weight: 700;
+}
 
 /* Responsive + horizontal scroll */
 .table-responsive{
@@ -303,7 +384,7 @@ td.col-slug code{
         <i class="fa-solid fa-circle-pause me-2"></i>Inactive
       </a>
     </li>
-    <li class="nav-item">
+    <li class="nav-item" id="saTabHeaderTrash" style="display:none;">
       <a class="nav-link" data-bs-toggle="tab" href="#sa-tab-trash" role="tab" aria-selected="false">
         <i class="fa-solid fa-trash-can me-2"></i>Trash
       </a>
@@ -368,7 +449,7 @@ td.col-slug code{
                 </tr>
               </thead>
               <tbody id="saTbodyActive">
-                <tr><td colspan="9" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+                <tr><td colspan="10" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -406,7 +487,7 @@ td.col-slug code{
                 </tr>
               </thead>
               <tbody id="saTbodyInactive">
-                <tr><td colspan="9" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+                <tr><td colspan="10" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -535,6 +616,29 @@ td.col-slug code{
         <input type="hidden" id="saUuid">
         <input type="hidden" id="saId">
         <input type="hidden" id="saCoverRemove" value="0">
+
+        {{-- Rejection Alert --}}
+        <div id="saRejectionAlert" class="alert alert-danger mb-3" style="display:none;">
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <i class="fa fa-circle-exclamation fs-5"></i>
+            <h6 class="mb-0 fw-bold">Rejected by Authority</h6>
+          </div>
+          <div id="saRejectionReasonText" class="ms-4 small" style="white-space: pre-wrap;">Reason...</div>
+          <div class="mt-2 ms-4">
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="viewSaHistoryFromAlert()">
+              <i class="fa fa-clock-rotate-left me-1"></i>View Full History
+            </button>
+          </div>
+        </div>
+
+        {{-- Pending Draft Alert --}}
+        <div id="saDraftAlert" class="alert alert-warning mb-3" style="display:none;">
+          <div class="d-flex align-items-center gap-2">
+            <i class="fa fa-pen-nib fs-5"></i>
+            <h6 class="mb-0 fw-bold">Pending Changes</h6>
+          </div>
+          <div class="ms-4 small">This item has updates waiting for approval. Editing now will replace those pending changes.</div>
+        </div>
 
         <div class="row g-3">
           <div class="col-lg-6">
@@ -700,6 +804,34 @@ td.col-slug code{
 </div>
 @endsection
 
+{{-- Workflow History Modal --}}
+<div class="modal fade" id="saHistoryModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-md modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-clock-rotate-left me-2"></i>Workflow History</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="saHistoryLoading" class="text-center py-4">
+          <div class="spinner-border text-primary" role="status"></div>
+          <div class="mt-2 text-muted">Loading history…</div>
+        </div>
+        <div id="saHistoryContent" style="display:none;">
+          <ul class="timeline" id="saHistoryTimeline"></ul>
+        </div>
+        <div id="saHistoryEmpty" class="text-center py-4 text-muted" style="display:none;">
+          <i class="fa fa-history mb-2 fs-3 opacity-50"></i>
+          <div>No history found for this item.</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -753,12 +885,27 @@ td.col-slug code{
     finally{ clearTimeout(t); }
   }
 
-  function statusBadge(status){
+  function statusBadge(status, hasDraft){
     const s = (status || '').toString().toLowerCase();
-    if (s === 'published') return `<span class="badge badge-soft-success">Published</span>`;
-    if (s === 'draft') return `<span class="badge badge-soft-warning">Draft</span>`;
-    if (s === 'archived') return `<span class="badge badge-soft-muted">Archived</span>`;
-    return `<span class="badge badge-soft-muted">${esc(s || '—')}</span>`;
+    let html = '';
+    if (s === 'published') html = `<span class="badge badge-soft-success">Published</span>`;
+    else if (s === 'draft') html = `<span class="badge badge-soft-warning">Draft</span>`;
+    else if (s === 'archived') html = `<span class="badge badge-soft-muted">Archived</span>`;
+    else html = `<span class="badge badge-soft-muted">${esc(s || '—')}</span>`;
+
+    if (hasDraft) {
+      html += `<span class="badge-pending-draft" title="Pending Changes">Draft</span>`;
+    }
+    return html;
+  }
+
+  function workflowBadge(ws){
+    const s = (ws || '').toString().toLowerCase();
+    if (s === 'pending_check') return `<span class="badge-soft-warning p-1 px-2 rounded-pill small"><i class="fa fa-hourglass-start me-1"></i>Pending Check</span>`;
+    if (s === 'checked') return `<span class="badge-soft-info p-1 px-2 rounded-pill small"><i class="fa fa-check-double me-1"></i>Checked</span>`;
+    if (s === 'approved') return `<span class="badge-soft-success p-1 px-2 rounded-pill small"><i class="fa fa-circle-check me-1"></i>Approved</span>`;
+    if (s === 'rejected') return `<span class="badge-soft-danger p-1 px-2 rounded-pill small"><i class="fa fa-circle-xmark me-1"></i>Rejected</span>`;
+    return `<span class="badge-soft-muted p-1 px-2 rounded-pill small">${esc(s || '—')}</span>`;
   }
 
   function featuredBadge(v){
@@ -873,15 +1020,21 @@ td.col-slug code{
       enabled: true
     };
 
+    // Exposed
+    const saModule = {
+      openModal,
+      reload: () => loadTab(getTabKey()),
+      showHistory
+    };
+
     // Permissions
     const ACTOR = { id: null, role: '', department_id: null };
-  let canAssignPrivilege = false;
+    let canAssignPrivilege = false;
     let canCreate=false, canEdit=false, canDelete=false;
-// Add publishing permissions
-let canPublish = false;
+    let canPublish = false;
 
-function computePermissions(){
-  const r = (ACTOR?.role || '').toLowerCase();
+    function computePermissions(){
+      const r = (ACTOR?.role || '').toLowerCase();
       if(!ACTOR.department_id){
           canCreate = canEdit = canDelete = canAssignPrivilege = true;
       } else {
@@ -907,25 +1060,28 @@ function computePermissions(){
              if (actionsStr.includes('assign_privilege') || actionsStr.includes('assign privileges') || actionsStr.includes('privilege')) canAssignPrivilege = true;
           }
       }
-  canPublish = true;  // Only these roles can publish
+      canPublish = true; // allow everyone who can write to see the "Published" option
 
-  if (writeControls) writeControls.style.display = canCreate ? 'flex' : 'none';
-  
-  // Update publish option visibility in status dropdown
-  updatePublishOption();
-}
+      const allowedTrashRoles = ['hod', 'admin', 'director', 'principal', 'author', 'super_admin'];
+      const tabHeaderTrash = $('saTabHeaderTrash');
+      if (tabHeaderTrash) {
+        tabHeaderTrash.style.display = allowedTrashRoles.includes(r) ? 'block' : 'none';
+      }
 
-function updatePublishOption(){
-  if (!fStatus) return;
-  const publishOption = fStatus.querySelector('option[value="published"]');
-  if (publishOption){
-    publishOption.style.display = canPublish ? '' : 'none';
-    // If current value is published but user can't publish, change to draft
-    if (!canPublish && fStatus.value === 'published'){
-      fStatus.value = 'draft';
+      if (writeControls) writeControls.style.display = canCreate ? 'flex' : 'none';
+      updatePublishOption();
     }
-  }
-}
+
+    function updatePublishOption(){
+      if (!fStatus) return;
+      const publishOption = fStatus.querySelector('option[value="published"]');
+      if (publishOption){
+        publishOption.style.display = canPublish ? 'block' : 'none';
+        if (!canPublish && fStatus.value === 'published'){
+          fStatus.value = 'draft';
+        }
+      }
+    }
 
     async function fetchMe(){
       try{
@@ -934,6 +1090,8 @@ function updatePublishOption(){
           const js = await res.json().catch(()=> ({}));
           const role = js?.data?.role || js?.role;
           if (role) ACTOR.role = String(role).toLowerCase();
+          const deptId = js?.data?.department_id || js?.department_id;
+          if (deptId) ACTOR.department_id = deptId;
         }
       }catch(_){}
       if (!ACTOR.role){
@@ -952,115 +1110,27 @@ function updatePublishOption(){
       computePermissions();
     }
 
-    // =========================
-    // ✅ Departments (added)
-    // =========================
     let departmentsLoaded = false;
-    let departments = []; // [{id, name}]
-    let pendingDeptId = '';
-
-    function pickDeptName(d){
-      return (d?.name ?? d?.title ?? d?.department_name ?? d?.department_title ?? d?.label ?? '').toString().trim();
-    }
-    function pickDeptId(d){
-      const v = (d?.id ?? d?.department_id ?? d?.dept_id ?? d?.value);
-      return (v === 0 || v === '0' || v) ? String(v) : '';
-    }
-
-    function setDeptSelectOptions(list){
+    async function loadDepartmentsForForm(selected=''){
       if (!fDepartmentId) return;
-
-      const selected = (fDepartmentId.value || '').toString();
-      const hasList = Array.isArray(list) && list.length;
-
-      const opts = [];
-      opts.push(`<option value="">Select department…</option>`);
-      if (hasList){
-        for (const d of list){
-          const id = String(d.id);
-          const name = (d.name || '').toString();
-          if (!id || !name) continue;
-          opts.push(`<option value="${esc(id)}">${esc(name)}</option>`);
-        }
-      } else {
-        opts.push(`<option value="" disabled>(Unable to load departments)</option>`);
-      }
-
-      fDepartmentId.innerHTML = opts.join('');
-
-      // re-apply selection if any
-      if (pendingDeptId){
-        fDepartmentId.value = String(pendingDeptId);
-        pendingDeptId = '';
-      } else if (selected){
-        fDepartmentId.value = selected;
+      fDepartmentId.innerHTML = `<option value="">Loading departments…</option>`;
+      fDepartmentId.disabled = true;
+      try{
+        const res = await fetchWithTimeout('/api/departments', { headers: authHeaders() }, 15000);
+        const js = await res.json().catch(()=> ({}));
+        if (!res.ok) throw new Error(js?.message || 'Failed to load');
+        const list = Array.isArray(js.data) ? js.data : [];
+        let html = `<option value="">Select department</option>`;
+        html += list.map(d => `<option value="${esc(d.id)}">${esc(d.title || d.name)}</option>`).join('');
+        fDepartmentId.innerHTML = html;
+        fDepartmentId.disabled = false;
+        if (selected) fDepartmentId.value = String(selected);
+      }catch(ex){
+        fDepartmentId.innerHTML = `<option value="">Select department</option>`;
+        fDepartmentId.disabled = false;
       }
     }
 
-    function extractDepartmentsFromResponse(js){
-      // supports shapes: {data:[]}, {data:{data:[]}}, {departments:[]}, [] etc.
-      let arr = [];
-      if (Array.isArray(js)) arr = js;
-      else if (Array.isArray(js?.data)) arr = js.data;
-      else if (Array.isArray(js?.data?.data)) arr = js.data.data;
-      else if (Array.isArray(js?.departments)) arr = js.departments;
-      else if (Array.isArray(js?.items)) arr = js.items;
-      else arr = [];
-
-      const out = [];
-      const seen = new Set();
-      for (const d of arr){
-        const id = pickDeptId(d);
-        const name = pickDeptName(d);
-        if (!id || !name) continue;
-        if (seen.has(id)) continue;
-        seen.add(id);
-        out.push({ id, name });
-      }
-      return out;
-    }
-
-    async function loadDepartments(selected=''){
-  if (!fDepartmentId) return;
-
-  fDepartmentId.innerHTML = `<option value="">Loading departments…</option>`;
-  fDepartmentId.disabled = true;
-
-  try{
-    const res = await fetchWithTimeout('/api/departments', {
-      headers: {
-        ...authHeaders(),
-        'X-UI-Mode': 'dropdown',
-        'X-Dropdown': '1'
-      }
-    }, 15000);
-
-    const js = await res.json().catch(()=> ({}));
-    if (!res.ok) throw new Error(js?.message || 'Failed to load departments');
-
-    const list = Array.isArray(js.data) ? js.data : [];
-
-    let html = `<option value="">Select department</option>`;
-    html += list.map(d => {
-      const id = (d.id ?? '').toString();
-      const label = (d.title || d.name || d.slug || d.uuid || ('Dept #' + id)).toString();
-      return `<option value="${esc(id)}">${esc(label)}</option>`;
-    }).join('');
-
-    fDepartmentId.innerHTML = html;
-    fDepartmentId.disabled = false;
-
-    if (selected){
-      const opt = fDepartmentId.querySelector(`option[value="${CSS.escape(String(selected))}"]`);
-      if (opt) fDepartmentId.value = String(selected);
-    }
-  }catch(ex){
-    fDepartmentId.innerHTML = `<option value="">Select department</option>`;
-    fDepartmentId.disabled = false;
-    err(ex?.name === 'AbortError' ? 'Department load timed out' : (ex.message || 'Failed to load departments'));
-  }
-}
-    // State
     const state = {
       filters: { q:'', status:'', featured:'', sort:'-created_at' },
       perPage: parseInt(perPageSel?.value || '20', 10) || 20,
@@ -1079,6 +1149,10 @@ function updatePublishOption(){
       return 'active';
     }
 
+    function getTbody(tabKey){
+      return tabKey==='active' ? tbodyActive : (tabKey==='inactive' ? tbodyInactive : tbodyTrash);
+    }
+
     function defaultStatusForTab(tabKey){
       if (tabKey === 'active') return 'published';
       if (tabKey === 'inactive') return 'draft';
@@ -1089,24 +1163,18 @@ function updatePublishOption(){
       const params = new URLSearchParams();
       params.set('per_page', String(state.perPage));
       params.set('page', String(state.tabs[tabKey].page));
-
       const q = (state.filters.q || '').trim();
       if (q) params.set('q', q);
-
-      // sort + direction
       const s = state.filters.sort || '-created_at';
       params.set('sort', s.startsWith('-') ? s.slice(1) : s);
       params.set('direction', s.startsWith('-') ? 'desc' : 'asc');
-
       if (tabKey === 'trash'){
         params.set('only_trashed', '1');
       } else {
         const st = (state.filters.status || '').trim() || defaultStatusForTab(tabKey);
         if (st) params.set('status', st);
       }
-
       if (state.filters.featured !== '') params.set('featured', state.filters.featured);
-
       return `/api/student-activities?${params.toString()}`;
     }
 
@@ -1118,86 +1186,26 @@ function updatePublishOption(){
     function renderPager(tabKey){
       const pagerEl = tabKey === 'active' ? pagerActive : (tabKey === 'inactive' ? pagerInactive : pagerTrash);
       if (!pagerEl) return;
-
       const st = state.tabs[tabKey];
       const page = st.page;
       const totalPages = st.lastPage || 1;
-
       const item = (p, label, dis=false, act=false) => {
         if (dis) return `<li class="page-item disabled"><span class="page-link">${label}</span></li>`;
         if (act) return `<li class="page-item active"><span class="page-link">${label}</span></li>`;
         return `<li class="page-item"><a class="page-link" href="#" data-page="${p}" data-tab="${tabKey}">${label}</a></li>`;
       };
-
       let html = '';
       html += item(Math.max(1, page-1), 'Previous', page<=1);
       const start = Math.max(1, page-2), end = Math.min(totalPages, page+2);
       for (let p=start; p<=end; p++) html += item(p, p, false, p===page);
       html += item(Math.min(totalPages, page+1), 'Next', page>=totalPages);
-
       pagerEl.innerHTML = html;
     }
 
-    function findRowByUuid(uuid){
-      const all = [
-        ...(state.tabs.active.items || []),
-        ...(state.tabs.inactive.items || []),
-        ...(state.tabs.trash.items || []),
-      ];
-      return all.find(x => x?.uuid === uuid) || null;
-    }
-
-    // ✅ Same pattern as reference (Contact Info):
-    // action toggle has NO data-bs-toggle; we manually open with Popper strategy:fixed
-    function rowActions(tabKey, status, featured){
-  let menu = `
-    <div class="dropdown text-end">
-      <button type="button"
-        class="btn btn-light btn-sm sa-dd-toggle"
-        aria-expanded="false" title="Actions">
-        <i class="fa fa-ellipsis-vertical"></i>
-      </button>
-      <ul class="dropdown-menu dropdown-menu-end">
-        <li><button type="button" class="dropdown-item" data-action="view"><i class="fa fa-eye"></i> View</button></li>`;
-
-  if (tabKey !== 'trash' && canEdit){
-    menu += `<li><button type="button" class="dropdown-item" data-action="edit"><i class="fa fa-pen-to-square"></i> Edit</button></li>`;
-    
-    // Toggle Featured option
-    const featuredLabel = featured ? 'Unfeature' : 'Feature';
-    const featuredIcon = featured ? 'fa-star-half-stroke' : 'fa-star';
-    menu += `<li><button type="button" class="dropdown-item" data-action="toggleFeatured"><i class="fa ${featuredIcon}"></i> ${featuredLabel}</button></li>`;
-
-    // Add "Make Published" option ONLY for publishers when status is not published
-    const statusLower = (status || '').toString().toLowerCase();
-    if (canPublish && statusLower !== 'published'){
-      menu += `<li><button type="button" class="dropdown-item" data-action="make-publish"><i class="fa fa-circle-check"></i> Make Published</button></li>`;
-    } else if (statusLower === 'published' && canPublish) {
-      menu += `<li><button type="button" class="dropdown-item" data-action="mark-draft"><i class="fa fa-circle-pause"></i> Mark as Draft</button></li>`;
-    }
-  }
-
-  if (tabKey !== 'trash'){
-    if (canDelete){
-      menu += `<li><hr class="dropdown-divider"></li>
-        <li><button type="button" class="dropdown-item text-danger" data-action="delete"><i class="fa fa-trash"></i> Delete</button></li>`;
-    }
-  } else {
-    menu += `<li><hr class="dropdown-divider"></li>
-      <li><button type="button" class="dropdown-item" data-action="restore"><i class="fa fa-rotate-left"></i> Restore</button></li>`;
-    if (canDelete){
-      menu += `<li><button type="button" class="dropdown-item text-danger" data-action="force"><i class="fa fa-skull-crossbones"></i> Delete Permanently</button></li>`;
-    }
-  }
-
-  menu += `</ul></div>`;
-  return menu;
-}
     function renderTable(tabKey){
-      const tbody = tabKey==='active' ? tbodyActive : (tabKey==='inactive' ? tbodyInactive : tbodyTrash);
+      const tbody = getTbody(tabKey);
       const rows = state.tabs[tabKey].items || [];
       if (!tbody) return;
-
       if (!rows.length){
         tbody.innerHTML = '';
         setEmpty(tabKey, true);
@@ -1205,7 +1213,6 @@ function updatePublishOption(){
         return;
       }
       setEmpty(tabKey, false);
-
       tbody.innerHTML = rows.map(r => {
         const uuid = r.uuid || '';
         const title = r.title || '—';
@@ -1217,61 +1224,85 @@ function updatePublishOption(){
         const updated = r.updated_at || '—';
         const views = (r.views_count ?? 0);
         const deleted = r.deleted_at || '—';
+        const deptBadge = `<span class="badge badge-soft-secondary">${esc(dept)}</span>`;
 
-const menu = rowActions(tabKey, status, featured);
+        let actions = `
+        <div class="dropdown">
+          <button type="button" class="btn btn-light btn-sm sa-dd-toggle" aria-expanded="false">
+            <i class="fa fa-ellipsis-vertical"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><button type="button" class="dropdown-item" data-action="view"><i class="fa fa-eye"></i> View</button></li>
+            <li><button type="button" class="dropdown-item" data-action="history"><i class="fa fa-clock-rotate-left"></i> Workflow History</button></li>
+            ${(r.workflow_status === 'rejected') ? `
+              <li><button type="button" class="dropdown-item text-danger" data-action="reject_reason" data-reason="${esc(r.rejected_reason || r.rejection_reason || 'No reason provided')}">
+                <i class="fa fa-circle-xmark"></i> Rejection Reason
+              </button></li>` : ''}
+          `;
+        
+        if (tabKey !== 'trash'){
+          if (canEdit) {
+            actions += `<li><button type="button" class="dropdown-item" data-action="edit"><i class="fa fa-pen-to-square"></i> Edit</button></li>`;
+            actions += `<li><button type="button" class="dropdown-item" data-action="toggleFeatured"><i class="fa fa-star"></i> Toggle Featured</button></li>`;
+          }
+          if (canDelete) {
+            actions += `<li><hr class="dropdown-divider"></li>`;
+            actions += `<li><button type="button" class="dropdown-item text-danger" data-action="delete"><i class="fa fa-trash"></i> Move to Trash</button></li>`;
+          }
+        } else {
+          actions += `<li><button type="button" class="dropdown-item" data-action="restore"><i class="fa fa-rotate-left"></i> Restore</button></li>`;
+          if (canDelete) {
+            actions += `<li><hr class="dropdown-divider"></li>`;
+            actions += `<li><button type="button" class="dropdown-item text-danger" data-action="force"><i class="fa fa-skull-crossbones"></i> Delete Permanently</button></li>`;
+          }
+        }
+        actions += `</ul></div>`;
+
         if (tabKey === 'trash'){
-          return `
-            <tr data-uuid="${esc(uuid)}">
+          return `<tr data-uuid="${esc(uuid)}">
               <td class="fw-semibold">${esc(title)}</td>
               <td class="col-slug"><code>${esc(slug)}</code></td>
               <td>${esc(dept)}</td>
               <td>${esc(String(deleted))}</td>
-              <td class="text-end">${menu}</td>
+              <td class="text-end">${actions}</td>
             </tr>`;
         }
 
-        return `
-          <tr data-uuid="${esc(uuid)}">
-            <td class="fw-semibold">${esc(title)}</td>
-            <td class="col-slug"><code>${esc(slug)}</code></td>
-            <td>${esc(dept)}</td>
-            <td>${statusBadge(status)}</td>
-            <td>${featuredBadge(featured)}</td>
-            <td>${esc(String(publishAt))}</td>
-            <td>${esc(String(views))}</td>
-            <td>${esc(String(updated))}</td>
-            <td class="text-end">${menu}</td>
-          </tr>`;
+        return `<tr data-uuid="${esc(uuid)}">
+          <td class="fw-semibold text-wrap" style="min-width:240px">${esc(title)}</td>
+          <td class="col-slug"><code>${esc(slug)}</code></td>
+          <td>${deptBadge}</td>
+          <td>${statusBadge(status, !!r.draft_data)}</td>
+          <td>${featuredBadge(featured)}</td>
+          <td>${esc(String(publishAt))}</td>
+          <td><span class="badge badge-soft-muted"><i class="fa fa-eye"></i> ${views}</span></td>
+          <td>${workflowBadge(r.workflow_status)}</td>
+          <td>${esc(String(updated))}</td>
+          <td class="text-end">${actions}</td>
+        </tr>`;
       }).join('');
-
       renderPager(tabKey);
     }
 
     async function loadTab(tabKey){
-      const tbody = tabKey==='active' ? tbodyActive : (tabKey==='inactive' ? tbodyInactive : tbodyTrash);
+      const tbody = getTbody(tabKey);
       if (tbody){
-        const cols = (tabKey==='trash') ? 5 : 9;
+        const cols = tabKey === 'trash' ? 5 : 10;
         tbody.innerHTML = `<tr><td colspan="${cols}" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>`;
       }
-
       try{
         const res = await fetchWithTimeout(buildUrl(tabKey), { headers: authHeaders() }, 15000);
         if (res.status === 401 || res.status === 403) { window.location.href = '/'; return; }
-
         const js = await res.json().catch(()=> ({}));
         if (!res.ok) throw new Error(js?.message || 'Failed to load');
-
         const items = Array.isArray(js.data) ? js.data : [];
         const p = js.pagination || js.meta || {};
-
         state.tabs[tabKey].items = items;
         state.tabs[tabKey].lastPage = parseInt(p.last_page || p.total_pages || 1, 10) || 1;
-
         const label = (p.total ? `${p.total} result(s)` : '—');
         if (tabKey === 'active' && infoActive) infoActive.textContent = label;
         if (tabKey === 'inactive' && infoInactive) infoInactive.textContent = label;
         if (tabKey === 'trash' && infoTrash) infoTrash.textContent = label;
-
         renderTable(tabKey);
       }catch(e){
         state.tabs[tabKey].items = [];
@@ -1281,9 +1312,6 @@ const menu = rowActions(tabKey, status, featured);
       }
     }
 
-    function reloadCurrent(){ loadTab(getTabKey()); }
-
-    // Pager click
     document.addEventListener('click', (e) => {
       const a = e.target.closest('a.page-link[data-page]');
       if (!a) return;
@@ -1297,17 +1325,16 @@ const menu = rowActions(tabKey, status, featured);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
 
-    // Filters
     searchInput?.addEventListener('input', debounce(() => {
       state.filters.q = (searchInput.value || '').trim();
       state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
-      reloadCurrent();
+      loadTab(getTabKey());
     }, 320));
 
     perPageSel?.addEventListener('change', () => {
       state.perPage = parseInt(perPageSel.value, 10) || 20;
       state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
-      reloadCurrent();
+      loadTab(getTabKey());
     });
 
     filterModalEl?.addEventListener('show.bs.modal', () => {
@@ -1323,7 +1350,7 @@ const menu = rowActions(tabKey, status, featured);
       state.filters.featured = (modalFeatured?.value ?? '');
       state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
       filterModal && filterModal.hide();
-      reloadCurrent();
+      loadTab(getTabKey());
     });
 
     btnReset?.addEventListener('click', () => {
@@ -1335,17 +1362,150 @@ const menu = rowActions(tabKey, status, featured);
       if (modalFeatured) modalFeatured.value = '';
       if (modalSort) modalSort.value = '-created_at';
       state.tabs.active.page = state.tabs.inactive.page = state.tabs.trash.page = 1;
-      reloadCurrent();
+      loadTab(getTabKey());
     });
 
-    // Tab switched
+    btnAdd?.addEventListener('click', () => openModal('add'));
+
     document.querySelector('a[href="#sa-tab-active"]')?.addEventListener('shown.bs.tab', () => loadTab('active'));
     document.querySelector('a[href="#sa-tab-inactive"]')?.addEventListener('shown.bs.tab', () => loadTab('inactive'));
     document.querySelector('a[href="#sa-tab-trash"]')?.addEventListener('shown.bs.tab', () => loadTab('trash'));
 
-    // =========================
-    // ✅ ACTION DROPDOWN FIX (same idea as reference page)
-    // =========================
+    function enableInputs(on){
+      itemForm?.querySelectorAll('input,select,textarea').forEach(el => {
+        if (el.id === 'saUuid' || el.id === 'saId' || el.id === 'saCoverRemove') return;
+        el.disabled = !on;
+      });
+      setRteEnabled(on);
+    }
+
+    let currentSaForHistory = null;
+    function openModal(mode, r = null){
+      itemForm.reset();
+      $('saUuid').value = '';
+      $('saId').value = '';
+      $('saCoverRemove').value = '0';
+      $('saBodyEditor').innerHTML = '';
+      $('saBodyCode').value = '';
+      $('saBody').value = '';
+      $('saCoverPreview').style.display = 'none';
+      $('saCoverPreview').src = '';
+      $('saCoverEmpty').style.display = 'block';
+      $('saCoverMeta').style.display = 'none';
+      $('saBtnRemoveCover').style.display = 'none';
+      $('saCurrentAttachmentsInfo').style.display = 'none';
+      $('saRejectionAlert').style.display = 'none';
+      $('saDraftAlert').style.display = 'none';
+
+      if (mode === 'add'){
+        itemModalTitle.textContent = 'Add Student Activity';
+        saveBtn.style.display = '';
+        enableInputs(true);
+        loadDepartmentsForForm();
+      } else {
+        itemModalTitle.textContent = mode === 'edit' ? 'Edit Student Activity' : 'View Student Activity';
+        saveBtn.style.display = mode === 'edit' ? '' : 'none';
+        enableInputs(mode === 'edit');
+        if (r){
+          currentSaForHistory = { table: 'student_activities', id: r.id };
+          window.viewSaHistoryFromAlert = () => {
+            if (currentSaForHistory) {
+              showHistory(currentSaForHistory.table, currentSaForHistory.id);
+            }
+          };
+          $('saUuid').value = r.uuid || '';
+          $('saId').value = r.id || '';
+          $('saTitle').value = r.title || '';
+          $('saSlug').value = r.slug || '';
+          $('saStatus').value = r.status || 'draft';
+          $('saFeatured').value = r.is_featured_home ?? 0;
+          $('saPublishAt').value = toLocal(r.publish_at);
+          $('saExpireAt').value = toLocal(r.expire_at);
+          loadDepartmentsForForm(r.department_id);
+          const b = r.body || '';
+          $('saBody').value = b;
+          $('saBodyEditor').innerHTML = b;
+          $('saBodyCode').value = b;
+          if (r.cover_image_url){
+            $('saCoverPreview').src = normalizeUrl(r.cover_image_url);
+            $('saCoverPreview').style.display = 'block';
+            $('saCoverEmpty').style.display = 'none';
+            $('saBtnOpenCover').style.display = '';
+            $('saBtnOpenCover').onclick = () => window.open(normalizeUrl(r.cover_image_url), '_blank');
+            if(mode==='edit') $('saBtnRemoveCover').style.display = '';
+          }
+          if (Array.isArray(r.attachments) && r.attachments.length){
+            $('saCurrentAttachmentsInfo').style.display = 'block';
+            $('saCurrentAttachmentsText').textContent = `${r.attachments.length} file(s) attached`;
+          }
+          if (r.workflow_status === 'rejected') {
+            $('saRejectionAlert').style.display = 'block';
+            $('saRejectionReasonText').textContent = r.rejected_reason || r.rejection_reason || 'No reason provided.';
+          }
+          if (r.draft_data) {
+            $('saDraftAlert').style.display = 'block';
+          }
+        }
+      }
+      itemModal.show();
+    }
+
+    const saHistoryModal = new bootstrap.Modal($('saHistoryModal'));
+    async function showHistory(table, id) {
+      saHistoryModal.show();
+      $('saHistoryLoading').style.display = 'block';
+      $('saHistoryContent').style.display = 'none';
+      $('saHistoryEmpty').style.display = 'none';
+      $('saHistoryTimeline').innerHTML = '';
+      try {
+        const res = await fetchWithTimeout(`/api/master-approval/history/${table}/${id}`, { headers: authHeaders() });
+        const js = await res.json();
+        $('saHistoryLoading').style.display = 'none';
+        if (js.success && js.data && js.data.length) {
+          $('saHistoryTimeline').innerHTML = js.data.map(log => `
+            <li class="timeline-item">
+              <div class="timeline-marker"></div>
+              <div class="timeline-content">
+                <div class="timeline-date">${new Date(log.created_at).toLocaleString()}</div>
+                <div class="timeline-title">
+                  Status changed to <span class="badge ${getStatusClass(log.to_status)}">${log.to_status.replace('_', ' ')}</span>
+                </div>
+                <div class="timeline-author">Action by: ${esc(log.user_name || 'System')} (${esc(log.user_role || 'unknown')})</div>
+                ${log.comment ? `<div class="timeline-comment">${esc(log.comment)}</div>` : ''}
+              </div>
+            </li>
+          `).join('');
+          $('saHistoryContent').style.display = 'block';
+        } else {
+          $('saHistoryEmpty').style.display = 'block';
+        }
+      } catch (err) {
+        $('saHistoryLoading').style.display = 'none';
+        $('saHistoryEmpty').style.display = 'block';
+      }
+    }
+
+    function getStatusClass(s) {
+      s = s.toLowerCase();
+      if (s === 'approved') return 'badge-soft-success text-success';
+      if (s === 'rejected') return 'badge-soft-danger text-danger';
+      if (s === 'checked') return 'badge-soft-info text-info';
+      if (s === 'pending_check') return 'badge-soft-warning text-warning';
+      return 'badge-soft-muted text-muted';
+    }
+
+    window.viewSaHistoryFromAlert = () => {
+      if (currentSaForHistory) {
+        showHistory(currentSaForHistory.table, currentSaForHistory.id);
+      }
+    };
+
+    function findRowByUuid(uuid){
+      const findIn = (k) => (state.tabs[k].items || []).find(x => x?.uuid === uuid);
+      return findIn('active') || findIn('inactive') || findIn('trash');
+    }
+
+    // ---------- ✅ ACTION DROPDOWN FIX (Popper fixed strategy) ----------
     function closeAllDropdownsExcept(exceptToggle){
       document.querySelectorAll('.sa-dd-toggle').forEach(t => {
         if (t === exceptToggle) return;
@@ -1356,16 +1516,12 @@ const menu = rowActions(tabKey, status, featured);
       });
     }
 
-    // toggle dropdown manually with Popper "fixed" strategy (escapes overflow containers)
     document.addEventListener('click', (e) => {
       const toggle = e.target.closest('.sa-dd-toggle');
       if (!toggle) return;
-
       e.preventDefault();
       e.stopPropagation();
-
       closeAllDropdownsExcept(toggle);
-
       try{
         const inst = bootstrap.Dropdown.getOrCreateInstance(toggle, {
           autoClose: true,
@@ -1381,193 +1537,135 @@ const menu = rowActions(tabKey, status, featured);
       }catch(_){}
     });
 
-    // click anywhere else closes open dropdowns (capture like reference)
-    document.addEventListener('click', () => {
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('.sa-dd-toggle')) return;
+      if (e.target.closest('.dropdown-menu')) return;
       closeAllDropdownsExcept(null);
     }, { capture: true });
 
-    // =========================
-    // RTE
-    // =========================
-    function rteFocus(){
-      try { rte.editor?.focus({ preventScroll:true }); }
-      catch(_) { try { rte.editor?.focus(); } catch(__){} }
-    }
+    document.addEventListener('scroll', () => closeAllDropdownsExcept(null), true);
 
-    function syncEditorToCode(){
-      if (!rte.editor || !rte.code) return;
-      if (rte.mode === 'text') rte.code.value = ensurePreHasCode(rte.editor.innerHTML || '');
-    }
+let coverObjectUrl = null;
 
-    function setRteMode(mode){
-      rte.mode = (mode === 'code') ? 'code' : 'text';
-      rte.box?.classList.toggle('mode-code', rte.mode === 'code');
+function syncEditorToCode(){
+  if (!rte.editor || !rte.code || !rte.hidden) return;
+  const html = ensurePreHasCode(rte.editor.innerHTML || '');
+  rte.code.value = html;
+  rte.hidden.value = html;
+}
 
-      rte.box?.querySelectorAll('.rte-modes button').forEach(b => {
-        b.classList.toggle('active', b.dataset.mode === rte.mode);
-      });
+function syncCodeToEditor(){
+  if (!rte.editor || !rte.code || !rte.hidden) return;
+  const html = ensurePreHasCode(rte.code.value || '');
+  rte.editor.innerHTML = html;
+  rte.hidden.value = html;
+}
 
-      const disableBtns = (rte.mode === 'code') || !rte.enabled;
-      rte.box?.querySelectorAll('.rte-btn').forEach(b => {
-        b.disabled = disableBtns;
-        b.style.opacity = disableBtns ? '0.55' : '';
-        b.style.pointerEvents = disableBtns ? 'none' : '';
-      });
+function setRteMode(mode = 'text'){
+  rte.mode = mode === 'code' ? 'code' : 'text';
 
-      if (rte.mode === 'code'){
-        rte.code.value = ensurePreHasCode(rte.editor.innerHTML || '');
-        setTimeout(()=>{ try{ rte.code?.focus(); }catch(_){ } }, 0);
-      } else {
-        rte.editor.innerHTML = ensurePreHasCode(rte.code.value || '');
-        setTimeout(()=>{ rteFocus(); }, 0);
-      }
-    }
+  if (rte.box) {
+    rte.box.classList.toggle('mode-code', rte.mode === 'code');
+  }
 
-    function updateActiveBtns(){
-      if (!rte.bar || rte.mode !== 'text') return;
-      const set = (cmd, on) => {
-        const b = rte.bar.querySelector(`.rte-btn[data-cmd="${cmd}"]`);
-        if (b) b.classList.toggle('active', !!on);
-      };
-      try{
-        set('bold', document.queryCommandState('bold'));
-        set('italic', document.queryCommandState('italic'));
-        set('underline', document.queryCommandState('underline'));
-      }catch(_){}
-    }
+  document.querySelectorAll('#saRteBox .rte-modes [data-mode]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === rte.mode);
+  });
 
-    rte.bar?.addEventListener('pointerdown', (e) => { e.preventDefault(); });
+  if (rte.mode === 'code') {
+    syncEditorToCode();
+  } else {
+    syncCodeToEditor();
+  }
+}
 
-    rte.editor?.addEventListener('input', () => { syncEditorToCode(); updateActiveBtns(); });
-    ['mouseup','keyup','click'].forEach(ev => rte.editor?.addEventListener(ev, updateActiveBtns));
-    document.addEventListener('selectionchange', () => {
-      if (document.activeElement === rte.editor) updateActiveBtns();
-    });
+function rteFocus(){
+  if (rte.mode === 'code' && rte.code) rte.code.focus();
+  else if (rte.editor) rte.editor.focus();
+}
 
-    document.addEventListener('click', (e) => {
-      const modeBtn = e.target.closest('#saRteBox .rte-modes button');
-      if (modeBtn){ setRteMode(modeBtn.dataset.mode); return; }
+function clearCoverPreview(revoke = false){
+  if (revoke && coverObjectUrl){
+    try { URL.revokeObjectURL(coverObjectUrl); } catch (_) {}
+    coverObjectUrl = null;
+  }
 
-      const btn = e.target.closest('#saRteBox .rte-btn');
-      if (!btn || rte.mode !== 'text' || !rte.enabled) return;
+  if (coverPreview){
+    coverPreview.src = '';
+    coverPreview.style.display = 'none';
+  }
+  if (coverEmpty) coverEmpty.style.display = 'block';
 
-      rteFocus();
+  if (coverMeta){
+    coverMeta.textContent = '—';
+    coverMeta.style.display = 'none';
+  }
 
-      const block = btn.getAttribute('data-block');
-      const insert = btn.getAttribute('data-insert');
-      const cmd = btn.getAttribute('data-cmd');
+  if (btnOpenCover){
+    btnOpenCover.style.display = 'none';
+    btnOpenCover.onclick = null;
+  }
 
-      if (block){
-        try{ document.execCommand('formatBlock', false, `<${block}>`); }catch(_){}
-        syncEditorToCode(); updateActiveBtns();
-        return;
-      }
+  if (btnRemoveCover) btnRemoveCover.style.display = 'none';
+}
 
-      if (insert === 'code'){
-        const sel = window.getSelection();
-        const txt = sel && !sel.isCollapsed ? sel.toString() : '';
-        if (txt.trim()){
-          document.execCommand('insertHTML', false, `<code>${esc(txt)}</code>`);
-        } else {
-          document.execCommand('insertHTML', false, `<code>\u200b</code>`);
-        }
-        syncEditorToCode(); updateActiveBtns();
-        return;
-      }
+function setCoverPreview(url, meta = ''){
+  const src = normalizeUrl(url);
+  if (!src){
+    clearCoverPreview(false);
+    return;
+  }
 
-      if (insert === 'pre'){
-        const sel = window.getSelection();
-        const txt = sel && !sel.isCollapsed ? sel.toString() : '';
-        if (txt.trim()){
-          document.execCommand('insertHTML', false, `<pre><code>${esc(txt)}</code></pre>`);
-        } else {
-          document.execCommand('insertHTML', false, `<pre><code>\u200b</code></pre>`);
-        }
-        syncEditorToCode(); updateActiveBtns();
-        return;
-      }
+  if (coverPreview){
+    coverPreview.src = src;
+    coverPreview.style.display = '';
+  }
+  if (coverEmpty) coverEmpty.style.display = 'none';
 
-      if (cmd){
-        try{ document.execCommand(cmd, false, null); }catch(_){}
-        syncEditorToCode(); updateActiveBtns();
-      }
-    });
+  if (coverMeta){
+    coverMeta.textContent = meta || '';
+    coverMeta.style.display = meta ? '' : 'none';
+  }
 
-    function setRteEnabled(on){
-      rte.enabled = !!on;
-      if (rte.editor) rte.editor.setAttribute('contenteditable', on ? 'true' : 'false');
-      if (rte.code) rte.code.disabled = !on;
+  if (btnOpenCover){
+    btnOpenCover.style.display = '';
+    btnOpenCover.onclick = () => window.open(src, '_blank', 'noopener,noreferrer');
+  }
+}
 
-      const disableBtns = (rte.mode === 'code') || !rte.enabled;
-      rte.box?.querySelectorAll('.rte-btn').forEach(b => {
-        b.disabled = disableBtns;
-        b.style.opacity = disableBtns ? '0.55' : '';
-        b.style.pointerEvents = disableBtns ? 'none' : '';
-      });
-      rte.box?.querySelectorAll('.rte-modes button').forEach(b => {
-        b.style.pointerEvents = on ? '' : 'none';
-        b.style.opacity = on ? '' : '0.7';
-      });
-    }
+function setRteEnabled(on){
+  rte.enabled = !!on;
+  if (rte.editor) rte.editor.setAttribute('contenteditable', on ? 'true' : 'false');
+  if (rte.code) rte.code.disabled = !on;
+}
 
-    // =========================
-    // Cover preview
-    // =========================
-    let coverObjectUrl = null;
+fCover?.addEventListener('change', () => {
+  const f = fCover.files?.[0];
+  if (!f) {
+    clearCoverPreview(true);
+    return;
+  }
 
-    function clearCoverPreview(revoke=true){
-      if (revoke && coverObjectUrl){
-        try{ URL.revokeObjectURL(coverObjectUrl); }catch(_){}
-      }
-      coverObjectUrl = null;
+  if (fCoverRemove) fCoverRemove.value = '0';
 
-      if (coverPreview){
-        coverPreview.style.display = 'none';
-        coverPreview.removeAttribute('src');
-      }
-      if (coverEmpty) coverEmpty.style.display = '';
-      if (coverMeta){ coverMeta.style.display = 'none'; coverMeta.textContent = '—'; }
-      if (btnOpenCover){ btnOpenCover.style.display = 'none'; btnOpenCover.onclick = null; }
-      if (btnRemoveCover){ btnRemoveCover.style.display = 'none'; btnRemoveCover.onclick = null; }
-    }
+  if (coverObjectUrl){
+    try { URL.revokeObjectURL(coverObjectUrl); } catch (_) {}
+  }
 
-    function setCoverPreview(url, metaText=''){
-      const u = normalizeUrl(url);
-      if (!u){ clearCoverPreview(true); return; }
+  coverObjectUrl = URL.createObjectURL(f);
+  setCoverPreview(coverObjectUrl, `${f.name || 'cover'} • ${bytes(f.size)}`);
 
-      if (coverPreview){
-        coverPreview.style.display = '';
-        coverPreview.src = u;
-      }
-      if (coverEmpty) coverEmpty.style.display = 'none';
+  if (btnRemoveCover) btnRemoveCover.style.display = '';
+});
 
-      if (coverMeta){
-        coverMeta.style.display = metaText ? '' : 'none';
-        coverMeta.textContent = metaText || '';
-      }
-      if (btnOpenCover){
-        btnOpenCover.style.display = '';
-        btnOpenCover.onclick = () => window.open(u, '_blank', 'noopener');
-      }
-      if (btnRemoveCover){
-        btnRemoveCover.style.display = '';
-      }
-    }
+rte.editor?.addEventListener('input', syncEditorToCode);
+rte.code?.addEventListener('input', syncCodeToEditor);
 
-    fCover?.addEventListener('change', () => {
-      const f = fCover.files?.[0];
-      if (!f) { clearCoverPreview(true); return; }
-
-      // selecting a new cover implies NOT removing existing
-      if (fCoverRemove) fCoverRemove.value = '0';
-
-      if (coverObjectUrl){
-        try{ URL.revokeObjectURL(coverObjectUrl); }catch(_){}
-      }
-      coverObjectUrl = URL.createObjectURL(f);
-      setCoverPreview(coverObjectUrl, `${f.name || 'cover'} • ${bytes(f.size)}`);
-      if (btnRemoveCover) btnRemoveCover.style.display = '';
-    });
+document.querySelectorAll('#saRteBox .rte-modes [data-mode]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    setRteMode(btn.dataset.mode || 'text');
+  });
+});
 
     btnRemoveCover?.addEventListener('click', () => {
       // mark remove + clear preview
@@ -1606,6 +1704,7 @@ const menu = rowActions(tabKey, status, featured);
   fUuid.value = '';
   fId.value = '';
   if (fCoverRemove) fCoverRemove.value = '0';
+  updatePublishOption();
 
   // Reset department dropdown
   if (fDepartmentId){
@@ -1688,7 +1787,7 @@ const menu = rowActions(tabKey, status, featured);
   slugDirty = true;
 
   // Load departments and set the selected one
-  loadDepartments(deptId);
+  loadDepartmentsForForm(deptId);
 
   // Update publish option visibility
   if (!viewOnly) {
@@ -1735,7 +1834,7 @@ const menu = rowActions(tabKey, status, featured);
       resetForm();
 
       // ✅ ensure departments are loaded before opening (added)
-      await loadDepartments();
+      await loadDepartmentsForForm();
 
       if (itemModalTitle) itemModalTitle.textContent = 'Add Student Activity';
       itemForm.dataset.intent = 'create';
@@ -1783,22 +1882,52 @@ const menu = rowActions(tabKey, status, featured);
       const act = btn.dataset.action;
       if (!uuid) return;
 
-      // close dropdown (bootstrap)
+      // close dropdown
       const toggle = btn.closest('.dropdown')?.querySelector('.sa-dd-toggle');
-      if (toggle) { try { bootstrap.Dropdown.getOrCreateInstance(toggle).hide(); } catch (_) {} }
+      if (toggle) { try { bootstrap.Dropdown.getInstance(toggle)?.hide(); } catch (_) {} }
 
       const row = findRowByUuid(uuid) || {};
 
-      if (act === 'view' || act === 'edit'){
-        if (act === 'edit' && !canEdit) return;
+      if (act === 'view'){
+        const slug = row.slug || row.uuid || row.id;
+        if (slug) window.open(`/student-activities/view/${slug}`, '_blank');
+        return;
+      }
+
+      if (act === 'edit'){
+        if (!canEdit) return;
 
         // ✅ ensure departments are loaded before filling (added)
-        await loadDepartments();
+        await loadDepartmentsForForm();
 
         resetForm();
-        if (itemModalTitle) itemModalTitle.textContent = (act === 'view') ? 'View Student Activity' : 'Edit Student Activity';
-        fillFormFromRow(row, act === 'view');
+        if (itemModalTitle) itemModalTitle.textContent = 'Edit Student Activity';
+        fillFormFromRow(row, false);
         itemModal && itemModal.show();
+        return;
+      }
+
+      if (act === 'history'){
+        if (row && row.id) {
+            saModule.showHistory('student_activities', row.id);
+        } else {
+            // fallback (though row should always be found here)
+            showLoading(true);
+            fetchOne(uuid).then(r => {
+                if(r && r.id) saModule.showHistory('student_activities', r.id);
+            }).catch(e => err(e.message)).finally(()=>showLoading(false));
+        }
+        return;
+      }
+
+      if (act === 'reject_reason'){
+        const reason = btn.dataset.reason || 'No reason provided';
+        Swal.fire({
+          title: 'Rejection Reason',
+          text: reason,
+          icon: 'error',
+          confirmButtonText: 'Close'
+        });
         return;
       }
 
@@ -2109,10 +2238,11 @@ itemForm?.addEventListener('submit', async (e) => {
         await fetchMe();
 
         // ✅ preload departments once (added)
-        await loadDepartments();
+        await loadDepartmentsForForm();
 
         await Promise.all([loadTab('active'), loadTab('inactive'), loadTab('trash')]);
       }catch(ex){
+        console.error('Student Activities Init Error:', ex);
         err(ex?.message || 'Initialization failed');
       }finally{
         showLoading(false);

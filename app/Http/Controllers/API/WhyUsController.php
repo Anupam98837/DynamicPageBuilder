@@ -10,6 +10,7 @@ use Carbon\Carbon;
 
 class WhyUsController extends Controller
 {
+    use \App\Http\Controllers\API\Concerns\HasWorkflowManagement;
     /* ============================================
      | Helpers
      |============================================ */
@@ -271,6 +272,7 @@ class WhyUsController extends Controller
 
         $q->whereNull('w.deleted_at')
           ->where('w.status', 'published')
+          ->where('w.workflow_status', 'approved')
           ->where(function ($wq) use ($now) {
               $wq->whereNull('w.publish_at')->orWhere('w.publish_at', '<=', $now);
           })
@@ -388,6 +390,11 @@ class WhyUsController extends Controller
         $row = $this->resolveWhyUs($request, $identifier, $includeDeleted);
         if (! $row) return response()->json(['message' => 'Why Us item not found'], 404);
 
+        // Strict workflow check for single record view
+        if ($row->workflow_status !== 'approved') {
+            return response()->json(['message' => 'Why Us item not found'], 404);
+        }
+
         // optional: ?inc_view=1
         if (filter_var($request->query('inc_view', false), FILTER_VALIDATE_BOOLEAN)) {
             DB::table('why_us')->where('id', (int) $row->id)->increment('views_count');
@@ -496,11 +503,11 @@ class WhyUsController extends Controller
                 if (json_last_error() === JSON_ERROR_NONE) $metadata = $decoded;
             }
 
-            // ✅ Authority Control Sync:
-            // When is_featured_home = 1 => request_for_approval = 1
-            // When is_featured_home = 0 => request_for_approval = 0
+            // Unified Workflow Status
+            $workflowStatus = $this->getInitialWorkflowStatus($request);
+
             $featured = (int) ($validated['is_featured_home'] ?? 0);
-            $requestForApproval = $featured ? 1 : 0;
+            $requestForApproval = ($workflowStatus === 'pending_check' || $workflowStatus === 'checked') ? 1 : 0;
 
             $insert = [
                 'uuid'             => $uuid,
@@ -509,10 +516,18 @@ class WhyUsController extends Controller
                 'body'             => $validated['body'],
                 'cover_image'      => $coverPath,
                 'attachments_json' => !empty($attachments) ? json_encode($attachments) : null,
+                'is_featured_home' => $featured,
 
-                'is_featured_home'     => $featured,
-                'status'               => (string) ($validated['status'] ?? 'draft'),
-                'request_for_approval' => $requestForApproval, // ✅ NEW
+                // Unified Workflow
+                'workflow_status'      => $workflowStatus,
+                'draft_data'           => null,
+
+                // Legacy Approval columns
+                'request_for_approval' => $requestForApproval,
+                'is_approved'          => ($workflowStatus === 'approved') ? 1 : 0,
+                'is_rejected'          => ($workflowStatus === 'rejected') ? 1 : 0,
+
+                'status'               => (string)($validated['status'] ?? 'published'),
                 // 'is_approved'        => 0, // default 0 in DB, no need to set
 
                 'publish_at'       => !empty($validated['publish_at']) ? Carbon::parse($validated['publish_at']) : null,
@@ -603,12 +618,7 @@ class WhyUsController extends Controller
         }
 
         if (array_key_exists('is_featured_home', $validated)) {
-            $newFeatured = (int) $validated['is_featured_home'];
-            $update['is_featured_home'] = $newFeatured;
-
-            // ✅ Authority Control Sync:
-            // Whenever is_featured_home is updated, auto sync request_for_approval
-            $update['request_for_approval'] = $newFeatured ? 1 : 0;
+            $update['is_featured_home'] = (int) $validated['is_featured_home'];
         }
 
         if (array_key_exists('publish_at', $validated)) {
@@ -733,29 +743,54 @@ class WhyUsController extends Controller
 
             $update['attachments_json'] = !empty($existing) ? json_encode($existing) : null;
 
-            DB::table('why_us')->where('id', (int) $row->id)->update($update);
+            /* ---------------- Execution ---------------- */
+            try {
+                $result = $this->handleWorkflowUpdate($request, 'why_us', $row->id, $update);
+                
+                $fresh = DB::table('why_us')->where('id', (int) $row->id)->first();
+                
+                $msg = ($result === 'drafted') 
+                    ? 'Your changes have been submitted for approval. The live content will remain unchanged until approved.'
+                    : 'Why Us item updated successfully.';
 
-            $fresh = DB::table('why_us')->where('id', (int) $row->id)->first();
-            $newArr = $this->rowForLog($fresh);
-            $changed = $this->diffKeys($oldArr, $newArr);
+                $newArr = $this->rowForLog($fresh);
+                $changed = $this->diffKeys($oldArr, $newArr);
 
-            // ✅ LOG: update
-            $this->logActivity(
-                $request,
-                'update',
-                'why_us',
-                'why_us',
-                (int) $row->id,
-                $changed,
-                $oldArr,
-                $newArr,
-                'Updated Why Us item'
-            );
+                // ✅ LOG: update
+                $this->logActivity(
+                    $request,
+                    'update',
+                    'why_us',
+                    'why_us',
+                    (int) $row->id,
+                    $changed,
+                    $oldArr,
+                    $newArr,
+                    $msg
+                );
 
-            return response()->json([
-                'success' => true,
-                'data'    => $fresh ? $this->normalizeRow($fresh) : null,
-            ]);
+                return response()->json([
+                    'success' => true,
+                    'message' => $msg,
+                    'data'    => $fresh ? $this->normalizeRow($fresh) : null,
+                ]);
+            } catch (\Throwable $e) {
+                $this->logActivity(
+                    $request,
+                    'update_error',
+                    'why_us',
+                    'why_us',
+                    (int) $row->id,
+                    null,
+                    $oldArr,
+                    null,
+                    'Error: ' . $e->getMessage()
+                );
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Update failed: ' . $e->getMessage()
+                ], 500);
+            }
         } catch (\Throwable $e) {
             $this->logActivity(
                 $request,
@@ -784,7 +819,6 @@ class WhyUsController extends Controller
 
             DB::table('why_us')->where('id', (int) $row->id)->update([
                 'is_featured_home'     => $new,
-                'request_for_approval' => $new ? 1 : 0, // ✅ NEW: auto sync
                 'updated_at'           => now(),
                 'updated_at_ip'        => $request->ip(),
             ]);
@@ -1017,6 +1051,7 @@ class WhyUsController extends Controller
 
         $now = now();
         $isVisible =
+            ($row->workflow_status === 'approved') &&
             ($row->status === 'published') &&
             (empty($row->publish_at) || Carbon::parse($row->publish_at)->lte($now)) &&
             (empty($row->expire_at)  || Carbon::parse($row->expire_at)->gt($now));

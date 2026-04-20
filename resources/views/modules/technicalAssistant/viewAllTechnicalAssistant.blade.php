@@ -239,6 +239,49 @@
 
   // deptUuid -> {id,uuid,slug,title}
   let deptByUuid = new Map();
+    let deptByShortcode = new Map();
+
+    function getUrlObj(){
+      return new URL(window.location.href);
+    }
+
+    function syncUrl(){
+      const url = getUrlObj();
+      const ALL = (typeof ALL_DEPTS !== 'undefined' ? ALL_DEPTS : '');
+      if (typeof state === 'undefined') return;
+      if (state.deptUuid && state.deptUuid !== ALL) {
+        let sc = '';
+        if (typeof deptByUuid !== 'undefined' && deptByUuid.has(state.deptUuid)) {
+          sc = deptByUuid.get(state.deptUuid).shortcode;
+        }
+        if (sc) {
+          url.searchParams.set('dept', sc);
+          url.searchParams.delete('department');
+        } else {
+          url.searchParams.set('department', state.deptUuid);
+          url.searchParams.delete('dept');
+        }
+      } else {
+        url.searchParams.delete('department');
+        url.searchParams.delete('dept');
+      }
+      history.replaceState({}, '', url.pathname + url.search + url.hash);
+    }
+
+    function extractDeptUuidFromUrl(){
+      const url = getUrlObj();
+      const direct = (url.searchParams.get('department') || url.searchParams.get('dept') || '').trim();
+      if (direct) {
+        if (typeof deptByShortcode !== 'undefined' && deptByShortcode.has(direct.toLowerCase())) {
+          return deptByShortcode.get(direct.toLowerCase()).uuid;
+        }
+        return direct;
+      }
+      const hay = url.search + ' ' + url.href;
+      const m = hay.match(/d-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+      return m ? m[1] : '';
+    }
+
 
   // current assigned list (ordered, must match DB saved order)
   let assignedAll = [];
@@ -456,11 +499,46 @@
     return js;
   }
 
-  function extractDeptUuidFromUrl(){
-    const hay = (window.location.search || '') + ' ' + (window.location.href || '');
-    const m = hay.match(/d-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
-    return m ? m[1] : '';
-  }
+    function getUrlObj(){
+      return new URL(window.location.href);
+    }
+
+    function syncUrl(){
+      const url = getUrlObj();
+      const ALL = (typeof ALL_DEPTS !== 'undefined' ? ALL_DEPTS : '');
+      if (typeof state === 'undefined') return;
+      if (state.deptUuid && state.deptUuid !== ALL) {
+        let sc = '';
+        if (typeof deptByUuid !== 'undefined' && deptByUuid.has(state.deptUuid)) {
+          sc = deptByUuid.get(state.deptUuid).shortcode;
+        }
+        if (sc) {
+          url.searchParams.set('dept', sc);
+          url.searchParams.delete('department');
+        } else {
+          url.searchParams.set('department', state.deptUuid);
+          url.searchParams.delete('dept');
+        }
+      } else {
+        url.searchParams.delete('department');
+        url.searchParams.delete('dept');
+      }
+      history.replaceState({}, '', url.pathname + url.search + url.hash);
+    }
+
+    function extractDeptUuidFromUrl(){
+      const url = getUrlObj();
+      const direct = (url.searchParams.get('department') || url.searchParams.get('dept') || '').trim();
+      if (direct) {
+        if (typeof deptByShortcode !== 'undefined' && deptByShortcode.has(direct.toLowerCase())) {
+          return deptByShortcode.get(direct.toLowerCase()).uuid;
+        }
+        return direct;
+      }
+      const hay = url.search + ' ' + url.href;
+      const m = hay.match(/d-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+      return m ? m[1] : '';
+    }
 
   // ✅ NEW: helper for count key tolerance (used in dept rows + possible global rows)
   function previewCountFromRow(r){
@@ -605,6 +683,8 @@
         .map(r => ({
           id: r?.department?.id ?? null,
           uuid: (r?.department?.uuid ?? '').toString().trim(),
+          shortcode: (r?.department?.short_name || r?.department?.slug || '').toString().trim().toLowerCase(),
+          shortcode: (r?.department?.short_name || r?.department?.slug || '').toString().trim().toLowerCase(),
           slug: (r?.department?.slug ?? '').toString().trim(),
           title:(r?.department?.title ?? '').toString().trim(),
           // be tolerant to different key names
@@ -613,6 +693,7 @@
         .filter(d => d.uuid && d.title && d.count > 0);
 
       deptByUuid = new Map(depts.map(d => [d.uuid, d]));
+      deptByShortcode = new Map(depts.map(d => [d.shortcode, d]));
 
       // keep dropdown clean (no brackets / no extra text)
       depts.sort((a,b) => a.title.localeCompare(b.title));
@@ -1033,12 +1114,14 @@
 
       if (!v || v === ALL_DEPTS){
         state.deptUuid = ALL_DEPTS;
+        syncUrl();
         await loadAssignedForAllDepartments();
         window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
 
       state.deptUuid = v;
+      syncUrl();
       await loadAssignedForDept(v);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
@@ -1107,6 +1190,7 @@
       if (els.dept) els.dept.value = ALL_DEPTS;
       await loadAssignedForAllDepartments();
     }
+    syncUrl();
   });
 
 })();

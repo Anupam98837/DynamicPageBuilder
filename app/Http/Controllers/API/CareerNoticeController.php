@@ -12,6 +12,7 @@ use Throwable;
 
 class CareerNoticeController extends Controller
 {
+    use \App\Http\Controllers\API\Concerns\HasWorkflowManagement;
     /* ============================================
      | Helpers
      |============================================ */
@@ -19,10 +20,10 @@ class CareerNoticeController extends Controller
     private function actor(Request $r): array
     {
         return [
-            'id'   => (int) ($r->attributes->get('auth_tokenable_id') ?? optional($r->user())->id ?? 0),
-            'role' => (string) ($r->attributes->get('auth_role') ?? ($r->user()->role ?? '')),
+            'id'   => (int) ($r->attributes->get('auth_tokenable_id') ?? $r->user()?->id ?? 0),
+            'role' => (string) ($r->attributes->get('auth_role') ?? ($r->user()?->role ?? '')),
             'type' => (string) ($r->attributes->get('auth_tokenable_type') ?? ($r->user() ? get_class($r->user()) : '')),
-            'uuid' => (string) ($r->attributes->get('auth_user_uuid') ?? ($r->user()->uuid ?? '')),
+            'uuid' => (string) ($r->attributes->get('auth_user_uuid') ?? ($r->user()?->uuid ?? '')),
         ];
     }
 
@@ -267,6 +268,7 @@ class CareerNoticeController extends Controller
 
         $q->whereNull('deleted_at')
           ->where('status', 'published')
+          ->where('workflow_status', 'approved')
           ->where(function ($w) use ($now) {
               $w->whereNull('publish_at')->orWhere('publish_at', '<=', $now);
           })
@@ -386,10 +388,15 @@ class CareerNoticeController extends Controller
         $row = $this->resolveCareerNotice($identifier, $includeDeleted);
         if (! $row) return response()->json(['message' => 'Career notice not found'], 404);
 
+        // Strict workflow check for single record view
+        if ($row->workflow_status !== 'approved') {
+            return response()->json(['message' => 'Career notice not found'], 404);
+        }
+
         // optional: ?inc_view=1
         if (filter_var($request->query('inc_view', false), FILTER_VALIDATE_BOOLEAN)) {
-            DB::table('career_notices')->where('id', (int) $row->id)->increment('views_count');
-            $row->views_count = ((int) ($row->views_count ?? 0)) + 1;
+            DB::table('career_notices')->where('id', (int) ($row?->id ?? 0))->increment('views_count');
+            if ($row) $row->views_count = ((int) ($row->views_count ?? 0)) + 1;
         }
 
         return response()->json([
@@ -476,11 +483,11 @@ class CareerNoticeController extends Controller
             if (json_last_error() === JSON_ERROR_NONE) $metadata = $decoded;
         }
 
-        // ✅ AUTHORITY CONTROL AUTO-SYNC:
-        // if is_featured_home = 1 => request_for_approval = 1
-        // if is_featured_home = 0 => request_for_approval = 0
+        // Unified Workflow Status
+        $workflowStatus = $this->getInitialWorkflowStatus($request);
+
         $featured = (int) ($validated['is_featured_home'] ?? 0);
-        $requestForApproval = $featured === 1 ? 1 : 0;
+        $requestForApproval = ($workflowStatus === 'pending_check' || $workflowStatus === 'checked') ? 1 : 0;
 
         $id = DB::table('career_notices')->insertGetId([
             'uuid'               => $uuid,
@@ -490,11 +497,17 @@ class CareerNoticeController extends Controller
             'cover_image'        => $coverPath,
             'attachments_json'   => !empty($attachments) ? json_encode($attachments) : null,
             'is_featured_home'   => $featured,
-            'status'             => (string) ($validated['status'] ?? 'draft'),
 
-            // ✅ new flags
+            // Unified Workflow
+            'workflow_status'      => $workflowStatus,
+            'draft_data'           => null,
+
+            // Legacy Approval columns
             'request_for_approval' => $requestForApproval,
-            'is_approved'          => 0,
+            'is_approved'          => ($workflowStatus === 'approved') ? 1 : 0,
+            'is_rejected'          => ($workflowStatus === 'rejected') ? 1 : 0,
+
+            'status'               => (string)($validated['status'] ?? 'published'),
 
             'publish_at'         => !empty($validated['publish_at']) ? Carbon::parse($validated['publish_at']) : null,
             'expire_at'          => !empty($validated['expire_at']) ? Carbon::parse($validated['expire_at']) : null,
@@ -588,8 +601,8 @@ class CareerNoticeController extends Controller
         // slug unique
         if (array_key_exists('slug', $validated) && trim((string)$validated['slug']) !== '') {
             $slug = $this->normSlug($validated['slug']);
-            if ($slug === '') $slug = (string) ($row->slug ?? '');
-            $slug = $this->ensureUniqueSlug($slug, (string) $row->uuid);
+            if ($slug === '') $slug = (string) ($row?->slug ?? '');
+            $slug = $this->ensureUniqueSlug($slug, (string) ($row?->uuid ?? ''));
             $update['slug'] = $slug;
         }
 
@@ -607,7 +620,7 @@ class CareerNoticeController extends Controller
 
         // cover remove
         if (filter_var($request->input('cover_image_remove', false), FILTER_VALIDATE_BOOLEAN)) {
-            $this->deletePublicPath($row->cover_image ?? null);
+            $this->deletePublicPath($row?->cover_image ?? null);
             $update['cover_image'] = null;
         }
 
@@ -615,19 +628,19 @@ class CareerNoticeController extends Controller
         if ($request->hasFile('cover_image')) {
             $f = $request->file('cover_image');
             if (!$f || !$f->isValid()) {
-                $this->activityLog($request, 'update_failed', 'career_notices', 'career_notices', (int) $row->id, null, $oldForLog, null, 'Cover image upload failed');
+                $this->activityLog($request, 'update_failed', 'career_notices', 'career_notices', (int) ($row?->id ?? 0), null, $oldForLog, null, 'Cover image upload failed');
                 return response()->json(['success' => false, 'message' => 'Cover image upload failed'], 422);
             }
-            $this->deletePublicPath($row->cover_image ?? null);
+            $this->deletePublicPath($row?->cover_image ?? null);
 
-            $useSlug = (string) ($update['slug'] ?? $row->slug ?? 'career-notice');
+            $useSlug = (string) ($update['slug'] ?? $row?->slug ?? 'career-notice');
             $meta = $this->uploadFileToPublic($f, $dirRel, $useSlug . '-cover');
             $update['cover_image'] = $meta['path'];
         }
 
         // current attachments
         $existing = [];
-        if (!empty($row->attachments_json)) {
+        if (!empty($row?->attachments_json)) {
             $decoded = json_decode((string) $row->attachments_json, true);
             if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) $existing = $decoded;
         }
@@ -677,30 +690,52 @@ class CareerNoticeController extends Controller
 
         $update['attachments_json'] = !empty($existing) ? json_encode($existing) : null;
 
-        DB::table('career_notices')->where('id', (int) $row->id)->update($update);
+        try {
+            $result = $this->handleWorkflowUpdate($request, 'career_notices', (int) ($row?->id ?? 0), $update);
+            
+            $fresh = DB::table('career_notices')->where('id', (int) ($row?->id ?? 0))->first();
+            
+            $msg = ($result === 'drafted') 
+                ? 'Your changes have been submitted for approval. The live content will remain unchanged until approved.'
+                : 'Career notice updated successfully.';
 
-        $fresh = DB::table('career_notices')->where('id', (int) $row->id)->first();
+            $newForLog = $fresh ? $this->logSafeRow($fresh) : null;
+            $changed = $newForLog ? $this->diffKeys($oldForLog, $newForLog) : null;
 
-        // ✅ activity log (UPDATE)
-        $newForLog = $fresh ? $this->logSafeRow($fresh) : null;
-        $changed = $newForLog ? $this->diffKeys($oldForLog, $newForLog) : null;
+            $this->activityLog(
+                $request,
+                'update',
+                'career_notices',
+                'career_notices',
+                (int) ($row?->id ?? 0),
+                $changed,
+                $oldForLog,
+                $newForLog,
+                $msg
+            );
 
-        $this->activityLog(
-            $request,
-            'update',
-            'career_notices',
-            'career_notices',
-            (int) $row->id,
-            $changed,
-            $oldForLog,
-            $newForLog,
-            'Career notice updated'
-        );
-
-        return response()->json([
-            'success' => true,
-            'data'    => $fresh ? $this->normalizeRow($fresh) : null,
-        ]);
+            return response()->json([
+                'success' => true,
+                'message' => $msg,
+                'data'    => $fresh ? $this->normalizeRow($fresh) : null,
+            ]);
+        } catch (\Throwable $e) {
+            $this->activityLog(
+                $request,
+                'update_error',
+                'career_notices',
+                'career_notices',
+                (int) ($row?->id ?? 0),
+                null,
+                $oldForLog,
+                null,
+                'Error: ' . $e->getMessage()
+            );
+            return response()->json([
+                'success' => false,
+                'message' => 'Update failed: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     public function toggleFeatured(Request $request, $identifier)
@@ -899,6 +934,7 @@ class CareerNoticeController extends Controller
 
         $now = now();
         $isVisible =
+            ($row->workflow_status === 'approved') &&
             ($row->status === 'published') &&
             (empty($row->publish_at) || Carbon::parse($row->publish_at)->lte($now)) &&
             (empty($row->expire_at)  || Carbon::parse($row->expire_at)->gt($now));

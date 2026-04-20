@@ -25,6 +25,41 @@ trait DepartmentScopeable
     protected function departmentAccessControl(Request $request): array
     {
         $userId = (int) ($request->attributes->get('auth_tokenable_id') ?? 0);
+        
+        // 🚀 Fallback if CheckRole middleware hasn't run on this route
+        if ($userId <= 0) {
+            $header = $request->header('Authorization', '');
+            if ($header !== '') {
+                if (stripos($header, 'Bearer ') === 0) {
+                    $token = trim(substr($header, 7));
+                } else {
+                    $token = trim($header);
+                }
+                
+                if ($token !== '') {
+                    $hashed = hash('sha256', $token);
+                    $pat = DB::table('personal_access_tokens')
+                        ->where('token', $hashed)
+                        ->where('tokenable_type', 'App\\Models\\User')
+                        ->first();
+                    if ($pat) {
+                        $userId = (int) $pat->tokenable_id;
+                        $request->attributes->set('auth_tokenable_id', $userId);
+                        
+                        // 🚀 Populate all attributes for downstream controllers
+                        $fullU = DB::table('users')
+                            ->select(['id', 'uuid', 'role'])
+                            ->where('id', $userId)
+                            ->whereNull('deleted_at')
+                            ->first();
+                        if ($fullU) {
+                            $request->attributes->set('auth_user_uuid', (string) ($fullU->uuid ?? ''));
+                            $request->attributes->set('auth_role', strtolower(trim((string) ($fullU->role ?? ''))));
+                        }
+                    }
+                }
+            }
+        }
 
         if ($userId <= 0) {
             return ['mode' => 'none', 'department_id' => null];
@@ -66,13 +101,21 @@ trait DepartmentScopeable
      * Apply department WHERE clause to a query builder.
      *
      * @param  \Illuminate\Database\Query\Builder  $query
-     * @param  array                               $ac    Result of departmentAccessControl()
-     * @param  string                              $col   The department_id column expression
+     * @param  array                               $ac           Result of departmentAccessControl()
+     * @param  string                              $col          The department_id column expression
+     * @param  bool                                $allowGlobal  Whether to include items with department_id = null
      */
-    protected function applyDeptScope($query, array $ac, string $col = 'department_id'): void
+    protected function applyDeptScope($query, array $ac, string $col = 'department_id', bool $allowGlobal = false): void
     {
         if ($ac['mode'] === 'department' && $ac['department_id']) {
-            $query->where($col, (int) $ac['department_id']);
+            if ($allowGlobal) {
+                $query->where(function ($sub) use ($col, $ac) {
+                    $sub->where($col, (int) $ac['department_id'])
+                        ->orWhereNull($col);
+                });
+            } else {
+                $query->where($col, (int) $ac['department_id']);
+            }
         }
     }
 

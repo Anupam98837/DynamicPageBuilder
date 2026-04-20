@@ -95,6 +95,83 @@
     background:color-mix(in oklab, var(--danger-color) 14%, transparent);
     color:var(--danger-color)
   }
+  .badge-soft-info{
+    background:color-mix(in oklab, var(--info-color, #0ea5e9) 12%, transparent);
+    color:var(--info-color, #0ea5e9)
+  }
+
+  /* Timeline Styles */
+  .timeline {
+    position: relative;
+    padding: 0;
+    list-style: none;
+  }
+  .timeline:before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 31px;
+    width: 2px;
+    background: var(--line-soft);
+  }
+  .timeline-item {
+    position: relative;
+    margin-bottom: 20px;
+  }
+  .timeline-marker {
+    position: absolute;
+    top: 0;
+    left: 20px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 2px solid var(--primary-color);
+    z-index: 10;
+  }
+  .timeline-content {
+    margin-left: 60px;
+    padding: 12px 16px;
+    background: color-mix(in oklab, var(--surface) 95%, var(--bg-body));
+    border: 1px solid var(--line-soft);
+    border-radius: 12px;
+  }
+  .timeline-date {
+    font-size: 11px;
+    color: var(--muted-color);
+    margin-bottom: 4px;
+  }
+  .timeline-title {
+    font-weight: 600;
+    font-size: 13.5px;
+    margin-bottom: 4px;
+  }
+  .timeline-author {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ink);
+  }
+  .timeline-comment {
+    font-size: 12.5px;
+    color: var(--muted-color);
+    margin-top: 6px;
+    padding: 6px 10px;
+    background: rgba(0,0,0,0.03);
+    border-left: 2px solid var(--line-strong);
+    font-style: italic;
+  }
+  .badge-pending-draft {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: var(--warning-color);
+    color: #fff;
+    vertical-align: middle;
+    margin-left: 4px;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
 
   /* Loading overlay */
   .ach-loading{
@@ -277,7 +354,7 @@
         <i class="fa-solid fa-file-pen me-2"></i>Draft
       </a>
     </li>
-    <li class="nav-item">
+    <li class="nav-item" id="achTabHeaderTrash" style="display:none;">
       <a class="nav-link" data-bs-toggle="tab" href="#achTabTrash" role="tab" aria-selected="false">
         <i class="fa-solid fa-trash-can me-2"></i>Bin
       </a>
@@ -299,9 +376,9 @@
                   <th style="width:240px;">Department</th>
                   <th style="width:140px;">Status</th>
                   <th style="width:140px;">Featured</th>
-                  <th style="width:220px;">Published At</th>
-                  <th style="width:120px;">Views</th>
-                  <th style="width:108px;" class="text-end">Actions</th>
+                   <th style="width:220px;">Published At</th>
+                   <th style="width:170px;">Workflow</th>
+                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
               </thead>
               <tbody id="achTbodyActive">
@@ -336,9 +413,9 @@
                   <th style="width:240px;">Department</th>
                   <th style="width:140px;">Status</th>
                   <th style="width:140px;">Featured</th>
-                  <th style="width:220px;">Saved At</th>
-                  <th style="width:120px;">Views</th>
-                  <th style="width:108px;" class="text-end">Actions</th>
+                   <th style="width:220px;">Saved At</th>
+                   <th style="width:170px;">Workflow</th>
+                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
               </thead>
               <tbody id="achTbodyDraft">
@@ -474,6 +551,17 @@
 
       <div class="modal-body">
         <input type="hidden" id="achIdOrUuid">
+
+
+
+        {{-- Pending Draft Alert --}}
+        <div id="achDraftAlert" class="alert alert-warning mb-3" style="display:none;">
+          <div class="d-flex align-items-center gap-2">
+            <i class="fa fa-pen-nib fs-5"></i>
+            <h6 class="mb-0 fw-bold">Pending Changes</h6>
+          </div>
+          <div class="ms-4 small">This item has updates waiting for approval. Editing now will replace those pending changes.</div>
+        </div>
 
         <div class="row g-3">
           <div class="col-md-6">
@@ -621,6 +709,54 @@
   </div>
 </div>
 @endsection
+
+{{-- Rejection Reason Modal --}}
+<div class="modal fade" id="rejectReasonModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title text-danger"><i class="fa fa-circle-xmark me-2"></i>Rejection Reason</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="p-3 bg-light rounded-3 border">
+          <div id="rejectReasonModalText" class="text-dark" style="font-size: 14.5px; line-height: 1.6; white-space: pre-wrap;">—</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{{-- Workflow History Modal --}}
+<div class="modal fade" id="achHistoryModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-md modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-clock-rotate-left me-2"></i>Workflow History</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="achHistoryLoading" class="text-center py-4">
+          <div class="spinner-border text-primary" role="status"></div>
+          <div class="mt-2 text-muted">Loading history…</div>
+        </div>
+        <div id="achHistoryContent" style="display:none;">
+          <ul class="timeline" id="achHistoryTimeline"></ul>
+        </div>
+        <div id="achHistoryEmpty" class="text-center py-4 text-muted" style="display:none;">
+          <i class="fa fa-history mb-2 fs-3 opacity-50"></i>
+          <div>No history found for this item.</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
@@ -785,10 +921,25 @@
   }
 
   function badgeStatus(r){
+    let html = '';
     if (isPublished(r)){
-      return `<span class="badge-soft badge-soft-success"><i class="fa fa-circle-check"></i> Published</span>`;
+      html = `<span class="badge-soft badge-soft-success"><i class="fa fa-circle-check"></i> Published</span>`;
+    } else {
+      html = `<span class="badge-soft badge-soft-warning"><i class="fa fa-circle-pause"></i> Draft</span>`;
     }
-    return `<span class="badge-soft badge-soft-warning"><i class="fa fa-circle-pause"></i> Draft</span>`;
+    if (r.draft_data) {
+      html += `<span class="badge-pending-draft" title="Pending Changes">Draft</span>`;
+    }
+    return html;
+  }
+
+  function workflowBadge(ws) {
+    const s = (ws || '').toString().toLowerCase();
+    if (s === 'pending_check') return `<span class="badge-soft badge-soft-warning"><i class="fa fa-hourglass-start me-1"></i>Pending Check</span>`;
+    if (s === 'checked') return `<span class="badge-soft badge-soft-info"><i class="fa fa-check-double me-1"></i>Checked</span>`;
+    if (s === 'approved') return `<span class="badge-soft badge-soft-success"><i class="fa fa-circle-check me-1"></i>Approved</span>`;
+    if (s === 'rejected') return `<span class="badge-soft badge-soft-danger"><i class="fa fa-circle-xmark me-1"></i>Rejected</span>`;
+    return `<span class="badge-soft badge-soft-muted">${esc(s || '—')}</span>`;
   }
 
   function deptBadge(row){
@@ -870,10 +1021,13 @@ function rowActions(tabKey, canWrite, row){
     }
 
     html += `<li><button type="button" class="dropdown-item" data-action="toggleFeatured" ${canWrite ? '' : 'disabled'}><i class="fa fa-star"></i> Toggle Featured</button></li>
+             <li><button type="button" class="dropdown-item" data-action="history"><i class="fa fa-clock-rotate-left"></i> Workflow History</button></li>
+             ${(row.workflow_status === 'rejected') ? `<li><button type="button" class="dropdown-item text-danger" data-action="reject_reason" data-reason="${esc(row.rejected_reason || row.rejection_reason || 'No reason provided')}"><i class="fa fa-circle-xmark me-1"></i> Rejection Reason</button></li>` : ''}
              <li><hr class="dropdown-divider"></li>
              <li><button type="button" class="dropdown-item text-danger" data-action="delete" ${canWrite ? '' : 'disabled'}><i class="fa fa-trash"></i> Delete</button></li>`;
   } else {
     html += `<li><button type="button" class="dropdown-item" data-action="restore" ${canWrite ? '' : 'disabled'}><i class="fa fa-rotate-left"></i> Restore</button></li>
+             <li><button type="button" class="dropdown-item" data-action="history"><i class="fa fa-clock-rotate-left"></i> Workflow History</button></li>
              <li><hr class="dropdown-divider"></li>
              <li><button type="button" class="dropdown-item text-danger" data-action="force" ${canWrite ? '' : 'disabled'}><i class="fa fa-skull-crossbones"></i> Delete Permanently</button></li>`;
   }
@@ -968,9 +1122,16 @@ function computePermissions(){
 
   // keep existing "write" flag used across the page
   canWrite = canEdit || canCreate || !r; // if role missing, keep same permissive fallback
+  canPublish = true; // allow everyone who can write to see the "Published" option
 
   const wc = $('achWriteControls');
   if (wc) wc.style.display = canCreate ? 'flex' : 'none';
+
+  const allowedTrashRoles = ['hod', 'admin', 'director', 'principal', 'author', 'super_admin'];
+  const tabHeaderTrash = $('achTabHeaderTrash');
+  if (tabHeaderTrash) {
+    tabHeaderTrash.style.display = allowedTrashRoles.includes(r) ? 'block' : 'none';
+  }
 
   // ✅ hide/show "Published" option in status dropdown
   updatePublishOption();
@@ -981,7 +1142,7 @@ function updatePublishOption(){
 
   const publishOption = achStatus.querySelector('option[value="published"]');
   if (publishOption){
-    publishOption.style.display = canPublish ? '' : 'none';
+    publishOption.style.display = canPublish ? 'block' : 'none';
 
     // if user can't publish but current value is published, force draft
     if (!canPublish && (achStatus.value || '').toLowerCase() === 'published'){
@@ -1064,6 +1225,76 @@ function updatePublishOption(){
     const achCoverImage = $('achCoverImage');
     const achAttachments = $('achAttachments');
     const achMetadata = $('achMetadata');
+
+    // Workflow alerts
+    const achRejectionAlert = $('achRejectionAlert');
+    const achRejectionReasonText = $('achRejectionReasonText');
+    const achDraftAlert = $('achDraftAlert');
+
+    // History Modal
+    const achHistoryModalEl = $('achHistoryModal');
+    const achHistoryModal = achHistoryModalEl ? new bootstrap.Modal(achHistoryModalEl) : null;
+    const achHistoryTimeline = $('achHistoryTimeline');
+    const achHistoryLoading = $('achHistoryLoading');
+    const achHistoryContent = $('achHistoryContent');
+    const achHistoryEmpty = $('achHistoryEmpty');
+
+
+
+        const globalRejectReasonModalEl = document.getElementById('rejectReasonModal');
+    const globalRejectReasonModal = globalRejectReasonModalEl ? new bootstrap.Modal(globalRejectReasonModalEl) : null;
+    window.showRejectReason = (msg) => {
+      const txt = document.getElementById('rejectReasonModalText');
+      if (txt) txt.textContent = msg || 'No reason provided';
+      if (globalRejectReasonModal) globalRejectReasonModal.show();
+    };
+
+    async function showHistory(table, id){
+      if (!achHistoryModal) return;
+      achHistoryModal.show();
+      achHistoryLoading.style.display = 'block';
+      achHistoryContent.style.display = 'none';
+      achHistoryEmpty.style.display = 'none';
+      achHistoryTimeline.innerHTML = '';
+
+      try {
+        const res = await fetchWithTimeout(`/api/master-approval/history/${table}/${id}`, { headers: authHeaders() });
+        const js = await res.json();
+        achHistoryLoading.style.display = 'none';
+
+        if (js.success && js.data && js.data.length){
+          achHistoryTimeline.innerHTML = js.data.map(log => `
+            <li class="timeline-item">
+              <div class="timeline-marker"></div>
+              <div class="timeline-content">
+                <div class="timeline-date">${new Date(log.created_at).toLocaleString()}</div>
+                <div class="timeline-title">
+                  Status changed to <span class="badge-soft ${getStatusClass(log.to_status)}">${log.to_status.replace('_', ' ')}</span>
+                </div>
+                <div class="timeline-author">By: ${esc(log.user_name || 'System')} (${esc(log.user_role || 'unknown')})</div>
+                ${log.comment ? `<div class="timeline-comment">${esc(log.comment)}</div>` : ''}
+              </div>
+            </li>
+          `).join('');
+          achHistoryContent.style.display = 'block';
+        } else {
+          achHistoryEmpty.style.display = 'block';
+        }
+      } catch (err) {
+        achHistoryLoading.style.display = 'none';
+        achHistoryEmpty.style.display = 'block';
+        console.error('Failed to load history:', err);
+      }
+    }
+
+    function getStatusClass(s){
+      s = (s || '').toLowerCase();
+      if (s === 'approved') return 'badge-soft-success';
+      if (s === 'rejected') return 'badge-soft-danger';
+      if (s === 'checked') return 'badge-soft-info';
+      if (s === 'pending_check') return 'badge-soft-warning';
+      return 'badge-soft-muted';
+    }
 
     const achCurrentImageWrap = $('achCurrentImageWrap');
     const achCurrentImagePreview = $('achCurrentImagePreview');
@@ -1305,7 +1536,7 @@ function updatePublishOption(){
             <td>${badgeStatus(r)}</td>
             <td>${badgeFeatured(r.is_featured_home)}</td>
             <td>${esc(String(published || '—'))}</td>
-            <td>${esc(String(views))}</td>
+            <td>${workflowBadge(r.workflow_status)}</td>
             <td class="text-end">${rowActions('active', canWrite, r)}</td>
           </tr>
         `;
@@ -1346,7 +1577,7 @@ function updatePublishOption(){
             <td>${badgeStatus(r)}</td>
             <td>${badgeFeatured(r.is_featured_home)}</td>
             <td>${esc(String(savedAt || '—'))}</td>
-            <td>${esc(String(views))}</td>
+            <td>${workflowBadge(r.workflow_status)}</td>
             <td class="text-end">${rowActions('draft', canWrite, r)}</td>
           </tr>
         `;
@@ -1396,10 +1627,11 @@ function updatePublishOption(){
     }
 
     async function loadTab(tabKey){
-      const tbody = tabKey==='active' ? tbodyA : (tabKey==='draft' ? tbodyD : tbodyT);
-      if (tbody){
-        const cols = (tabKey==='trash') ? 7 : 8;
-        tbody.innerHTML = `<tr><td colspan="${cols}" class="text-center ach-muted" style="padding:38px;">Loading…</td></tr>`;
+      const getTbody = (k) => k==='active' ? tbodyA : (k==='draft' ? tbodyD : tbodyT);
+      const tbody = getTbody(tabKey);
+      if(tbody){
+        const c = tabKey==='trash' ? 7 : 8;
+        tbody.innerHTML = `<tr><td colspan="${c}" class="text-center ach-muted" style="padding:48px;">Loading…</td></tr>`;
       }
 
       try{
@@ -1520,6 +1752,12 @@ function updatePublishOption(){
       loadTab('trash');
     });
 
+    function findRow(id, tab=null){
+      const findIn = (k) => (state.tabs[k].items || []).find(r => (r.uuid||r.id||r.slug||'') === id);
+      if (tab) return findIn(tab);
+      return findIn('active') || findIn('draft') || findIn('trash');
+    }
+
     // ---------- ✅ ACTION DROPDOWN FIX (Popper fixed strategy) ----------
     function closeAllDropdownsExcept(exceptToggle){
       document.querySelectorAll('.ach-dd-toggle').forEach(t => {
@@ -1585,6 +1823,12 @@ achStatus?.addEventListener('change', () => applyStatusUI(achStatus.value));
       if (achPublishedAt) achPublishedAt.value = '';
       if (achPublishedAtWrap) achPublishedAtWrap.style.display = 'none';
 
+      if (achRejectionAlert) achRejectionAlert.style.display = 'none';
+      if (achDraftAlert) achDraftAlert.style.display = 'none';
+      achCurrentIdForHistory = null;
+
+      updatePublishOption();
+
       achCurrentImageWrap.style.display = 'none';
       achImageRemoveWrap.style.display = 'none';
       achCurrentImageLink.href = '#';
@@ -1628,6 +1872,14 @@ achStatus?.addEventListener('change', () => applyStatusUI(achStatus.value));
 
     function fillForm(r){
       achIdOrUuid.value = r.uuid || r.id || r.slug || '';
+
+
+
+
+      // Draft Alert
+      if (achDraftAlert) {
+        achDraftAlert.style.display = r.draft_data ? 'block' : 'none';
+      }
 
       const rawDept =
         (r.department_id ?? r.departmentId ?? '') ||
@@ -1816,8 +2068,39 @@ achStatus?.addEventListener('change', () => applyStatusUI(achStatus.value));
       const toggle = actionBtn.closest('.dropdown')?.querySelector('.ach-dd-toggle');
       if (toggle){ try{ bootstrap.Dropdown.getInstance(toggle)?.hide(); }catch(_){ } }
 
-      if (act === 'view' || act === 'edit'){
-        if (act === 'edit' && !canWrite) return;
+      if (act === 'history') {
+        const row = findRow(id, tab);
+        if (row && row.id) {
+          showHistory('achievements', row.id);
+        } else {
+          showLoading(true);
+          fetchOne(id).then(r => {
+            if (r && r.id) showHistory('achievements', r.id);
+          }).catch(e => err(e.message)).finally(() => showLoading(false));
+        }
+        return;
+      }
+
+      if (act === 'reject_reason'){
+        const reason = actionBtn.dataset.reason || 'No reason provided';
+        Swal.fire({
+          title: 'Rejection Reason',
+          text: reason,
+          icon: 'error',
+          confirmButtonText: 'Close'
+        });
+        return;
+      }
+
+      if (act === 'view'){
+        const row = findRow(id, tab);
+        const slug = row?.slug || row?.uuid || row?.id || id;
+        if (slug) window.open(`/achievements/view/${slug}`, '_blank');
+        return;
+      }
+
+      if (act === 'edit'){
+        if (!canWrite) return;
 
         showLoading(true);
         try{
@@ -1825,10 +2108,10 @@ achStatus?.addEventListener('change', () => applyStatusUI(achStatus.value));
           resetForm();
           fillForm(data || {});
           updatePublishOption(); 
-          if (itemModalTitle) itemModalTitle.textContent = (act === 'view') ? 'View Achievement' : 'Edit Achievement';
-          setViewMode(act === 'view');
-          itemForm.dataset.intent = (act === 'view') ? 'view' : 'edit';
-          itemForm.dataset.mode = (act === 'view') ? 'view' : 'edit';
+          if (itemModalTitle) itemModalTitle.textContent = 'Edit Achievement';
+          setViewMode(false);
+          itemForm.dataset.intent = 'edit';
+          itemForm.dataset.mode = 'edit';
           itemModal && itemModal.show();
         }catch(ex){
           err(ex.message || 'Failed');

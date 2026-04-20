@@ -56,14 +56,11 @@
         <option>100</option>
       </select>
 
-      {{-- ✅ UPDATED: name sort -> first/last sort --}}
-      <select id="sortSelect" class="form-select" style="width:220px;">
+      <select id="sortSelect" class="form-select" style="width:170px;">
         <option value="created_desc" selected>Newest first</option>
         <option value="created_asc">Oldest first</option>
-        <option value="first_name_asc">First Name A → Z</option>
-        <option value="first_name_desc">First Name Z → A</option>
-        <option value="last_name_asc">Last Name A → Z</option>
-        <option value="last_name_desc">Last Name Z → A</option>
+        <option value="name_asc">Name A → Z</option>
+        <option value="name_desc">Name Z → A</option>
       </select>
 
       <div class="position-relative" style="min-width:260px;">
@@ -85,9 +82,7 @@
       <table class="table table-hover align-middle mb-0">
         <thead>
           <tr>
-            {{-- ✅ UPDATED: split name columns --}}
-            <th>First Name</th>
-            <th>Last Name</th>
+            <th>Name</th>
             <th>Email</th>
             <th>Phone</th>
             <th>Message</th>
@@ -97,7 +92,7 @@
         </thead>
         <tbody id="tbody">
           <tr>
-            <td colspan="7" class="text-center py-5 text-muted">
+            <td colspan="6" class="text-center py-5 text-muted">
               <div class="spinner-border spinner-border-sm me-2"></div>
               Loading enquiries…
             </td>
@@ -155,7 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function load(){
     tbody.innerHTML = `
       <tr>
-        <td colspan="7" class="text-center py-5 text-muted">
+        <td colspan="6" class="text-center py-5 text-muted">
           <div class="spinner-border spinner-border-sm me-2"></div> Loading…
         </td>
       </tr>`;
@@ -179,7 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!rows.length) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="7" class="text-center py-5 text-muted">
+          <td colspan="6" class="text-center py-5 text-muted">
             <i class="fa fa-inbox fa-2x mb-2"></i><br>No enquiries found
           </td>
         </tr>`;
@@ -189,22 +184,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     tbody.innerHTML = rows.map(r => {
-      const fn = (r.first_name || '').trim();
-      const ln = (r.last_name || '').trim();
+      const name = (r.name || '').trim();
       const isUnread = (r.is_read == 0);
 
       return `
         <tr ${isUnread ? 'class="fw-semibold"' : ''}>
-          <td>${esc(fn || '—')}</td>
-          <td>${esc(ln || '—')}</td>
+          <td>${esc(name || '—')}</td>
 
           <td><a href="mailto:${esc(r.email)}">${esc(r.email)}</a></td>
           <td>${esc(r.phone || '—')}</td>
 
           <td>
             <div class="d-flex align-items-center gap-2">
-              <span title="${esc(r.message)}">
-                ${esc(r.message).slice(0,40)}${r.message.length > 40 ? '…' : ''}
+              <span title="${esc(r.message || '')}">
+                ${esc(r.message || '').slice(0,40)}${(r.message && r.message.length > 40) ? '…' : ''}
               </span>
               <button class="btn-icon btn-sm" onclick="viewMsg(${r.id})">
                 <i class="fa fa-eye"></i>
@@ -287,18 +280,14 @@ document.addEventListener('DOMContentLoaded', () => {
     load();
   });
 
-  // ✅ UPDATED sort mapping (name -> first_name/last_name)
   document.getElementById('sortSelect').addEventListener('change', e=>{
     const v = e.target.value;
 
     if (v === 'created_desc'){ sortBy='created_at'; sortDir='desc'; }
     if (v === 'created_asc'){ sortBy='created_at'; sortDir='asc'; }
 
-    if (v === 'first_name_asc'){ sortBy='first_name'; sortDir='asc'; }
-    if (v === 'first_name_desc'){ sortBy='first_name'; sortDir='desc'; }
-
-    if (v === 'last_name_asc'){ sortBy='last_name'; sortDir='asc'; }
-    if (v === 'last_name_desc'){ sortBy='last_name'; sortDir='desc'; }
+    if (v === 'name_asc'){ sortBy='name'; sortDir='asc'; }
+    if (v === 'name_desc'){ sortBy='name'; sortDir='desc'; }
 
     page = 1;
     load();

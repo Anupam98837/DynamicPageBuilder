@@ -66,6 +66,23 @@
 
   /* View modal payload preview */
   .map-json{border:1px solid var(--line-strong);border-radius:14px;background:color-mix(in oklab, var(--surface) 92%, transparent);padding:12px;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-size:12.5px;line-height:1.45;white-space:pre-wrap;word-break:break-word;max-height:360px;overflow:auto;}
+
+  /* Timeline Styles (Sync from Manage Pages) */
+  .timeline { position: relative; padding: 0; list-style: none; }
+  .timeline:before { content: ''; position: absolute; top: 0; bottom: 0; left: 31px; width: 2px; background: var(--line-soft); }
+  .timeline-item { position: relative; margin-bottom: 20px; }
+  .timeline-marker { position: absolute; top: 0; left: 20px; width: 24px; height: 24px; border-radius: 50%; background: var(--surface); border: 2px solid var(--primary-color); z-index: 10; }
+  .timeline-content { margin-left: 60px; padding: 12px 16px; background: color-mix(in oklab, var(--surface) 95%, var(--bg-body)); border: 1px solid var(--line-soft); border-radius: 12px; }
+  .timeline-date { font-size: 11px; color: var(--muted-color); margin-bottom: 4px; }
+  .timeline-title { font-weight: 600; font-size: 13.5px; margin-bottom: 4px; }
+  .timeline-author { font-size: 12px; font-weight: 500; color: var(--ink); }
+  .timeline-comment { font-size: 12.5px; color: var(--muted-color); margin-top: 6px; padding: 6px 10px; background: rgba(0,0,0,0.03); border-left: 2px solid var(--line-strong); font-style: italic; }
+  .badge-history { font-size: 10px; padding: 2px 6px; border-radius: 6px; vertical-align: middle; text-transform: uppercase; font-weight: 700; }
+
+  /* SweetAlert focus fix over modals */
+  .swal2-container {
+    z-index: 10000 !important;
+  }
 </style>
 @endpush
 
@@ -160,7 +177,7 @@
 </div>
 
 {{-- Filter Modal --}}
-<div class="modal fade" id="mapFilterModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="mapFilterModal" aria-hidden="true">
   <div class="modal-dialog modal-md">
     <div class="modal-content">
       <div class="modal-header">
@@ -240,7 +257,7 @@
 </div>
 
 {{-- View Modal --}}
-<div class="modal fade" id="mapViewModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="mapViewModal" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-centered">
     <div class="modal-content" id="mapViewModalContent">
       <div class="modal-header">
@@ -281,6 +298,93 @@
   </div>
 </div>
 
+{{-- Workflow History Modal --}}
+<div class="modal fade" id="historyModal" aria-hidden="true">
+  <div class="modal-dialog modal-md modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-clock-rotate-left me-2"></i>Workflow History</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" style="max-height: 500px; overflow-y: auto;">
+        <div id="historyLoading" class="text-center py-4">
+          <div class="spinner-border text-primary" role="status"></div>
+          <div class="mt-2 text-muted">Loading history…</div>
+        </div>
+        <div id="historyContent" style="display:none;">
+          <ul class="timeline" id="historyTimeline"></ul>
+        </div>
+        <div id="historyEmpty" class="text-center py-4 text-muted" style="display:none;">
+          <i class="fa fa-history mb-2 fs-3 opacity-50"></i>
+          <div>No history found for this item.</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{{-- Rejection Reason Modal --}}
+<div class="modal fade" id="rejectReasonModal" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title text-danger"><i class="fa fa-circle-xmark me-2"></i>Rejection Reason</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="p-3 bg-light rounded-3 border">
+          <div id="rejectReasonText" class="text-dark" style="font-size: 14.5px; line-height: 1.6; white-space: pre-wrap;">—</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{{-- Preview Modal --}}
+<div class="modal fade" id="previewModal" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header bg-white border-bottom-0">
+        <h5 class="modal-title fw-bold text-dark"><i class="fa fa-eye me-2 text-primary"></i>Proposed Changes Preview</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body bg-light">
+        <div id="previewCardTitle" class="card shadow-sm border-0 mb-3" style="display:none;">
+          <div class="card-header bg-white fw-bold">Proposed Title</div>
+          <div class="card-body" id="previewTitleContent">—</div>
+        </div>
+        <div id="previewCardBody" class="card shadow-sm border-0" style="display:none;">
+          <div class="card-header bg-white fw-bold">Proposed Content</div>
+          <div class="card-body bg-white pt-4" id="previewBodyContent" style="min-height: 300px;">
+            {{-- Content will be injected here --}}
+          </div>
+        </div>
+        <div id="previewEmpty" class="text-center py-5 text-muted" style="display:none;">
+          <i class="fa fa-circle-info fs-1 mb-3 opacity-25"></i>
+          <p>No specific draft content found in raw data.</p>
+        </div>
+      </div>
+      <div class="modal-footer bg-light border-top-0">
+        <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Close</button>
+        <div id="previewModalActions" style="display:none;">
+          <button type="button" class="btn btn-danger px-4 ms-2" id="btnModalReject">
+            <i class="fa fa-circle-xmark me-2"></i>Reject
+          </button>
+          <button type="button" class="btn btn-success px-4 ms-2" id="btnModalApprove">
+            <i class="fa fa-circle-check me-2"></i>Approve
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 {{-- Toasts --}}
 <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index:2000">
   <div id="mapToastOk" class="toast align-items-center text-bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
@@ -309,6 +413,13 @@
 
   const $ = (id) => document.getElementById(id);
   const debounce = (fn, ms=320) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
+
+  /* Prevent Bootstrap from stealing focus from SweetAlert */
+  document.addEventListener('focusin', (e) => {
+    if (e.target.closest && e.target.closest('.swal2-container')) {
+      e.stopImmediatePropagation();
+    }
+  }, true);
 
   const esc = (str) => (str ?? '').toString().replace(/[&<>"']/g, s => ({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
@@ -446,6 +557,9 @@
 
   // ✅ status: supports your flag system (request_for_approval / is_approved)
   function approvalStatus(r){
+    const ws = safeString(r?.workflow_status || r?.record?.workflow_status || '').toLowerCase().trim();
+    if (ws) return ws;
+
     const s = safeString(r?.approval_status || r?.approvalState || r?.approval_state || r?.state).toLowerCase().trim();
     if (['pending','approved','rejected'].includes(s)) return s;
 
@@ -463,15 +577,18 @@
 
   function badgeStatus(st){
     if (st === 'approved'){
-      return `<span class="badge-soft badge-soft-success" title="Approved"><i class="fa fa-circle-check"></i></span>`;
+      return `<span class="badge-soft badge-soft-success" title="Approved"><i class="fa fa-circle-check me-1"></i>Approved</span>`;
     }
     if (st === 'rejected'){
-      return `<span class="badge-soft badge-soft-danger" title="Rejected"><i class="fa fa-circle-xmark"></i></span>`;
+      return `<span class="badge-soft badge-soft-danger" title="Rejected"><i class="fa fa-circle-xmark me-1"></i>Rejected</span>`;
     }
-    if (st === 'pending'){
-      return `<span class="badge-soft badge-soft-warning" title="Pending"><i class="fa fa-clock"></i></span>`;
+    if (st === 'checked'){
+      return `<span class="badge-soft badge-soft-primary" title="Checked by HOD"><i class="fa fa-check-double me-1"></i>Checked</span>`;
     }
-    return `<span class="badge-soft badge-soft-muted" title="${esc(st)}"><i class="fa fa-circle-question"></i></span>`;
+    if (st === 'pending' || st === 'pending_check'){
+      return `<span class="badge-soft badge-soft-warning" title="Pending Check"><i class="fa fa-clock me-1"></i>Pending</span>`;
+    }
+    return `<span class="badge-soft badge-soft-muted" title="${esc(st)}"><i class="fa fa-circle-question me-1"></i>${esc(st)}</span>`;
   }
 
   function badgeFeatured(on){
@@ -529,6 +646,8 @@
 
     const loadingEl = $('mapLoading');
     const showLoading = (v) => { if (loadingEl) loadingEl.style.display = v ? 'flex' : 'none'; };
+
+    let currentPreviewUuid = null;
 
     const toastOkEl = $('mapToastOk');
     const toastErrEl = $('mapToastErr');
@@ -609,7 +728,9 @@
     const infoAll = $('mapInfoAll');
 
     const viewModalEl = $('mapViewModal');
-    const viewModal = viewModalEl ? new bootstrap.Modal(viewModalEl) : null;
+    const viewModal = viewModalEl ? new bootstrap.Modal(viewModalEl, { focus: false }) : null;
+    const previewModalEl = $('previewModal');
+    const previewModal = previewModalEl ? new bootstrap.Modal(previewModalEl, { focus: false }) : null;
     const vTitle = $('mapViewTitle');
     const vModule = $('mapViewModule');
     const vDept = $('mapViewDept');
@@ -730,7 +851,7 @@
 
     function rowActions(tabKey, row){
       const st = approvalStatus(row);
-      const pendingRow = (st === 'pending');
+      const pendingRow = (st === 'pending' || st === 'pending_check' || st === 'checked');
       const uuid = pickUUID(row);
 
       let html = `
@@ -740,26 +861,38 @@
           </button>
           <ul class="dropdown-menu dropdown-menu-end">
             <li>
-              <button type="button" class="dropdown-item" data-action="view" data-id="${esc(uuid)}">
-                <i class="fa fa-eye"></i> View
+              <button type="button" class="dropdown-item" data-action="preview" data-id="${esc(uuid)}">
+                <i class="fa fa-desktop"></i> View/Preview
               </button>
             </li>
       `;
 
-      if (pendingRow){
+        /* Replaced by preview modal actions */
+
+      const table = pickModuleKey(row);
+      const recordId = row?.id || row?.record?.id || 0;
+
+      // ✅ History button for everyone
+      html += `
+        <li>
+          <button type="button" class="dropdown-item" onclick="showHistory('${esc(table)}', '${esc(String(recordId))}')">
+            <i class="fa fa-clock-rotate-left"></i> Workflow History
+          </button>
+        </li>
+      `;
+
+      // ✅ Reason button if rejected
+      if (st === 'rejected') {
+        const reason = safeString(row?.rejected_reason || row?.record?.rejected_reason || 'No reason provided');
         html += `
           <li>
-            <button type="button" class="dropdown-item" data-action="approve" data-id="${esc(uuid)}" ${canApprove ? '' : 'disabled'}>
-              <i class="fa fa-circle-check"></i> Approve
-            </button>
-          </li>
-          <li>
-            <button type="button" class="dropdown-item text-danger" data-action="reject" data-id="${esc(uuid)}" ${canApprove ? '' : 'disabled'}>
-              <i class="fa fa-circle-xmark"></i> Reject
+            <button type="button" class="dropdown-item" onclick="showRejectReason('${esc(reason)}')">
+              <i class="fa fa-comment-dots"></i> Rejection Reason
             </button>
           </li>
         `;
       }
+
       html += `</ul></div>`;
       return html;
     }
@@ -831,10 +964,10 @@
       } else if (tabKey === 'rejected') {
         items = items.filter(x => approvalStatus(x) === 'rejected');
       } else if (tabKey === 'pending') {
-        items = items.filter(x => approvalStatus(x) === 'pending');
+        items = items.filter(x => ['pending', 'pending_check', 'checked'].includes(approvalStatus(x)));
       } else {
         // Module tab key (filter by EXACT moduleKey lookup + status should be pending usually)
-        items = items.filter(x => (pickModuleKey(x) || '').toLowerCase() === tabKey.toLowerCase() && approvalStatus(x) === 'pending');
+        items = items.filter(x => (pickModuleKey(x) || '').toLowerCase() === tabKey.toLowerCase() && ['pending', 'pending_check', 'checked'].includes(approvalStatus(x)));
       }
 
       // filters
@@ -1058,8 +1191,70 @@
       const rowSlug = r?.slug || r?.record?.slug || '';
       if (!key || !uuid) return null;
       if (key === 'pages') return `/page/${rowSlug}`;
-      return `/${key}/view/${uuid}`;
+      const urlKey = key.replace(/_/g, '-');
+      return `/${urlKey}/view/${uuid}`;
     }
+
+    window.showPreview = function(uuid){
+      const row = ROW_CACHE.get(uuid);
+      if (!row) return;
+
+      const record = row?.record || row?.payload || row?.data || row || {};
+      
+      // 1. Try to find draft_data
+      let draft = null;
+      const rawDraft = record?.draft_data || null;
+      if (rawDraft) {
+        if (typeof rawDraft === 'string') {
+          try { draft = JSON.parse(rawDraft); } catch(e){ draft = null; }
+        } else {
+          draft = rawDraft;
+        }
+      }
+
+      // 2. Decide what to display: Drafted changes (Updates) or the Main Record (New items)
+      const displayData = (draft && typeof draft === 'object') ? draft : record;
+
+      const title = displayData.title || displayData.page_title || displayData.name || null;
+      const body = displayData.content_html || displayData.content || displayData.body || displayData.description || null;
+
+      if (previewModal && (title || body)) {
+        currentPreviewUuid = uuid;
+
+        // show modal
+        const tEl = $('previewTitleContent');
+        const bEl = $('previewBodyContent');
+        const cT = $('previewCardTitle');
+        const cB = $('previewCardBody');
+        const empty = $('previewEmpty');
+
+        const actionBox = $('previewModalActions');
+        const st = approvalStatus(row);
+        const isPending = ['pending', 'pending_check', 'checked'].includes(st);
+
+        if (actionBox) {
+          actionBox.style.display = isPending ? 'block' : 'none';
+        }
+
+        if (tEl) tEl.innerText = title || '—';
+        if (bEl) bEl.innerHTML = body || '<p class="text-muted">No content found.</p>';
+        
+        if (cT) cT.style.display = title ? '' : 'none';
+        if (cB) cB.style.display = body ? '' : 'none';
+        if (empty) empty.style.display = 'none';
+
+        previewModal.show();
+      } else {
+        // Fallback: If no draft and no content, try public link. 
+        // If content is purely JSON or non-standard, show the old debug View Modal.
+        const url = pickViewUrl(row);
+        if (url) {
+          window.open(url, '_blank');
+        } else {
+          openViewModal(row);
+        }
+      }
+    };
 
     // ---- View / Approve / Reject ----
     function openViewModal(data){
@@ -1089,7 +1284,15 @@
         icon: 'question',
         showCancelButton: true,
         confirmButtonText: 'Approve',
-        confirmButtonColor: '#16a34a'
+        confirmButtonColor: '#16a34a',
+        returnFocus: false,
+        didOpen: () => {
+          const input = Swal.getInput();
+          if (input) {
+            setTimeout(() => input.focus(), 100);
+            setTimeout(() => input.focus(), 500);
+          }
+        }
       });
       if (!conf.isConfirmed) return;
 
@@ -1126,7 +1329,15 @@
         icon: 'warning',
         showCancelButton: true,
         confirmButtonText: 'Reject',
-        confirmButtonColor: '#ef4444'
+        confirmButtonColor: '#ef4444',
+        returnFocus: false,
+        didOpen: () => {
+          const input = Swal.getInput();
+          if (input) {
+            setTimeout(() => input.focus(), 100);
+            setTimeout(() => input.focus(), 500);
+          }
+        }
       });
       if (!conf.isConfirmed) return;
 
@@ -1171,14 +1382,8 @@
       const toggle = btn.closest('.dropdown')?.querySelector('.map-dd-toggle');
       if (toggle){ try{ bootstrap.Dropdown.getInstance(toggle)?.hide(); }catch(_){ } }
 
-      if (act === 'view'){
-        const row = ROW_CACHE.get(uuid) || {};
-        const url = pickViewUrl(row);
-        if (url) {
-          window.open(url, '_blank');
-        } else {
-          openViewModal(row);
-        }
+      if (act === 'view' || act === 'preview'){
+        showPreview(uuid);
         return;
       }
 
@@ -1195,11 +1400,30 @@
       }
     });
 
+    // --- Modal Approve/Reject Hooks ---
+    $('btnModalApprove')?.addEventListener('click', async () => {
+      if (!currentPreviewUuid) return;
+      if (!canApprove) { err('You do not have permission'); return; }
+      
+      const modalInst = bootstrap.Modal.getInstance($('previewModal'));
+      await approveNow(currentPreviewUuid);
+      modalInst?.hide();
+    });
+
+    $('btnModalReject')?.addEventListener('click', async () => {
+      if (!currentPreviewUuid) return;
+      if (!canApprove) { err('You do not have permission'); return; }
+
+      const modalInst = bootstrap.Modal.getInstance($('previewModal'));
+      await rejectNow(currentPreviewUuid);
+      modalInst?.hide();
+    });
+
     // init
     showLoading(true);
     try{
       await loadDepartments();
-      await loadTab('pending');
+      loadTab('pending');
     }catch(ex){
       err(ex.message || 'Initialization failed');
       console.error(ex);
@@ -1207,6 +1431,70 @@
       showLoading(false);
     }
   });
+
+  /* =========================================================
+     ✅ Workflow History Logic (Sync from managePage.blade.php)
+  ========================================================= */
+  const historyModal = new bootstrap.Modal(document.getElementById('historyModal'));
+  window.showHistory = async (table, id) => {
+    historyModal.show();
+    document.getElementById('historyLoading').style.display = 'block';
+    document.getElementById('historyContent').style.display = 'none';
+    document.getElementById('historyEmpty').style.display = 'none';
+    document.getElementById('historyTimeline').innerHTML = '';
+
+    const token = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+    try {
+      const res = await fetch(`/api/master-approval/history/${table}/${id}`, {
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Accept': 'application/json'
+        }
+      });
+      const j = await res.json();
+      document.getElementById('historyLoading').style.display = 'none';
+
+      if (j.success && j.data && j.data.length) {
+        document.getElementById('historyTimeline').innerHTML = j.data.map(log => `
+          <li class="timeline-item">
+            <div class="timeline-marker"></div>
+            <div class="timeline-content">
+              <div class="timeline-date">${new Date(log.created_at).toLocaleString()}</div>
+              <div class="timeline-title">
+                Status changed to <span class="badge ${getHistoryStatusClass(log.to_status)}">${log.to_status.replace(/_/g, ' ')}</span>
+              </div>
+              <div class="timeline-author">Action by: ${log.user_name || 'System'} (${log.user_role || 'unknown'})</div>
+              ${log.comment ? `<div class="timeline-comment">${log.comment}</div>` : ''}
+            </div>
+          </li>
+        `).join('');
+        document.getElementById('historyContent').style.display = 'block';
+      } else {
+        document.getElementById('historyEmpty').style.display = 'block';
+      }
+    } catch (e) {
+      document.getElementById('historyLoading').style.display = 'none';
+      document.getElementById('historyEmpty').style.display = 'block';
+    }
+  };
+
+  function getHistoryStatusClass(s) {
+    s = s.toLowerCase();
+    if (s === 'approved') return 'badge-soft-success text-success';
+    if (s === 'rejected') return 'badge-soft-danger text-danger';
+    if (s === 'checked') return 'badge-soft-primary text-primary';
+    if (s === 'pending_check') return 'badge-soft-warning text-warning';
+    return 'badge-soft-muted text-muted';
+  }
+
+  /* =========================================================
+     ✅ Rejection Reason Modal Logic
+  ========================================================= */
+  const rejectReasonModal = new bootstrap.Modal(document.getElementById('rejectReasonModal'));
+  window.showRejectReason = (reason) => {
+    document.getElementById('rejectReasonText').textContent = reason || 'No reason provided';
+    rejectReasonModal.show();
+  };
 })();
 </script>
 @endpush

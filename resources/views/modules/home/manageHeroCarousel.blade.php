@@ -679,41 +679,17 @@ textarea.editor-code{
     });
 
     /* ========= Permissions ========= */
-    const ACTOR = { id: null, role: '', department_id: null };
-  let canAssignPrivilege = false;
+    const ACTOR = { role: '' };
     let canCreate=false, canEdit=false, canDelete=false;
 
     function computePermissions(){
-      const r = (ACTOR?.role || '').toLowerCase();
-      if(!ACTOR.department_id){
-          canCreate = canEdit = canDelete = canAssignPrivilege = true;
-      } else {
-          canCreate = canEdit = canDelete = canAssignPrivilege = false;
-          if (window.ACTOR_MENU_TREE && Array.isArray(window.ACTOR_MENU_TREE)) {
-             const path = window.location.pathname.replace(/\/+$/, '') || '/';
-             let myActions = [];
-             for(const group of window.ACTOR_MENU_TREE) {
-                if(group.children) {
-                   for(const child of group.children) {
-                      const childPath = (child.href || '').replace(/\/+$/, '') || '/';
-                      if (path === childPath || path.endsWith(childPath)) {
-                         myActions = child.actions || [];
-                         break;
-                      }
-                   }
-                }
-             }
-             const actionsStr = myActions.map(a => String(a).trim().toLowerCase());
-             if (actionsStr.includes('add') || actionsStr.includes('create')) canCreate = true;
-             if (actionsStr.includes('edit') || actionsStr.includes('update')) canEdit = true;
-             if (actionsStr.includes('delete') || actionsStr.includes('remove')) canDelete = true;
-             if (actionsStr.includes('assign_privilege') || actionsStr.includes('assign privileges') || actionsStr.includes('privilege')) canAssignPrivilege = true;
-          }
-      }
+      canCreate = true;
+      canDelete = true;
+      canEdit   = true;
 
-      $('hcWriteControls').style.display = (canCreate || canEdit) ? 'flex' : 'none';
-      $('hcBtnAdd').style.display = canCreate ? '' : 'none';
-      $('hcBtnSaveSort').style.display = (canCreate || canEdit) ? '' : 'none';
+      $('hcWriteControls').style.display = 'flex';
+      $('hcBtnAdd').style.display = '';
+      $('hcBtnSaveSort').style.display = '';
     }
 
     async function fetchMe(){
@@ -726,16 +702,6 @@ textarea.editor-code{
         }
       }catch(_){}
       if (!ACTOR.role) ACTOR.role = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
-      
-      if (!window.ACTOR_MENU_TREE) {
-        try {
-          const mRes = await fetchWithTimeout('/api/my/sidebar-menus?with_actions=1', { headers: authHeaders() }, 5000);
-          if (mRes.ok) {
-              const mData = await mRes.json();
-              window.ACTOR_MENU_TREE = mData?.tree || [];
-          }
-        } catch(e) {}
-      }
       computePermissions();
     }
 

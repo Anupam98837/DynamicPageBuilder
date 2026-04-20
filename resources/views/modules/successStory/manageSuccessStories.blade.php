@@ -1588,12 +1588,18 @@ loadDepartmentsForForm(depId);
       const toggle = btn.closest('.dropdown')?.querySelector('.dd-toggle');
       if (toggle) { try { bootstrap.Dropdown.getOrCreateInstance(toggle).hide(); } catch (_) {} }
 
-      if (act === 'view' || act === 'edit'){
-        if (act === 'edit' && !canEdit) return;
+      if (act === 'view'){
+        const slug = row?.slug || row?.uuid || row?.id;
+        if (slug) window.open(`/success-stories/view/${slug}`, '_blank');
+        return;
+      }
+
+      if (act === 'edit'){
+        if (!canEdit) return;
 
         resetForm();
-        if (itemModalTitle) itemModalTitle.textContent = act === 'view' ? 'View Success Story' : 'Edit Success Story';
-        fillFormFromRow(row || {}, act === 'view');
+        if (itemModalTitle) itemModalTitle.textContent = 'Edit Success Story';
+        fillFormFromRow(row || {}, false);
         itemModal && itemModal.show();
         return;
       }

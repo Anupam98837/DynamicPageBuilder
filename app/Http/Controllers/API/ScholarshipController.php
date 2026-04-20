@@ -12,6 +12,7 @@ use Carbon\Carbon;
 
 class ScholarshipController extends Controller
 {
+    use \App\Http\Controllers\API\Concerns\HasWorkflowManagement;
     /* ============================================
      | Helpers
      |============================================ */
@@ -72,7 +73,7 @@ class ScholarshipController extends Controller
         $deptId = $u->department_id !== null ? (int)$u->department_id : null;
         if ($deptId !== null && $deptId <= 0) $deptId = null;
 
-        $adminRoles = ['admin', 'super_admin', 'director', 'principal'];
+        $adminRoles = ['admin', 'super_admin', 'director', 'principal', 'author'];
         if (in_array($role, $adminRoles, true)) {
             return ['mode' => 'all', 'department_id' => null];
         }
@@ -344,6 +345,7 @@ class ScholarshipController extends Controller
 
         $q->whereNull('s.deleted_at')
           ->where('s.status', 'published')
+          ->where('s.workflow_status', 'approved')
           ->where(function ($w) use ($now) {
               $w->whereNull('s.publish_at')->orWhere('s.publish_at', '<=', $now);
           })
@@ -567,6 +569,11 @@ class ScholarshipController extends Controller
         $row = $this->resolveScholarship($request, $identifier, $includeDeleted, $deptId);
         if (! $row) return response()->json(['message' => 'Scholarship not found'], 404);
 
+        // Strict workflow check for single record view
+        if ($row->workflow_status !== 'approved') {
+            return response()->json(['message' => 'Scholarship not found'], 404);
+        }
+
         // optional: ?inc_view=1
         if (filter_var($request->query('inc_view', false), FILTER_VALIDATE_BOOLEAN)) {
             DB::table('scholarships')->where('id', (int) $row->id)->increment('views_count');
@@ -600,6 +607,11 @@ class ScholarshipController extends Controller
         $row = $this->resolveScholarship($request, $identifier, $includeDeleted, $dept->id);
         if (! $row) return response()->json(['message' => 'Scholarship not found'], 404);
 
+        // Strict workflow check for single record view
+        if ($row->workflow_status !== 'approved') {
+            return response()->json(['message' => 'Scholarship not found'], 404);
+        }
+
         return response()->json([
             'success' => true,
             'item'    => $this->normalizeRow($row),
@@ -619,7 +631,7 @@ class ScholarshipController extends Controller
             'title'             => ['required', 'string', 'max:255'],
             'slug'              => ['nullable', 'string', 'max:160'],
             'body'              => ['required', 'string'],
-            'is_featured_home'  => ['nullable', 'in:0,1', 'boolean'],
+            'is_featured_home'  => ['nullable', 'in:0,1'],
             'status'            => ['nullable', 'in:draft,published,archived'],
             'publish_at'        => ['nullable', 'date'],
             'expire_at'         => ['nullable', 'date'],
@@ -689,9 +701,10 @@ class ScholarshipController extends Controller
             if (json_last_error() === JSON_ERROR_NONE) $metadata = $decoded;
         }
 
-        // ✅ AUTHORITY CONTROL SYNC (FEATURED -> REQUEST FOR APPROVAL)
-        $isFeatured = (int) ($validated['is_featured_home'] ?? 0);
-        $requestForApproval = $isFeatured === 1 ? 1 : 0;
+        // Unified Workflow Status
+        $workflowStatus = $this->getInitialWorkflowStatus($request);
+
+        $isFeatured = (int) ($request->input('is_featured_home') ?? 0);
 
         $id = DB::table('scholarships')->insertGetId([
             'uuid'                 => $uuid,
@@ -703,10 +716,16 @@ class ScholarshipController extends Controller
             'attachments_json'     => !empty($attachments) ? json_encode($attachments) : null,
             'is_featured_home'     => $isFeatured,
 
-            // ✅ NEW: auto-sync
-            'request_for_approval' => $requestForApproval,
+            // Unified Workflow
+            'workflow_status'      => $workflowStatus,
+            'draft_data'           => null,
 
-            'status'               => (string) ($validated['status'] ?? 'draft'),
+            // Legacy Approval columns
+            'request_for_approval' => ($workflowStatus === 'pending_check' || $workflowStatus === 'checked') ? 1 : 0,
+            'is_approved'          => ($workflowStatus === 'approved') ? 1 : 0,
+            'is_rejected'          => ($workflowStatus === 'rejected') ? 1 : 0,
+
+            'status'               => (string)($validated['status'] ?? 'published'),
             'publish_at'           => !empty($validated['publish_at']) ? Carbon::parse($validated['publish_at']) : null,
             'expire_at'            => !empty($validated['expire_at']) ? Carbon::parse($validated['expire_at']) : null,
             'views_count'          => 0,
@@ -787,7 +806,7 @@ class ScholarshipController extends Controller
             'title'              => ['nullable', 'string', 'max:255'],
             'slug'               => ['nullable', 'string', 'max:160'],
             'body'               => ['nullable', 'string'],
-            'is_featured_home'   => ['nullable', 'in:0,1', 'boolean'],
+            'is_featured_home'   => ['nullable', 'in:0,1'],
             'status'             => ['nullable', 'in:draft,published,archived'],
             'publish_at'         => ['nullable', 'date'],
             'expire_at'          => ['nullable', 'date'],
@@ -828,13 +847,8 @@ class ScholarshipController extends Controller
             ? ($update['department_id'] !== null ? (int) $update['department_id'] : null)
             : ($row->department_id !== null ? (int) $row->department_id : null);
 
-        // ✅ AUTHORITY CONTROL SYNC (when is_featured_home is updated)
         if (array_key_exists('is_featured_home', $validated)) {
-            $isFeatured = (int) $validated['is_featured_home'];
-            $update['is_featured_home'] = $isFeatured;
-
-            // ✅ auto-sync request_for_approval
-            $update['request_for_approval'] = $isFeatured === 1 ? 1 : 0;
+            $update['is_featured_home'] = (int) ($request->input('is_featured_home') ?? 0);
         }
 
         if (array_key_exists('publish_at', $validated)) {
@@ -934,14 +948,18 @@ class ScholarshipController extends Controller
 
         $update['attachments_json'] = !empty($existing) ? json_encode($existing) : null;
 
-        DB::table('scholarships')->where('id', (int) $row->id)->update($update);
+        try {
+            $result = $this->handleWorkflowUpdate($request, 'scholarships', $row->id, $update);
+            
+            $fresh = DB::table('scholarships')->where('id', (int) $row->id)->first();
+            
+            $msg = ($result === 'drafted') 
+                ? 'Your changes have been submitted for approval. The live content will remain unchanged until approved.'
+                : 'Scholarship updated successfully.';
 
-        $fresh = DB::table('scholarships')->where('id', (int) $row->id)->first();
-
-        // ✅ LOG (PUT/PATCH)
-        if ($fresh) {
-            $newSnap = $this->logSnapshotScholarship($fresh);
-            [$changed, $oldVals, $newVals] = $this->computeDiff($oldSnap, $newSnap);
+            $diffFields = array_keys($update);
+            $diffFields = array_values(array_diff($diffFields, ['updated_at', 'updated_at_ip']));
+            [$changed, $oldValues, $newValues] = $this->computeDiff($oldSnap, $this->logSnapshotScholarship($fresh));
 
             $this->safeLogActivity(
                 $request,
@@ -950,16 +968,33 @@ class ScholarshipController extends Controller
                 'scholarships',
                 (int) $row->id,
                 $changed,
-                $oldVals,
-                $newVals,
-                'Updated scholarship'
+                $oldValues,
+                $newValues,
+                $msg
             );
-        }
 
-        return response()->json([
-            'success' => true,
-            'data'    => $fresh ? $this->normalizeRow($fresh) : null,
-        ]);
+            return response()->json([
+                'success' => true,
+                'message' => $msg,
+                'data'    => $fresh ? $this->normalizeRow($fresh) : null,
+            ]);
+        } catch (\Throwable $e) {
+            $this->safeLogActivity(
+                $request,
+                'update_error',
+                'scholarships',
+                'scholarships',
+                (int) $row->id,
+                null,
+                $oldSnap,
+                null,
+                'Error: ' . $e->getMessage()
+            );
+            return response()->json([
+                'success' => false,
+                'message' => 'Update failed: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     public function toggleFeatured(Request $request, $identifier)
@@ -981,10 +1016,6 @@ class ScholarshipController extends Controller
 
         DB::table('scholarships')->where('id', (int) $row->id)->update([
             'is_featured_home'       => $new,
-
-            // ✅ AUTHORITY CONTROL SYNC
-            'request_for_approval'   => $new,
-
             'updated_at'             => now(),
             'updated_at_ip'          => $request->ip(),
         ]);
@@ -1200,6 +1231,7 @@ class ScholarshipController extends Controller
 
         $now = now();
         $isVisible =
+            ($row->workflow_status === 'approved') &&
             ($row->status === 'published') &&
             (empty($row->publish_at) || Carbon::parse($row->publish_at)->lte($now)) &&
             (empty($row->expire_at)  || Carbon::parse($row->expire_at)->gt($now));

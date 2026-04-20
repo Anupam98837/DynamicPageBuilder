@@ -239,6 +239,10 @@
   .mh-secondary-logo.mh-skel{ height:86px; width:170px; }
   .mh-badge.mh-skel{ height:56px; width:230px; }
 
+  @media (max-width: 1250px) {
+    .mh-title { font-size: clamp(14px, 2.4vw, 30px) !important; }
+  }
+
   /* Responsive */
   @media (max-width: 1100px){
     .mh-affil-wrap{ flex-basis:320px; max-width:320px; }

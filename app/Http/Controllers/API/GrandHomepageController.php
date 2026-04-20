@@ -534,7 +534,7 @@ class GrandHomepageController extends Controller
                 'summary_link' => $this->getVal($r, 'summary_link'),
                 'buttons_json' => $this->json($this->getVal($r, 'buttons_json'), []),
 
-                'url' => 'courses/view/' . ($this->getVal($r, 'uuid') ?: ($this->getVal($r, 'slug') ?: '')),
+                'url' => 'courses/view/' . ($this->getVal($r, 'slug') ?: $this->getVal($r, 'uuid') ?: ''),
             ];
         };
 
@@ -1006,6 +1006,8 @@ class GrandHomepageController extends Controller
         $successStories = [];
         foreach ((array)($raw['success_stories'] ?? []) as $s) {
             $successStories[] = [
+                'uuid'        => $this->getVal($s, 'uuid'),
+                'slug'        => $this->getVal($s, 'slug'),
                 'image'       => $this->assetUrl($this->getVal($s, 'photo_url')),
                 'description' => $this->text($this->getVal($s, 'description')),
                 'name'        => $this->text($this->getVal($s, 'name')),
@@ -1020,6 +1022,8 @@ class GrandHomepageController extends Controller
             if ($url === '') $url = '#';
 
             $courses[] = [
+                'uuid'         => $this->getVal($c, 'uuid'),
+                'slug'         => $this->getVal($c, 'slug'),
                 'image'        => $this->assetUrl($this->getVal($c, 'cover_image')),
                 'name'         => $this->text($this->getVal($c, 'title')),
                 'description'  => $this->text($this->getVal($c, 'summary')),
@@ -1179,10 +1183,10 @@ class GrandHomepageController extends Controller
 
         return $rows->map(function ($r) use ($urlPrefix) {
             $title = $this->getVal($r, 'title', '-');
-            $uuidOrSlug = $this->getVal($r, 'uuid') ?: ($this->getVal($r, 'slug') ?: '');
+            $slugOrUuid = $this->getVal($r, 'slug') ?: ($this->getVal($r, 'uuid') ?: '');
             return [
                 'title' => $title ?? '-',
-                'url'   => $urlPrefix . $uuidOrSlug,
+                'url'   => $urlPrefix . $slugOrUuid,
             ];
         })->values()->all();
     }
@@ -1216,8 +1220,8 @@ class GrandHomepageController extends Controller
             ->map(function ($r) {
                 return [
                     'title' => $this->getVal($r, 'title', '-'),
-                    // ✅ FIXED: kebab-case
-                    'url'   => 'placement-notices/view/' . ($this->getVal($r, 'uuid') ?: ''),
+                    // ✅ FIXED: kebab-case + slug support
+                    'url'   => 'placement-notices/view/' . ($this->getVal($r, 'slug') ?: $this->getVal($r, 'uuid') ?: ''),
                 ];
             })
             ->values()

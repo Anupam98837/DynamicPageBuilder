@@ -12,6 +12,7 @@ use Carbon\Carbon;
 
 class AnnouncementController extends Controller
 {
+    use \App\Http\Controllers\API\Concerns\HasWorkflowManagement;
     /* ============================================
      | Helpers
      |============================================ */
@@ -146,7 +147,7 @@ class AnnouncementController extends Controller
         $deptId = $u->department_id !== null ? (int)$u->department_id : null;
         if ($deptId !== null && $deptId <= 0) $deptId = null;
 
-        $adminRoles = ['admin', 'super_admin', 'director', 'principal'];
+        $adminRoles = ['admin', 'super_admin', 'director', 'principal', 'author'];
         if (in_array($role, $adminRoles, true)) {
             return ['mode' => 'all', 'department_id' => null];
         }
@@ -432,6 +433,7 @@ class AnnouncementController extends Controller
 
         $q->whereNull('a.deleted_at')
           ->where('a.status', 'published')
+          ->where('a.workflow_status', 'approved')
           ->where(function ($w) use ($now) {
               $w->whereNull('a.publish_at')->orWhere('a.publish_at', '<=', $now);
           })
@@ -614,6 +616,11 @@ class AnnouncementController extends Controller
         $row = $this->resolveAnnouncement($request, $identifier, $includeDeleted, $deptId);
         if (! $row) return response()->json(['message' => 'Announcement not found'], 404);
 
+        // Strict workflow check removed for management view to allow editing of pending items
+        // if ($row->workflow_status !== 'approved') {
+        //     return response()->json(['message' => 'Announcement not found'], 404);
+        // }
+
         // optional: ?inc_view=1
         if (filter_var($request->query('inc_view', false), FILTER_VALIDATE_BOOLEAN)) {
             DB::table('announcements')->where('id', (int) $row->id)->increment('views_count');
@@ -741,9 +748,11 @@ class AnnouncementController extends Controller
             if (json_last_error() === JSON_ERROR_NONE) $metadata = $decoded;
         }
 
-        // ✅ NEW: Auto-sync request_for_approval based on is_featured_home
+        // Unified Workflow Status
+        $workflowStatus = $this->getInitialWorkflowStatus($request);
+
+        // ✅ If it's featured, it still needs approval if not already approved
         $featured = (int) ($validated['is_featured_home'] ?? 0);
-        $requestForApproval = $featured === 1 ? 1 : 0;
 
         $id = DB::table('announcements')->insertGetId([
             'uuid'                 => $uuid,
@@ -755,10 +764,16 @@ class AnnouncementController extends Controller
             'attachments_json'     => !empty($attachments) ? json_encode($attachments) : null,
             'is_featured_home'     => $featured,
 
-            // ✅ NEW: Authority Control Flag
-            'request_for_approval' => $requestForApproval,
+            // Unified Workflow
+            'workflow_status'      => $workflowStatus,
+            'draft_data'           => null,
 
-            'status'               => (string) ($validated['status'] ?? 'draft'),
+            // Legacy Approval columns
+            'request_for_approval' => ($workflowStatus === 'pending_check' || $workflowStatus === 'checked') ? 1 : 0,
+            'is_approved'          => ($workflowStatus === 'approved') ? 1 : 0,
+            'is_rejected'          => ($workflowStatus === 'rejected') ? 1 : 0,
+
+            'status'               => (string)($validated['status'] ?? 'published'),
             'publish_at'           => !empty($validated['publish_at']) ? Carbon::parse($validated['publish_at']) : null,
             'expire_at'            => !empty($validated['expire_at']) ? Carbon::parse($validated['expire_at']) : null,
             'views_count'          => 0,
@@ -983,29 +998,41 @@ class AnnouncementController extends Controller
 
         $update['attachments_json'] = !empty($existing) ? json_encode($existing) : null;
 
-        DB::table('announcements')->where('id', (int) $row->id)->update($update);
+        try {
+            $msg = $this->handleWorkflowUpdate($request, 'announcements', $row->id, $update);
+            
+            $fresh = DB::table('announcements')->where('id', (int) $row->id)->first();
+            
+            $msgText = ($msg === 'drafted') 
+                ? 'Your changes have been submitted for approval. The live content will remain unchanged until approved.'
+                : 'Announcement updated successfully.';
 
-        $fresh = DB::table('announcements')->where('id', (int) $row->id)->first();
+            // ✅ ACTIVITY LOG (PUT/PATCH)
+            $changedKeys = array_keys($update);
+            // don't spam with timestamps for "changed_fields"
+            $changedKeys = array_values(array_diff($changedKeys, ['updated_at', 'updated_at_ip']));
+            $this->logActivity(
+                $request,
+                'update',
+                'announcements',
+                (int) $row->id,
+                $changedKeys,
+                $this->subsetRow($oldDbRow, $changedKeys),
+                $this->subsetRow($fresh, $changedKeys),
+                $msgText
+            );
 
-        // ✅ ACTIVITY LOG (PUT/PATCH)
-        $changedKeys = array_keys($update);
-        // don't spam with timestamps for "changed_fields"
-        $changedKeys = array_values(array_diff($changedKeys, ['updated_at', 'updated_at_ip']));
-        $this->logActivity(
-            $request,
-            'update',
-            'announcements',
-            (int) $row->id,
-            $changedKeys,
-            $this->subsetRow($oldDbRow, $changedKeys),
-            $this->subsetRow($fresh, $changedKeys),
-            'Announcement updated'
-        );
-
-        return response()->json([
-            'success' => true,
-            'data'    => $fresh ? $this->normalizeRow($fresh) : null,
-        ]);
+            return response()->json([
+                'success' => true,
+                'message' => $msgText,
+                'data'    => $fresh ? $this->normalizeRow($fresh) : null,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Update failed: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     public function toggleFeatured(Request $request, $identifier)
@@ -1242,6 +1269,7 @@ class AnnouncementController extends Controller
 
         $now = now();
         $isVisible =
+            ($row->workflow_status === 'approved') &&
             ($row->status === 'published') &&
             (empty($row->publish_at) || Carbon::parse($row->publish_at)->lte($now)) &&
             (empty($row->expire_at)  || Carbon::parse($row->expire_at)->gt($now));

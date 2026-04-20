@@ -155,7 +155,7 @@ class DepartmentController extends Controller
         $deptId = $u->department_id !== null ? (int)$u->department_id : null;
         if ($deptId !== null && $deptId <= 0) $deptId = null;
 
-        $adminRoles = ['admin', 'super_admin', 'director', 'principal'];
+        $adminRoles = ['admin', 'super_admin', 'director', 'principal', 'author'];
         if (in_array($role, $adminRoles, true)) {
             return ['mode' => 'all', 'department_id' => null];
         }
@@ -236,6 +236,26 @@ class DepartmentController extends Controller
         }
 
         return $q->first();
+    }
+
+    protected function ensureUniqueSlug(string $slug, ?int $ignoreId = null): string
+    {
+        $base = $slug;
+        $i = 2;
+
+        while (
+            DB::table('departments')
+                ->where('slug', $slug)
+                ->when($ignoreId, function ($q) use ($ignoreId) {
+                    $q->where('id', '!=', $ignoreId);
+                })
+                ->whereNull('deleted_at')
+                ->exists()
+        ) {
+            $slug = $base . '-' . $i++;
+        }
+
+        return $slug;
     }
 
     /**
@@ -399,19 +419,14 @@ class DepartmentController extends Controller
         $ip    = $request->ip();
 
         // Generate slug if empty
-        if (empty($data['slug'])) {
-            $base = Str::slug($data['title']);
-            if ($base === '') {
-                $base = 'department';
+        $slug = trim((string)($data['slug'] ?? ''));
+        if ($slug === '') {
+            $slug = Str::slug($data['title']);
+            if ($slug === '') {
+                $slug = 'department';
             }
-
-            $slug = $base;
-            $i    = 1;
-            while (DB::table('departments')->where('slug', $slug)->whereNull('deleted_at')->exists()) {
-                $slug = $base . '-' . $i++;
-            }
-            $data['slug'] = $slug;
         }
+        $data['slug'] = $this->ensureUniqueSlug($slug);
 
         $payload = [
             'uuid'            => (string) Str::uuid(),
@@ -557,26 +572,13 @@ class DepartmentController extends Controller
         }
 
         if (array_key_exists('slug', $data)) {
-            $payload['slug'] = $data['slug'];
+            $payload['slug'] = $this->ensureUniqueSlug($data['slug'], (int)$dept->id);
         } elseif (array_key_exists('title', $data)) {
-            // No slug passed but title changed => regenerate slug
-            $base = Str::slug($data['title']);
-            if ($base === '') {
-                $base = 'department';
+            $slug = Str::slug($data['title']);
+            if ($slug === '') {
+                $slug = 'department';
             }
-
-            $slug = $base;
-            $i    = 1;
-            while (
-                DB::table('departments')
-                    ->where('slug', $slug)
-                    ->where('id', '!=', $dept->id)
-                    ->whereNull('deleted_at')
-                    ->exists()
-            ) {
-                $slug = $base . '-' . $i++;
-            }
-            $payload['slug'] = $slug;
+            $payload['slug'] = $this->ensureUniqueSlug($slug, (int)$dept->id);
         }
 
         // ✅ NEW FIELDS

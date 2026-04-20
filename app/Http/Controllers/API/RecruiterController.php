@@ -129,8 +129,27 @@ class RecruiterController extends Controller
         // ?department=id|uuid|slug
         if ($request->filled('department')) {
             $dept = $this->resolveDepartment($request->query('department'), true);
-            if ($dept) $q->where('r.department_id', (int) $dept->id);
-            else $q->whereRaw('1=0');
+            if ($dept) {
+                $userId = (int) ($request->attributes->get('auth_tokenable_id') ?? 0);
+                $skipFilter = false;
+
+                if ($userId > 0) {
+                    $u = DB::table('users')->select(['role', 'department_id'])->where('id', $userId)->first();
+                    if ($u) {
+                        $role = strtolower(trim((string) ($u->role ?? '')));
+                        $higher = ['admin', 'author', 'principal', 'director', 'super_admin'];
+                        if (in_array($role, $higher, true) && $u->department_id !== null && (int)$u->department_id === (int)$dept->id) {
+                            $skipFilter = true; // automatic frontend append skip
+                        }
+                    }
+                }
+
+                if (!$skipFilter) {
+                    $q->where('r.department_id', (int) $dept->id);
+                }
+            } else {
+                $q->whereRaw('1=0');
+            }
         }
 
         // sort
@@ -379,6 +398,12 @@ class RecruiterController extends Controller
             'logo'             => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,gif,svg', 'max:5120'],
         ]);
 
+        // ✅ Force department_id for department users to prevent creating global recruiters
+        $__ac = $this->departmentAccessControl($request);
+        if ($__ac['mode'] === 'department') {
+            $validated['department_id'] = $__ac['department_id'];
+        }
+
         $slug = $this->normSlug($validated['slug'] ?? '');
         if ($slug === '') $slug = Str::slug($validated['title'], '-');
         $slug = $this->ensureUniqueSlug($slug);
@@ -503,6 +528,15 @@ class RecruiterController extends Controller
 
         $oldSnapshot = (array) $row;
 
+        // ✅ Guard: Department users can only update their own items
+        $__ac = $this->departmentAccessControl($request);
+        if ($__ac['mode'] === 'department') {
+            if ($row->department_id !== $__ac['department_id']) {
+                $this->logActivity($request, 'update_failed', 'recruiters', 'recruiters', (int)$row->id, null, null, null, 'Forbidden: scope violation');
+                return response()->json(['message' => 'Forbidden'], 403);
+            }
+        }
+
         $validated = $request->validate([
             'department_id'     => ['nullable', 'integer', 'exists:departments,id'],
             'title'             => ['nullable', 'string', 'max:255'],
@@ -518,6 +552,11 @@ class RecruiterController extends Controller
             'logo'              => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,gif,svg', 'max:5120'],
             'logo_remove'       => ['nullable', 'in:0,1', 'boolean'],
         ]);
+
+        // ✅ Force department_id for department users to prevent altering it
+        if ($__ac['mode'] === 'department') {
+            $validated['department_id'] = $__ac['department_id'];
+        }
 
         $update = [
             'updated_at'    => now(),

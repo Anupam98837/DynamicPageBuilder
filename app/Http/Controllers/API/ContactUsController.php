@@ -91,8 +91,7 @@ class ContactUsController extends Controller
     public function store(Request $request)
     {
         $v = Validator::make($request->all(), [
-            'first_name' => ['required', 'string', 'max:255'],
-            'last_name'  => ['nullable', 'string', 'max:255'],
+            'name'       => ['required', 'string', 'max:255'],
 
             // ✅ UPDATED: email nullable (but if present must be valid)
             'email'      => ['nullable', 'email', 'max:255'],
@@ -100,7 +99,7 @@ class ContactUsController extends Controller
             // ✅ UPDATED: phone required
             'phone'      => ['required', 'string', 'max:20'],
 
-            'message'    => ['required', 'string'],
+            'message'    => ['nullable', 'string'],
 
             // ✅ NEW: admission enquiry checker (nullable boolean)
             'is_admission_enquiry' => ['nullable'],
@@ -124,10 +123,6 @@ class ContactUsController extends Controller
         // Normalize email: store null instead of empty string
         $email = trim((string) $request->input('email', ''));
         $email = $email === '' ? null : $email;
-
-        // Normalize last_name: store null instead of empty string
-        $last = trim((string) $request->input('last_name', ''));
-        $last = $last === '' ? null : $last;
 
         // Normalize phone: required, trim
         $phone = trim((string) $request->input('phone', ''));
@@ -171,8 +166,7 @@ class ContactUsController extends Controller
         $now = Carbon::now();
 
         $id = (int) DB::table('contact_us')->insertGetId([
-            'first_name'           => $request->input('first_name'),
-            'last_name'            => $last,
+            'name'                 => $request->input('name'),
             'email'                => $email,                 // ✅ nullable
             'phone'                => $phone,                 // ✅ required
             'message'              => $request->input('message'),
@@ -196,15 +190,14 @@ class ContactUsController extends Controller
             'contact_us',
             $id,
             [
-                'first_name','last_name','email','phone','message',
+                'name','email','phone','message',
                 'is_admission_enquiry','course_ids',
                 'legal_authority_json','is_read'
             ],
             null,
             [
                 'id'                   => $id,
-                'first_name'           => $request->input('first_name'),
-                'last_name'            => $last,
+                'name'                 => $request->input('name'),
                 'email'                => $email,
                 'phone'                => $phone,
                 'message'              => $request->input('message'),
@@ -235,7 +228,7 @@ class ContactUsController extends Controller
         $sortDir  = strtolower($request->query('sort_dir', 'desc')) === 'asc' ? 'asc' : 'desc';
 
         // ✅ updated allowed sorts
-        $allowedSorts = ['id', 'first_name', 'last_name', 'email', 'phone', 'is_admission_enquiry', 'created_at'];
+        $allowedSorts = ['id', 'name', 'email', 'phone', 'is_admission_enquiry', 'created_at'];
         if (!in_array($sortBy, $allowedSorts)) {
             $sortBy = 'created_at';
         }
@@ -245,8 +238,7 @@ class ContactUsController extends Controller
         if ($q !== '') {
             $query->where(function ($w) use ($q) {
                 $like = '%' . $q . '%';
-                $w->where('first_name', 'LIKE', $like)
-                    ->orWhere('last_name', 'LIKE', $like)
+                $w->where('name', 'LIKE', $like)
                     ->orWhere('email', 'LIKE', $like)
                     ->orWhere('phone', 'LIKE', $like)
                     ->orWhere('message', 'LIKE', $like);
@@ -446,8 +438,7 @@ class ContactUsController extends Controller
             null,
             [
                 'id'                   => (int) $row->id,
-                'first_name'           => $row->first_name ?? null,
-                'last_name'            => $row->last_name ?? null,
+                'name'                 => $row->name ?? null,
                 'email'                => $row->email ?? null,
                 'phone'                => $row->phone ?? null,
                 'message'              => $row->message ?? null,
@@ -476,7 +467,7 @@ class ContactUsController extends Controller
         $sortBy  = $request->query('sort_by', 'created_at');
         $sortDir = strtolower($request->query('sort_dir', 'desc')) === 'asc' ? 'asc' : 'desc';
 
-        $allowedSorts = ['id', 'first_name', 'last_name', 'email', 'phone', 'is_admission_enquiry', 'created_at'];
+        $allowedSorts = ['id', 'name', 'email', 'phone', 'is_admission_enquiry', 'created_at'];
         if (!in_array($sortBy, $allowedSorts)) {
             $sortBy = 'created_at';
         }
@@ -486,8 +477,7 @@ class ContactUsController extends Controller
         if ($q !== '') {
             $query->where(function ($w) use ($q) {
                 $like = '%' . $q . '%';
-                $w->where('first_name', 'LIKE', $like)
-                    ->orWhere('last_name', 'LIKE', $like)
+                $w->where('name', 'LIKE', $like)
                     ->orWhere('email', 'LIKE', $like)
                     ->orWhere('phone', 'LIKE', $like)
                     ->orWhere('message', 'LIKE', $like);
@@ -504,8 +494,7 @@ class ContactUsController extends Controller
 
             fputcsv($handle, [
                 'ID',
-                'First Name',
-                'Last Name',
+                'Name',
                 'Email',
                 'Phone',
                 'Admission Enquiry',
@@ -528,8 +517,7 @@ class ContactUsController extends Controller
 
                     fputcsv($handle, [
                         $row->id,
-                        $row->first_name ?? '',
-                        $row->last_name ?? '',
+                        $row->name ?? '',
                         $row->email ?? '',
                         $row->phone ?? '',
                         isset($row->is_admission_enquiry) ? (string) $row->is_admission_enquiry : '',

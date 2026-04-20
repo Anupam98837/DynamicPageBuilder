@@ -110,6 +110,81 @@ td.col-slug code{
   background:color-mix(in oklab, var(--warning-color, #f59e0b) 14%, transparent);
   color:var(--warning-color, #f59e0b)
 }
+.badge-soft-danger{background:color-mix(in oklab, var(--danger-color) 12%, transparent);color:var(--danger-color)}
+.badge-soft-info{background:color-mix(in oklab, #0ea5e9 14%, transparent);color:#0ea5e9}
+
+/* Timeline Styles */
+.timeline {
+  position: relative;
+  padding: 0;
+  list-style: none;
+}
+.timeline:before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 31px;
+  width: 2px;
+  background: var(--line-soft);
+}
+.timeline-item {
+  position: relative;
+  margin-bottom: 20px;
+}
+.timeline-marker {
+  position: absolute;
+  top: 0;
+  left: 20px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--primary-color);
+  z-index: 10;
+}
+.timeline-content {
+  margin-left: 60px;
+  padding: 12px 16px;
+  background: color-mix(in oklab, var(--surface) 95%, var(--bg-body));
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+}
+.timeline-date {
+  font-size: 11px;
+  color: var(--muted-color);
+  margin-bottom: 4px;
+}
+.timeline-title {
+  font-weight: 600;
+  font-size: 13.5px;
+  margin-bottom: 4px;
+}
+.timeline-author {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.timeline-comment {
+  font-size: 12.5px;
+  color: var(--muted-color);
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: rgba(0,0,0,0.03);
+  border-left: 2px solid var(--line-strong);
+  font-style: italic;
+}
+.badge-pending-draft {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--warning-color);
+  color: #fff;
+  vertical-align: middle;
+  margin-left: 4px;
+  text-transform: uppercase;
+  font-weight: 700;
+}
 
 /* Loading overlay */
 .loading-overlay{
@@ -347,7 +422,7 @@ td.col-slug code{
         <i class="fa-solid fa-circle-pause me-2"></i>Inactive
       </a>
     </li>
-    <li class="nav-item">
+    <li class="nav-item" id="cnTabHeaderTrash" style="display:none;">
       <a class="nav-link" data-bs-toggle="tab" href="#tab-cn-trash" role="tab" aria-selected="false">
         <i class="fa-solid fa-trash-can me-2"></i>Trash
       </a>
@@ -409,14 +484,14 @@ td.col-slug code{
                   <th style="width:120px;">Status</th>
                   <th style="width:120px;">Featured</th>
                   <th style="width:140px;">Last Date</th>
-                  <th style="width:150px;">Publish At</th>
                   <th style="width:110px;">Sort</th>
+                  <th style="width:170px;">Workflow</th>
                   <th style="width:170px;">Updated</th>
                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
               </thead>
               <tbody id="tbody-active">
-                <tr><td colspan="9" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+                <tr><td colspan="10" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -447,14 +522,14 @@ td.col-slug code{
                   <th style="width:120px;">Status</th>
                   <th style="width:120px;">Featured</th>
                   <th style="width:140px;">Last Date</th>
-                  <th style="width:150px;">Publish At</th>
                   <th style="width:110px;">Sort</th>
+                  <th style="width:170px;">Workflow</th>
                   <th style="width:170px;">Updated</th>
                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
               </thead>
               <tbody id="tbody-inactive">
-                <tr><td colspan="9" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+                <tr><td colspan="10" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -578,6 +653,29 @@ td.col-slug code{
       <div class="modal-body">
         <input type="hidden" id="itemUuid">
         <input type="hidden" id="itemId">
+
+        {{-- Rejection Alert --}}
+        <div id="cnRejectionAlert" class="alert alert-danger mb-3" style="display:none;">
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <i class="fa fa-circle-exclamation fs-5"></i>
+            <h6 class="mb-0 fw-bold">Rejected by Authority</h6>
+          </div>
+          <div id="cnRejectionReasonText" class="ms-4 small" style="white-space: pre-wrap;">Reason...</div>
+          <div class="mt-2 ms-4">
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="viewCareerHistoryFromAlert()">
+              <i class="fa fa-clock-rotate-left me-1"></i>View Full History
+            </button>
+          </div>
+        </div>
+
+        {{-- Pending Draft Alert --}}
+        <div id="cnDraftAlert" class="alert alert-warning mb-3" style="display:none;">
+          <div class="d-flex align-items-center gap-2">
+            <i class="fa fa-pen-nib fs-5"></i>
+            <h6 class="mb-0 fw-bold">Pending Changes</h6>
+          </div>
+          <div class="ms-4 small">This notice has updates waiting for approval. Editing now will replace those pending changes.</div>
+        </div>
 
         <div class="row g-3">
           <div class="col-lg-6">
@@ -766,6 +864,34 @@ td.col-slug code{
 </div>
 @endsection
 
+{{-- Workflow History Modal --}}
+<div class="modal fade" id="cnHistoryModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-md modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-clock-rotate-left me-2"></i>Workflow History</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="cnHistoryLoading" class="text-center py-4">
+          <div class="spinner-border text-primary" role="status"></div>
+          <div class="mt-2 text-muted">Loading history…</div>
+        </div>
+        <div id="cnHistoryContent" style="display:none;">
+          <ul class="timeline" id="cnHistoryTimeline"></ul>
+        </div>
+        <div id="cnHistoryEmpty" class="text-center py-4 text-muted" style="display:none;">
+          <i class="fa fa-history mb-2 fs-3 opacity-50"></i>
+          <div>No history found for this notice.</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -885,6 +1011,12 @@ td.col-slug code{
     const itemForm = $('itemForm');
     const saveBtn = $('saveBtn');
 
+    const setBtnLoading = (btn, loading) => {
+      if (!btn) return;
+      btn.disabled = !!loading;
+      btn.classList.toggle('btn-loading', !!loading);
+    };
+
     const itemUuid = $('itemUuid');
     const itemId = $('itemId');
 
@@ -912,17 +1044,16 @@ td.col-slug code{
     const coverMeta = $('coverMeta');
     const btnOpenCover = $('btnOpenCover');
 
-    // ---------- permissions (updated with publish control) ----------
+    // ---------- permissions ----------
     const ACTOR = { id: null, role: '', department_id: null };
-  let canAssignPrivilege = false;
     let canCreate=false, canEdit=false, canDelete=false, canPublish=false;
 
     function computePermissions(){
       const r = (ACTOR?.role || '').toLowerCase();
       if(!ACTOR.department_id){
-          canCreate = canEdit = canDelete = canAssignPrivilege = true;
+          canCreate = canEdit = canDelete = true;
       } else {
-          canCreate = canEdit = canDelete = canAssignPrivilege = false;
+          canCreate = canEdit = canDelete = false;
           if (window.ACTOR_MENU_TREE && Array.isArray(window.ACTOR_MENU_TREE)) {
              const path = window.location.pathname.replace(/\/+$/, '') || '/';
              let myActions = [];
@@ -941,27 +1072,17 @@ td.col-slug code{
              if (actionsStr.includes('add') || actionsStr.includes('create')) canCreate = true;
              if (actionsStr.includes('edit') || actionsStr.includes('update')) canEdit = true;
              if (actionsStr.includes('delete') || actionsStr.includes('remove')) canDelete = true;
-             if (actionsStr.includes('assign_privilege') || actionsStr.includes('assign privileges') || actionsStr.includes('privilege')) canAssignPrivilege = true;
           }
       }
-      canPublish = true; // Only specific roles can publish
+      canPublish = true;
       
-      if (writeControls) writeControls.style.display = canCreate ? 'flex' : 'none';
-      
-      // Update publish option visibility
-      updatePublishOption();
-    }
-
-    function updatePublishOption(){
-      if (!statusSel) return;
-      const publishOption = statusSel.querySelector('option[value="published"]');
-      if (publishOption){
-        publishOption.style.display = canPublish ? '' : 'none';
-        // If current value is published but user can't publish, change to draft
-        if (!canPublish && statusSel.value === 'published'){
-          statusSel.value = 'draft';
-        }
+      const allowedTrashRoles = ['hod', 'admin', 'director', 'principal', 'author', 'super_admin'];
+      const tabHeaderTrash = $('cnTabHeaderTrash');
+      if (tabHeaderTrash) {
+        tabHeaderTrash.style.display = allowedTrashRoles.includes(r) ? 'block' : 'none';
       }
+
+      if (writeControls) writeControls.style.display = canCreate ? 'flex' : 'none';
     }
 
     async function fetchMe(){
@@ -971,6 +1092,8 @@ td.col-slug code{
           const js = await res.json().catch(()=> ({}));
           const role = js?.data?.role || js?.role;
           if (role) ACTOR.role = String(role).toLowerCase();
+          const deptId = js?.data?.department_id || js?.department_id;
+          if (deptId) ACTOR.department_id = deptId;
         }
       }catch(_){}
       if (!ACTOR.role){
@@ -1023,7 +1146,6 @@ td.col-slug code{
       if (state.filters.status) params.set('status', state.filters.status);
       if (state.filters.featured !== '') params.set('featured', state.filters.featured);
 
-      // Tabs behavior (same convention as your other modules)
       if (tabKey === 'active') params.set('active', '1');
       if (tabKey === 'inactive') params.set('active', '0');
       if (tabKey === 'trash') params.set('only_trashed', '1');
@@ -1036,12 +1158,27 @@ td.col-slug code{
       if (el) el.style.display = show ? '' : 'none';
     }
 
-    function statusBadge(status){
+    function statusBadge(status, hasDraft){
       const s = (status || '').toString().toLowerCase();
-      if (s === 'published') return `<span class="badge badge-soft-success">Published</span>`;
-      if (s === 'draft') return `<span class="badge badge-soft-warning">Draft</span>`;
-      if (s === 'archived') return `<span class="badge badge-soft-muted">Archived</span>`;
-      return `<span class="badge badge-soft-muted">${esc(s || '—')}</span>`;
+      let html = '';
+      if (s === 'published') html = `<span class="badge badge-soft-success">Published</span>`;
+      else if (s === 'draft') html = `<span class="badge badge-soft-warning">Draft</span>`;
+      else if (s === 'archived') html = `<span class="badge badge-soft-muted">Archived</span>`;
+      else html = `<span class="badge badge-soft-muted">${esc(s || '—')}</span>`;
+
+      if (hasDraft) {
+        html += `<span class="badge-pending-draft" title="Pending Changes">Draft</span>`;
+      }
+      return html;
+    }
+
+    function workflowBadge(ws){
+      const s = (ws || '').toString().toLowerCase();
+      if (s === 'pending_check') return `<span class="badge-soft-warning p-1 px-2 rounded-pill small"><i class="fa fa-hourglass-start me-1"></i>Pending Check</span>`;
+      if (s === 'checked') return `<span class="badge-soft-info p-1 px-2 rounded-pill small"><i class="fa fa-check-double me-1"></i>Checked</span>`;
+      if (s === 'approved') return `<span class="badge-soft-success p-1 px-2 rounded-pill small"><i class="fa fa-circle-check me-1"></i>Approved</span>`;
+      if (s === 'rejected') return `<span class="badge-soft-danger p-1 px-2 rounded-pill small"><i class="fa fa-circle-xmark me-1"></i>Rejected</span>`;
+      return `<span class="badge-soft-muted p-1 px-2 rounded-pill small">${esc(s || '—')}</span>`;
     }
 
     function featuredBadge(v){
@@ -1097,12 +1234,10 @@ td.col-slug code{
         const location = r.location || '';
         const lastDate = r.last_date || r.apply_by || r.last_date_at || '—';
 
-        const publishAt = r.publish_at || '—';
         const updated = r.updated_at || '—';
         const deleted = r.deleted_at || '—';
         const sortOrder = (r.sort_order ?? 0);
 
-        // ✅ UPDATED: Added "Make Published" button
         let actions = `
           <div class="dropdown text-end">
             <button type="button"
@@ -1111,16 +1246,17 @@ td.col-slug code{
               <i class="fa fa-ellipsis-vertical"></i>
             </button>
             <ul class="dropdown-menu dropdown-menu-end">
-              <li><button type="button" class="dropdown-item" data-action="view"><i class="fa fa-eye"></i> View</button></li>`;
+              <li><button type="button" class="dropdown-item" data-action="view"><i class="fa fa-eye"></i> View</button></li>
+              <li><button type="button" class="dropdown-item" data-action="history"><i class="fa fa-clock-rotate-left"></i> Workflow History</button></li>`;
 
-        if (canEdit && tabKey !== 'trash'){
+        if (r.workflow_status === 'rejected') {
+          actions += `<li><button type="button" class="dropdown-item text-danger" data-action="reject_reason" data-reason="${esc(r.rejected_reason || r.rejection_reason || 'No reason provided')}">
+            <i class="fa fa-circle-xmark"></i> Rejection Reason
+          </button></li>`;
+        }
+
+        if (canEdit && tabKey !== 'trash' && !r.deleted_at){
           actions += `<li><button type="button" class="dropdown-item" data-action="edit"><i class="fa fa-pen-to-square"></i> Edit</button></li>`;
-          
-          // ✅ ADDED: "Make Published" option ONLY for publishers when status is not published
-          const statusLower = (status || 'draft').toString().toLowerCase();
-          if (canPublish && statusLower !== 'published'){
-            actions += `<li><button type="button" class="dropdown-item" data-action="make-publish"><i class="fa fa-circle-check"></i> Make Published</button></li>`;
-          }
         }
 
         if (tabKey !== 'trash'){
@@ -1161,11 +1297,11 @@ td.col-slug code{
               ${meta}
             </td>
             <td class="col-slug"><code>${esc(slug)}</code></td>
-            <td>${statusBadge(status)}</td>
+            <td>${statusBadge(status, !!r.draft_data)}</td>
             <td>${featuredBadge(featured)}</td>
             <td>${esc(String(lastDate))}</td>
-            <td>${esc(String(publishAt))}</td>
             <td>${esc(String(sortOrder))}</td>
+            <td>${workflowBadge(r.workflow_status)}</td>
             <td>${esc(String(updated))}</td>
             <td class="text-end">${actions}</td>
           </tr>`;
@@ -1252,6 +1388,13 @@ td.col-slug code{
       reloadCurrent();
     });
 
+    // Export
+    window.careerNoticesModule = {
+      openModal,
+      reload: reloadCurrent,
+      showHistory
+    };
+
     btnReset?.addEventListener('click', () => {
       state.filters = { q:'', status:'', featured:'', sort:'-created_at' };
       state.perPage = 20;
@@ -1268,8 +1411,7 @@ td.col-slug code{
     document.querySelector('a[href="#tab-cn-inactive"]')?.addEventListener('shown.bs.tab', () => loadTab('inactive'));
     document.querySelector('a[href="#tab-cn-trash"]')?.addEventListener('shown.bs.tab', () => loadTab('trash'));
 
-    // ---------- ✅ ACTION DROPDOWN FIX (copied behavior from reference, adapted) ----------
-    // Manually toggle Bootstrap Dropdown using Popper "fixed" strategy so it won't be clipped by table scroll containers.
+    // ---------- ACTION DROPDOWN FIX ----------
     function closeAllDropdownsExcept(exceptToggle){
       document.querySelectorAll('.cn-dd-toggle').forEach(t => {
         if (t === exceptToggle) return;
@@ -1280,7 +1422,6 @@ td.col-slug code{
       });
     }
 
-    // Toggle button click
     document.addEventListener('click', (e) => {
       const toggle = e.target.closest('.cn-dd-toggle');
       if (!toggle) return;
@@ -1305,7 +1446,6 @@ td.col-slug code{
       }catch(_){}
     });
 
-    // Close when clicking outside (but NOT when clicking toggle or menu)
     document.addEventListener('click', (e) => {
       if (e.target.closest('.cn-dd-toggle')) return;
       if (e.target.closest('.dropdown-menu')) return;
@@ -1531,18 +1671,6 @@ td.col-slug code{
     let slugDirty = false;
     let settingSlug = false;
 
-    function setBtnLoading(btn, loading){
-      if (!btn) return;
-      btn.disabled = !!loading;
-      btn.classList.toggle('btn-loading', !!loading);
-    }
-
-    function normalizeAttachments(r){
-      let a = r?.attachments || r?.attachments_json || r?.attachments_list || null;
-      if (typeof a === 'string') { try{ a = JSON.parse(a); }catch(_){ a=null; } }
-      return Array.isArray(a) ? a : [];
-    }
-
     function resetForm(){
       itemForm?.reset();
       itemUuid.value = '';
@@ -1574,15 +1702,18 @@ td.col-slug code{
         itemForm.dataset.mode = 'edit';
         itemForm.dataset.intent = 'create';
       }
-      
-      // ✅ ADD THIS: Update publish option for new items
-      setTimeout(() => updatePublishOption(), 50);
     }
 
     function toLocal(s){
       if (!s) return '';
       const t = String(s).replace(' ', 'T');
       return t.length >= 16 ? t.slice(0,16) : t;
+    }
+
+    function normalizeAttachments(r){
+      let a = r?.attachments || r?.attachments_json || null;
+      if (typeof a === 'string') { try{ a = JSON.parse(a); }catch(_){ a=null; } }
+      return Array.isArray(a) ? a : [];
     }
 
     function fillFormFromRow(r, viewOnly=false){
@@ -1646,11 +1777,6 @@ td.col-slug code{
         itemForm.dataset.mode = 'edit';
         itemForm.dataset.intent = 'edit';
       }
-      
-      // ✅ ADD THIS: Update publish option visibility when opening form
-      if (!viewOnly) {
-        setTimeout(() => updatePublishOption(), 50);
-      }
     }
 
     function findRowByUuid(uuid){
@@ -1677,6 +1803,87 @@ td.col-slug code{
       if (settingSlug) return;
       slugDirty = !!(slugInput.value || '').trim();
     });
+
+    let currentNoticeForHistory = null;
+    function openModal(mode, uuid=null){
+      resetForm();
+      const title = (mode === 'view') ? 'View Career Notice' : (mode === 'edit' ? 'Edit Career Notice' : 'Add Career Notice');
+      if (itemModalTitle) itemModalTitle.textContent = title;
+
+      // Reset Workflow Alerts
+      $('cnRejectionAlert').style.display = 'none';
+      $('cnDraftAlert').style.display = 'none';
+
+      if (uuid){
+        const r = findRowByUuid(uuid);
+        if (r) {
+          currentNoticeForHistory = { table: 'career_notices', id: r.uuid };
+          fillFormFromRow(r, mode === 'view');
+          
+          // Workflow Alert Logic
+          if (r.workflow_status === 'rejected') {
+            $('cnRejectionAlert').style.display = 'block';
+            $('cnRejectionReasonText').textContent = r.rejected_reason || r.rejection_reason || 'No reason provided.';
+          }
+          if (r.draft_data) {
+            $('cnDraftAlert').style.display = 'block';
+          }
+        }
+      }
+      itemModal && itemModal.show();
+    }
+
+    const cnHistoryModal = new bootstrap.Modal($('cnHistoryModal'));
+    async function showHistory(table, id) {
+      cnHistoryModal.show();
+      $('cnHistoryLoading').style.display = 'block';
+      $('cnHistoryContent').style.display = 'none';
+      $('cnHistoryEmpty').style.display = 'none';
+      $('cnHistoryTimeline').innerHTML = '';
+
+      try {
+        const res = await fetchWithTimeout(`/api/master-approval/history/${table}/${id}`, { headers: authHeaders() });
+        const js = await res.json();
+        $('cnHistoryLoading').style.display = 'none';
+
+        if (js.success && js.data && js.data.length) {
+          $('cnHistoryTimeline').innerHTML = js.data.map(log => `
+            <li class="timeline-item">
+              <div class="timeline-marker"></div>
+              <div class="timeline-content">
+                <div class="timeline-date">${new Date(log.created_at).toLocaleString()}</div>
+                <div class="timeline-title">
+                  Status changed to <span class="badge ${getStatusClass(log.to_status)}">${log.to_status.replace('_', ' ')}</span>
+                </div>
+                <div class="timeline-author">Action by: ${esc(log.user_name || 'System')} (${esc(log.user_role || 'unknown')})</div>
+                ${log.comment ? `<div class="timeline-comment">${esc(log.comment)}</div>` : ''}
+              </div>
+            </li>
+          `).join('');
+          $('cnHistoryContent').style.display = 'block';
+        } else {
+          $('cnHistoryEmpty').style.display = 'block';
+        }
+      } catch (err) {
+        $('cnHistoryLoading').style.display = 'none';
+        $('cnHistoryEmpty').style.display = 'block';
+      }
+    }
+
+    function getStatusClass(s) {
+      s = s.toLowerCase();
+      if (s === 'approved') return 'badge-soft-success text-success';
+      if (s === 'rejected') return 'badge-soft-danger text-danger';
+      if (s === 'checked') return 'badge-soft-info text-info';
+      if (s === 'pending_check') return 'badge-soft-warning text-warning';
+      return 'badge-soft-muted text-muted';
+    }
+
+    window.viewCareerHistoryFromAlert = () => {
+      if (currentNoticeForHistory) {
+        showHistory(currentNoticeForHistory.table, currentNoticeForHistory.id);
+      }
+    };
 
     btnAddItem?.addEventListener('click', () => {
       if (!canCreate) return;
@@ -1706,12 +1913,38 @@ td.col-slug code{
       const toggle = btn.closest('.dropdown')?.querySelector('.cn-dd-toggle');
       if (toggle) { try { bootstrap.Dropdown.getInstance(toggle)?.hide(); } catch (_) {} }
 
-      if (act === 'view' || act === 'edit'){
-        if (act === 'edit' && !canEdit) return;
+      if (act === 'view'){
+        const slug = row?.slug || row?.uuid || row?.id;
+        if (slug) window.open(`/career-notices/view/${slug}`, '_blank');
+        return;
+      }
+
+      if (act === 'edit'){
+        if (!canEdit) return;
         resetForm();
-        if (itemModalTitle) itemModalTitle.textContent = act === 'view' ? 'View Career Notice' : 'Edit Career Notice';
-        fillFormFromRow(row || {}, act === 'view');
+        if (itemModalTitle) itemModalTitle.textContent = 'Edit Career Notice';
+        fillFormFromRow(row || {}, false);
         itemModal && itemModal.show();
+        return;
+      }
+
+      if (act === 'history'){
+        if (row && row.id) {
+            showHistory('career_notices', row.id);
+        } else if (row && row.uuid) {
+            showHistory('career_notices', row.uuid);
+        }
+        return;
+      }
+
+      if (act === 'reject_reason'){
+        const reason = btn.dataset.reason || 'No reason provided';
+        Swal.fire({
+          title: 'Rejection Reason',
+          text: reason,
+          icon: 'error',
+          confirmButtonText: 'Close'
+        });
         return;
       }
 

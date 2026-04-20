@@ -77,32 +77,33 @@ class UserProfileController extends Controller
      * - No auth inside controller
      * (IMPORTANT: route must NOT be inside auth middleware group)
      */
-public function show(Request $request, string $user_uuid)
+public function show(Request $request, string $identifier)
 {
     $user = DB::table('users')
-        ->where('uuid', $user_uuid)
         ->whereNull('deleted_at')
+        ->where(function ($q) use ($identifier) {
+            $q->where('uuid', $identifier)
+              ->orWhere('slug', $identifier);
+        })
         ->first();
 
     if (!$user) {
         return response()->json([
             'success' => false,
-            'error'   => 'User not found'
+            'error'   => 'User not found',
         ], 404);
     }
 
-    // ✅ Check if this is an authenticated editing request
     $auth = $this->authUserRow($request);
     $actor = $this->actor($request);
-    
-    $authUuid = $auth->uuid ?? null;
-    $role = $auth->role ?? $actor['role'] ?? null;
-    
-    $isSelf = $authUuid && ($authUuid === $user->uuid);
-    $isPrivileged = $role && in_array($role, $this->privilegedRoles(), true);
-    $canEdit = $isSelf || $isPrivileged;
 
-    // ✅ If can edit, include inactive socials with sort_order
+    $authUuid = $auth->uuid ?? null;
+    $role     = $auth->role ?? $actor['role'] ?? null;
+
+    $isSelf       = $authUuid && ($authUuid === $user->uuid);
+    $isPrivileged = $role && in_array($role, $this->privilegedRoles(), true);
+    $canEdit      = $isSelf || $isPrivileged;
+
     return response()->json([
         'success' => true,
         'data'    => $this->buildProfile($user, $canEdit),

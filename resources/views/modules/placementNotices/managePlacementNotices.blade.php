@@ -111,6 +111,81 @@ td.pn-col-dept .pn-dept-text{
   background:color-mix(in oklab, var(--warning-color, #f59e0b) 14%, transparent);
   color:var(--warning-color, #f59e0b)
 }
+.pn-badge-danger{background:color-mix(in oklab, var(--danger-color) 12%, transparent);color:var(--danger-color)}
+.pn-badge-info{background:color-mix(in oklab, #0ea5e9 14%, transparent);color:#0ea5e9}
+
+/* Timeline Styles */
+.timeline {
+  position: relative;
+  padding: 0;
+  list-style: none;
+}
+.timeline:before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 31px;
+  width: 2px;
+  background: var(--line-soft);
+}
+.timeline-item {
+  position: relative;
+  margin-bottom: 20px;
+}
+.timeline-marker {
+  position: absolute;
+  top: 0;
+  left: 20px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--primary-color);
+  z-index: 10;
+}
+.timeline-content {
+  margin-left: 60px;
+  padding: 12px 16px;
+  background: color-mix(in oklab, var(--surface) 95%, var(--bg-body));
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+}
+.timeline-date {
+  font-size: 11px;
+  color: var(--muted-color);
+  margin-bottom: 4px;
+}
+.timeline-title {
+  font-weight: 600;
+  font-size: 13.5px;
+  margin-bottom: 4px;
+}
+.timeline-author {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.timeline-comment {
+  font-size: 12.5px;
+  color: var(--muted-color);
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: rgba(0,0,0,0.03);
+  border-left: 2px solid var(--line-strong);
+  font-style: italic;
+}
+.badge-pending-draft {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--warning-color);
+  color: #fff;
+  vertical-align: middle;
+  margin-left: 4px;
+  text-transform: uppercase;
+  font-weight: 700;
+}
 
 /* Responsive scroll (keep dropdown visible vertically) */
 .table-responsive{
@@ -415,7 +490,7 @@ td.pn-col-dept .pn-dept-text{
         <i class="fa-solid fa-circle-pause me-2"></i>Inactive
       </a>
     </li>
-    <li class="nav-item">
+    <li class="nav-item" id="pnTabHeaderTrash" style="display:none;">
       <a class="nav-link" data-bs-toggle="tab" href="#pn-tab-trash" role="tab" aria-selected="false">
         <i class="fa-solid fa-trash-can me-2"></i>Trash
       </a>
@@ -480,12 +555,13 @@ td.pn-col-dept .pn-dept-text{
                   <th style="width:150px;">Last Date</th>
                   <th style="width:150px;">Publish At</th>
                   <th style="width:110px;">Sort</th>
+                  <th style="width:170px;">Workflow</th>
                   <th style="width:170px;">Updated</th>
                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
               </thead>
               <tbody id="pnTbodyActive">
-                <tr><td colspan="11" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+                <tr><td colspan="12" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -520,12 +596,13 @@ td.pn-col-dept .pn-dept-text{
                   <th style="width:150px;">Last Date</th>
                   <th style="width:150px;">Publish At</th>
                   <th style="width:110px;">Sort</th>
+                  <th style="width:170px;">Workflow</th>
                   <th style="width:170px;">Updated</th>
                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
               </thead>
               <tbody id="pnTbodyInactive">
-                <tr><td colspan="11" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
+                <tr><td colspan="12" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -700,6 +777,17 @@ td.pn-col-dept .pn-dept-text{
       <div class="modal-body">
         <input type="hidden" id="pnUuid">
         <input type="hidden" id="pnId">
+
+
+
+        {{-- Pending Draft Alert --}}
+        <div id="pnDraftAlert" class="alert alert-warning mb-3" style="display:none;">
+          <div class="d-flex align-items-center gap-2">
+            <i class="fa fa-pen-nib fs-5"></i>
+            <h6 class="mb-0 fw-bold">Pending Changes</h6>
+          </div>
+          <div class="ms-4 small">This notice has updates waiting for approval. Editing now will replace those pending changes.</div>
+        </div>
 
         {{-- NEW: department ids holder --}}
         <input type="hidden" id="pnDepartmentIds" value="">
@@ -918,6 +1006,34 @@ td.pn-col-dept .pn-dept-text{
 </div>
 @endsection
 
+{{-- Workflow History Modal --}}
+<div class="modal fade" id="pnHistoryModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-md modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-clock-rotate-left me-2"></i>Workflow History</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="pnHistoryLoading" class="text-center py-4">
+          <div class="spinner-border text-primary" role="status"></div>
+          <div class="mt-2 text-muted">Loading history…</div>
+        </div>
+        <div id="pnHistoryContent" style="display:none;">
+          <ul class="timeline" id="pnHistoryTimeline"></ul>
+        </div>
+        <div id="pnHistoryEmpty" class="text-center py-4 text-muted" style="display:none;">
+          <i class="fa fa-history mb-2 fs-3 opacity-50"></i>
+          <div>No history found for this notice.</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -1026,7 +1142,7 @@ td.pn-col-dept .pn-dept-text{
     // permissions
     const ACTOR = { id: null, role: '', department_id: null };
   let canAssignPrivilege = false;
-    let canCreate=false, canEdit=false, canDelete=false;
+    let canCreate=false, canEdit=false, canDelete=false, canPublish=false;
 
     function computePermissions(){
       const r = (ACTOR?.role || '').toLowerCase();
@@ -1055,8 +1171,29 @@ td.pn-col-dept .pn-dept-text{
              if (actionsStr.includes('assign_privilege') || actionsStr.includes('assign privileges') || actionsStr.includes('privilege')) canAssignPrivilege = true;
           }
       }
+      canPublish = true; // allow everyone who can write to see the "Published" option
+
+      const allowedTrashRoles = ['hod', 'admin', 'director', 'principal', 'author', 'super_admin'];
+      const tabHeaderTrash = $('pnTabHeaderTrash');
+      if (tabHeaderTrash) {
+        tabHeaderTrash.style.display = allowedTrashRoles.includes(r) ? 'block' : 'none';
+      }
+
       const wc = $('pnWriteControls');
       if (wc) wc.style.display = canCreate ? 'flex' : 'none';
+      updatePublishOption();
+    }
+
+    function updatePublishOption(){
+      const fStatus = $('pnStatus');
+      if (!fStatus) return;
+      const publishOption = fStatus.querySelector('option[value="published"]');
+      if (publishOption){
+        publishOption.style.display = canPublish ? 'block' : 'none';
+        if (!canPublish && fStatus.value === 'published'){
+          fStatus.value = 'draft';
+        }
+      }
     }
 
     async function fetchMe(){
@@ -1435,12 +1572,26 @@ td.pn-col-dept .pn-dept-text{
     }
 
     // ---------- render helpers ----------
-    function badgeStatus(status){
+    function badgeStatus(status, hasDraft){
       const s = (status || '').toString().toLowerCase();
-      if (s === 'published') return `<span class="badge pn-badge-success">Published</span>`;
-      if (s === 'draft') return `<span class="badge pn-badge-warning">Draft</span>`;
-      if (s === 'archived') return `<span class="badge pn-badge-muted">Archived</span>`;
-      return `<span class="badge pn-badge-muted">${esc(s || '—')}</span>`;
+      let html = '';
+      if (s === 'published') html = `<span class="badge pn-badge-success">Published</span>`;
+      else if (s === 'draft') html = `<span class="badge pn-badge-warning">Draft</span>`;
+      else if (s === 'archived') html = `<span class="badge pn-badge-muted">Archived</span>`;
+      else html = `<span class="badge pn-badge-muted">${esc(s || '—')}</span>`;
+
+      if (hasDraft) {
+        html += `<span class="badge-pending-draft" title="Pending Changes">Draft</span>`;
+      }
+      return html;
+    }
+    function workflowBadge(ws){
+      const s = (ws || '').toString().toLowerCase();
+      if (s === 'pending_check') return `<span class="pn-badge-warning p-1 px-2 rounded-pill small"><i class="fa fa-hourglass-start me-1"></i>Pending Check</span>`;
+      if (s === 'checked') return `<span class="pn-badge-info p-1 px-2 rounded-pill small"><i class="fa fa-check-double me-1"></i>Checked</span>`;
+      if (s === 'approved') return `<span class="pn-badge-success p-1 px-2 rounded-pill small"><i class="fa fa-circle-check me-1"></i>Approved</span>`;
+      if (s === 'rejected') return `<span class="pn-badge-danger p-1 px-2 rounded-pill small"><i class="fa fa-circle-xmark me-1"></i>Rejected</span>`;
+      return `<span class="pn-badge-muted p-1 px-2 rounded-pill small">${esc(s || '—')}</span>`;
     }
     function badgeFeatured(v){
       return v ? `<span class="badge pn-badge-primary">Yes</span>` : `<span class="badge pn-badge-muted">No</span>`;
@@ -1562,6 +1713,12 @@ td.pn-col-dept .pn-dept-text{
             </button>
             <ul class="dropdown-menu dropdown-menu-end">
               <li><button type="button" class="dropdown-item" data-action="view" data-uuid="${esc(uuid)}"><i class="fa fa-eye"></i> View</button></li>
+              <li><button type="button" class="dropdown-item" data-action="history" data-uuid="${esc(uuid)}"><i class="fa fa-clock-rotate-left"></i> Workflow History</button></li>
+              ${(r.workflow_status === 'rejected') ? `
+                <li><button type="button" class="dropdown-item text-danger" data-action="reject_reason" data-uuid="${esc(uuid)}" data-reason="${esc(r.rejected_reason || r.rejection_reason || 'No reason provided')}">
+                  <i class="fa fa-circle-xmark"></i> Rejection Reason
+                </button></li>
+              ` : ''}
               ${canEdit ? `<li><button type="button" class="dropdown-item" data-action="edit" data-uuid="${esc(uuid)}"><i class="fa fa-pen-to-square"></i> Edit</button></li>` : ``}
               ${canEdit ? `<li><button type="button" class="dropdown-item" data-action="toggle_featured" data-uuid="${esc(uuid)}"><i class="fa fa-star"></i> Toggle Featured</button></li>` : ``}
               ${r.apply_url ? `<li><a class="dropdown-item" href="${esc(r.apply_url)}" target="_blank" rel="noopener"><i class="fa fa-up-right-from-square"></i> Open Apply Link</a></li>` : ``}
@@ -1576,11 +1733,12 @@ td.pn-col-dept .pn-dept-text{
             <td class="pn-col-slug"><code>${esc(slug)}</code></td>
             <td class="pn-col-dept"><span class="pn-dept-text" title="${esc(deptText(r))}">${esc(deptText(r))}</span></td>
             <td>${esc(recruiterText(r))}</td>
-            <td>${badgeStatus(status)}</td>
+            <td>${badgeStatus(status, !!r.draft_data)}</td>
             <td>${badgeFeatured(featured)}</td>
             <td>${esc(String(lastDate))}</td>
             <td>${esc(String(publishAt))}</td>
             <td>${esc(String(sortOrder))}</td>
+            <td>${workflowBadge(r.workflow_status)}</td>
             <td>${esc(String(updated))}</td>
             <td class="text-end">${actions}</td>
           </tr>`;
@@ -1593,7 +1751,7 @@ td.pn-col-dept .pn-dept-text{
     async function loadTab(tabKey){
       const tbody = tabKey==='active' ? tbodyActive : (tabKey==='inactive' ? tbodyInactive : tbodyTrash);
       if (tbody){
-        const cols = (tabKey==='trash') ? 7 : 11;
+        const cols = (tabKey==='trash') ? 7 : 12;
         tbody.innerHTML = `<tr><td colspan="${cols}" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>`;
       }
 
@@ -1709,18 +1867,18 @@ td.pn-col-dept .pn-dept-text{
     document.querySelector('a[href="#pn-tab-inactive"]')?.addEventListener('shown.bs.tab', () => loadTab('inactive'));
     document.querySelector('a[href="#pn-tab-trash"]')?.addEventListener('shown.bs.tab', () => loadTab('trash'));
 
-    // ---------- ✅ ACTION DROPDOWN FIX ----------
+    // ---------- ✅ ACTION DROPDOWN FIX (Popper fixed strategy) ----------
+    function findRowByUuid(uuid){
+      const findIn = (k) => (state.tabs[k].items || []).find(x => x?.uuid === uuid);
+      return findIn('active') || findIn('inactive') || findIn('trash');
+    }
+
     function closeAllPnDropdownsExcept(exceptToggle){
       document.querySelectorAll('.pn-dd-toggle').forEach(t => {
         if (exceptToggle && t === exceptToggle) return;
         try { bootstrap.Dropdown.getInstance(t)?.hide(); } catch(_){}
       });
     }
-
-    document.addEventListener('click', (e) => {
-      if (e.target.closest('.pn-card .dropdown')) return;
-      closeAllPnDropdownsExcept(null);
-    }, { capture:true });
 
     document.addEventListener('click', (e) => {
       const toggle = e.target.closest('.pn-dd-toggle');
@@ -1734,17 +1892,25 @@ td.pn-col-dept .pn-dept-text{
       try{
         const inst = bootstrap.Dropdown.getOrCreateInstance(toggle, {
           autoClose: true,
-          popperConfig: (def) => {
-            const base = def || {};
-            const mods = Array.isArray(base.modifiers) ? base.modifiers.slice() : [];
-            mods.push({ name:'preventOverflow', options:{ boundary:'viewport', padding:8 } });
-            mods.push({ name:'flip', options:{ boundary:'viewport', padding:8 } });
-            return { ...base, strategy:'fixed', modifiers: mods };
+          popperConfig: {
+            strategy: 'fixed',
+            modifiers: [
+              { name:'preventOverflow', options:{ boundary:'viewport', padding:8 } },
+              { name:'flip', options:{ boundary:'viewport', padding:8 } }
+            ]
           }
         });
         inst.toggle();
       }catch(_){}
     });
+
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('.pn-dd-toggle')) return;
+      if (e.target.closest('.dropdown-menu')) return;
+      closeAllPnDropdownsExcept(null);
+    }, { capture: true });
+
+    document.addEventListener('scroll', () => closeAllPnDropdownsExcept(null), true);
 
     // ---------- mini editor ----------
     const rte = {
@@ -1969,6 +2135,7 @@ td.pn-col-dept .pn-dept-text{
       itemForm.reset();
       pnUuid.value = '';
       pnId.value = '';
+      updatePublishOption();
       slugDirty = false;
       settingSlug = false;
 
@@ -2106,13 +2273,6 @@ td.pn-col-dept .pn-dept-text{
     });
 
     // ---------- row actions ----------
-    async function closeDropdownFrom(el){
-      const toggle = el.closest('.dropdown')?.querySelector('.pn-dd-toggle');
-      if (toggle){
-        try{ bootstrap.Dropdown.getOrCreateInstance(toggle).hide(); }catch(_){}
-      }
-    }
-
     document.addEventListener('click', async (e) => {
       const btn = e.target.closest('button[data-action][data-uuid]');
       if (!btn) return;
@@ -2121,22 +2281,52 @@ td.pn-col-dept .pn-dept-text{
       const act = btn.dataset.action;
       if (!uuid) return;
 
-      await closeDropdownFrom(btn);
+      // close dropdown
+      const toggle = btn.closest('.dropdown')?.querySelector('.pn-dd-toggle');
+      if (toggle) { try { closeAllPnDropdownsExcept(null); } catch (_) {} }
 
-      if (act === 'view' || act === 'edit'){
-        if (act === 'edit' && !canEdit) return;
+      if (act === 'view'){
+        const item = findRowByUuid(uuid);
+        const slug = item?.slug || item?.uuid || item?.id || uuid;
+        if (slug) window.open(`/placement-notices/view/${slug}`, '_blank');
+        return;
+      }
+
+      if (act === 'edit'){
+        if (!canEdit) return;
 
         showLoading(true);
         try{
           const item = await fetchOne(uuid);
           resetForm();
-          itemTitle.textContent = act === 'view' ? 'View Placement Notice' : 'Edit Placement Notice';
-          fillForm(item || {}, act === 'view');
+          itemTitle.textContent = 'Edit Placement Notice';
+          
+          // Reset Draft Alert
+          $('pnDraftAlert').style.display = 'none';
+
+          if (item.draft_data) {
+            $('pnDraftAlert').style.display = 'block';
+          }
+          
+          fillForm(item || {}, false);
           itemModal.show();
         }catch(ex){
           err(ex?.message || 'Failed');
         }finally{
           showLoading(false);
+        }
+        return;
+      }
+
+      if (act === 'history'){
+        const row = findRowByUuid(uuid);
+        if (row && row.id) {
+          showHistory('placement_notices', row.id);
+        } else {
+          showLoading(true);
+          fetchOne(uuid).then(r => {
+            if (r && r.id) showHistory('placement_notices', r.id);
+          }).catch(e => err(e.message)).finally(() => showLoading(false));
         }
         return;
       }
@@ -2253,6 +2443,17 @@ td.pn-col-dept .pn-dept-text{
         }
         return;
       }
+
+      if (act === 'reject_reason'){
+        const reason = btn.dataset.reason || 'No reason provided';
+        Swal.fire({
+          title: 'Rejection Reason',
+          text: reason,
+          icon: 'error',
+          confirmButtonText: 'Close'
+        });
+        return;
+      }
     });
 
     // ---------- submit ----------
@@ -2366,6 +2567,62 @@ td.pn-col-dept .pn-dept-text{
         showLoading(false);
       }
     })();
+
+
+
+    async function showHistory(table, id){
+      const modal = $('pnHistoryModal');
+      const list = $('pnHistoryTimeline');
+      const load = $('pnHistoryLoading');
+      const cont = $('pnHistoryContent');
+      const empty = $('pnHistoryEmpty');
+
+      if (!modal) return;
+      const inst = bootstrap.Modal.getOrCreateInstance(modal);
+      inst.show();
+
+      load.style.display = 'block';
+      cont.style.display = 'none';
+      empty.style.display = 'none';
+      list.innerHTML = '';
+
+      const getStatusClass = (s) => {
+        s = (s || '').toLowerCase();
+        if (s === 'approved') return 'badge-soft-success text-success';
+        if (s === 'rejected') return 'badge-soft-danger text-danger';
+        if (s === 'checked') return 'badge-soft-info text-info';
+        if (s === 'pending_check') return 'badge-soft-warning text-warning';
+        return 'badge-soft-muted text-muted';
+      };
+
+      try {
+        const res = await fetchWithTimeout(`/api/master-approval/history/${table}/${id}`, { headers: authHeaders() }, 10000);
+        const js = await safeJson(res);
+
+        load.style.display = 'none';
+        if (js.success && js.data && js.data.length) {
+          cont.style.display = 'block';
+          list.innerHTML = js.data.map(log => `
+            <li class="timeline-item">
+              <div class="timeline-marker"></div>
+              <div class="timeline-content">
+                <div class="timeline-date">${new Date(log.created_at).toLocaleString()}</div>
+                <div class="timeline-title">
+                  Status changed to <span class="badge ${getStatusClass(log.to_status)}">${(log.to_status || '').replace('_', ' ')}</span>
+                </div>
+                <div class="timeline-author">Action by: ${esc(log.user_name || 'System')} (${esc(log.user_role || 'unknown')})</div>
+                ${log.comment ? `<div class="timeline-comment">${esc(log.comment)}</div>` : ''}
+              </div>
+            </li>`
+          ).join('');
+        } else {
+          empty.style.display = 'block';
+        }
+      } catch (ex) {
+        load.style.display = 'none';
+        empty.style.display = 'block';
+      }
+    }
   });
 })();
 </script>

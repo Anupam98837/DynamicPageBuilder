@@ -85,6 +85,87 @@ td.col-slug code{
   background:color-mix(in oklab, var(--warning-color, #f59e0b) 14%, transparent);
   color:var(--warning-color, #f59e0b)
 }
+.badge-soft-danger{
+  background:color-mix(in oklab, var(--danger-color) 12%, transparent);
+  color:var(--danger-color)
+}
+.badge-soft-info{
+  background:color-mix(in oklab, var(--info-color, #0ea5e9) 12%, transparent);
+  color:var(--info-color, #0ea5e9)
+}
+
+/* Timeline Styles */
+.timeline {
+  position: relative;
+  padding: 0;
+  list-style: none;
+}
+.timeline:before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 31px;
+  width: 2px;
+  background: var(--line-soft);
+}
+.timeline-item {
+  position: relative;
+  margin-bottom: 20px;
+}
+.timeline-marker {
+  position: absolute;
+  top: 0;
+  left: 20px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--primary-color);
+  z-index: 10;
+}
+.timeline-content {
+  margin-left: 60px;
+  padding: 12px 16px;
+  background: color-mix(in oklab, var(--surface) 95%, var(--bg-body));
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+}
+.timeline-date {
+  font-size: 11px;
+  color: var(--muted-color);
+  margin-bottom: 4px;
+}
+.timeline-title {
+  font-weight: 600;
+  font-size: 13.5px;
+  margin-bottom: 4px;
+}
+.timeline-author {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.timeline-comment {
+  font-size: 12.5px;
+  color: var(--muted-color);
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: rgba(0,0,0,0.03);
+  border-left: 2px solid var(--line-strong);
+  font-style: italic;
+}
+.badge-pending-draft {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--warning-color);
+  color: #fff;
+  vertical-align: middle;
+  margin-left: 4px;
+  text-transform: uppercase;
+  font-weight: 700;
+}
 
 /* Loading overlay */
 .loading-overlay{
@@ -335,7 +416,7 @@ td.col-slug code{
         <i class="fa-solid fa-circle-pause me-2"></i>Inactive
       </a>
     </li>
-    <li class="nav-item">
+    <li class="nav-item" id="tabHeaderTrash" style="display:none;">
       <a class="nav-link" data-bs-toggle="tab" href="#tab-trash" role="tab" aria-selected="false">
         <i class="fa-solid fa-trash-can me-2"></i>Trash
       </a>
@@ -396,6 +477,7 @@ td.col-slug code{
                   <th style="width:120px;">Featured</th>
                   <th style="width:150px;">Publish At</th>
                   <th style="width:110px;">Sort</th>
+                  <th style="width:170px;">Workflow</th>
                   <th style="width:170px;">Updated</th>
                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
@@ -433,6 +515,7 @@ td.col-slug code{
                   <th style="width:120px;">Featured</th>
                   <th style="width:150px;">Publish At</th>
                   <th style="width:110px;">Sort</th>
+                  <th style="width:170px;">Workflow</th>
                   <th style="width:170px;">Updated</th>
                   <th style="width:108px;" class="text-end">Actions</th>
                 </tr>
@@ -560,6 +643,29 @@ td.col-slug code{
       <div class="modal-body">
         <input type="hidden" id="itemUuid">
         <input type="hidden" id="itemId">
+
+        {{-- Rejection Alert --}}
+        <div id="rejectionAlert" class="alert alert-danger mb-3" style="display:none;">
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <i class="fa fa-circle-exclamation fs-5"></i>
+            <h6 class="mb-0 fw-bold">Rejected by Authority</h6>
+          </div>
+          <div id="rejectionReasonText" class="ms-4 small" style="white-space: pre-wrap;">Reason...</div>
+          <div class="mt-2 ms-4">
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="viewHistoryFromAlert()">
+              <i class="fa fa-clock-rotate-left me-1"></i>View Full History
+            </button>
+          </div>
+        </div>
+
+        {{-- Pending Draft Alert --}}
+        <div id="draftAlert" class="alert alert-warning mb-3" style="display:none;">
+          <div class="d-flex align-items-center gap-2">
+            <i class="fa fa-pen-nib fs-5"></i>
+            <h6 class="mb-0 fw-bold">Pending Changes</h6>
+          </div>
+          <div class="ms-4 small">This item has updates that are currently waiting for approval. Editing now will replace those pending changes.</div>
+        </div>
 
         <div class="row g-3">
           <div class="col-lg-6">
@@ -718,6 +824,56 @@ td.col-slug code{
   </div>
 </div>
 
+{{-- Rejection Reason Modal --}}
+<div class="modal fade" id="rejectReasonModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title text-danger"><i class="fa fa-circle-xmark me-2"></i>Rejection Reason</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="p-3 bg-light rounded-3 border">
+          <div id="rejectReasonModalText" class="text-dark" style="font-size: 14.5px; line-height: 1.6; white-space: pre-wrap;">—</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{{-- Workflow History Modal --}}
+<div class="modal fade" id="historyModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-light">
+        <h5 class="modal-title fw-bold"><i class="fa fa-clock-rotate-left me-2 text-primary"></i>Workflow History</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-4" style="max-height: 70vh; overflow-y: auto;">
+        <div id="historyLoading" class="text-center py-5">
+          <div class="spinner-border text-primary" role="status"></div>
+          <p class="mt-2 text-muted small">Fetching history data…</p>
+        </div>
+        <div id="historyContent" style="display:none;">
+          <ul class="timeline" id="historyTimeline">
+            {{-- History items injected here --}}
+          </ul>
+        </div>
+        <div id="historyEmpty" class="text-center py-5 text-muted" style="display:none;">
+          <i class="fa fa-circle-info fs-1 mb-3 opacity-25"></i>
+          <p>No workflow history records found for this announcement.</p>
+        </div>
+      </div>
+      <div class="modal-footer bg-light">
+        <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 {{-- Toasts --}}
 <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index:2000">
   <div id="toastSuccess" class="toast align-items-center text-bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
@@ -832,18 +988,165 @@ td.col-slug code{
     const infoActive = $('resultsInfo-active');
     const infoInactive = $('resultsInfo-inactive');
     const infoTrash = $('resultsInfo-trash');
-
-    const filterModalEl = $('filterModal');
+const filterModalEl = $('filterModal');
     const filterModal = filterModalEl ? new bootstrap.Modal(filterModalEl) : null;
     const modalStatus = $('modal_status');
     const modalSort = $('modal_sort');
     const modalFeatured = $('modal_featured');
 
+    // ---------- modal ----------
     const itemModalEl = $('itemModal');
-    const itemModal = itemModalEl ? new bootstrap.Modal(itemModalEl) : null;
-    const itemModalTitle = $('itemModalTitle');
+    const itemModal = new bootstrap.Modal(itemModalEl);
     const itemForm = $('itemForm');
+    const itemModalTitle = $('itemModalTitle');
     const saveBtn = $('saveBtn');
+
+    // Workflow Alerts
+    const rejectionAlert = $('rejectionAlert');
+    const rejectionReasonText = $('rejectionReasonText');
+    const draftAlert = $('draftAlert');
+
+    // History Modal
+    const historyModalEl = $('historyModal');
+    const historyModal = historyModalEl ? new bootstrap.Modal(historyModalEl) : null;
+    const historyTimeline = $('historyTimeline');
+    const historyLoading = $('historyLoading');
+    const historyContent = $('historyContent');
+    const historyEmpty = $('historyEmpty');
+
+    let currentItemForHistory = null;
+
+    function openModal(mode, r = null){
+      itemForm.reset();
+      $('itemUuid').value = '';
+      $('itemId').value = '';
+      $('bodyEditor').innerHTML = '';
+      $('bodyCode').value = '';
+      $('body').value = '';
+      $('coverPreview').style.display = 'none';
+      $('coverPreview').src = '';
+      $('coverEmpty').style.display = 'block';
+      $('coverMeta').style.display = 'none';
+      $('currentAttachmentsInfo').style.display = 'none';
+
+      // Reset Workflow Alerts
+      if (rejectionAlert) rejectionAlert.style.display = 'none';
+      if (draftAlert) draftAlert.style.display = 'none';
+
+      if (mode === 'add') {
+        itemModalTitle.textContent = 'Add Announcement';
+        saveBtn.style.display = '';
+        // enableInputs(true); // Assuming this helper exists or logic is handled
+        loadDepartmentsForAnnouncementForm();
+      } else {
+        itemModalTitle.textContent = mode === 'edit' ? 'Edit Announcement' : 'View Announcement';
+        saveBtn.style.display = mode === 'edit' ? '' : 'none';
+        // enableInputs(mode === 'edit');
+
+        if (r) {
+          currentItemForHistory = { table: 'announcements', id: r.id };
+          $('itemUuid').value = r.uuid || '';
+          $('itemId').value = r.id || '';
+          $('title').value = r.title || '';
+          $('slug').value = r.slug || '';
+          $('sort_order').value = r.sort_order ?? 0;
+          $('status').value = r.status || 'draft';
+          $('is_featured_home').value = (r.is_featured_home ?? r.featured ?? 0) ? '1' : '0';
+          $('publish_at').value = r.publish_at ? r.publish_at.replace(' ', 'T').slice(0, 16) : '';
+          $('expire_at').value = r.expire_at ? r.expire_at.replace(' ', 'T').slice(0, 16) : '';
+
+          loadDepartmentsForAnnouncementForm(r.department_id);
+
+          const body = r.body || '';
+          $('body').value = body;
+          $('bodyEditor').innerHTML = body;
+          $('bodyCode').value = body;
+
+          if (r.cover_image_url) {
+            $('coverPreview').src = normalizeUrl(r.cover_image_url);
+            $('coverPreview').style.display = 'block';
+            $('coverEmpty').style.display = 'none';
+            $('btnOpenCover').style.display = '';
+            $('btnOpenCover').onclick = () => window.open(normalizeUrl(r.cover_image_url), '_blank');
+          }
+
+          if (Array.isArray(r.attachments) && r.attachments.length) {
+            $('currentAttachmentsInfo').style.display = 'block';
+            $('currentAttachmentsText').textContent = `${r.attachments.length} file(s) attached`;
+          }
+
+          // Workflow Alert Logic
+          if (r.workflow_status === 'rejected') {
+            if (rejectionAlert) rejectionAlert.style.display = 'block';
+            if (rejectionReasonText) rejectionReasonText.textContent = r.rejected_reason || r.rejection_reason || 'No reason provided.';
+          }
+          if (r.draft_data) {
+            if (draftAlert) draftAlert.style.display = 'block';
+          }
+        }
+      }
+      itemModal.show();
+    }
+
+    window.viewHistoryFromAlert = () => {
+      if (currentItemForHistory) {
+        showHistory(currentItemForHistory.table, currentItemForHistory.id);
+      }
+    };
+
+        const globalRejectReasonModalEl = document.getElementById('rejectReasonModal');
+    const globalRejectReasonModal = globalRejectReasonModalEl ? new bootstrap.Modal(globalRejectReasonModalEl) : null;
+    window.showRejectReason = (msg) => {
+      const txt = document.getElementById('rejectReasonModalText');
+      if (txt) txt.textContent = msg || 'No reason provided';
+      if (globalRejectReasonModal) globalRejectReasonModal.show();
+    };
+
+    async function showHistory(table, id) {
+      historyModal.show();
+      historyLoading.style.display = 'block';
+      historyContent.style.display = 'none';
+      historyEmpty.style.display = 'none';
+      historyTimeline.innerHTML = '';
+
+      try {
+        const res = await fetchWithTimeout(`/api/master-approval/history/${table}/${id}`, { headers: authHeaders() });
+        const js = await res.json();
+        historyLoading.style.display = 'none';
+
+        if (js.success && js.data && js.data.length) {
+          historyTimeline.innerHTML = js.data.map(log => `
+            <li class="timeline-item">
+              <div class="timeline-marker"></div>
+              <div class="timeline-content">
+                <div class="timeline-date">${new Date(log.created_at).toLocaleString()}</div>
+                <div class="timeline-title">
+                  Status changed to <span class="badge ${getStatusClass(log.to_status)}">${log.to_status.replace('_', ' ')}</span>
+                </div>
+                <div class="timeline-author">Action by: ${esc(log.user_name || 'System')} (${esc(log.user_role || 'unknown')})</div>
+                ${log.comment ? `<div class="timeline-comment">${esc(log.comment)}</div>` : ''}
+              </div>
+            </li>
+          `).join('');
+          historyContent.style.display = 'block';
+        } else {
+          historyEmpty.style.display = 'block';
+        }
+      } catch (err) {
+        historyLoading.style.display = 'none';
+        historyEmpty.style.display = 'block';
+        console.error('Failed to load history:', err);
+      }
+    }
+
+    function getStatusClass(s) {
+      s = s.toLowerCase();
+      if (s === 'approved') return 'badge-soft-success';
+      if (s === 'rejected') return 'badge-soft-danger';
+      if (s === 'checked') return 'badge-soft-info';
+      if (s === 'pending_check') return 'badge-soft-warning';
+      return 'badge-soft-muted';
+    }
 
     const itemUuid = $('itemUuid');
     const itemId = $('itemId');
@@ -867,44 +1170,31 @@ td.col-slug code{
     const btnOpenCover = $('btnOpenCover');
 
     // ---------- permissions ----------
-    const ACTOR = { id: null, role: '', department_id: null };
-  let canAssignPrivilege = false;
+    const ACTOR = { role: '', department_id: null };
     let canCreate=false, canEdit=false, canDelete=false;
     // Add publishing permissions
 let canPublish = false;
 
 function computePermissions(){
-  const r = (ACTOR?.role || '').toLowerCase();
-      if(!ACTOR.department_id){
-          canCreate = canEdit = canDelete = canAssignPrivilege = true;
-      } else {
-          canCreate = canEdit = canDelete = canAssignPrivilege = false;
-          if (window.ACTOR_MENU_TREE && Array.isArray(window.ACTOR_MENU_TREE)) {
-             const path = window.location.pathname.replace(/\/+$/, '') || '/';
-             let myActions = [];
-             for(const group of window.ACTOR_MENU_TREE) {
-                if(group.children) {
-                   for(const child of group.children) {
-                      const childPath = (child.href || '').replace(/\/+$/, '') || '/';
-                      if (path === childPath || path.endsWith(childPath)) {
-                         myActions = child.actions || [];
-                         break;
-                      }
-                   }
-                }
-             }
-             const actionsStr = myActions.map(a => String(a).trim().toLowerCase());
-             if (actionsStr.includes('add') || actionsStr.includes('create')) canCreate = true;
-             if (actionsStr.includes('edit') || actionsStr.includes('update')) canEdit = true;
-             if (actionsStr.includes('delete') || actionsStr.includes('remove')) canDelete = true;
-             if (actionsStr.includes('assign_privilege') || actionsStr.includes('assign privileges') || actionsStr.includes('privilege')) canAssignPrivilege = true;
-          }
-      }
-  canPublish = true;  // Only these roles can publish
+  const r = (ACTOR.role || '').toLowerCase().trim();
+  const writeRoles = ['admin', 'author','super_admin','director','principal','hod','faculty','technical_assistant','it_person'];
 
-  if (writeControls) writeControls.style.display = canCreate ? 'flex' : 'none';
+  canCreate = writeRoles.includes(r);
+  canDelete = writeRoles.includes(r);
+  canEdit   = writeRoles.includes(r);
+  // canPublish = ['admin', 'author','super_admin','director','principal','hod'].includes(r); // stricter for publishing
+  canPublish = true; // allow everyone who can write to see the "Published" option
+
+  const allowedTrashRoles = ['hod', 'admin', 'director', 'principal', 'author', 'super_admin'];
+  const tabHeaderTrash = $('tabHeaderTrash');
+  if (tabHeaderTrash) {
+    tabHeaderTrash.style.display = allowedTrashRoles.includes(r) ? 'block' : 'none';
+  }
+
+  if (writeControls) {
+    writeControls.style.display = canCreate ? 'flex' : 'none';
+  }
   
-  // Update publish option visibility in status dropdown
   updatePublishOption();
 }
 
@@ -926,20 +1216,16 @@ function updatePublishOption(){
           const js = await res.json().catch(()=> ({}));
           const role = js?.data?.role || js?.role;
           if (role) ACTOR.role = String(role).toLowerCase();
+
+          const dId = js?.data?.department_id || js?.department_id;
+          if (dId) ACTOR.department_id = String(dId);
         }
       }catch(_){}
       if (!ACTOR.role){
         ACTOR.role = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
       }
-      
-      if (!window.ACTOR_MENU_TREE) {
-        try {
-          const mRes = await fetchWithTimeout('/api/my/sidebar-menus?with_actions=1', { headers: authHeaders() }, 5000);
-          if (mRes.ok) {
-              const mData = await mRes.json();
-              window.ACTOR_MENU_TREE = mData?.tree || [];
-          }
-        } catch(e) {}
+      if (!ACTOR.department_id){
+        ACTOR.department_id = (sessionStorage.getItem('department_id') || localStorage.getItem('department_id') || null);
       }
       computePermissions();
     }
@@ -1082,15 +1368,20 @@ function updatePublishOption(){
     }).join('');
 
     departmentSel.innerHTML = html;
-    departmentSel.disabled = false;
-
-    if (selected){
-      const opt = departmentSel.querySelector(`option[value="${CSS.escape(String(selected))}"]`);
-      if (opt) departmentSel.value = String(selected);
+    
+    // Auto-select if ACTOR has a department
+    const finalSelected = (ACTOR.department_id || selected || '').toString();
+    if (finalSelected){
+      const opt = departmentSel.querySelector(`option[value="${CSS.escape(finalSelected)}"]`);
+      if (opt) departmentSel.value = finalSelected;
     }
+
+    // Disable if ACTOR has a department
+    departmentSel.disabled = !!ACTOR.department_id;
+
   }catch(ex){
     departmentSel.innerHTML = `<option value="">General (All Departments)</option>`;
-    departmentSel.disabled = false;
+    departmentSel.disabled = !!ACTOR.department_id;
     err(ex?.name === 'AbortError' ? 'Department load timed out' : (ex.message || 'Failed to load departments'));
   }
 }
@@ -1143,11 +1434,26 @@ function updatePublishOption(){
       if (el) el.style.display = show ? '' : 'none';
     }
 
-    function statusBadge(status){
+    function statusBadge(status, workflowStatus, hasDraft){
       const s = (status || '').toString().toLowerCase();
-      if (s === 'published') return `<span class="badge badge-soft-success">Published</span>`;
-      if (s === 'draft') return `<span class="badge badge-soft-warning">Draft</span>`;
-      if (s === 'archived') return `<span class="badge badge-soft-muted">Archived</span>`;
+      let html = '';
+      if (s === 'published') html = `<span class="badge badge-soft-success">Published</span>`;
+      else if (s === 'draft') html = `<span class="badge badge-soft-warning">Draft</span>`;
+      else if (s === 'archived') html = `<span class="badge badge-soft-muted">Archived</span>`;
+      else html = `<span class="badge badge-soft-muted">${esc(s || '—')}</span>`;
+
+      if (hasDraft) {
+        html += `<span class="badge-pending-draft" title="Pending Changes">Draft</span>`;
+      }
+      return html;
+    }
+
+    function workflowBadge(ws){
+      const s = (ws || '').toString().toLowerCase();
+      if (s === 'pending_check') return `<span class="badge badge-soft-warning"><i class="fa fa-hourglass-start me-1"></i>Pending Check</span>`;
+      if (s === 'checked') return `<span class="badge badge-soft-info"><i class="fa fa-check-double me-1"></i>Checked</span>`;
+      if (s === 'approved') return `<span class="badge badge-soft-success"><i class="fa fa-circle-check me-1"></i>Approved</span>`;
+      if (s === 'rejected') return `<span class="badge badge-soft-danger"><i class="fa fa-circle-xmark me-1"></i>Rejected</span>`;
       return `<span class="badge badge-soft-muted">${esc(s || '—')}</span>`;
     }
     function featuredBadge(v){
@@ -1210,8 +1516,14 @@ function updatePublishOption(){
           <i class="fa fa-ellipsis-vertical"></i>
         </button>
         <ul class="dropdown-menu dropdown-menu-end">
-          <li><button type="button" class="dropdown-item" data-action="view"><i class="fa fa-eye"></i> View</button></li>`;
+          <li><button type="button" class="dropdown-item" data-action="view"><i class="fa fa-eye"></i> View</button></li>
+          <li><button type="button" class="dropdown-item" data-action="history"><i class="fa fa-clock-rotate-left"></i> Workflow History</button></li>`;
 
+    if (r.workflow_status === 'rejected') {
+      actions += `<li><button type="button" class="dropdown-item text-danger" data-action="reject_reason" data-reason="${esc(r.rejected_reason || r.rejection_reason || 'No reason provided')}">
+        <i class="fa fa-circle-xmark"></i> Rejection Reason
+      </button></li>`;
+    }
     if (canEdit && tabKey !== 'trash'){
       actions += `<li><button type="button" class="dropdown-item" data-action="edit"><i class="fa fa-pen-to-square"></i> Edit</button></li>`;
       
@@ -1254,10 +1566,11 @@ function updatePublishOption(){
       <tr data-uuid="${esc(uuid)}">
         <td class="fw-semibold">${esc(title)}</td>
         <td class="col-slug"><code>${esc(slug)}</code></td>
-        <td>${statusBadge(status)}</td>
+        <td>${statusBadge(status, r.workflow_status, !!r.draft_data)}</td>
         <td>${featuredBadge(featured)}</td>
         <td>${esc(String(publishAt))}</td>
         <td>${esc(String(sortOrder))}</td>
+        <td>${workflowBadge(r.workflow_status)}</td>
         <td>${esc(String(updated))}</td>
         <td class="text-end">${actions}</td>
       </tr>`;
@@ -1268,7 +1581,7 @@ function updatePublishOption(){
     async function loadTab(tabKey){
       const tbody = tabKey==='active' ? tbodyActive : (tabKey==='inactive' ? tbodyInactive : tbodyTrash);
       if (tbody){
-        const cols = (tabKey==='trash') ? 5 : 8;
+        const cols = (tabKey==='trash') ? 5 : 9;
         tbody.innerHTML = `<tr><td colspan="${cols}" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>`;
       }
       try{
@@ -1294,6 +1607,15 @@ function updatePublishOption(){
         renderTable(tabKey);
         err(e?.name === 'AbortError' ? 'Request timed out' : (e.message || 'Failed'));
       }
+    }
+
+    function getTabKey(){
+      const active = document.querySelector('.nav-tabs .nav-link.active');
+      if (!active) return 'active';
+      const href = active.getAttribute('href') || '';
+      if (href === '#tab-inactive') return 'inactive';
+      if (href === '#tab-trash')    return 'trash';
+      return 'active';
     }
 
     function reloadCurrent(){ loadTab(getTabKey()); }
@@ -1662,7 +1984,10 @@ function updatePublishOption(){
   itemForm?.querySelectorAll('input,select,textarea').forEach(el => {
     if (el.id === 'itemUuid' || el.id === 'itemId') return;
     if (el.type === 'file') el.disabled = false;
-    else if (el.tagName === 'SELECT') el.disabled = false;
+    else if (el.tagName === 'SELECT') {
+      if (el.id === 'department_id' && ACTOR.department_id) el.disabled = true;
+      else el.disabled = false;
+    }
     else el.readOnly = false;
   });
 
@@ -1744,6 +2069,9 @@ function updatePublishOption(){
     if (saveBtn) saveBtn.style.display = '';
     itemForm.dataset.mode = 'edit';
     itemForm.dataset.intent = 'edit';
+    if (ACTOR.department_id && departmentSel) {
+      departmentSel.disabled = true;
+    }
   }
 }
 
@@ -1779,7 +2107,13 @@ function updatePublishOption(){
   itemForm.dataset.intent = 'create';
 
   // Load departments before opening modal
-  await loadDepartmentsForAnnouncementForm('');
+  await loadDepartmentsForAnnouncementForm(ACTOR.department_id || '');
+
+  // Double check disabling for security/UX
+  if (ACTOR.department_id && departmentSel) {
+    departmentSel.value = ACTOR.department_id;
+    departmentSel.disabled = true;
+  }
 
   itemModal && itemModal.show();
   
@@ -1807,16 +2141,42 @@ function updatePublishOption(){
       const toggle = btn.closest('.dropdown')?.querySelector('.dd-toggle');
       if (toggle) { try { bootstrap.Dropdown.getOrCreateInstance(toggle).hide(); } catch (_) {} }
 
-      if (act === 'view' || act === 'edit'){
-        if (act === 'edit' && !canEdit) return;
+      if (act === 'history') {
+        if (row && row.id) {
+          showHistory('announcements', row.id);
+        } else if (row && row.uuid) {
+          showHistory('announcements', row.uuid);
+        }
+        return;
+      }
+
+      if (act === 'reject_reason'){
+        const reason = btn.dataset.reason || 'No reason provided';
+        Swal.fire({
+          title: 'Rejection Reason',
+          text: reason,
+          icon: 'error',
+          confirmButtonText: 'Close'
+        });
+        return;
+      }
+
+      if (act === 'view'){
+        const slug = row.slug || row.uuid || row.id;
+        if (slug) window.open(`/announcements/view/${slug}`, '_blank');
+        return;
+      }
+
+      if (act === 'edit'){
+        if (!canEdit) return;
 
         resetForm();
 
         const deptId = row?.department_id ?? row?.department?.id ?? '';
         await loadDepartmentsForAnnouncementForm((deptId === null || deptId === undefined) ? '' : String(deptId));
 
-        if (itemModalTitle) itemModalTitle.textContent = act === 'view' ? 'View Announcement' : 'Edit Announcement';
-        fillFormFromRow(row || {}, act === 'view');
+        if (itemModalTitle) itemModalTitle.textContent = 'Edit Announcement';
+        fillFormFromRow(row || {}, false);
         itemModal && itemModal.show();
         return;
       }

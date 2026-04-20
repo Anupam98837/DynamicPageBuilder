@@ -2057,11 +2057,17 @@ td.col-code code{display:inline-block;max-width:250px;overflow:hidden;text-overf
       const toggle = btn.closest('.dropdown')?.querySelector('.dd-toggle');
       if (toggle) { try { dropdownInstance(toggle).hide(); } catch (_) {} }
 
-      if (act === 'view' || act === 'edit'){
-        if (act === 'edit' && !canEdit) return;
+      if (act === 'view'){
+        const slug = row?.slug || row?.uuid || row?.id;
+        if (slug) window.open(`/courses/view/${slug}`, '_blank');
+        return;
+      }
+
+      if (act === 'edit'){
+        if (!canEdit) return;
         resetForm();
-        if (itemModalTitle) itemModalTitle.textContent = act === 'view' ? 'View Course' : 'Edit Course';
-        fillFormFromRow(row || {}, act === 'view');
+        if (itemModalTitle) itemModalTitle.textContent = 'Edit Course';
+        fillFormFromRow(row || {}, false);
         itemModal && itemModal.show();
         return;
       }

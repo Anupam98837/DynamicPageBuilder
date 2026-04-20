@@ -131,7 +131,7 @@ background: linear-gradient(90deg, rgba(0,0,0,.65), rgba(0,0,0,.20));
 .info-box ul li{padding: 8px 0;border-bottom: 1px dashed rgba(255,255,255,.3);font-size: 14px;display:flex;align-items:flex-start;gap:10px;}
 .info-box ul li:last-child{ border-bottom: 0; }
 .info-box i{ margin-top: 2px; opacity: .92; }
-.info-box a{ color:#fff; text-decoration:none; font-weight:800; }
+.info-box a{ color:#fff; text-decoration:none; }
 .info-box a:hover{ text-decoration:underline; }
 
 /* ✅ FIX (ONLY): keep the autoscrolling UL from moving into the <h5> area
@@ -184,7 +184,7 @@ Notice + Center Iframe + Announcements
 ✅ CTA Buttons
 ========================= */
 .cta-section{padding-top: 13px;display:flex;flex-direction: column;gap: 10px;align-items: stretch;justify-content: center;max-width: 360px;margin-left: auto;margin-right: auto;}
-.cta-btn{display: inline-flex;align-items: center;justify-content: center;gap: 10px;width: 100%;min-width: 0;background: #f59e0b;color: #fff;border: 0;border-radius: 14px;padding: 10px 14px;font-weight: 950;font-size: 14px;box-shadow: 0 6px 14px rgba(245,158,11,.28);transition: transform .15s ease, filter .15s ease, background .15s ease;text-decoration:none;}
+.cta-btn{display: inline-flex;align-items: center;justify-content: center;gap: 10px;width: 100%;min-width: 0;background: #f59e0b;color: #fff;border: 0;border-radius: 14px;padding: 10px 14px;font-weight: 950;font-size: 11px;box-shadow: 0 6px 14px rgba(245,158,11,.28);transition: transform .15s ease, filter .15s ease, background .15s ease;text-decoration:none;}
 .cta-btn:hover{ background:#d97706; transform: translateY(-1px); color:#fff; }
 .cta-btn.btn-secondary{ background:#991b1b; box-shadow: 0 6px 14px rgba(153,27,27,.22); }
 .cta-btn.btn-secondary:hover{ background:#7f1d1d; color:#fff; }
@@ -276,6 +276,27 @@ Notice + Center Iframe + Announcements
 .success-desc ul, .success-desc ol{ margin: 8px 0 0 18px; }
 .success-name{ font-weight: 950; color: var(--brand); font-size: 16px; margin-bottom: 4px; }
 .success-role{ font-size: 13px; color: var(--muted); font-weight: 800; }
+
+.success-nav-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid var(--line);
+  color: var(--brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all .2s ease;
+  box-shadow: 0 4px 12px rgba(0,0,0,.05);
+  font-size: 12px;
+}
+.success-nav-btn:hover {
+  background: var(--brand);
+  color: #fff;
+  transform: translateY(-2px);
+}
 
 /* ===== courses section ===== */
 .courses-section{background: var(--surface);border-radius: var(--r-xl);border: 1px solid var(--line);padding: 40px;box-shadow: var(--shadow);}

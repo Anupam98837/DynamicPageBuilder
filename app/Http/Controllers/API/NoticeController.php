@@ -11,6 +11,7 @@ use Carbon\Carbon;
 
 class NoticeController extends Controller
 {
+    use \App\Http\Controllers\API\Concerns\HasWorkflowManagement;
     /* ============================================
      | Helpers
      |============================================ */
@@ -157,7 +158,7 @@ class NoticeController extends Controller
         $deptId = $u->department_id !== null ? (int)$u->department_id : null;
         if ($deptId !== null && $deptId <= 0) $deptId = null;
 
-        $adminRoles = ['admin', 'super_admin', 'director', 'principal'];
+        $adminRoles = ['admin', 'super_admin', 'director', 'principal', 'author'];
         if (in_array($role, $adminRoles, true)) {
             return ['mode' => 'all', 'department_id' => null];
         }
@@ -439,6 +440,7 @@ class NoticeController extends Controller
 
         $q->whereNull('n.deleted_at')
           ->where('n.status', 'published')
+          ->where('n.workflow_status', 'approved')
           ->where(function ($w) use ($now) {
               $w->whereNull('n.publish_at')->orWhere('n.publish_at', '<=', $now);
           })
@@ -529,6 +531,11 @@ class NoticeController extends Controller
         $row = $this->resolveNotice($request, $identifier, $includeDeleted, $deptId);
         if (! $row) return response()->json(['message' => 'Notice not found'], 404);
 
+        // Strict workflow check for single record view
+        if ($row->workflow_status !== 'approved') {
+            return response()->json(['message' => 'Notice not found'], 404);
+        }
+
         // optional: ?inc_view=1
         if (filter_var($request->query('inc_view', false), FILTER_VALIDATE_BOOLEAN)) {
             DB::table('notices')->where('id', (int) $row->id)->increment('views_count');
@@ -564,6 +571,11 @@ class NoticeController extends Controller
         $row = $this->resolveNotice($request, $identifier, $includeDeleted, $deptId);
         if (! $row) return response()->json(['message' => 'Notice not found'], 404);
 
+        // Strict workflow check for single record view
+        if ($row->workflow_status !== 'approved') {
+            return response()->json(['message' => 'Notice not found'], 404);
+        }
+
         return response()->json([
             'success' => true,
             'item'    => $this->normalizeRow($row),
@@ -588,7 +600,7 @@ class NoticeController extends Controller
             'slug'              => ['nullable', 'string', 'max:160'],
             'body'              => ['required', 'string'],
 
-            'is_featured_home'  => ['nullable', 'in:0,1', 'boolean'],
+            'is_featured_home'  => ['nullable', 'in:0,1'],
             'status'            => ['nullable', 'in:draft,published,archived'],
             'publish_at'        => ['nullable', 'date'],
             'expire_at'         => ['nullable', 'date'],
@@ -667,11 +679,11 @@ class NoticeController extends Controller
             if (json_last_error() === JSON_ERROR_NONE) $metadata = $decoded;
         }
 
-        // ✅ Authority Control:
-        // if is_featured_home = 1 => request_for_approval = 1
-        // if is_featured_home = 0 => request_for_approval = 0
-        $featured = (int) ($validated['is_featured_home'] ?? 0);
-        $requestForApproval = $featured ? 1 : 0;
+        // Unified Workflow Status
+        $workflowStatus = $this->getInitialWorkflowStatus($request);
+
+        // ✅ If it's featured, it still needs approval if not already approved
+        $featured = (int) ($request->input('is_featured_home') ?? 0);
 
         $insert = [
             'uuid'                 => $uuid,
@@ -684,11 +696,16 @@ class NoticeController extends Controller
 
             'is_featured_home'     => $featured,
 
-            // ✅ NEW FLAGS
-            'request_for_approval' => $requestForApproval,
-            'is_approved'          => 0,
+            // Unified Workflow
+            'workflow_status'      => $workflowStatus,
+            'draft_data'           => null,
 
-            'status'               => (string) ($validated['status'] ?? 'draft'),
+            // Legacy Approval columns
+            'request_for_approval' => ($workflowStatus === 'pending_check' || $workflowStatus === 'checked') ? 1 : 0,
+            'is_approved'          => ($workflowStatus === 'approved') ? 1 : 0,
+            'is_rejected'          => ($workflowStatus === 'rejected') ? 1 : 0,
+
+            'status'               => (string)($validated['status'] ?? 'published'),
             'publish_at'           => !empty($validated['publish_at']) ? Carbon::parse($validated['publish_at']) : null,
             'expire_at'            => !empty($validated['expire_at']) ? Carbon::parse($validated['expire_at']) : null,
             'views_count'          => 0,
@@ -756,7 +773,7 @@ class NoticeController extends Controller
             'slug'               => ['nullable', 'string', 'max:160'],
             'body'               => ['nullable', 'string'],
 
-            'is_featured_home'   => ['nullable', 'in:0,1', 'boolean'],
+            'is_featured_home'   => ['nullable', 'in:0,1'],
             'status'             => ['nullable', 'in:draft,published,archived'],
             'publish_at'         => ['nullable', 'date'],
             'expire_at'          => ['nullable', 'date'],
@@ -807,15 +824,9 @@ class NoticeController extends Controller
             $update['department_id'] = $validated['department_id'] !== null ? (int) $validated['department_id'] : null;
         }
 
-        // ✅ Authority Control change on FEATURED toggle via update request
+        // Update is_featured_home independently of workflow approval
         if (array_key_exists('is_featured_home', $validated)) {
-            $featured = (int) $validated['is_featured_home'];
-
-            $update['is_featured_home'] = $featured;
-
-            // ✅ if featured=1 => request_for_approval=1
-            // ✅ if featured=0 => request_for_approval=0
-            $update['request_for_approval'] = $featured ? 1 : 0;
+            $update['is_featured_home'] = (int) ($request->input('is_featured_home') ?? 0);
         }
 
         if (array_key_exists('publish_at', $validated)) {
@@ -918,35 +929,47 @@ class NoticeController extends Controller
 
         $update['attachments_json'] = !empty($existing) ? json_encode($existing) : null;
 
-        DB::table('notices')->where('id', (int) $row->id)->update($update);
+        try {
+            $msg = $this->handleWorkflowUpdate($request, 'notices', $row->id, $update);
+            
+            $afterRow = DB::table('notices')->where('id', (int) $row->id)->first();
+            
+            $msgText = ($msg === 'drafted') 
+                ? 'Your changes have been submitted for approval. The live content will remain unchanged until approved.'
+                : 'Notice updated successfully.';
 
-        $afterRow = DB::table('notices')->where('id', (int) $row->id)->first();
+            // ✅ LOG: update (diff by changed keys)
+            $changedKeys = array_values(array_diff(array_keys($update), ['updated_at', 'updated_at_ip']));
+            $old = [];
+            $new = [];
+            foreach ($changedKeys as $k) {
+                $old[$k] = $beforeRow->$k ?? null;
+                $new[$k] = $afterRow->$k ?? null;
+            }
 
-        // ✅ LOG: update (diff by changed keys)
-        $changedKeys = array_values(array_diff(array_keys($update), ['updated_at', 'updated_at_ip']));
-        $old = [];
-        $new = [];
-        foreach ($changedKeys as $k) {
-            $old[$k] = $beforeRow->$k ?? null;
-            $new[$k] = $afterRow->$k ?? null;
+            $this->logActivity(
+                $request,
+                'update',
+                'notices',
+                'notices',
+                (int)$row->id,
+                $msgText,
+                $changedKeys,
+                $old,
+                $new
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => $msgText,
+                'data'    => $afterRow ? $this->normalizeRow($afterRow) : null,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Update failed: ' . $e->getMessage()
+            ], 500);
         }
-
-        $this->logActivity(
-            $request,
-            'update',
-            'notices',
-            'notices',
-            (int)$row->id,
-            'Updated notice',
-            $changedKeys,
-            $old,
-            $new
-        );
-
-        return response()->json([
-            'success' => true,
-            'data'    => $afterRow ? $this->normalizeRow($afterRow) : null,
-        ]);
     }
 
     public function toggleFeatured(Request $request, $identifier)
@@ -974,10 +997,9 @@ class NoticeController extends Controller
         // ✅ Authority Control:
         // toggle featured => sync request_for_approval accordingly
         DB::table('notices')->where('id', (int) $row->id)->update([
-            'is_featured_home'      => $newFeatured,
-            'request_for_approval'  => $newFeatured ? 1 : 0,
-            'updated_at'            => now(),
-            'updated_at_ip'         => $request->ip(),
+            'is_featured_home' => $newFeatured,
+            'updated_at'       => now(),
+            'updated_at_ip'    => $request->ip(),
         ]);
 
         $afterRow = DB::table('notices')->where('id', (int) $row->id)->first();
@@ -1203,6 +1225,7 @@ class NoticeController extends Controller
 
         $now = now();
         $isVisible =
+            ($row->workflow_status === 'approved') &&
             ($row->status === 'published') &&
             (empty($row->publish_at) || Carbon::parse($row->publish_at)->lte($now)) &&
             (empty($row->expire_at)  || Carbon::parse($row->expire_at)->gt($now));

@@ -28,10 +28,9 @@ class PublicPageController extends Controller
 
         $q = DB::table('pages')->whereNull('deleted_at');
 
-        // If pages table has active column, enforce it (public pages)
-        if (Schema::hasColumn('pages', 'active')) {
-            $q->where('active', true);
-        }
+        // Enforce active and approved status for public resolution
+        $q->where('status', 'Active')
+          ->where('workflow_status', 'approved');
 
         $page = $q->where('slug', $slug)->first();
 

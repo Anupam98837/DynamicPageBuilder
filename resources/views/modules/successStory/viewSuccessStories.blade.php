@@ -617,6 +617,10 @@
         font-size: 12px;
       }
     }
+    #ssDatePill, #ssFeaturedPill, #ssViewsPill { display: none !important; }
+    .ss-intro p { margin-bottom: 12px; }
+    .ss-intro p:last-child { margin-bottom: 0; }
+    .ss-grid { grid-template-columns: 1fr !important; }
   </style>
 </head>
 <body>
@@ -676,10 +680,7 @@
               <span id="ssDeptText"></span>
             </span>
 
-            <span class="ss-pill" id="ssYearPill" style="display:none">
-              <i class="fa-solid fa-award"></i>
-              <span id="ssYearText"></span>
-            </span>
+
 
             <span class="ss-pill" id="ssViewsPill" style="display:none">
               <i class="fa-regular fa-eye"></i>
@@ -716,51 +717,18 @@
               </div>
             </div>
           </div>
-
-          <div>
-            <div class="ss-side-head">
-              <h3 class="ss-side-title">At a glance</h3>
-            </div>
-
-            <div class="ss-facts" id="ssFactsWrap">
-              <div class="ss-fact ss-fact--full" id="ssFactAchievement" style="display:none">
-                <div class="ss-fact-label">Achievement</div>
-                <div class="ss-fact-value" id="ssRoleText"></div>
-              </div>
-
-              <div class="ss-fact" id="ssFactDept" style="display:none">
-                <div class="ss-fact-label">Department</div>
-                <div class="ss-fact-value" id="ssFactDeptText"></div>
-              </div>
-
-              <div class="ss-fact" id="ssFactBatch" style="display:none">
-                <div class="ss-fact-label">Batch</div>
-                <div class="ss-fact-value" id="ssFactBatchText"></div>
-              </div>
-
-              <div class="ss-fact" id="ssFactViews" style="display:none">
-                <div class="ss-fact-label">Views</div>
-                <div class="ss-fact-value" id="ssFactViewsText"></div>
-              </div>
-
-              <div class="ss-fact" id="ssFactStatus" style="display:none">
-                <div class="ss-fact-label">Status</div>
-                <div class="ss-fact-value" id="ssFactStatusText"></div>
-              </div>
-            </div>
+          <div style="display:flex; justify-content:center; margin-top: 12px; width: 100%;">
+            <span class="ss-pill" id="ssYearPill" style="display:none; text-align: center;">
+              <i class="fa-solid fa-award"></i>
+              <span id="ssYearText"></span>
+            </span>
           </div>
         </aside>
       </section>
 
       {{-- Story + extra details --}}
       <section class="ss-grid">
-        <article class="ss-card ss-main-card">
-          <div class="ss-card-head">
-            <h2>Story Details</h2>
-            <span class="ss-mini">Full write-up</span>
-          </div>
-          <div class="ss-description" id="ssDescription"></div>
-        </article>
+
 
         <aside class="ss-rail">
           <div class="ss-card ss-side-item" id="ssRoleCard" style="display:none">
@@ -1033,15 +1001,11 @@
         }
 
         const descHtml = item.description || '<p>No description available.</p>';
-        $('ssDescription').innerHTML = descHtml;
-
-        const intro = plainTextFromHtml(descHtml);
-        if (intro) {
-          $('ssIntroText').textContent = intro.length > 180 ? (intro.slice(0, 180).trim() + '…') : intro;
+        if (descHtml) {
+          $('ssIntroText').innerHTML = descHtml;
           $('ssIntroText').style.display = '';
         } else {
           $('ssIntroText').style.display = 'none';
-          $('ssIntroText').textContent = '';
         }
 
         let hasMeta = false;
@@ -1050,42 +1014,29 @@
         if (dept) {
           $('ssDeptText').textContent = dept;
           $('ssDeptPill').style.display = '';
-          $('ssFactDeptText').textContent = dept;
-          $('ssFactDept').style.display = '';
           hasMeta = true;
         } else {
           $('ssDeptPill').style.display = 'none';
           $('ssDeptText').textContent = '';
-          $('ssFactDept').style.display = 'none';
-          $('ssFactDeptText').textContent = '';
         }
 
         if (item.year) {
           const batchText = `Batch ${item.year}`;
           $('ssYearText').textContent = batchText;
           $('ssYearPill').style.display = '';
-          $('ssFactBatchText').textContent = batchText;
-          $('ssFactBatch').style.display = '';
-          hasMeta = true;
         } else {
           $('ssYearPill').style.display = 'none';
           $('ssYearText').textContent = '';
-          $('ssFactBatch').style.display = 'none';
-          $('ssFactBatchText').textContent = '';
         }
 
         if (item.views_count != null && item.views_count !== '') {
           const viewsText = `${numberFormat(item.views_count)} views`;
           $('ssViewsText').textContent = viewsText;
           $('ssViewsPill').style.display = '';
-          $('ssFactViewsText').textContent = numberFormat(item.views_count);
-          $('ssFactViews').style.display = '';
           hasMeta = true;
         } else {
           $('ssViewsPill').style.display = 'none';
           $('ssViewsText').textContent = '';
-          $('ssFactViews').style.display = 'none';
-          $('ssFactViewsText').textContent = '';
         }
 
         const featured = (item.is_featured_home === 1 || item.is_featured_home === true || String(item.is_featured_home) === '1');
@@ -1096,13 +1047,7 @@
         if (featured) statusLabel = 'Featured';
         else if (statusRaw) statusLabel = statusRaw.charAt(0).toUpperCase() + statusRaw.slice(1);
 
-        if (statusLabel) {
-          $('ssFactStatusText').textContent = statusLabel;
-          $('ssFactStatus').style.display = '';
-        } else {
-          $('ssFactStatusText').textContent = '';
-          $('ssFactStatus').style.display = 'none';
-        }
+
 
         if (featured || statusRaw) hasMeta = true;
 
@@ -1121,14 +1066,10 @@
 
         const achievement = item.title || '';
         if (achievement) {
-          $('ssRoleText').textContent = achievement;
           $('ssRoleTextSide').textContent = achievement;
-          $('ssFactAchievement').style.display = '';
           $('ssRoleCard').style.display = '';
         } else {
-          $('ssRoleText').textContent = '';
           $('ssRoleTextSide').textContent = '';
-          $('ssFactAchievement').style.display = 'none';
           $('ssRoleCard').style.display = 'none';
         }
 

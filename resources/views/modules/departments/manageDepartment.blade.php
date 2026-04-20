@@ -675,7 +675,9 @@ html.theme-dark .uuid-copy-btn{background:#0f172a}
 
   /* ===== Render ===== */
   function rowActions(scope, r){
-    const nameAttr = escapeHtml(r.title || ''); const idAttr = r.id;
+    const nameAttr = escapeHtml(r.title || '');
+    const idAttr = r.id;
+    const slugAttr = escapeHtml(r.slug || r.uuid || r.id);
 
     // ✅ IMPORTANT FIX:
     // Button rendered WITHOUT data-bs-toggle, and handled manually (fixed popper strategy)
@@ -687,6 +689,8 @@ html.theme-dark .uuid-copy-btn{background:#0f172a}
             <i class="fa fa-ellipsis-vertical"></i>
           </button>
           <ul class="dropdown-menu dropdown-menu-end">
+            <li><button class="dropdown-item" data-act="view" data-id="${idAttr}" data-name="${nameAttr}" data-slug="${slugAttr}">
+              <i class="fa fa-eye"></i> View Public Page</button></li>
             <li><button class="dropdown-item" data-act="restore" data-id="${idAttr}" data-name="${nameAttr}">
               <i class="fa fa-rotate-left"></i> Restore</button></li>
             <li><button class="dropdown-item text-danger" data-act="forceDelete" data-id="${idAttr}" data-name="${nameAttr}">
@@ -707,8 +711,8 @@ html.theme-dark .uuid-copy-btn{background:#0f172a}
           <i class="fa fa-ellipsis-vertical"></i>
         </button>
         <ul class="dropdown-menu dropdown-menu-end">
-          <li><button class="dropdown-item" data-act="view" data-id="${idAttr}" data-name="${nameAttr}">
-            <i class="fa fa-eye"></i> View Details</button></li>
+          <li><button class="dropdown-item" data-act="view" data-id="${idAttr}" data-name="${nameAttr}" data-slug="${slugAttr}">
+            <i class="fa fa-eye"></i> View Public Page</button></li>
           <li><button class="dropdown-item" data-act="edit" data-id="${idAttr}" data-name="${nameAttr}">
             <i class="fa fa-pen-to-square"></i> Edit</button></li>
           <li><hr class="dropdown-divider"></li>
@@ -1143,7 +1147,11 @@ html.theme-dark .uuid-copy-btn{background:#0f172a}
       finally { showGlobalLoading(false); }
     }
 
-    if (act === 'view') openView(id);
+    if (act === 'view') {
+      const slug = item.dataset.slug;
+      if (slug) window.open(`/department/view/${slug}`, '_blank');
+      return;
+    }
     else if (act === 'edit') openEdit(id);
     else if (act === 'activate' || act === 'deactivate') toggleActive(id, name);
     else if (act === 'softDelete') softDelete(id, name);

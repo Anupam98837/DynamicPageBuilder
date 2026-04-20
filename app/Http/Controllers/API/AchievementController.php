@@ -12,6 +12,7 @@ use Throwable;
 
 class AchievementController extends Controller
 {
+    use \App\Http\Controllers\API\Concerns\HasWorkflowManagement;
     private const LOG_MODULE = 'achievements';
 
     /* ============================================
@@ -64,7 +65,7 @@ class AchievementController extends Controller
         $deptId = $u->department_id !== null ? (int)$u->department_id : null;
         if ($deptId !== null && $deptId <= 0) $deptId = null;
 
-        $adminRoles = ['admin', 'super_admin', 'director', 'principal'];
+        $adminRoles = ['admin', 'super_admin', 'director', 'principal', 'author'];
         if (in_array($role, $adminRoles, true)) {
             return ['mode' => 'all', 'department_id' => null];
         }
@@ -453,6 +454,7 @@ class AchievementController extends Controller
 
         $q->whereNull('a.deleted_at')
           ->where('a.status', 'published')
+          ->where('a.workflow_status', 'approved')
           ->where(function ($w) use ($now) {
               $w->whereNull('a.publish_at')->orWhere('a.publish_at', '<=', $now);
           })
@@ -594,8 +596,6 @@ class AchievementController extends Controller
         $includeDeleted = filter_var($request->query('with_trashed', false), FILTER_VALIDATE_BOOLEAN);
 
         $row = $this->resolveAchievement($request, $identifier, $includeDeleted, (int) $dept->id);
-        if (! $row) return response()->json(['message' => 'Achievement not found'], 404);
-
         return response()->json([
             'success' => true,
             'item'    => $this->normalizeRow($row),
@@ -687,9 +687,9 @@ class AchievementController extends Controller
             if (json_last_error() === JSON_ERROR_NONE) $metadata = $decoded;
         }
 
-        // ✅ AUTHORITY CONTROL RULE:
-        // is_featured_home = 1 => request_for_approval = 1
-        // is_featured_home = 0 => request_for_approval = 0
+        // Unified Workflow Status
+        $workflowStatus = $this->getInitialWorkflowStatus($request);
+
         $isFeatured = (int) ($validated['is_featured_home'] ?? 0);
 
         $insert = [
@@ -702,10 +702,16 @@ class AchievementController extends Controller
             'attachments_json'     => !empty($attachments) ? json_encode($attachments) : null,
             'is_featured_home'     => $isFeatured,
 
-            // ✅ added
-            'request_for_approval' => $isFeatured,
+            // Unified Workflow
+            'workflow_status'      => $workflowStatus,
+            'draft_data'           => null,
 
-            'status'               => (string) ($validated['status'] ?? 'draft'),
+            // Legacy Approval columns
+            'request_for_approval' => ($workflowStatus === 'pending_check' || $workflowStatus === 'checked') ? 1 : 0,
+            'is_approved'          => ($workflowStatus === 'approved') ? 1 : 0,
+            'is_rejected'          => ($workflowStatus === 'rejected') ? 1 : 0,
+
+            'status'               => (string)($validated['status'] ?? 'published'),
             'publish_at'           => !empty($validated['publish_at']) ? Carbon::parse($validated['publish_at']) : null,
             'expire_at'            => !empty($validated['expire_at']) ? Carbon::parse($validated['expire_at']) : null,
             'views_count'          => 0,
@@ -925,37 +931,49 @@ class AchievementController extends Controller
 
         $update['attachments_json'] = !empty($existing) ? json_encode($existing) : null;
 
-        DB::table('achievements')->where('id', (int) $row->id)->update($update);
+        try {
+            $msg = $this->handleWorkflowUpdate($request, 'achievements', $row->id, $update);
+            
+            $fresh = DB::table('achievements')->where('id', (int) $row->id)->first();
+            
+            $msgText = ($msg === 'drafted') 
+                ? 'Your changes have been submitted for approval. The live content will remain unchanged until approved.'
+                : 'Achievement updated successfully.';
 
-        $fresh = DB::table('achievements')->where('id', (int) $row->id)->first();
+            // ✅ ACTIVITY LOG (PUT/PATCH)
+            $changedFields = array_values(array_diff(array_keys($update), ['updated_at', 'updated_at_ip']));
+            $afterForLog = $fresh ? $this->normalizeRow($fresh) : null;
 
-        // ✅ ACTIVITY LOG (PUT/PATCH)
-        $changedFields = array_values(array_diff(array_keys($update), ['updated_at', 'updated_at_ip']));
-        $afterForLog = $fresh ? $this->normalizeRow($fresh) : null;
+            // Old/New values only for changed fields (keeps log smaller & meaningful)
+            $old = [];
+            $new = [];
+            foreach ($changedFields as $f) {
+                $old[$f] = $beforeForLog[$f] ?? null;
+                $new[$f] = is_array($afterForLog) ? ($afterForLog[$f] ?? null) : null;
+            }
 
-        // Old/New values only for changed fields (keeps log smaller & meaningful)
-        $old = [];
-        $new = [];
-        foreach ($changedFields as $f) {
-            $old[$f] = $beforeForLog[$f] ?? null;
-            $new[$f] = is_array($afterForLog) ? ($afterForLog[$f] ?? null) : null;
+            $this->writeActivityLog(
+                $request,
+                'update',
+                'achievements',
+                (int) $row->id,
+                $changedFields,
+                $old,
+                $new,
+                $msgText
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => $msgText,
+                'data'    => $fresh ? $this->normalizeRow($fresh) : null,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Update failed: ' . $e->getMessage()
+            ], 500);
         }
-
-        $this->writeActivityLog(
-            $request,
-            'update',
-            'achievements',
-            (int) $row->id,
-            $changedFields,
-            $old,
-            $new,
-            'Achievement updated'
-        );
-
-        return response()->json([
-            'success' => true,
-            'data'    => $fresh ? $this->normalizeRow($fresh) : null,
-        ]);
     }
 
     public function toggleFeatured(Request $request, $identifier)
@@ -1182,6 +1200,7 @@ class AchievementController extends Controller
 
         $now = now();
         $isVisible =
+            ($row->workflow_status === 'approved') &&
             ($row->status === 'published') &&
             (empty($row->publish_at) || Carbon::parse($row->publish_at)->lte($now)) &&
             (empty($row->expire_at)  || Carbon::parse($row->expire_at)->gt($now));

@@ -2539,7 +2539,7 @@ async function saveAll(){
 if ($('socialList')) profilePayload.social_media = collectList('socialList', 'social');
 if ($('eduList')) profilePayload.educations = collectList('eduList', 'education');
 if ($('honorsList')) profilePayload.honors = collectList('honorsList', 'honors');
-if ($('journalsList')) profilePayload.journals = collectList('journalsList', 'patents');
+if ($('journalsList')) profilePayload.journals = collectList('journalsList', 'journals');
 if ($('conferencesList')) profilePayload.conference_publications = collectList('conferencesList', 'conferences');
 if ($('teachingList')) profilePayload.teaching_engagements = collectList('teachingList', 'teaching');
 

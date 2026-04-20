@@ -12,6 +12,7 @@ use Carbon\Carbon;
 class PlacementNoticeController extends Controller
 {
     use \App\Http\Controllers\API\Concerns\DepartmentScopeable;
+    use \App\Http\Controllers\API\Concerns\HasWorkflowManagement;
 
     /* ============================================
      | Helpers
@@ -20,10 +21,10 @@ class PlacementNoticeController extends Controller
     private function actor(Request $r): array
     {
         return [
-            'id'   => (int) ($r->attributes->get('auth_tokenable_id') ?? optional($r->user())->id ?? 0),
-            'role' => (string) ($r->attributes->get('auth_role') ?? ($r->user()->role ?? '')),
+            'id'   => (int) ($r->attributes->get('auth_tokenable_id') ?? $r->user()?->id ?? 0),
+            'role' => (string) ($r->attributes->get('auth_role') ?? ($r->user()?->role ?? '')),
             'type' => (string) ($r->attributes->get('auth_tokenable_type') ?? ($r->user() ? get_class($r->user()) : '')),
-            'uuid' => (string) ($r->attributes->get('auth_user_uuid') ?? ($r->user()->uuid ?? '')),
+            'uuid' => (string) ($r->attributes->get('auth_user_uuid') ?? ($r->user()?->uuid ?? '')),
         ];
     }
 
@@ -61,7 +62,6 @@ class PlacementNoticeController extends Controller
             }
             return $out;
         }
-
         if (is_object($value)) {
             if (method_exists($value, '__toString')) {
                 return $this->sanitizeForLog((string) $value, $depth + 1);
@@ -389,14 +389,33 @@ class PlacementNoticeController extends Controller
         // ✅ ?department=id|uuid|slug  (filters by JSON department_ids)
         if ($request->filled('department')) {
             $dept = $this->resolveDepartment($request->query('department'), true);
-            if ($dept) $q->whereJsonContains('p.department_ids', (int) $dept->id);
-            else $q->whereRaw('1=0');
+            if ($dept) {
+                $userId = (int) ($request->attributes->get('auth_tokenable_id') ?? 0);
+                $skipFilter = false;
+
+                if ($userId > 0) {
+                    $u = DB::table('users')->select(['role', 'department_id'])->where('id', $userId)->first();
+                    if ($u) {
+                        $role = strtolower(trim((string) ($u?->role ?? '')));
+                        $higher = ['admin', 'author', 'principal', 'director', 'super_admin'];
+                        if (in_array($role, $higher, true) && $u?->department_id !== null && (int)$u?->department_id === (int)($dept?->id ?? 0)) {
+                            $skipFilter = true; // automatic frontend append skip
+                        }
+                    }
+                }
+
+                if (!$skipFilter) {
+                    $q->whereJsonContains('p.department_ids', (int) ($dept?->id ?? 0));
+                }
+            } else {
+                $q->whereRaw('1=0');
+            }
         }
 
         // ?recruiter=id|uuid|slug
         if ($request->filled('recruiter')) {
             $rec = $this->resolveRecruiter($request->query('recruiter'), true);
-            if ($rec) $q->where('p.recruiter_id', (int) $rec->id);
+            if ($rec) $q->where('p.recruiter_id', (int) ($rec?->id ?? 0));
             else $q->whereRaw('1=0');
         }
 
@@ -425,6 +444,24 @@ class PlacementNoticeController extends Controller
         $q->orderBy('p.' . $sort, $dir);
 
         return $q;
+    }
+
+    protected function subsetRow($row, array $keys): array
+    {
+        $out = [];
+        if (!$row) {
+            foreach ($keys as $k) $out[$k] = null;
+            return $out;
+        }
+
+        foreach ($keys as $k) {
+            if (is_array($row)) {
+                $out[$k] = array_key_exists($k, $row) ? $row[$k] : null;
+            } else {
+                $out[$k] = $row?->{$k} ?? null;
+            }
+        }
+        return $out;
     }
 
     protected function resolvePlacementNotice(Request $request, $identifier, bool $includeDeleted = false, $departmentId = null)
@@ -568,6 +605,7 @@ class PlacementNoticeController extends Controller
 
         $q->whereNull('p.deleted_at')
           ->where('p.status', 'published')
+          ->where('p.workflow_status', 'approved')
           ->where(function ($w) use ($now) {
               $w->whereNull('p.publish_at')->orWhere('p.publish_at', '<=', $now);
           })
@@ -596,7 +634,9 @@ class PlacementNoticeController extends Controller
         $deptList = array_values($deptMap);
 
         $query = $this->baseQuery($request, $includeDeleted || $onlyDeleted);
-        $this->applyDeptScope($query, $__ac, 'p.department_id');
+        if ($__ac['mode'] === 'department' && $__ac['department_id']) {
+            $query->whereJsonContains('p.department_ids', (int) $__ac['department_id']);
+        }
         if ($onlyDeleted) $query->whereNotNull('p.deleted_at');
 
         $paginator = $query->paginate($perPage);
@@ -644,8 +684,8 @@ class PlacementNoticeController extends Controller
 
         // optional: ?inc_view=1  (GET — not logging as requested)
         if (filter_var($request->query('inc_view', false), FILTER_VALIDATE_BOOLEAN)) {
-            DB::table('placement_notices')->where('id', (int) $row->id)->increment('views_count');
-            $row->views_count = ((int) ($row->views_count ?? 0)) + 1;
+            DB::table('placement_notices')->where('id', (int) ($row?->id ?? 0))->increment('views_count');
+            if ($row) $row->views_count = ((int) ($row->views_count ?? 0)) + 1;
         }
 
         return response()->json([
@@ -751,6 +791,9 @@ class PlacementNoticeController extends Controller
             $bannerPath = (string) $validated['banner_image_url'];
         }
 
+        // Unified Workflow Status
+        $workflowStatus = $this->getInitialWorkflowStatus($request);
+
         $deptIds = $validated['department_ids'] ?? null;
         $deptIds = $this->normalizeDepartmentIds($deptIds);
 
@@ -758,6 +801,7 @@ class PlacementNoticeController extends Controller
         // if is_featured_home = 1 => request_for_approval = 1
         // if is_featured_home = 0 => request_for_approval = 0
         $featuredFlag = (int) ($validated['is_featured_home'] ?? 0);
+        $requestForApproval = ($workflowStatus === 'pending_check' || $workflowStatus === 'checked') ? 1 : 0;
 
         $insert = [
             'uuid'              => $uuid,
@@ -776,7 +820,17 @@ class PlacementNoticeController extends Controller
 
             'is_featured_home'  => $featuredFlag,
             'sort_order'        => (int) ($validated['sort_order'] ?? 0),
-            'status'            => (string) ($validated['status'] ?? 'draft'),
+
+            // Unified Workflow
+            'workflow_status'      => $workflowStatus,
+            'draft_data'           => null,
+
+            // Legacy Approval columns
+            'request_for_approval' => $requestForApproval,
+            'is_approved'          => ($workflowStatus === 'approved') ? 1 : 0,
+            'is_rejected'          => ($workflowStatus === 'rejected') ? 1 : 0,
+
+            'status'               => (string)($validated['status'] ?? 'published'),
             'publish_at'        => !empty($validated['publish_at']) ? Carbon::parse($validated['publish_at']) : null,
             'expire_at'         => !empty($validated['expire_at']) ? Carbon::parse($validated['expire_at']) : null,
 
@@ -929,8 +983,8 @@ class PlacementNoticeController extends Controller
         // slug unique
         if (array_key_exists('slug', $validated) && trim((string)$validated['slug']) !== '') {
             $slug = $this->normSlug($validated['slug']);
-            if ($slug === '') $slug = (string) ($row->slug ?? '');
-            $slug = $this->ensureUniqueSlug($slug, (string) $row->uuid);
+            if ($slug === '') $slug = (string) ($row?->slug ?? '');
+            $slug = $this->ensureUniqueSlug($slug, (string) ($row?->uuid ?? ''));
             $update['slug'] = $slug;
         }
 
@@ -946,7 +1000,7 @@ class PlacementNoticeController extends Controller
 
         // banner remove
         if (filter_var($request->input('banner_image_remove', false), FILTER_VALIDATE_BOOLEAN)) {
-            $this->deletePublicPath($row->banner_image_url ?? null);
+            $this->deletePublicPath($row?->banner_image_url ?? null);
             $update['banner_image_url'] = null;
         }
 
@@ -960,7 +1014,7 @@ class PlacementNoticeController extends Controller
             $existingDeptIds = $this->normalizeDepartmentIds($request->input('department_ids', null));
             if ($existingDeptIds === null) {
                 // fallback: try from row
-                $existingDeptIds = $this->normalizeDepartmentIds($row->department_ids ?? null);
+                $existingDeptIds = $this->normalizeDepartmentIds($row?->department_ids ?? null);
             }
 
             $deptKey = (!empty($existingDeptIds) && is_array($existingDeptIds))
@@ -974,41 +1028,65 @@ class PlacementNoticeController extends Controller
                 return response()->json(['success' => false, 'message' => 'Banner image upload failed'], 422);
             }
 
-            $this->deletePublicPath($row->banner_image_url ?? null);
+            $this->deletePublicPath($row?->banner_image_url ?? null);
 
-            $useSlug = (string) ($update['slug'] ?? $row->slug ?? 'placement-notice');
+            $useSlug = (string) ($update['slug'] ?? $row?->slug ?? 'placement-notice');
             $meta = $this->uploadFileToPublic($f, $dirRel, $useSlug . '-banner');
             $update['banner_image_url'] = $meta['path'];
         }
 
-        DB::table('placement_notices')->where('id', (int) $row->id)->update($update);
+        /* ---------------- Execution ---------------- */
+        try {
+            $result = $this->handleWorkflowUpdate($request, 'placement_notices', (int) ($row?->id ?? 0), $update);
+            
+            $fresh = DB::table('placement_notices')->where('id', (int) ($row?->id ?? 0))->first();
+            
+            $msg = ($result === 'drafted') 
+                ? 'Your changes have been submitted for approval. The live content will remain unchanged until approved.'
+                : 'Placement notice updated successfully.';
 
-        $fresh = DB::table('placement_notices')->where('id', (int) $row->id)->first();
+            [$changed, $old, $new] = $this->diffForLog($beforeRow, $update);
 
-        // ✅ LOG (PUT/PATCH)
-        [$changed, $oldVals, $newVals] = $this->diffForLog($beforeRow, $update);
-        $this->logActivity(
-            $request,
-            'update',
-            'placement_notices',
-            'placement_notices',
-            (int) $row->id,
-            $changed,
-            $oldVals ?: null,
-            $newVals ?: null,
-            'Placement notice updated'
-        );
+            $this->logActivity(
+                $request,
+                'update',
+                'placement_notices',
+                'placement_notices',
+                (int) ($row?->id ?? 0),
+                $changed,
+                $old,
+                $new,
+                $msg
+            );
 
-        $deptMap = $this->departmentsMap(false);
+            $deptMap = $this->departmentsMap(false);
 
-        return response()->json([
-            'success' => true,
-            'data'    => $fresh ? $this->normalizeRow($fresh, $deptMap) : null,
-            // ✅ for frontend dropdown selection
-            'lookups' => [
-                'departments' => array_values($deptMap),
-            ],
-        ]);
+            return response()->json([
+                'success' => true,
+                'message' => $msg,
+                'data'    => $fresh ? $this->normalizeRow($fresh, $deptMap) : null,
+                // ✅ for frontend dropdown selection
+                'lookups' => [
+                    'departments' => array_values($deptMap),
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            $this->logActivity(
+                $request,
+                'update_error',
+                'placement_notices',
+                'placement_notices',
+                (int) ($row?->id ?? 0),
+                null,
+                null,
+                null,
+                'Error: ' . $e->getMessage()
+            );
+            return response()->json([
+                'success' => false,
+                'message' => 'Update failed: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     public function toggleFeatured(Request $request, $identifier)
@@ -1016,9 +1094,9 @@ class PlacementNoticeController extends Controller
         $row = $this->resolvePlacementNotice($request, $identifier, true);
         if (! $row) return response()->json(['message' => 'Placement notice not found'], 404);
 
-        $beforeRow = DB::table('placement_notices')->where('id', (int) $row->id)->first();
+        $beforeRow = DB::table('placement_notices')->where('id', (int) ($row?->id ?? 0))->first();
 
-        $new = ((int) ($row->is_featured_home ?? 0)) ? 0 : 1;
+        $new = ((int) ($row?->is_featured_home ?? 0)) ? 0 : 1;
 
         $update = [
             'is_featured_home' => $new,
@@ -1033,9 +1111,9 @@ class PlacementNoticeController extends Controller
             $update['request_for_approval'] = $new ? 1 : 0;
         }
 
-        DB::table('placement_notices')->where('id', (int) $row->id)->update($update);
+        DB::table('placement_notices')->where('id', (int) ($row?->id ?? 0))->update($update);
 
-        $fresh = DB::table('placement_notices')->where('id', (int) $row->id)->first();
+        $fresh = DB::table('placement_notices')->where('id', (int) ($row?->id ?? 0))->first();
 
         // ✅ LOG (PATCH)
         [$changed, $oldVals, $newVals] = $this->diffForLog($beforeRow, $update);
@@ -1044,7 +1122,7 @@ class PlacementNoticeController extends Controller
             'toggle_featured',
             'placement_notices',
             'placement_notices',
-            (int) $row->id,
+            (int) ($row?->id ?? 0),
             $changed,
             $oldVals ?: null,
             $newVals ?: null,
@@ -1064,7 +1142,7 @@ class PlacementNoticeController extends Controller
         $row = $this->resolvePlacementNotice($request, $identifier, false);
         if (! $row) return response()->json(['message' => 'Not found or already deleted'], 404);
 
-        $beforeRow = DB::table('placement_notices')->where('id', (int) $row->id)->first();
+        $beforeRow = DB::table('placement_notices')->where('id', (int) ($row?->id ?? 0))->first();
         $now = now();
 
         $update = [
@@ -1073,7 +1151,7 @@ class PlacementNoticeController extends Controller
             'updated_at_ip' => $request->ip(),
         ];
 
-        DB::table('placement_notices')->where('id', (int) $row->id)->update($update);
+        DB::table('placement_notices')->where('id', (int) ($row?->id ?? 0))->update($update);
 
         // ✅ LOG (DELETE)
         [$changed, $oldVals, $newVals] = $this->diffForLog($beforeRow, $update);
@@ -1082,7 +1160,7 @@ class PlacementNoticeController extends Controller
             'delete',
             'placement_notices',
             'placement_notices',
-            (int) $row->id,
+            (int) ($row?->id ?? 0),
             $changed,
             $oldVals ?: null,
             $newVals ?: null,
@@ -1095,11 +1173,20 @@ class PlacementNoticeController extends Controller
     public function restore(Request $request, $identifier)
     {
         $row = $this->resolvePlacementNotice($request, $identifier, true);
-        if (! $row || $row->deleted_at === null) {
+        if (! $row || $row?->deleted_at === null) {
             return response()->json(['message' => 'Not found in bin'], 404);
         }
 
-        $beforeRow = DB::table('placement_notices')->where('id', (int) $row->id)->first();
+        if (!empty($row?->department_id)) {
+            $dept = DB::table('departments')->where('id', (int) $row?->department_id)->first();
+            if ($row) {
+                $row->department_title = $dept?->title ?? null;
+                $row->department_slug  = $dept?->slug ?? null;
+                $row->department_uuid  = $dept?->uuid ?? null;
+            }
+        }
+
+        $beforeRow = DB::table('placement_notices')->where('id', (int) ($row?->id ?? 0))->first();
         $now = now();
 
         $update = [
@@ -1108,9 +1195,9 @@ class PlacementNoticeController extends Controller
             'updated_at_ip' => $request->ip(),
         ];
 
-        DB::table('placement_notices')->where('id', (int) $row->id)->update($update);
+        DB::table('placement_notices')->where('id', (int) ($row?->id ?? 0))->update($update);
 
-        $fresh = DB::table('placement_notices')->where('id', (int) $row->id)->first();
+        $fresh = DB::table('placement_notices')->where('id', (int) ($row?->id ?? 0))->first();
 
         // ✅ LOG (POST/PATCH)
         [$changed, $oldVals, $newVals] = $this->diffForLog($beforeRow, $update);
@@ -1212,6 +1299,7 @@ class PlacementNoticeController extends Controller
 
         $now = now();
         $isVisible =
+            ($row->workflow_status === 'approved') &&
             ($row->status === 'published') &&
             (empty($row->publish_at) || Carbon::parse($row->publish_at)->lte($now)) &&
             (empty($row->expire_at)  || Carbon::parse($row->expire_at)->gt($now));

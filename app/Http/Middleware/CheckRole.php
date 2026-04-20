@@ -179,6 +179,13 @@ class CheckRole
             'trainingandplacementofficer' => 'placement_officer',
             'placementcell'            => 'placement_officer',
 
+            // author
+            'aut'           => 'author',
+            'author'        => 'author',
+            'contentauthor' => 'author',
+            'contentwriter' => 'author',
+            'writer'        => 'author',
+
             // student
             'std'       => 'student',
             'stu'       => 'student',
