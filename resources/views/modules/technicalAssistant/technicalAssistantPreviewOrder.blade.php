@@ -448,7 +448,7 @@
       if (!ACTOR.role){
         ACTOR.role = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
       }
-      canWrite = (!ACTOR.department_id).toLowerCase());
+      canWrite = ['admin', 'director', 'principal', 'hod', 'super_admin', 'author'].includes(ACTOR.role);
 
       const wc = $('writeControls');
       if (wc) wc.style.display = canWrite ? 'flex' : 'none';

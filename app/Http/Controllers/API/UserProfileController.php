@@ -77,20 +77,54 @@ class UserProfileController extends Controller
      * - No auth inside controller
      * (IMPORTANT: route must NOT be inside auth middleware group)
      */
-public function show(Request $request, string $identifier)
+public function show(Request $request, ?string $identifier = null)
 {
+    $identifier = trim(urldecode((string) $identifier));
+
+    if ($identifier === '' || strtolower($identifier) === 'me') {
+        return $this->me($request);
+    }
+
+    $slugIdentifier = Str::slug($identifier);
+
     $user = DB::table('users')
         ->whereNull('deleted_at')
-        ->where(function ($q) use ($identifier) {
+        ->where(function ($q) use ($identifier, $slugIdentifier) {
             $q->where('uuid', $identifier)
               ->orWhere('slug', $identifier);
+
+            if ($slugIdentifier && $slugIdentifier !== $identifier) {
+                $q->orWhere('slug', $slugIdentifier);
+            }
+
+            if (ctype_digit($identifier)) {
+                $q->orWhere('id', (int) $identifier);
+            }
         })
         ->first();
+
+    // Fallback: if the users.slug column is empty or different,
+    // match the frontend slug with Str::slug(users.name).
+    if (!$user && $slugIdentifier) {
+        $candidates = DB::table('users')
+            ->whereNull('deleted_at')
+            ->whereNotNull('name')
+            ->select('id', 'uuid', 'name', 'slug', 'role', 'role_short_form', 'email', 'phone_number', 'alternative_email', 'alternative_phone_number', 'whatsapp_number', 'image', 'address', 'status', 'created_at')
+            ->get();
+
+        $user = $candidates->first(function ($row) use ($slugIdentifier) {
+            return Str::slug((string) ($row->name ?? '')) === $slugIdentifier;
+        });
+    }
 
     if (!$user) {
         return response()->json([
             'success' => false,
             'error'   => 'User not found',
+            'debug'   => app()->environment('production') ? null : [
+                'identifier' => $identifier,
+                'slug_checked' => $slugIdentifier,
+            ],
         ], 404);
     }
 

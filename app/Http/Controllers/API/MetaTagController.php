@@ -34,32 +34,116 @@ class MetaTagController extends Controller
         }
     }
 
-    /** Normalize link/path/url => canonical path like "/about-us" (no query, no trailing slash) */
-    private function normalizePageLink(?string $raw): ?string
-    {
-        if ($raw === null) return null;
+    private function bestPublicPathFromPage(object $page): ?string
+{
+    $candidates = [];
 
-        $raw = trim($raw);
-        if ($raw === '') return null;
+    if (isset($page->page_url) && is_string($page->page_url) && trim($page->page_url) !== '') {
+        $candidates[] = $page->page_url;
+    }
 
-        // if user mistakenly types "/http://..." remove leading slash
-        if (Str::startsWith($raw, ['/http://', '/https://'])) {
-            $raw = ltrim($raw, '/');
+    if (isset($page->page_link) && is_string($page->page_link) && trim($page->page_link) !== '') {
+        $candidates[] = $page->page_link;
+    }
+
+    if (isset($page->slug) && is_string($page->slug) && trim($page->slug) !== '') {
+        $candidates[] = '/' . trim($page->slug, '/');
+    }
+
+    foreach ($candidates as $candidate) {
+        $normalized = $this->normalizePageLink($candidate);
+        if ($normalized) return $normalized;
+    }
+
+    return null;
+}
+
+public function publicPrerenderRoutes(Request $request)
+{
+    $routes = [];
+
+    if (Schema::hasColumn('meta_tags', 'page_link')) {
+        $q = DB::table('meta_tags')
+            ->select('page_link')
+            ->whereNotNull('page_link')
+            ->where('page_link', '!=', '');
+
+        if (Schema::hasColumn('meta_tags', 'deleted_at')) {
+            $q->whereNull('deleted_at');
         }
 
-        // full URL -> path only
-        $path = parse_url($raw, PHP_URL_PATH);
-        $path = $path ?: $raw;
-
-        // strip query/hash if raw includes them
-        $path = explode('?', $path, 2)[0];
-        $path = explode('#', $path, 2)[0];
-
-        $path = '/' . ltrim($path, '/');
-        $path = rtrim($path, '/'); // canonical
-
-        return $path === '' ? '/' : $path;
+        foreach ($q->distinct()->pluck('page_link') as $rawPath) {
+            $path = $this->normalizePageLink((string) $rawPath);
+            if ($path) $routes[$path] = $path;
+        }
     }
+
+    if (Schema::hasColumn('meta_tags', 'page_id') && Schema::hasTable('pages')) {
+        $metaQ = DB::table('meta_tags')
+            ->select('page_id')
+            ->whereNotNull('page_id');
+
+        if (Schema::hasColumn('meta_tags', 'deleted_at')) {
+            $metaQ->whereNull('deleted_at');
+        }
+
+        $pageIds = $metaQ->distinct()->pluck('page_id')->filter()->values()->all();
+
+        if (!empty($pageIds)) {
+            $pageQ = DB::table('pages')->whereIn('id', $pageIds);
+
+            $selects = ['id'];
+            if (Schema::hasColumn('pages', 'page_url'))  $selects[] = 'page_url';
+            if (Schema::hasColumn('pages', 'page_link')) $selects[] = 'page_link';
+            if (Schema::hasColumn('pages', 'slug'))      $selects[] = 'slug';
+
+            $pages = $pageQ->get($selects);
+
+            foreach ($pages as $page) {
+                $path = $this->bestPublicPathFromPage($page);
+                if ($path) $routes[$path] = $path;
+            }
+        }
+    }
+
+    ksort($routes, SORT_NATURAL);
+
+    return response()->json([
+        'success' => true,
+        'data'    => array_values($routes),
+    ]);
+}
+
+    /** Normalize link/path/url => canonical path like "/about-us" (no query, no trailing slash) */
+private function normalizePageLink(?string $raw): ?string
+{
+    if ($raw === null) return null;
+
+    $raw = trim($raw);
+    if ($raw === '') return null;
+
+    if (Str::startsWith($raw, ['/http://', '/https://'])) {
+        $raw = ltrim($raw, '/');
+    }
+
+    $isFullUrl = preg_match('/^https?:\/\//i', $raw) === 1;
+
+    if ($isFullUrl) {
+        $parsedPath = parse_url($raw, PHP_URL_PATH);
+        $path = is_string($parsedPath) ? $parsedPath : '/';
+    } else {
+        $path = $raw;
+    }
+
+    $path = explode('?', $path, 2)[0];
+    $path = explode('#', $path, 2)[0];
+
+    $path = '/' . ltrim($path, '/');
+    $path = preg_replace('#/+#', '/', $path);
+    $path = rtrim($path, '/');
+
+    return $path === '' ? '/' : $path;
+}
 
     /**
      * Resolve pages.id by a link
@@ -1007,4 +1091,148 @@ class MetaTagController extends Controller
             'data'    => $data,
         ]);
     }
+
+    private function metaTypeKey(string $type, string $attr = ''): string
+{
+    $t = strtolower(trim($type));
+    $a = strtolower(trim($attr));
+
+    if ($t === 'og' || $t === 'open_graph' || $t === 'opengraph') return 'opengraph';
+    if ($t === 'http' || $t === 'http_equiv' || $t === 'http-equiv') return 'http';
+    if ($t === 'name') return Str::startsWith($a, 'twitter:') ? 'twitter' : 'standard';
+    if ($t === 'property') return 'opengraph';
+    if ($t === 'charset' || $a === 'charset') return 'charset';
+    if (Str::startsWith($a, 'og:')) return 'opengraph';
+    if (Str::startsWith($a, 'twitter:')) return 'twitter';
+
+    return $t ?: 'standard';
+}
+
+public function publicResolve(Request $request)
+{
+    $hasPageId = Schema::hasColumn('meta_tags', 'page_id') && Schema::hasTable('pages');
+    $hasPageLink = Schema::hasColumn('meta_tags', 'page_link');
+
+    if ($hasPageId) {
+        $hasAnyScope = $request->filled('page_id') || $request->filled('page_link') || $request->filled('url') || $request->filled('path');
+        if (!$hasAnyScope) {
+            return response()->json([
+                'success' => false,
+                'message' => 'page_id or page_link/url/path is required'
+            ], 422);
+        }
+
+        [$pageId, $pageLinkScope] = $this->resolveScopeFromRequest($request);
+
+        if (!$pageId && !$pageLinkScope) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid page scope'
+            ], 422);
+        }
+    } else {
+        $raw = $request->query('page_link') ?? $request->query('url') ?? $request->query('path');
+        $pageLinkScope = $this->normalizePageLink(is_string($raw) ? $raw : null);
+
+        if (!$pageLinkScope) {
+            return response()->json([
+                'success' => false,
+                'message' => 'page_link/url/path is required'
+            ], 422);
+        }
+
+        $pageId = null;
+    }
+
+    $q = DB::table('meta_tags')->orderByDesc('id');
+
+    if (Schema::hasColumn('meta_tags', 'deleted_at')) {
+        $q->whereNull('deleted_at');
+    }
+
+    $scoped = false;
+
+    if ($hasPageId && $pageId) {
+        $q->where('page_id', (int) $pageId);
+        $scoped = true;
+    }
+
+    if (!$scoped && $hasPageLink && !empty($pageLinkScope)) {
+        $q->where('page_link', $pageLinkScope);
+        $scoped = true;
+    }
+
+    if (!$scoped) {
+        return response()->json([
+            'success' => true,
+            'resolved' => [
+                'page_id'   => $pageId,
+                'page_link' => $pageLinkScope,
+            ],
+            'meta' => [
+                'charset'   => null,
+                'standard'  => [],
+                'opengraph' => [],
+                'twitter'   => [],
+                'http'      => [],
+            ],
+            'title' => null,
+            'rows'  => [],
+        ]);
+    }
+
+    $rows = $q->limit(500)->get();
+
+    $meta = [
+        'charset'   => null,
+        'standard'  => [],
+        'opengraph' => [],
+        'twitter'   => [],
+        'http'      => [],
+    ];
+
+    foreach ($rows as $r) {
+        $type = (string) ($r->tag_type ?? $r->type ?? 'standard');
+        $attr = trim((string) ($r->attribute ?? $r->tag_attribute ?? $r->attr_value ?? ''));
+        $val  = trim((string) ($r->content ?? $r->tag_attribute_value ?? $r->value ?? ''));
+
+        $typeKey = $this->metaTypeKey($type, $attr);
+
+        if ($typeKey === 'charset') {
+            if (!$meta['charset'] && $val !== '') {
+                $meta['charset'] = $val;
+            }
+            continue;
+        }
+
+        if ($attr === '' || $val === '') {
+            continue;
+        }
+
+        if (!isset($meta[$typeKey])) {
+            $meta[$typeKey] = [];
+        }
+
+        // keep first because query is DESC by id
+        if (!array_key_exists($attr, $meta[$typeKey])) {
+            $meta[$typeKey][$attr] = $val;
+        }
+    }
+
+    $title = $meta['opengraph']['og:title']
+        ?? $meta['twitter']['twitter:title']
+        ?? $meta['standard']['title']
+        ?? null;
+
+    return response()->json([
+        'success' => true,
+        'resolved' => [
+            'page_id'   => $pageId,
+            'page_link' => $pageLinkScope,
+        ],
+        'title' => $title,
+        'meta'  => $meta,
+        'rows'  => array_map(fn ($r) => $this->normalizeRow($r), $rows->all()),
+    ]);
+}
 }

@@ -157,7 +157,9 @@ Route::middleware(['checkRole'])
     });
 
 Route::get('/me/profile', [UserProfileController::class,'show']);
+Route::get('/me/profile', [UserProfileController::class, 'me']); // keep this inside your auth/API middleware group if needed
 Route::get('/users/{identifier}/profile', [UserProfileController::class, 'show']);
+
     
 // ✅ Other user's profile (protected)
 Route::middleware(['checkRole'])->prefix('users')->group(function () {
@@ -1467,6 +1469,8 @@ Route::prefix('placed-students')->group(function () {
     Route::delete('/{identifier}', [PlacedStudentController::class, 'destroy']);
     Route::put('/{identifier}/restore', [PlacedStudentController::class, 'restore']);
     Route::delete('/{identifier}/force', [PlacedStudentController::class, 'forceDelete']);
+
+    Route::get('/public/index', [PlacedStudentController::class, 'publicIndex']);
 });
 
 
@@ -2186,6 +2190,8 @@ Route::middleware('checkRole')->group(function () {
 
 Route::prefix('public')->group(function () {
     Route::get('/meta-tags', [MetaTagController::class, 'publicIndex']);
+    Route::get('/meta-tags/resolve', [MetaTagController::class, 'publicResolve']);
+    Route::get('/meta-tags/routes', [MetaTagController::class, 'publicPrerenderRoutes']);
 });
 
 /*

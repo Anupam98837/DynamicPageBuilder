@@ -142,6 +142,33 @@ td.col-slug code{
 
 /* ===== Modal editor ===== */
 .mini-help{font-size:12px;color:var(--muted-color);margin-top:6px}
+.dimension-hint{
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  margin-top:8px;
+  padding:10px 12px;
+  border:1px solid color-mix(in oklab, var(--primary-color) 18%, var(--line-soft));
+  border-radius:12px;
+  background:color-mix(in oklab, var(--primary-color) 7%, transparent);
+  color:var(--ink);
+}
+.dimension-hint i{
+  margin-top:2px;
+  color:var(--primary-color);
+}
+.dimension-hint strong{
+  display:block;
+  font-size:12.5px;
+  line-height:1.35;
+}
+.dimension-hint span{
+  display:block;
+  margin-top:2px;
+  color:var(--muted-color);
+  font-size:12px;
+  line-height:1.35;
+}
 .code-switch{display:flex;border:1px solid var(--line-soft);border-radius:12px;overflow:hidden}
 .code-switch button{
   border:0;background:transparent;color:var(--ink);
@@ -477,6 +504,13 @@ textarea.editor-code{
               <div class="col-12">
                 <label class="form-label">Desktop Image <span class="text-danger">*</span></label>
                 <input type="file" class="form-control" id="hcDesktopFile" accept="image/*">
+                <div class="dimension-hint">
+                  <i class="fa-solid fa-desktop" aria-hidden="true"></i>
+                  <div>
+                    <strong>Recommended desktop size: 1920 × 500 px</strong>
+                    <span>Best fit for the frontend hero banner. Keep important text/subject centered because the image uses cover cropping.</span>
+                  </div>
+                </div>
                 <div class="form-text">Upload OR provide path/url below.</div>
                 <input class="form-control mt-2" id="hcDesktopPath" maxlength="255" placeholder="depy_uploads/hero_carousel/xxx.jpg or https://...">
                 <div class="d-flex align-items-center gap-2 mt-2" id="hcDesktopRemoveWrap" style="display:none;">
@@ -488,6 +522,13 @@ textarea.editor-code{
               <div class="col-12">
                 <label class="form-label">Mobile Image</label>
                 <input type="file" class="form-control" id="hcMobileFile" accept="image/*">
+                <div class="dimension-hint">
+                  <i class="fa-solid fa-mobile-screen-button" aria-hidden="true"></i>
+                  <div>
+                    <strong>Recommended mobile size: 768 × 280 px</strong>
+                    <span>Used on screens up to 768px. Keep the main subject centered for safe cropping on smaller phones.</span>
+                  </div>
+                </div>
                 <div class="form-text">Optional (upload OR path/url).</div>
                 <input class="form-control mt-2" id="hcMobilePath" maxlength="255" placeholder="depy_uploads/hero_carousel/xxx-mobile.jpg or https://...">
                 <div class="d-flex align-items-center gap-2 mt-2" id="hcMobileRemoveWrap" style="display:none;">

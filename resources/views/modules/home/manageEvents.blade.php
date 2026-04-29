@@ -200,8 +200,13 @@ td.col-slug code{
 /* ✅ PORTAL MENU (moves to <body>) */
 .ev-dd-portal{
   position:fixed !important;
+  transform:none !important;
+  margin:0 !important;
   z-index:2147483647 !important; /* max-ish */
+  display:none;
+  will-change:top,left;
 }
+.ev-dd-portal.show{display:block !important}
 
 /* Loading overlay */
 .ev-loading{
@@ -1227,11 +1232,11 @@ td.col-slug code{
         const updated = coalesce(r.updated_at, '—');
 
         let actions = `
-          <div class="dropdown text-end">
-            <button type="button" class="btn btn-light btn-sm ev-dd-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Actions">
+          <div class="dropdown text-end ev-action-dd" data-row-key="${esc(key)}">
+            <button type="button" class="btn btn-light btn-sm ev-dd-toggle" data-bs-toggle="dropdown" data-bs-display="static" data-bs-auto-close="true" aria-expanded="false" title="Actions">
               <i class="fa fa-ellipsis-vertical"></i>
             </button>
-            <ul class="dropdown-menu dropdown-menu-end ev-dd-portal">
+            <ul class="dropdown-menu dropdown-menu-end ev-dd-portal" data-row-key="${esc(key)}">
               <li><button type="button" class="dropdown-item" onclick="eventsModule.openModal('view', ${JSON.stringify(r).replace(/"/g, '&quot;')})"><i class="fa fa-eye"></i> View</button></li>
               <li><button type="button" class="dropdown-item" onclick="eventsModule.showHistory('events', ${r.id})"><i class="fa fa-clock-rotate-left"></i> Workflow History</button></li>`;
 
@@ -1242,13 +1247,13 @@ td.col-slug code{
         if (tabKey !== 'trash'){
           if (canDelete){
             actions += `<li><hr class="dropdown-divider"></li>
-              <li><button type="button" class="dropdown-item text-danger" data-action="delete"><i class="fa fa-trash"></i> Delete</button></li>`;
+              <li><button type="button" class="dropdown-item text-danger" data-action="delete" data-key="${esc(key)}"><i class="fa fa-trash"></i> Delete</button></li>`;
           }
         } else {
           actions += `<li><hr class="dropdown-divider"></li>
-            <li><button type="button" class="dropdown-item" data-action="restore"><i class="fa fa-rotate-left"></i> Restore</button></li>`;
+            <li><button type="button" class="dropdown-item" data-action="restore" data-key="${esc(key)}"><i class="fa fa-rotate-left"></i> Restore</button></li>`;
           if (canDelete){
-            actions += `<li><button type="button" class="dropdown-item text-danger" data-action="force"><i class="fa fa-skull-crossbones"></i> Delete Permanently</button></li>`;
+            actions += `<li><button type="button" class="dropdown-item text-danger" data-action="force" data-key="${esc(key)}"><i class="fa fa-skull-crossbones"></i> Delete Permanently</button></li>`;
           }
         }
 
@@ -1901,13 +1906,148 @@ td.col-slug code{
       }
     });
 
+    // Action dropdown portal fix
+    // Keeps the Actions menu visible outside the horizontal table scroll wrapper.
+    const actionDropdownPortal = { menu:null, toggle:null, parent:null, next:null };
+
+    function resetActionDropdownStyles(menu){
+      if (!menu) return;
+      ['left','top','right','bottom','position','transform','margin','z-index','visibility','display','inset'].forEach((prop) => {
+        try { menu.style.removeProperty(prop); } catch (_) {}
+      });
+    }
+
+    function restoreActionDropdownMenu(menu){
+      if (!menu || !menu.classList.contains('ev-dd-portal')) return;
+      const parent = menu.__evOriginalParent || actionDropdownPortal.parent;
+      const next = menu.__evOriginalNext || actionDropdownPortal.next;
+
+      if (parent && parent.isConnected && menu.parentElement !== parent){
+        try{ parent.insertBefore(menu, next && next.isConnected ? next : null); }catch(_){ parent.appendChild(menu); }
+      }
+
+      resetActionDropdownStyles(menu);
+      delete menu.__evOriginalParent;
+      delete menu.__evOriginalNext;
+
+      if (actionDropdownPortal.menu === menu){
+        actionDropdownPortal.menu = null;
+        actionDropdownPortal.toggle = null;
+        actionDropdownPortal.parent = null;
+        actionDropdownPortal.next = null;
+      }
+    }
+
+    function positionActionDropdownMenu(toggle, menu){
+      if (!toggle || !menu) return;
+
+      const rect = toggle.getBoundingClientRect();
+      const gap = 6;
+      const viewportPad = 8;
+
+      /*
+       * Important fix:
+       * Bootstrap/Popper and the table scroll wrapper can leave this portal menu
+       * with auto inset/default fixed placement, which makes it float at the
+       * bottom-left of the page. Force all placement values with !important so
+       * the menu always opens beside the clicked action button.
+       */
+      menu.style.setProperty('position', 'fixed', 'important');
+      menu.style.setProperty('transform', 'none', 'important');
+      menu.style.setProperty('margin', '0', 'important');
+      menu.style.setProperty('z-index', '2147483647', 'important');
+      menu.style.setProperty('visibility', 'hidden', 'important');
+      menu.style.setProperty('display', 'block', 'important');
+      menu.style.setProperty('right', 'auto', 'important');
+      menu.style.setProperty('bottom', 'auto', 'important');
+
+      const menuWidth = menu.offsetWidth || 230;
+      const menuHeight = menu.offsetHeight || 180;
+
+      let left = rect.right - menuWidth;
+      left = Math.max(viewportPad, Math.min(left, window.innerWidth - menuWidth - viewportPad));
+
+      let top = rect.bottom + gap;
+      if (top + menuHeight > window.innerHeight - viewportPad){
+        top = rect.top - menuHeight - gap;
+      }
+      top = Math.max(viewportPad, Math.min(top, window.innerHeight - menuHeight - viewportPad));
+
+      menu.style.setProperty('left', `${Math.round(left)}px`, 'important');
+      menu.style.setProperty('top', `${Math.round(top)}px`, 'important');
+      menu.style.removeProperty('visibility');
+    }
+
+    function repositionOpenActionDropdown(){
+      const { toggle, menu } = actionDropdownPortal;
+      if (!toggle || !menu || !menu.classList.contains('show')) return;
+      if (!toggle.isConnected){
+        restoreActionDropdownMenu(menu);
+        return;
+      }
+      positionActionDropdownMenu(toggle, menu);
+    }
+
+    document.addEventListener('show.bs.dropdown', (e) => {
+      const toggle = e.target;
+      if (!toggle?.classList?.contains('ev-dd-toggle')) return;
+
+      const menu = toggle.nextElementSibling;
+      if (!menu?.classList?.contains('ev-dd-portal')) return;
+
+      actionDropdownPortal.menu = menu;
+      actionDropdownPortal.toggle = toggle;
+      actionDropdownPortal.parent = menu.parentElement;
+      actionDropdownPortal.next = menu.nextSibling;
+
+      menu.__evOriginalParent = menu.parentElement;
+      menu.__evOriginalNext = menu.nextSibling;
+      document.body.appendChild(menu);
+    });
+
+    document.addEventListener('shown.bs.dropdown', (e) => {
+      const toggle = e.target;
+      if (!toggle?.classList?.contains('ev-dd-toggle')) return;
+
+      const menu = actionDropdownPortal.menu;
+      if (!menu) return;
+      positionActionDropdownMenu(toggle, menu);
+    });
+
+    document.addEventListener('hide.bs.dropdown', (e) => {
+      const toggle = e.target;
+      if (!toggle?.classList?.contains('ev-dd-toggle')) return;
+      const menu = actionDropdownPortal.menu;
+      if (menu) menu.style.display = '';
+    });
+
+    document.addEventListener('hidden.bs.dropdown', (e) => {
+      const toggle = e.target;
+      if (!toggle?.classList?.contains('ev-dd-toggle')) return;
+      restoreActionDropdownMenu(actionDropdownPortal.menu);
+    });
+
+    window.addEventListener('resize', repositionOpenActionDropdown);
+    window.addEventListener('scroll', repositionOpenActionDropdown, true);
+
+    // Extra safety for Safari/Bootstrap timing: position again immediately after the click cycle.
+    document.addEventListener('click', (e) => {
+      const toggle = e.target.closest('.ev-dd-toggle');
+      if (!toggle) return;
+      setTimeout(() => {
+        const menu = actionDropdownPortal.menu || toggle.parentElement?.querySelector('.ev-dd-portal');
+        if (menu?.classList?.contains('show')) positionActionDropdownMenu(toggle, menu);
+      }, 0);
+    });
+
     // Row actions
     document.addEventListener('click', async (e) => {
       const btn = e.target.closest('button[data-action]');
       if (!btn) return;
 
       const tr = btn.closest('tr');
-      const key = tr?.dataset?.key;
+      const menu = btn.closest('.ev-dd-portal');
+      const key = btn.dataset.key || menu?.dataset?.rowKey || tr?.dataset?.key;
       const act = btn.dataset.action;
       if (!key) return;
 

@@ -393,37 +393,104 @@ class PageController extends Controller
     /* ============================================
      | Public Resolve Page
      |============================================ */
-    public function publicResolve(Request $request)
-    {
-        $link = trim((string) $request->query('link', ''));
-        $slug = trim((string) $request->query('slug', ''));
-        $identifier = $slug ?: $link;
+public function publicResolve(Request $request)
+{
+    $link = trim((string) $request->query('link', ''));
+    $slug = trim((string) $request->query('slug', ''));
+    $dept = trim((string) $request->query('dept', ''));
 
-        if ($identifier === '') {
-            return response()->json(['error' => 'Missing slug or link'], 422);
-        }
-
-        $query = DB::table('pages')
-            ->whereNull('deleted_at')
-            ->where('status', 'Active')
-            ->where('workflow_status', 'approved');
-
-        if (ctype_digit((string) $identifier)) {
-            $query->where('id', (int) $identifier);
-        } elseif (Str::isUuid((string) $identifier)) {
-            $query->where('uuid', (string) $identifier);
-        } else {
-            $query->where('slug', $this->normSlug((string) $identifier));
-        }
-
-        $page = $query->first();
-
-        if (!$page) {
-            return response()->json(['error' => 'Not found'], 404);
-        }
-
-        return response()->json(['success' => true, 'data' => $page, 'page' => $page]);
+    if ($link === '' && $slug === '') {
+        return response()->json(['error' => 'Missing slug or link'], 422);
     }
+
+    // Base query — always require approved + active + not deleted
+    $baseQuery = DB::table('pages')
+        ->whereNull('deleted_at')
+        ->where('status', 'Active')
+        ->where('workflow_status', 'approved');
+
+    // ✅ Apply department scope when ?dept= is present
+    if ($dept !== '') {
+        $deptRow = DB::table('departments')
+            ->where(function ($q) use ($dept) {
+                $q->where('slug', $dept)
+                  ->orWhere('name', $dept)
+                  ->orWhere('short_name', $dept);
+            })
+            ->first(['id']);
+
+        if ($deptRow) {
+            $baseQuery->where('department_id', (int) $deptRow->id);
+        }
+    }
+
+    $page = null;
+
+    // ✅ 1. Link-based resolution: match page_url in DB (primary)
+    if ($link !== '') {
+        try {
+            $pathOnly = (string)(parse_url($link, PHP_URL_PATH) ?? $link);
+        } catch (\Throwable $e) {
+            $pathOnly = $link;
+        }
+
+        $pathOnly     = '/' . ltrim($pathOnly, '/');
+        $pathNoTrail  = rtrim($pathOnly, '/') ?: '/';
+        $pathTrail    = ($pathNoTrail === '/') ? '/' : ($pathNoTrail . '/');
+
+        $linkCandidates = array_values(array_unique(array_filter([
+            $pathNoTrail,
+            ltrim($pathNoTrail, '/'),
+            $pathTrail,
+            ltrim($pathTrail, '/'),
+            rtrim(url('/'), '/') . $pathNoTrail,
+            rtrim(url('/'), '/') . $pathTrail,
+        ])));
+
+        if (!empty($linkCandidates)) {
+            $page = (clone $baseQuery)
+                ->whereIn('page_url', $linkCandidates)
+                ->orderByDesc('id')
+                ->first();
+        }
+    }
+
+    // ✅ 2. Slug-based resolution (fallback)
+    if (!$page && $slug !== '') {
+        $normalized = Str::slug($slug, '-');
+        if ($normalized !== '') {
+            $page = (clone $baseQuery)
+                ->where('slug', $normalized)
+                ->orderByDesc('id')
+                ->first();
+        }
+    }
+
+    // ✅ 3. Last segment of link path as slug (final fallback)
+    if (!$page && $link !== '') {
+        try {
+            $pathOnly = (string)(parse_url($link, PHP_URL_PATH) ?? $link);
+        } catch (\Throwable $e) {
+            $pathOnly = $link;
+        }
+
+        $lastSeg = Str::slug(trim((string) basename($pathOnly)), '-');
+        $alreadyTried = $slug !== '' ? Str::slug($slug, '-') : '';
+
+        if ($lastSeg !== '' && $lastSeg !== $alreadyTried) {
+            $page = (clone $baseQuery)
+                ->where('slug', $lastSeg)
+                ->orderByDesc('id')
+                ->first();
+        }
+    }
+
+    if (!$page) {
+        return response()->json(['error' => 'Not found'], 404);
+    }
+
+    return response()->json(['success' => true, 'data' => $page, 'page' => $page]);
+}
 
     /* ============================================
      | CRUD
