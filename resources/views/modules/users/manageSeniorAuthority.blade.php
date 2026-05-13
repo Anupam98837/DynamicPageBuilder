@@ -130,15 +130,16 @@ td .fw-semibold{color:var(--ink)}
   -webkit-overflow-scrolling:touch;
 }
 .table-responsive > .table{
-  width:max-content;
+  width:max(100%, 980px);
   min-width:980px;
+  table-layout:auto;
 }
 .table-responsive th,
 .table-responsive td{
   white-space:nowrap;
 }
 @media (max-width: 576px){
-  .table-responsive > .table{ min-width:920px; }
+  .table-responsive > .table{ width:max(100%, 920px); min-width:920px; }
 }
 </style>
 @endpush
@@ -484,25 +485,7 @@ td .fw-semibold{color:var(--ink)}
 @endsection
 
 @push('scripts')
-<script src="https://code.jquery.com/jquery-3.7.1.min.js">
-
-  // ✅ Polyfill for fetchWithTimeout if missing
-  async function fetchWithTimeout(resource, options = {}, timeout = 15000) {
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeout);
-    try {
-      const response = await fetch(resource, {
-        ...options,
-        signal: controller.signal
-      });
-      clearTimeout(id);
-      return response;
-    } catch (error) {
-      clearTimeout(id);
-      throw error;
-    }
-  }
-</script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
@@ -558,7 +541,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // ✅ Role sets for this manage page
-  
+  const ADMIN_GROUP = new Set(['admin']);
   const SUPER_ADMIN_GROUP = new Set(['super_admin','superadmin','super-admin']);
   const DIRECTOR_GROUP = new Set(['director']);
   const PRINCIPAL_GROUP = new Set(['principal']);
@@ -650,8 +633,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const imgPrev = document.getElementById('imagePreview');
 
   // Actor & permissions
-  const ACTOR = { id: null, role: '', department_id: null };
-  let canAssignPrivilege = false;
+  const ACTOR = { id: null, role: '' };
   let canCreate = false, canEdit = false, canDelete = false;
 
   const state = {
@@ -669,32 +651,13 @@ document.addEventListener('DOMContentLoaded', function () {
   };
 
   function computePermissions() {
-    const r = (ACTOR?.role || '').toLowerCase();
-      if(!ACTOR.department_id){
-          canCreate = canEdit = canDelete = canAssignPrivilege = true;
-      } else {
-          canCreate = canEdit = canDelete = canAssignPrivilege = false;
-          if (window.ACTOR_MENU_TREE && Array.isArray(window.ACTOR_MENU_TREE)) {
-             const path = window.location.pathname.replace(/\/+$/, '') || '/';
-             let myActions = [];
-             for(const group of window.ACTOR_MENU_TREE) {
-                if(group.children) {
-                   for(const child of group.children) {
-                      const childPath = (child.href || '').replace(/\/+$/, '') || '/';
-                      if (path === childPath || path.endsWith(childPath)) {
-                         myActions = child.actions || [];
-                         break;
-                      }
-                   }
-                }
-             }
-             const actionsStr = myActions.map(a => String(a).trim().toLowerCase());
-             if (actionsStr.includes('add') || actionsStr.includes('create')) canCreate = true;
-             if (actionsStr.includes('edit') || actionsStr.includes('update')) canEdit = true;
-             if (actionsStr.includes('delete') || actionsStr.includes('remove')) canDelete = true;
-             if (actionsStr.includes('assign_privilege') || actionsStr.includes('assign privileges') || actionsStr.includes('privilege')) canAssignPrivilege = true;
-          }
-      }
+    const r = (ACTOR.role || '').toLowerCase();
+    const createDeleteRoles = ['super_admin','superadmin','super-admin','admin','director','principal'];
+    const writeRoles = ['super_admin','superadmin','super-admin','admin','director','principal'];
+
+    canCreate = createDeleteRoles.includes(r);
+    canDelete = createDeleteRoles.includes(r);
+    canEdit = writeRoles.includes(r);
 
     if (writeControls) writeControls.style.display = canCreate ? 'flex' : 'none';
 
@@ -711,20 +674,8 @@ document.addEventListener('DOMContentLoaded', function () {
       if (js && js.success && js.data) {
         ACTOR.id = js.data.id || null;
         ACTOR.role = (js.data.role || '').toLowerCase();
-        ACTOR.department_id = js.data.department_id || null;
-        ACTOR.department_id = js.data.department_id || null;
       } else {
         ACTOR.role = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
-      }
-      
-      if (!window.ACTOR_MENU_TREE) {
-        try {
-          const mRes = await fetchWithTimeout('/api/my/sidebar-menus?with_actions=1', { headers: authHeaders() }, 5000);
-          if (mRes.ok) {
-              const mData = await mRes.json();
-              window.ACTOR_MENU_TREE = mData?.tree || [];
-          }
-        } catch(e) {}
       }
       computePermissions();
     } catch (e) {
@@ -751,17 +702,10 @@ document.addEventListener('DOMContentLoaded', function () {
   function renderDepartmentsOptions() {
     if (!deptInput) return;
     const current = (deptInput.value || '').toString();
-    let html = '';
-    if ((!ACTOR.department_id)) {
-        html += '<option value="" selected disabled>Select Department</option>';
-    }
+    let html = `<option value="" selected disabled>Select Department</option>`;
     (state.departments || []).forEach(d => {
       const id = d?.id ?? d?.value ?? d?.department_id;
       if (id === undefined || id === null || id === '') return;
-      
-      if (!(!ACTOR.department_id) && String(id) !== String(ACTOR.department_id)) return;
-      
-      if (!(!ACTOR.department_id) && String(id) !== String(ACTOR.department_id)) return;
       html += `<option value="${escapeHtml(String(id))}">${escapeHtml(deptName(d))}</option>`;
     });
     deptInput.innerHTML = html;
@@ -833,9 +777,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
       // ✅ apply roleFilter locally too
       if (state.roleFilter === 'admin') {
-        filtered = filtered.filter(u => (!ACTOR.department_id).toLowerCase()));
+        filtered = filtered.filter(u => ADMIN_GROUP.has((u?.role || '').toLowerCase()));
       } else if (state.roleFilter === 'super_admin') {
-        filtered = filtered.filter(u => SUPER_(!ACTOR.department_id).toLowerCase()));
+        filtered = filtered.filter(u => SUPER_ADMIN_GROUP.has((u?.role || '').toLowerCase()));
       } else if (state.roleFilter === 'director') {
         filtered = filtered.filter(u => DIRECTOR_GROUP.has((u?.role || '').toLowerCase()));
       } else if (state.roleFilter === 'principal') {
@@ -953,12 +897,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 <i class="fa fa-user"></i> Profile
               </button>
             </li>
-            ${canAssignPrivilege ? `
             <li>
               <button type="button" class="dropdown-item" data-action="assign_privilege">
                 <i class="fa fa-key"></i> Assign Privilege
               </button>
-            </li>` : ''}
+            </li>
             <li><button type="button" class="dropdown-item" data-action="view">
               <i class="fa fa-eye"></i> View
             </button></li>`;
@@ -1454,10 +1397,10 @@ document.addEventListener('DOMContentLoaded', function () {
       const rr = (u.role || '').toLowerCase();
 
       let safeRole = 'admin';
-      if (SUPER_(!ACTOR.department_id)) safeRole = 'super_admin';
+      if (SUPER_ADMIN_GROUP.has(rr)) safeRole = 'super_admin';
       else if (DIRECTOR_GROUP.has(rr)) safeRole = 'director';
       else if (PRINCIPAL_GROUP.has(rr)) safeRole = 'principal';
-      else if ((!ACTOR.department_id)) safeRole = 'admin';
+      else if (ADMIN_GROUP.has(rr)) safeRole = 'admin';
 
       uuidInput.value = u.uuid || '';
       editingUserIdInput.value = u.id || '';

@@ -72,6 +72,9 @@ use App\Http\Controllers\API\MetaTagController;
 use App\Http\Controllers\API\AlumniController;
 use App\Http\Controllers\API\ProgramTopperController;
 use App\Http\Controllers\API\CourseEnquirySettingsController;
+use App\Http\Controllers\API\LoginOtpController;
+use App\Http\Controllers\API\GoogleAuthController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -99,6 +102,15 @@ Route::get('/auth/check',   [UserController::class, 'authenticateToken']);
 
 Route::middleware('checkRole')
     ->get('/admin/dashboard', [DashboardController::class, 'adminDashboard']);
+
+    Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirectToGoogle'])
+    ->name('auth.google.redirect');
+
+Route::get('/auth/google/callback', [GoogleAuthController::class, 'handleGoogleCallback'])
+    ->name('auth.google.callback');
+
+Route::post('/auth/send-login-otp', [LoginOtpController::class, 'sendLoginOtp']);
+Route::post('/auth/login-with-otp', [LoginOtpController::class, 'loginWithOtp']);
 
 // ✅ HOD Dashboard
 Route::middleware('checkRole')
@@ -2223,3 +2235,4 @@ Route::middleware('checkRole')
 
 // ✅ Public courses (uses enquiry settings: featured + sort_order)
 Route::get('/public/ordered-courses', [CourseEnquirySettingsController::class, 'publicCourses']);
+

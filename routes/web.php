@@ -5,8 +5,12 @@ use Illuminate\Support\Facades\Route;
 // Login Routes 
 
 
-Route::get('/', function () {
+Route::get('/home', function () {
     return view('landing.pages.home');
+});
+
+Route::get('/', function () {
+    return view('pages.auth.loginOtp');
 });
 
 //pages route

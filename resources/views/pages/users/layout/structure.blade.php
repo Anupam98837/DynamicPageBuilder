@@ -1007,7 +1007,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ===== Logout (token-based)
   const API_LOGOUT = '/api/auth/logout';
-  const LOGIN_PAGE = '/login';
+  const LOGIN_PAGE = '/';
 
   function clearAuthStorage(){
     try { sessionStorage.removeItem('token'); } catch(e){}
